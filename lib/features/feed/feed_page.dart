@@ -6,8 +6,9 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
-import '../../data/seed/demo_posts.dart';
+import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -21,24 +22,63 @@ class FeedPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final posts = DemoPosts.feedEcho;
-    final comments = DemoPosts.comments;
+    final posts = ref.watch(feedPostsProvider('echo'));
 
     return Container(
       color: EchoColors.bg,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          const _PlazaHeader(),
-          const SizedBox(height: 14),
-          const _MeCard(),
-          const SizedBox(height: 16),
-          const _FilterChips(),
-          const SizedBox(height: 12),
-          for (final post in posts) ...[
-            _PostCard(post: post, comments: comments[post.id] ?? const []),
+      child: posts.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: EchoColors.primary),
+        ),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('信息流加载失败：$error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: EchoColors.like, fontSize: 12)),
+          ),
+        ),
+        data: (list) => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            const _PlazaHeader(),
             const SizedBox(height: 14),
+            const _MeCard(),
+            const SizedBox(height: 16),
+            const _FilterChips(),
+            const SizedBox(height: 12),
+            if (list.isEmpty)
+              const _EmptyFeed()
+            else
+              for (final post in list) ...[
+                _PostCard(post: post),
+                const SizedBox(height: 14),
+              ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyFeed extends StatelessWidget {
+  const _EmptyFeed();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Column(
+        children: [
+          const Icon(Icons.auto_awesome_outlined,
+              size: 30, color: EchoColors.textFaint),
+          const SizedBox(height: 14),
+          Text(
+            AppTexts.emptyFeed,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: EchoColors.textMuted, height: 1.8, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -305,14 +345,20 @@ class _FilterChipsState extends State<_FilterChips> {
   }
 }
 
-class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post, required this.comments});
+class _PostCard extends ConsumerWidget {
+  const _PostCard({required this.post});
 
   final Post post;
-  final List<PostComment> comments;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 点赞头像堆叠：用这条帖子已有评论的人格头像拼出"有人在这里"的感觉
+    final likerIds = (ref.watch(commentsProvider(post.id)).value ??
+            const <PostComment>[])
+        .take(3)
+        .map((comment) => comment.personaId)
+        .toList(growable: false);
+
     return GestureDetector(
       onTap: () => context.push(RoutePaths.post(post.id)),
       child: Container(
@@ -368,7 +414,7 @@ class _PostCard extends StatelessWidget {
               PostImage(ref: post.images.first),
             ],
             const SizedBox(height: 12),
-            _PostFooter(post: post, comments: comments),
+            _PostFooter(post: post, likerIds: likerIds),
           ],
         ),
       ),
@@ -405,16 +451,13 @@ class _HotBadge extends StatelessWidget {
 }
 
 class _PostFooter extends ConsumerWidget {
-  const _PostFooter({required this.post, required this.comments});
+  const _PostFooter({required this.post, required this.likerIds});
 
   final Post post;
-  final List<PostComment> comments;
+  final List<String> likerIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 点赞头像堆叠：用评论过的人格头像拼出"有人在这里"的感觉
-    final likerIds = comments.take(3).map((c) => c.personaId).toList();
-
     return Row(
       children: [
         if (likerIds.isNotEmpty) ...[

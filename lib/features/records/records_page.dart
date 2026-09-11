@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
-import '../../data/seed/demo_posts.dart';
+import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 
 /// 清醒模式的"记录"页（规划书 §4 / §5.1）。
 ///
 /// 与回响模式首页的对照是刻意的：**没有点赞、没有评论、没有热度标签**。
 /// 唯一的数字是"这周真实行动了几次"，而那是用户自己数出来的。
-class RecordsPage extends StatelessWidget {
+class RecordsPage extends ConsumerWidget {
   const RecordsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final records = DemoPosts.feedClear;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recordsAsync = ref.watch(feedPostsProvider('clear'));
+    final records = recordsAsync.value ?? const <Post>[];
 
     return Container(
       color: ClearColors.bg,

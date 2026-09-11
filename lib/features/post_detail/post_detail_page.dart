@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
-import '../../data/seed/demo_posts.dart';
+import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/post_image.dart';
@@ -25,51 +26,77 @@ class PostDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(modeControllerProvider);
-    final post = _findPost(postId);
-    final comments = DemoPosts.comments[postId] ?? const <PostComment>[];
+    final postAsync = ref.watch(postByIdProvider(postId));
+    final comments =
+        ref.watch(commentsProvider(postId)).value ?? const <PostComment>[];
 
     return Container(
       color: EchoColors.bg,
       child: ComplianceFooter(
         mode: mode,
-        child: post == null
-            ? const Center(
-                child: Text('帖子不存在', style: TextStyle(color: EchoColors.textMuted)),
-              )
-            : Column(
-                children: [
-                  _TopBar(topicName: post.topicName),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      children: [
-                        _PostBody(post: post),
-                        const SizedBox(height: 18),
-                        _CommentsHeader(count: comments.length),
-                        const SizedBox(height: 10),
-                        if (mode.isClear)
-                          const _ClearModeHint()
-                        else
-                          for (var i = 0; i < comments.length; i++)
-                            _CommentTile(
-                              comment: comments[i],
-                              index: i,
-                            ),
-                      ],
+        child: postAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: EchoColors.primary),
+          ),
+          error: (error, _) => Center(
+            child: Text('帖子加载失败：$error',
+                style: const TextStyle(color: EchoColors.like, fontSize: 12)),
+          ),
+          data: (post) => post == null
+              ? const Center(
+                  child: Text('帖子不存在',
+                      style: TextStyle(color: EchoColors.textMuted)),
+                )
+              : Column(
+                  children: [
+                    _TopBar(topicName: post.topicName),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        children: [
+                          _PostBody(post: post),
+                          const SizedBox(height: 18),
+                          _CommentsHeader(count: comments.length),
+                          const SizedBox(height: 10),
+                          if (mode.isClear)
+                            const _ClearModeHint()
+                          else if (comments.isEmpty)
+                            const _NoCommentsYet()
+                          else
+                            for (final comment in comments)
+                              _CommentTile(comment: comment),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
+}
 
-  /// 阶段 A 从预置内容里找；阶段 B 换成按 id 查 Drift。
-  Post? _findPost(String id) {
-    for (final post in [...DemoPosts.feedEcho, ...DemoPosts.feedClear]) {
-      if (post.id == id) return post;
-    }
-    return null;
+/// 回响模式下评论不是立刻出现的——0—48 小时内随机到达。
+/// 所以空评论区要给一个"还在路上"的说法，而不是"暂无评论"。
+class _NoCommentsYet extends StatelessWidget {
+  const _NoCommentsYet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      child: Column(
+        children: const [
+          Icon(Icons.hourglass_empty, size: 22, color: EchoColors.textFaint),
+          SizedBox(height: 10),
+          Text(
+            '还没有人路过这里。\n反馈会在接下来的 0—48 小时里陆续出现。',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 12, height: 1.7),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -215,10 +242,9 @@ class _ClearModeHint extends StatelessWidget {
 }
 
 class _CommentTile extends ConsumerWidget {
-  const _CommentTile({required this.comment, required this.index});
+  const _CommentTile({required this.comment});
 
   final PostComment comment;
-  final int index;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

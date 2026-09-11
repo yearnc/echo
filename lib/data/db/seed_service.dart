@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../../core/constants/app_texts.dart';
 import '../../domain/models/ai_persona.dart';
 import '../../domain/models/app_mode.dart';
+import '../../domain/models/post.dart';
+import '../seed/demo_posts.dart';
 import 'app_database.dart';
 
 /// 首次启动时的内容播种。
@@ -22,6 +24,8 @@ class SeedService {
     await _seedSettings();
     await _seedProfile();
     await _seedPersonas();
+    // 必须在人格之后：ai_interactions.personaId 有外键指向 ai_personas
+    await _seedDemoContent();
   }
 
   Future<void> _seedSettings() async {
@@ -111,5 +115,66 @@ class SeedService {
 
     if (companions.isEmpty) return;
     await _db.batch((batch) => batch.insertAll(_db.aiPersonas, companions));
+  }
+
+  /// 首次启动时铺一批内容，让信息流不是空的。
+  ///
+  /// 这批内容就是微视频三幕用的那几条（天空照、垃圾桶照），
+  /// 标成 `status = done` 直接可见——演示彩排时不需要等 0—48 小时。
+  Future<void> _seedDemoContent() async {
+    final count = await _db.posts.count().getSingle();
+    if (count > 0) return;
+
+    final posts = DemoPosts.feedEcho;
+    if (posts.isEmpty) return;
+
+    final comments = DemoPosts.comments;
+
+    await _db.batch((batch) {
+      batch.insertAll(
+        _db.posts,
+        posts.map((post) {
+          return PostsCompanion(
+            id: Value(post.id),
+            content: Value(post.content),
+            images: Value(jsonEncode(post.images)),
+            createdAt: Value(post.createdAt.millisecondsSinceEpoch),
+            scope: Value(post.scope),
+            topicName: Value(post.topicName),
+            isHot: Value(post.isHot),
+            likeCount: Value(post.likeCount),
+            commentCount: Value(post.commentCount),
+          );
+        }).toList(growable: false),
+      );
+
+      final interactionRows = <AiInteractionsCompanion>[];
+      for (final post in posts) {
+        for (final comment in comments[post.id] ?? const <PostComment>[]) {
+          final at = comment.createdAt.millisecondsSinceEpoch;
+          interactionRows.add(
+            AiInteractionsCompanion(
+              id: Value(comment.id),
+              postId: Value(comment.postId),
+              personaId: Value(comment.personaId),
+              type: const Value('comment'),
+              mediaType: Value(comment.mediaType.name),
+              content: Value(comment.content),
+              voicePath: Value(comment.voiceAsset),
+              transcript: Value(comment.transcript),
+              voiceDurationMs: Value(comment.voiceDurationMs),
+              scheduledAt: Value(at),
+              executedAt: Value(at),
+              status: const Value('done'),
+              likeCount: Value(comment.likeCount),
+            ),
+          );
+        }
+      }
+
+      if (interactionRows.isNotEmpty) {
+        batch.insertAll(_db.aiInteractions, interactionRows);
+      }
+    });
   }
 }

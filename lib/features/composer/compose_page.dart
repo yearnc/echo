@@ -1,7 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/media/media_service.dart';
+import '../../data/repositories/post_repository.dart';
 import '../../domain/services/mode_controller.dart';
 
 /// 发布页（规划书 §6.1）。
@@ -23,7 +29,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   String _density = '中';
   String _likeLevel = '中';
   int _humanLevel = 3;
-  final List<String> _attached = [];
+  bool _publishing = false;
+
+  /// 已附图（`file:` 引用，已复制进 APP 私有目录）
+  final List<String> _imageRefs = [];
 
   static const List<String> _topics = ['日常', '随手拍', '学习', '运动', '深夜', '吐槽'];
 
@@ -74,9 +83,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           ),
           const SizedBox(height: 12),
           _AttachRow(
-            attached: _attached,
+            images: _imageRefs,
             isEcho: isEcho,
-            onPick: () => _pickImage(),
+            onPick: _pickImage,
+            onRemove: _removeImage,
           ),
           const SizedBox(height: 18),
           if (isEcho) ...[
@@ -134,13 +144,13 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _publish,
+              onPressed: _publishing ? null : _publish,
               style: isEcho
                   ? null
                   : FilledButton.styleFrom(
                       backgroundColor: ClearColors.primary,
                     ),
-              child: Text(isEcho ? '发布' : '记录'),
+              child: Text(_publishing ? '保存中…' : (isEcho ? '发布' : '记录')),
             ),
           ),
         ],
@@ -148,39 +158,85 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     );
   }
 
-  void _pickImage() {
-    // 阶段 A：图片选择走 image_picker（真机/桌面各自弹原生选择器）。
-    // 这里先只给出交互占位，M2 接上 picker 与私有目录拷贝。
-    setState(() => _attached.add('待选择图片'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('图片选择会在下一个里程碑接上（需要真机或桌面选择器）')),
-    );
+  Future<void> _pickImage() async {
+    try {
+      final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
+      if (imageRef == null || !mounted) return;
+      setState(() => _imageRefs.add(imageRef));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('选图失败：$error')));
+    }
   }
 
-  void _publish() {
+  Future<void> _removeImage(String imageRef) async {
+    setState(() => _imageRefs.remove(imageRef));
+    await ref.read(mediaServiceProvider).deleteByRef(imageRef);
+  }
+
+  Future<void> _publish() async {
     final text = _controller.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('先写点什么吧')));
       return;
     }
-    _controller.clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已保存（写入数据库在下一个里程碑）')),
-    );
+
+    setState(() => _publishing = true);
+    final isEcho = ref.read(modeControllerProvider).isEcho;
+
+    try {
+      await ref.read(postRepositoryProvider).create(
+            content: text,
+            images: List.of(_imageRefs),
+            topicName: isEcho ? _topic : null,
+            // 回响模式的帖子进入 echo 作用域；清醒模式的记录进入 clear
+            scope: isEcho ? 'echo' : 'clear',
+            allowAiReply: isEcho,
+            replyDensity: isEcho ? _density : null,
+            likeLevel: isEcho ? _likeLevel : null,
+            humanLevel: isEcho ? _humanLevel : null,
+          );
+
+      if (!mounted) return;
+      _controller.clear();
+      setState(() {
+        _imageRefs.clear();
+        _publishing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isEcho
+              ? '已发布。反馈会在 0—48 小时内陆续出现。'
+              : '已记录。'),
+        ),
+      );
+      context.go(isEcho ? RoutePaths.feed : RoutePaths.records);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _publishing = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('保存失败：$error')));
+    }
   }
 }
 
 class _AttachRow extends StatelessWidget {
   const _AttachRow({
-    required this.attached,
+    required this.images,
     required this.isEcho,
     required this.onPick,
+    required this.onRemove,
   });
 
-  final List<String> attached;
+  final List<String> images;
   final bool isEcho;
   final VoidCallback onPick;
+  final ValueChanged<String> onRemove;
+
+  static const int _maxImages = 9;
 
   @override
   Widget build(BuildContext context) {
@@ -188,27 +244,93 @@ class _AttachRow extends StatelessWidget {
     final divider = isEcho ? EchoColors.divider : ClearColors.divider;
     final muted = isEcho ? EchoColors.textMuted : ClearColors.textMuted;
 
-    return Row(
+    return SizedBox(
+      height: 68,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          InkWell(
+            onTap: images.length >= _maxImages ? null : onPick,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: divider),
+              ),
+              child: Icon(
+                Icons.add_photo_alternate_outlined,
+                color: images.length >= _maxImages ? divider : muted,
+                size: 22,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          for (final ref in images)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _Thumbnail(
+                ref: ref,
+                divider: divider,
+                onRemove: () => onRemove(ref),
+              ),
+            ),
+          if (images.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Center(
+                child: Text('最多 $_maxImages 张图',
+                    style: TextStyle(color: muted, fontSize: 12)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Thumbnail extends StatelessWidget {
+  const _Thumbnail({
+    required this.ref,
+    required this.divider,
+    required this.onRemove,
+  });
+
+  final String ref;
+  final Color divider;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final file = ref.startsWith('file:') ? File(ref.substring(5)) : null;
+
+    return Stack(
       children: [
-        InkWell(
-          onTap: onPick,
+        ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Container(
+          child: SizedBox(
             width: 68,
             height: 68,
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: divider),
-            ),
-            child: Icon(Icons.add_photo_alternate_outlined, color: muted, size: 22),
+            child: file == null || !file.existsSync()
+                ? Container(color: divider)
+                : Image.file(file, fit: BoxFit.cover),
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            attached.isEmpty ? '最多 9 张图' : '已附带 ${attached.length} 张（占位）',
-            style: TextStyle(color: muted, fontSize: 12),
+        Positioned(
+          right: 2,
+          top: 2,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, size: 12, color: Colors.white),
+            ),
           ),
         ),
       ],

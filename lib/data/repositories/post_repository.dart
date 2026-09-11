@@ -1,0 +1,138 @@
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../domain/models/post.dart';
+import '../db/app_database.dart';
+import '../db/database_provider.dart';
+
+/// 帖子的读写（Drift 支撑）。
+///
+/// 领域模型与数据库行在这里完成转换——UI 只认 [Post]，
+/// 所以将来换存储（加同步、加加密）不用动页面。
+class PostRepository {
+  const PostRepository(this._db);
+
+  final AppDatabase _db;
+
+  /// 信息流：按时间倒序，自动跟随数据库变化。
+  Stream<List<Post>> watchFeed({String? scope}) {
+    final query = _db.select(_db.posts)
+      ..where((t) => t.deletedAt.isNull())
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
+
+    if (scope != null) {
+      query.where((t) => t.scope.equals(scope));
+    }
+
+    return query.watch().map((rows) => rows.map(_toDomain).toList());
+  }
+
+  Stream<Post?> watchById(String id) {
+    final query = _db.select(_db.posts)
+      ..where((t) => t.id.equals(id) & t.deletedAt.isNull());
+
+    return query.watchSingleOrNull().map((row) => row == null ? null : _toDomain(row));
+  }
+
+  Future<Post?> findById(String id) async {
+    final query = _db.select(_db.posts)
+      ..where((t) => t.id.equals(id) & t.deletedAt.isNull());
+    final row = await query.getSingleOrNull();
+    return row == null ? null : _toDomain(row);
+  }
+
+  Future<String> create({
+    required String content,
+    List<String> images = const [],
+    String? topicName,
+    String scope = 'shared',
+    bool allowAiReply = true,
+    String? replyDensity,
+    String? likeLevel,
+    int? humanLevel,
+  }) async {
+    final id = _newId();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    await _db.into(_db.posts).insert(
+          PostsCompanion.insert(
+            id: id,
+            content: Value(content),
+            images: Value(jsonEncode(images)),
+            createdAt: now,
+            scope: Value(scope),
+            topicName: Value(topicName),
+            allowAiReply: Value(allowAiReply),
+            replyDensity: Value(replyDensity),
+            likeLevel: Value(likeLevel),
+            humanLevel: Value(humanLevel),
+          ),
+        );
+    return id;
+  }
+
+  /// 软删除：保留 `deletedAt` 供日后恢复与审计。
+  Future<void> softDelete(String id) async {
+    await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(
+      PostsCompanion(deletedAt: Value(DateTime.now().millisecondsSinceEpoch)),
+    );
+  }
+
+  /// 计数由互动执行时回写（M3），这里只做展示层需要的映射。
+  Post _toDomain(PostRow row) {
+    return Post(
+      id: row.id,
+      content: row.content,
+      images: _decodeImages(row.images),
+      topicName: row.topicName,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+      likeCount: row.likeCount,
+      commentCount: row.commentCount,
+      isAiGenerated: row.isAiGenerated,
+      scope: row.scope,
+      allowAiReply: row.allowAiReply,
+      isHot: row.isHot,
+    );
+  }
+
+  List<String> _decodeImages(String raw) {
+    if (raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.whereType<String>().toList(growable: false);
+      }
+    } on FormatException {
+      // 数据损坏时退化为无图，不因为一张图让整条信息流崩掉
+      return const [];
+    }
+    return const [];
+  }
+
+  String _newId() =>
+      'post_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
+
+  static final _rand = _SimpleRandom();
+}
+
+/// 极简随机：只用来拼 id 后缀，避免为了这点需求引入额外依赖。
+class _SimpleRandom {
+  int nextInt(int max) =>
+      DateTime.now().microsecondsSinceEpoch.remainder(max).abs();
+}
+
+final postRepositoryProvider = Provider<PostRepository>(
+  (ref) => PostRepository(ref.watch(databaseProvider)),
+);
+
+/// 信息流（回响模式）。scope 为 null 表示不过滤。
+final feedPostsProvider = StreamProvider.autoDispose
+    .family<List<Post>, String?>((ref, scope) {
+  return ref.watch(postRepositoryProvider).watchFeed(scope: scope);
+});
+
+final postByIdProvider = StreamProvider.autoDispose.family<Post?, String>(
+  (ref, id) => ref.watch(postRepositoryProvider).watchById(id),
+);
