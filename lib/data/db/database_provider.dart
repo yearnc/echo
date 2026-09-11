@@ -14,11 +14,5 @@ final seedServiceProvider = Provider<SeedService>(
   (ref) => SeedService(ref.watch(databaseProvider)),
 );
 
-/// 启动引导：开库 + 首次播种。
-///
-/// 放在 Provider 里而不是 `main()` 里，是为了让"正在准备"这件事
-/// 有一个可被 UI 观察的状态——首屏可以据此显示启动页，
-/// 出错时也能给出可读的提示，而不是白屏。
-final appBootstrapProvider = FutureProvider<void>((ref) async {
-  await ref.watch(seedServiceProvider).seedIfNeeded();
-});
+// 启动引导（含冷启动补发）见 `lib/data/bootstrap_provider.dart`——
+// 放在那里是为了避免 database_provider ↔ scheduler_service 的循环依赖。

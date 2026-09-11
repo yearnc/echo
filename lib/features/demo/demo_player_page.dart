@@ -43,6 +43,12 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
   bool _finished = false;
   String? _likeDelta;
 
+  /// 是否显示"导演界面"（进度条、排练标签、解说字幕）。
+  ///
+  /// 一按播放就自动收起来——镜头里的 APP 必须长得像真的。
+  /// 点一下画面可以随时叫回来（看进度、切单步）。
+  bool _showDirectingUi = true;
+
   final _Stage _stage = _Stage();
 
   @override
@@ -83,6 +89,8 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
     setState(() {
       _playing = true;
       _finished = false;
+      // 一开拍就把导演界面收起来
+      _showDirectingUi = false;
     });
     _timer?.cancel();
     _timer = Timer.periodic(_tick, (_) {
@@ -95,16 +103,27 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
         }
       });
       if (_timeline!.isFinished) {
-        _pause();
+        // 演完这一幕时不要把界面弹回来——不然一条过到尾的镜头就毁了
+        _stopTimer();
         setState(() => _finished = true);
       }
     });
   }
 
-  void _pause() {
+  void _stopTimer() {
     _timer?.cancel();
     _timer = null;
-    if (mounted) setState(() => _playing = false);
+  }
+
+  /// 手动暂停：这是排练行为，把导演界面还回来。
+  void _pause() {
+    _stopTimer();
+    if (mounted) {
+      setState(() {
+        _playing = false;
+        _showDirectingUi = true;
+      });
+    }
   }
 
   /// 单步：放出一个动作并把时钟对齐到它的时间点。
@@ -198,51 +217,67 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
     final mode = ref.watch(modeControllerProvider);
     final script = _script;
 
+    final showDirecting = _showDirectingUi;
+
     return Scaffold(
       backgroundColor: mode.isEcho ? EchoColors.bg : ClearColors.bg,
-      appBar: AppBar(
-        title: Text(script?.title ?? '演示模式'),
-        leading: IconButton(
-          onPressed: () {
-            _pause();
-            Navigator.of(context).maybePop();
-          },
-          icon: const Icon(Icons.arrow_back),
-        ),
-      ),
+      // 拍摄模式下连 AppBar 也收起来。
+      // 镜头里的 APP 必须长得像真的——"第一幕：建立幻觉"这种排练标签不能入镜，
+      // 进度条更是穿帮（项目作者 2026-09-11 的判断）。
+      appBar: showDirecting
+          ? AppBar(
+              title: Text(script?.title ?? '演示模式'),
+              leading: IconButton(
+                onPressed: () {
+                  _pause();
+                  Navigator.of(context).maybePop();
+                },
+                icon: const Icon(Icons.arrow_back),
+              ),
+            )
+          : null,
       body: script == null || _timeline == null
           ? const Center(child: CircularProgressIndicator(color: EchoColors.primary))
-          : Column(
-              children: [
-                if (mode.isClear) const PermanentNoticeBanner(),
-                _ControlBar(
-                  isEcho: mode.isEcho,
-                  playing: _playing,
-                  finished: _finished,
-                  progress: _timeline!.progressAt(_elapsedMs),
-                  elapsedMs: _elapsedMs,
-                  totalMs: script.effectiveDurationMs,
-                  stepLabel: '${_timeline!.cursor}/${_timeline!.total}',
-                  onPlay: _playing ? _pause : _play,
-                  onStep: _stepOnce,
-                  onReset: _reset,
-                ),
-                Expanded(child: _buildStage(mode.isEcho)),
-                if (mode.isEcho) const AiDisclaimerBar(),
-              ],
+          // 点一下画面就能把导演界面叫回来（再看一眼进度/切单步）
+          : GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _showDirectingUi = !_showDirectingUi),
+              child: Column(
+                children: [
+                  if (mode.isClear) const PermanentNoticeBanner(),
+                  if (showDirecting)
+                    _ControlBar(
+                      isEcho: mode.isEcho,
+                      playing: _playing,
+                      finished: _finished,
+                      progress: _timeline!.progressAt(_elapsedMs),
+                      elapsedMs: _elapsedMs,
+                      totalMs: script.effectiveDurationMs,
+                      stepLabel: '${_timeline!.cursor}/${_timeline!.total}',
+                      onPlay: _playing ? _pause : _play,
+                      onStep: _stepOnce,
+                      onReset: _reset,
+                    ),
+                  Expanded(child: _buildStage(mode.isEcho, showDirecting)),
+                  if (mode.isEcho) const AiDisclaimerBar(),
+                ],
+              ),
             ),
     );
   }
 
-  Widget _buildStage(bool isEcho) {
+  Widget _buildStage(bool isEcho, bool showDirecting) {
     final post = _stagePost;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      padding: EdgeInsets.fromLTRB(16, showDirecting ? 12 : 20, 16, 28),
       children: [
-        Text(
-          _script!.subtitle,
-          style: TextStyle(
+        // 副标题、设置提示、解说字幕、结尾字幕——这些是**导演用的注释**，
+        // 拍摄时全部隐藏：故事要靠演员的动作演出来，不是靠屏幕上的字讲出来。
+        if (showDirecting)
+          Text(
+            _script!.subtitle,
+            style: TextStyle(
             color: isEcho ? EchoColors.textMuted : ClearColors.textMuted,
             fontSize: 12.5,
             height: 1.6,
@@ -257,7 +292,7 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
           ),
           const SizedBox(height: 12),
         ],
-        if (_stage.settingsHint != null) ...[
+        if (showDirecting && _stage.settingsHint != null) ...[
           _HintStrip(isEcho: isEcho, text: _stage.settingsHint!, icon: Icons.tune),
           const SizedBox(height: 12),
         ],
@@ -277,7 +312,7 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
             captions: _stage.captions,
           ),
         ],
-        if (_stage.overlay != null) ...[
+        if (showDirecting && _stage.overlay != null) ...[
           const SizedBox(height: 14),
           _HintStrip(
             isEcho: isEcho,
@@ -350,7 +385,7 @@ class _DemoPlayerPageState extends ConsumerState<DemoPlayerPage> {
               highlighted: step.highlight,
             ),
         ],
-        if (_stage.endCard != null) ...[
+        if (showDirecting && _stage.endCard != null) ...[
           const SizedBox(height: 20),
           _EndCard(text: _stage.endCard!),
         ],

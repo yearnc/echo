@@ -4,70 +4,127 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
-import '../../data/repositories/persona_repository.dart';
-import '../shared_widgets/user_avatar.dart';
+import '../../data/repositories/notification_repository.dart';
+import '../../domain/models/app_notification.dart';
 
 /// 通知页（规划书 §3.7）。
 ///
 /// 文案刻意**不带 AI 前缀**——"温柔学姐 评论了你的帖子"，
 /// 沉浸感就是靠这些细节堆出来的。合规交给页面底部那行小字。
-/// 锁屏通知默认隐藏具体内容，所以列表里的正文也只给一句模糊描述。
-class NotificationsPage extends ConsumerWidget {
+/// 通知由调度器在兑现互动时写入，所以这里的每一条背后都真的发生过一次互动。
+class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
-  /// 预置通知（阶段 B 由调度器写入 notification_logs）。
-  static const List<_NotifyItem> _items = [
-    _NotifyItem('persona_001', '评论了你的帖子', '看到这条的时候刚好在图书馆靠窗的位置…', 12),
-    _NotifyItem('persona_006', '评论了你的帖子', '认真看了很久，想说这张照片比它看起来的要重得多…', 26),
-    _NotifyItem.group('5 位社区住民', '互动了你的帖子', '你有一条社区互动通知', 41),
-    _NotifyItem('persona_004', '赞了你的帖子', '', 58),
-    _NotifyItem('persona_009', '关注了你', '', 96),
-    _NotifyItem.group('23 位社区住民', '赞了你的帖子', '你有一条社区互动通知', 132),
-  ];
+  @override
+  ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 打开通知页 = 看过了，红点该灭——这是用户对通知的常识预期。
+    // 放在首帧之后，避免在 build 期间写库触发重建。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(notificationRepositoryProvider).markAllRead();
+    });
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final notifications = ref.watch(notificationsProvider);
+
     return Container(
       color: EchoColors.bg,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-        children: [
-          Row(
-            children: [
-              Text('通知',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: EchoColors.text,
-                        fontSize: 24,
-                      )),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: EchoColors.like,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Text('6',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700)),
-              ),
-              const Spacer(),
-              Text('全部已读',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: EchoColors.primary)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          for (final item in _items) _NotifyTile(item: item),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              AppTexts.aiDisclaimer,
-              style: const TextStyle(color: EchoColors.textFaint, fontSize: 11),
+      child: notifications.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: EchoColors.primary),
+        ),
+        error: (error, _) => Center(
+          child: Text('通知加载失败：$error',
+              style: const TextStyle(color: EchoColors.like, fontSize: 12)),
+        ),
+        data: (list) => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+          children: [
+            Row(
+              children: [
+                Text('通知',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: EchoColors.text,
+                          fontSize: 24,
+                        )),
+                const SizedBox(width: 8),
+                if (list.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: EchoColors.like,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text('${list.length}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                const Spacer(),
+                if (list.any((item) => !item.isRead))
+                  GestureDetector(
+                    onTap: () => ref
+                        .read(notificationRepositoryProvider)
+                        .markAllRead(),
+                    child: Text('全部已读',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: EchoColors.primary)),
+                  ),
+              ],
             ),
+            const SizedBox(height: 14),
+            if (list.isEmpty)
+              const _EmptyNotifications()
+            else
+              for (final item in list) _NotifyTile(item: item),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                AppTexts.aiDisclaimer,
+                style: const TextStyle(color: EchoColors.textFaint, fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyNotifications extends StatelessWidget {
+  const _EmptyNotifications();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 70),
+      child: Column(
+        children: [
+          const Icon(Icons.notifications_none,
+              size: 30, color: EchoColors.textFaint),
+          const SizedBox(height: 14),
+          Text(
+            AppTexts.emptyNotifications,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: EchoColors.textMuted, fontSize: 13, height: 1.8),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '互动会在 0—48 小时内陆续出现',
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
           ),
         ],
       ),
@@ -75,35 +132,14 @@ class NotificationsPage extends ConsumerWidget {
   }
 }
 
-class _NotifyItem {
-  const _NotifyItem(this.personaId, this.action, this.preview, this.minutesAgo)
-      : name = '',
-        isGroup = false;
-
-  const _NotifyItem.group(this.name, this.action, this.preview, this.minutesAgo)
-      : personaId = '',
-        isGroup = true;
-
-  final String personaId;
-  final String name;
-  final String action;
-  final String preview;
-  final int minutesAgo;
-  final bool isGroup;
-}
-
-class _NotifyTile extends ConsumerWidget {
+class _NotifyTile extends StatelessWidget {
   const _NotifyTile({required this.item});
 
-  final _NotifyItem item;
+  final AppNotification item;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final persona = item.personaId.isEmpty
-        ? null
-        : ref.watch(personaByIdProvider(item.personaId));
-    final name = item.isGroup ? item.name : (persona?.name ?? '社区住民');
-    final createdAt = DateTime.now().subtract(Duration(minutes: item.minutesAgo));
+  Widget build(BuildContext context) {
+    final isLike = item.type == 'like';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -112,54 +148,47 @@ class _NotifyTile extends ConsumerWidget {
         decoration: BoxDecoration(
           color: EchoColors.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: EchoColors.divider),
+          border: Border.all(
+            color: item.isRead
+                ? EchoColors.divider
+                : EchoColors.primary.withValues(alpha: 0.35),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item.isGroup)
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: EchoColors.primary.withValues(alpha: 0.16),
-                ),
-                child: const Icon(Icons.groups_outlined,
-                    size: 19, color: EchoColors.primary),
-              )
-            else
-              UserAvatar(name: name, avatarRef: persona?.avatar, size: 36),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: (isLike ? EchoColors.like : EchoColors.primary)
+                    .withValues(alpha: 0.16),
+              ),
+              child: Icon(
+                isLike ? Icons.favorite : Icons.mode_comment_outlined,
+                size: 18,
+                color: isLike ? EchoColors.like : EchoColors.primary,
+              ),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: name,
-                          style: const TextStyle(
-                            color: EchoColors.text,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                        TextSpan(
-                          text: ' ${item.action}',
-                          style: const TextStyle(
-                            color: EchoColors.textMuted,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    item.title,
+                    style: const TextStyle(
+                      color: EchoColors.text,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                      height: 1.4,
                     ),
                   ),
-                  if (item.preview.isNotEmpty) ...[
+                  if (item.body.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      item.preview,
+                      item.body,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -170,8 +199,9 @@ class _NotifyTile extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(RelativeTime.short(createdAt),
-                style: const TextStyle(color: EchoColors.textFaint, fontSize: 11)),
+            Text(RelativeTime.short(item.createdAt),
+                style: const TextStyle(
+                    color: EchoColors.textFaint, fontSize: 11)),
           ],
         ),
       ),

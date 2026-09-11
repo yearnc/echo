@@ -8,7 +8,9 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../domain/models/echo_settings.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/scheduler_service.dart';
 
 /// 发布页（规划书 §6.1）。
 ///
@@ -187,7 +189,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     final isEcho = ref.read(modeControllerProvider).isEcho;
 
     try {
-      await ref.read(postRepositoryProvider).create(
+      final postId = await ref.read(postRepositoryProvider).create(
             content: text,
             images: List.of(_imageRefs),
             topicName: isEcho ? _topic : null,
@@ -198,6 +200,18 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             likeLevel: isEcho ? _likeLevel : null,
             humanLevel: isEcho ? _humanLevel : null,
           );
+
+      // 回响模式：发帖的同时就把 0—48 小时的互动排好队（离线也不会丢）
+      if (isEcho) {
+        await ref.read(schedulerServiceProvider).planForPost(
+              postId: postId,
+              settings: EchoSettings(
+                density: ReplyDensity.fromLabel(_density),
+                likeLevel: LikeLevel.fromLabel(_likeLevel),
+                humanLevel: HumanLevel.fromValue(_humanLevel),
+              ),
+            );
+      }
 
       if (!mounted) return;
       _controller.clear();

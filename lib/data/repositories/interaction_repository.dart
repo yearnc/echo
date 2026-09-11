@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/models/pending_interaction.dart';
 import '../../domain/models/post.dart';
+import '../../domain/services/interaction_planner.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
 
@@ -34,6 +36,47 @@ class InteractionRepository {
         );
   }
 
+  /// 把规划器算出的排期写进队列（发帖时调用）。
+  Future<void> insertPlanned(
+    String postId,
+    List<PlannedInteraction> planned,
+  ) async {
+    if (planned.isEmpty) return;
+
+    final rows = <AiInteractionsCompanion>[];
+    for (var i = 0; i < planned.length; i++) {
+      final item = planned[i];
+      rows.add(
+        AiInteractionsCompanion(
+          id: Value('sched_${postId}_$i'),
+          postId: Value(postId),
+          personaId: Value(item.personaId),
+          type: Value(item.type),
+          mediaType: Value(item.mediaType),
+          content: Value(item.content),
+          scheduledAt: Value(item.scheduledAt.millisecondsSinceEpoch),
+          status: const Value('pending'),
+          likeCount: Value(item.likeBatch),
+        ),
+      );
+    }
+
+    await _db.batch((batch) => batch.insertAll(_db.aiInteractions, rows));
+  }
+
+  /// 到点该兑现的排期（冷启动 / 回前台时扫一次）。
+  Future<List<PendingInteraction>> duePending(DateTime now) async {
+    final query = _db.select(_db.aiInteractions)
+      ..where((t) =>
+          t.status.equals('pending') &
+          t.scheduledAt.isSmallerOrEqualValue(now.millisecondsSinceEpoch))
+      ..orderBy([(t) => OrderingTerm.asc(t.scheduledAt)]);
+
+    final rows = await query.get();
+    return rows.map(_toPending).toList(growable: false);
+  }
+
+  /// 最近已经兑现的互动（信息流补发后给 UI 用）。
   Future<int> countPending() async {
     final count = _db.aiInteractions.id.count();
     final query = _db.selectOnly(_db.aiInteractions)
@@ -42,6 +85,17 @@ class InteractionRepository {
     final row = await query.getSingle();
     return row.read(count) ?? 0;
   }
+
+  PendingInteraction _toPending(AiInteractionRow row) => PendingInteraction(
+        id: row.id,
+        postId: row.postId,
+        personaId: row.personaId,
+        type: row.type,
+        content: row.content,
+        mediaType: row.mediaType,
+        voiceDurationMs: row.voiceDurationMs,
+        likeBatch: row.likeCount,
+      );
 
   Future<void> markExecuted(String id, {int? likeCount}) async {
     await (_db.update(_db.aiInteractions)..where((t) => t.id.equals(id))).write(

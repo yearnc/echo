@@ -30,8 +30,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // by the monitor scale factor (1.25 here), so 390x780 becomes 488x975 physical.
   // Note: keep this file ASCII-only -- MSVC runs with code page 936 here and
   // treats C4819 (non-ASCII in source) as an error (C2220).
-  Win32Window::Point origin(80, 30);
-  Win32Window::Size size(390, 780);
+  // Height is capped so the window (scaled by 1.25 here) plus the title bar still
+  // fits above the taskbar -- otherwise the bottom navigation bar ends up
+  // off-screen and becomes unclickable.
+  Win32Window::Point origin(80, 24);
+  Win32Window::Size size(390, 700);
   if (!window.Create(L"\u56DE\u54CD Echo", origin, size)) {
     return EXIT_FAILURE;
   }

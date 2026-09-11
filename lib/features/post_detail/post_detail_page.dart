@@ -30,9 +30,13 @@ class PostDetailPage extends ConsumerWidget {
     final comments =
         ref.watch(commentsProvider(postId)).value ?? const <PostComment>[];
 
-    return Container(
-      color: EchoColors.bg,
-      child: ComplianceFooter(
+    // 必须是 Scaffold：这个页面不在底部导航骨架里（独立路由），
+    // 没有 Material 祖先的话，页面里所有文字都会继承 Flutter 兜底文本样式
+    // （app.dart 的 _errorTextStyle，带黄色双下划线），
+    // 表现为"点进帖子后到处是横线"。
+    return Scaffold(
+      backgroundColor: EchoColors.bg,
+      body: ComplianceFooter(
         mode: mode,
         child: postAsync.when(
           loading: () => const Center(

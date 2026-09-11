@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/repositories/notification_repository.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
@@ -38,6 +39,8 @@ class AppShell extends ConsumerWidget {
     final mode = ref.watch(modeControllerProvider);
     final tabs = mode.isEcho ? _echoTabs : _clearTabs;
     final location = GoRouterState.of(context).uri.path;
+    // 红点数据直接来自未读通知条数，所以不会出现"数字和列表对不上"
+    final unread = ref.watch(unreadNotificationCountProvider).value ?? 0;
 
     var index = tabs.indexWhere((tab) => location.startsWith(tab.path));
     if (index < 0) index = 0;
@@ -54,6 +57,7 @@ class AppShell extends ConsumerWidget {
         tabs: tabs,
         currentIndex: index,
         mode: mode,
+        unreadCount: unread,
         onTap: (path) => context.go(path),
       ),
     );
@@ -74,12 +78,14 @@ class _BottomBar extends StatelessWidget {
     required this.tabs,
     required this.currentIndex,
     required this.mode,
+    required this.unreadCount,
     required this.onTap,
   });
 
   final List<_NavItem> tabs;
   final int currentIndex;
   final AppMode mode;
+  final int unreadCount;
   final ValueChanged<String> onTap;
 
   @override
@@ -108,6 +114,7 @@ class _BottomBar extends StatelessWidget {
                     selected: i == currentIndex,
                     active: active,
                     inactive: inactive,
+                    showBadge: tabs[i].path == '/notifications' && unreadCount > 0,
                     onTap: () => onTap(tabs[i].path),
                   ),
                 ),
@@ -126,6 +133,7 @@ class _TabButton extends StatelessWidget {
     required this.active,
     required this.inactive,
     required this.onTap,
+    this.showBadge = false,
   });
 
   final _NavItem item;
@@ -133,6 +141,7 @@ class _TabButton extends StatelessWidget {
   final Color active;
   final Color inactive;
   final VoidCallback onTap;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +153,25 @@ class _TabButton extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(selected ? item.activeIcon : item.icon, size: 22, color: color),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(selected ? item.activeIcon : item.icon, size: 22, color: color),
+              if (showBadge)
+                Positioned(
+                  right: -3,
+                  top: -2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: EchoColors.like,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 3),
           Text(
             item.label,

@@ -73,6 +73,31 @@ class PostRepository {
     return id;
   }
 
+  /// 互动兑现时回写计数（调度器用）。
+  ///
+  /// 顺带处理"热榜"：点赞过百就标热——热度本来就是外部评价的产物，
+  /// 它在回响模式里出现、在清醒模式里被隐藏，这个反差正是产品要说的。
+  Future<void> addCounters(
+    String id, {
+    int likes = 0,
+    int comments = 0,
+  }) async {
+    if (likes == 0 && comments == 0) return;
+
+    final query = _db.select(_db.posts)..where((t) => t.id.equals(id));
+    final row = await query.getSingleOrNull();
+    if (row == null) return;
+
+    final nextLikes = row.likeCount + likes;
+    await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(
+      PostsCompanion(
+        likeCount: Value(nextLikes),
+        commentCount: Value(row.commentCount + comments),
+        isHot: Value(row.isHot || nextLikes >= 100),
+      ),
+    );
+  }
+
   /// 软删除：保留 `deletedAt` 供日后恢复与审计。
   Future<void> softDelete(String id) async {
     await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(

@@ -69,9 +69,18 @@ class AppTheme {
       colorScheme: scheme,
     );
 
+    // 必须显式关掉文本装饰：
+    // Flutter 的兜底文本样式（app.dart 里的 _errorTextStyle）带
+    //   decoration: underline + decorationColor: 黄色
+    // 而 Typography 里部分字号没有声明 decoration: none，
+    // 于是把这条**黄色双下划线**继承了下来（同一个组件里 labelLarge 有、bodyMedium 没有）。
+    // 统一在这里声明"不要装饰"，把所有继承路径一次性掐断。
     final text = base.textTheme.apply(
       bodyColor: colors.text,
       displayColor: colors.text,
+      decoration: TextDecoration.none,
+      decorationColor: Colors.transparent,
+      decorationStyle: TextDecorationStyle.solid,
     );
 
     return base.copyWith(
