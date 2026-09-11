@@ -38,13 +38,23 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         beforeOpen: (details) async {
           // 外键约束默认是关的，必须显式打开，否则 ai_interactions 的引用形同虚设
           await customStatement('PRAGMA foreign_keys = ON');
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // v1 的 ai_interactions 带 (postId, personaId, type) 唯一约束，
+            // 会禁止同一住民对同一条帖子多次评论——而"连续回复"正是规划书要的效果。
+            // v2 去掉该约束，只能重建表。阶段 A 的互动都是可再生的（种子/演示脚本），
+            // 因此不做数据搬迁。
+            await m.deleteTable('ai_interactions');
+            await m.createTable(aiInteractions);
+          }
         },
       );
 }

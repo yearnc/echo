@@ -6,7 +6,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../../core/constants/app_texts.dart';
 import '../../domain/models/ai_persona.dart';
 import '../../domain/models/app_mode.dart';
-import '../../domain/models/post.dart';
+import '../../domain/models/demo_script.dart';
+import '../demo/demo_script_repository.dart';
 import '../seed/demo_posts.dart';
 import 'app_database.dart';
 
@@ -119,62 +120,106 @@ class SeedService {
 
   /// 首次启动时铺一批内容，让信息流不是空的。
   ///
-  /// 这批内容就是微视频三幕用的那几条（天空照、垃圾桶照），
-  /// 标成 `status = done` 直接可见——演示彩排时不需要等 0—48 小时。
+  /// 回响模式的演示内容直接**从三幕脚本生成**：脚本里标了 `done` 的动作
+  /// 就是"已经发生过的互动"，所以彩排时不需要等 0—48 小时。
+  /// 用同一份脚本播种和播放，能保证镜头里的内容和数据库里的内容永远一致。
   Future<void> _seedDemoContent() async {
     final count = await _db.posts.count().getSingle();
     if (count > 0) return;
 
-    final posts = DemoPosts.feedEcho;
-    if (posts.isEmpty) return;
-
-    final comments = DemoPosts.comments;
+    final scripts = await const DemoScriptRepository().loadAll();
+    final echoScripts = scripts.where((s) => s.post != null).toList();
+    final now = DateTime.now().millisecondsSinceEpoch;
 
     await _db.batch((batch) {
-      batch.insertAll(
-        _db.posts,
-        posts.map((post) {
-          return PostsCompanion(
-            id: Value(post.id),
-            content: Value(post.content),
-            images: Value(jsonEncode(post.images)),
-            createdAt: Value(post.createdAt.millisecondsSinceEpoch),
-            scope: Value(post.scope),
-            topicName: Value(post.topicName),
-            isHot: Value(post.isHot),
-            likeCount: Value(post.likeCount),
-            commentCount: Value(post.commentCount),
-          );
-        }).toList(growable: false),
-      );
+      for (final script in echoScripts) {
+        final spec = script.post!;
+        final stats = _finalStatsOf(script);
+        final lastAt = script.effectiveDurationMs;
 
-      final interactionRows = <AiInteractionsCompanion>[];
-      for (final post in posts) {
-        for (final comment in comments[post.id] ?? const <PostComment>[]) {
-          final at = comment.createdAt.millisecondsSinceEpoch;
-          interactionRows.add(
+        batch.insert(
+          _db.posts,
+          PostsCompanion(
+            id: Value(spec.id),
+            content: Value(spec.content),
+            images: Value(jsonEncode(spec.images)),
+            createdAt: Value(now - lastAt),
+            scope: Value(spec.scope),
+            topicName: Value(spec.topicName),
+            isHot: Value(stats.likes > 100),
+            likeCount: Value(stats.likes),
+            commentCount: Value(stats.comments),
+          ),
+        );
+
+        final index = <String, int>{};
+        for (final step in script.steps.where((s) => s.isComment)) {
+          final personaId = step.personaId ?? 'persona_001';
+          final seq = index.update(personaId, (v) => v + 1, ifAbsent: () => 0);
+          // 评论的"发生时间"按脚本时间轴倒推，读起来像自然散布的
+          final at = now - (lastAt - step.atMs);
+          batch.insert(
+            _db.aiInteractions,
             AiInteractionsCompanion(
-              id: Value(comment.id),
-              postId: Value(comment.postId),
-              personaId: Value(comment.personaId),
+              id: Value('${spec.id}_${personaId}_$seq'),
+              postId: Value(spec.id),
+              personaId: Value(personaId),
               type: const Value('comment'),
-              mediaType: Value(comment.mediaType.name),
-              content: Value(comment.content),
-              voicePath: Value(comment.voiceAsset),
-              transcript: Value(comment.transcript),
-              voiceDurationMs: Value(comment.voiceDurationMs),
+              mediaType: Value(step.mediaType),
+              content: Value(step.content),
+              voicePath: Value(step.voiceAsset),
+              transcript: Value(step.transcript),
+              voiceDurationMs: Value(step.voiceDurationMs),
               scheduledAt: Value(at),
               executedAt: Value(at),
               status: const Value('done'),
-              likeCount: Value(comment.likeCount),
+              likeCount: Value(_likeSeedFor(step.atMs)),
             ),
           );
         }
       }
 
-      if (interactionRows.isNotEmpty) {
-        batch.insertAll(_db.aiInteractions, interactionRows);
+      // 清醒模式的示例记录（第三幕切过去之后能看到）
+      for (final record in DemoPosts.clearRecords) {
+        batch.insert(
+          _db.posts,
+          PostsCompanion(
+            id: Value(record.id),
+            content: Value(record.content),
+            images: Value(jsonEncode(record.images)),
+            createdAt: Value(record.createdAt.millisecondsSinceEpoch),
+            scope: Value(record.scope),
+          ),
+        );
       }
     });
   }
+
+  /// 把时间轴跑一遍，算出这条帖子最终的点赞/评论数。
+  _Stats _finalStatsOf(DemoScript script) {
+    var likes = 0;
+    var comments = 0;
+    for (final step in script.steps) {
+      switch (step.type) {
+        case 'stats':
+          likes = step.likes ?? likes;
+          comments = step.comments ?? comments;
+        case 'like_burst':
+          likes += step.delta ?? 0;
+        case 'comment':
+          comments += 1;
+      }
+    }
+    return _Stats(likes, comments);
+  }
+
+  /// 评论自带的小赞数：越早出现的评论攒得越多，看着更像真的。
+  int _likeSeedFor(int atMs) => (atMs / 1000).round().clamp(0, 40);
+}
+
+class _Stats {
+  const _Stats(this.likes, this.comments);
+
+  final int likes;
+  final int comments;
 }

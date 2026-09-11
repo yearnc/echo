@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/analysis/analysis_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/demo/demo_page.dart';
+import '../../features/demo/demo_player_page.dart';
 import '../../features/feed/feed_page.dart';
 import '../../features/notifications/notifications_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
@@ -27,6 +28,9 @@ class RoutePaths {
   static const String demo = '/demo';
 
   static String post(String id) => '/post/$id';
+
+  /// 演示模式某一幕的舞台。
+  static String demoAct(String actId) => '/demo/$actId';
 }
 
 /// 阶段 A 路由表。
@@ -81,6 +85,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.demo,
       builder: (context, state) => const DemoPage(),
+      routes: [
+        GoRoute(
+          path: ':actId',
+          builder: (context, state) => DemoPlayerPage(
+            actId: state.pathParameters['actId'] ?? 'act1',
+          ),
+        ),
+      ],
     ),
   ],
 );

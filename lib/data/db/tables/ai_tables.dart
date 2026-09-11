@@ -72,9 +72,9 @@ class AiInteractions extends Table {
   @override
   Set<Column> get primaryKey => {id};
 
-  /// 同一帖子、同一人格、同一类型不重复排队。
-  @override
-  List<Set<Column>> get uniqueKeys => [
-        {postId, personaId, type},
-      ];
+  // 这里刻意**不加** (postId, personaId, type) 唯一约束：
+  // 规划书 §3.6 要求住民能"连续回复、追问、@用户"，
+  // 所以同一个人格完全可以对同一条帖子评论多次。
+  // "一个人只能点一次赞" 属于调度规则，放在调度器里判断，
+  // 不该由数据库表结构来约束（否则会误伤多次评论）。
 }

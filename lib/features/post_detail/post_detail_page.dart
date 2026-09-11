@@ -5,10 +5,10 @@ import '../../core/constants/app_texts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/mode_controller.dart';
+import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
 import '../shell/app_shell.dart';
@@ -64,7 +64,7 @@ class PostDetailPage extends ConsumerWidget {
                             const _NoCommentsYet()
                           else
                             for (final comment in comments)
-                              _CommentTile(comment: comment),
+                              CommentTile(comment: comment),
                         ],
                       ),
                     ),
@@ -241,139 +241,3 @@ class _ClearModeHint extends StatelessWidget {
   }
 }
 
-class _CommentTile extends ConsumerWidget {
-  const _CommentTile({required this.comment});
-
-  final PostComment comment;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final persona = ref.watch(personaByIdProvider(comment.personaId));
-    final name = persona?.name ?? '社区住民';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          UserAvatar(name: name, avatarRef: persona?.avatar, size: 34),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(name,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: EchoColors.text,
-                              fontWeight: FontWeight.w600,
-                            )),
-                    if (persona != null) ...[
-                      const SizedBox(width: 6),
-                      Text('Lv.${persona.level}',
-                          style: const TextStyle(
-                              color: EchoColors.textFaint, fontSize: 10)),
-                    ],
-                    const Spacer(),
-                    Text(RelativeTime.short(comment.createdAt),
-                        style: const TextStyle(
-                            color: EchoColors.textFaint, fontSize: 11)),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                if (comment.isVoice)
-                  _VoiceBubble(comment: comment)
-                else
-                  Text(comment.content ?? '',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: EchoColors.text)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.favorite_border,
-                        size: 13, color: EchoColors.textFaint),
-                    const SizedBox(width: 4),
-                    Text('${comment.likeCount}',
-                        style: const TextStyle(
-                            color: EchoColors.textFaint, fontSize: 11)),
-                    const SizedBox(width: 14),
-                    const Text('回复',
-                        style: TextStyle(
-                            color: EchoColors.textFaint, fontSize: 11)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 语音评论：波形 + 时长 + 转写稿（规划书 §6.6）。
-/// 阶段 A 播放预置音频，真实 TTS 在阶段 B。
-class _VoiceBubble extends StatelessWidget {
-  const _VoiceBubble({required this.comment});
-
-  final PostComment comment;
-
-  @override
-  Widget build(BuildContext context) {
-    final seconds = ((comment.voiceDurationMs ?? 0) / 1000).round();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: EchoColors.surfaceHigh,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: EchoColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.play_arrow_rounded,
-                  size: 20, color: EchoColors.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < 22; i++)
-                      Container(
-                        width: 2.5,
-                        height: 6 + (i % 5) * 3.0,
-                        margin: const EdgeInsets.only(right: 2.5),
-                        decoration: BoxDecoration(
-                          color: EchoColors.accent.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('$seconds"',
-                  style: const TextStyle(
-                      color: EchoColors.textMuted, fontSize: 11)),
-            ],
-          ),
-          if (comment.transcript != null) ...[
-            const SizedBox(height: 8),
-            Text('“${comment.transcript}”',
-                style: const TextStyle(
-                    color: EchoColors.textMuted, fontSize: 12, height: 1.5)),
-          ],
-          const SizedBox(height: 6),
-          const Text('AI 生成语音',
-              style: TextStyle(color: EchoColors.textFaint, fontSize: 10)),
-        ],
-      ),
-    );
-  }
-}

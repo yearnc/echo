@@ -1,30 +1,22 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../../domain/services/mode_controller.dart';
+import '../../data/demo/demo_script_repository.dart';
+import '../../domain/models/demo_script.dart';
 
 /// 演示模式控制台（规划书 §3.12）。
 ///
 /// 存在的唯一理由：**微视频拍摄必须稳定、零成本、可重复**。
-/// 所以这里的内容全部读预置 JSON，不依赖网络、不调用任何 API。
-/// 阶段 A 先把三幕脚本读出来、把播放器的骨架搭好；
-/// 逐帧播放（点赞爬升、评论逐条出现）在 M3 落地。
+/// 三幕脚本全部来自本地 assets，不联网、不调用任何模型。
 class DemoPage extends ConsumerWidget {
   const DemoPage({super.key});
 
-  static const List<String> _assets = [
-    'assets/demo/act1.json',
-    'assets/demo/act2.json',
-    'assets/demo/act3.json',
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final acts = ref.watch(_demoActsProvider);
+    final acts = ref.watch(demoScriptsProvider);
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -50,12 +42,14 @@ class DemoPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             const Text(
-              '所有内容均为本地预置，不联网、不调用模型，可反复重放。',
-              style: TextStyle(color: EchoColors.textMuted, fontSize: 12.5, height: 1.6),
+              '所有内容均为本地预置，不联网、不调用模型，可反复重放。\n'
+              '播放时可暂停、单步、重置——镜头不满意就再来一遍。',
+              style: TextStyle(
+                  color: EchoColors.textMuted, fontSize: 12.5, height: 1.7),
             ),
             const SizedBox(height: 16),
             for (final act in list) ...[
-              _ActCard(act: act),
+              _ActCard(script: act),
               const SizedBox(height: 12),
             ],
             const SizedBox(height: 4),
@@ -79,13 +73,17 @@ class DemoPage extends ConsumerWidget {
   }
 }
 
-class _ActCard extends ConsumerWidget {
-  const _ActCard({required this.act});
+class _ActCard extends StatelessWidget {
+  const _ActCard({required this.script});
 
-  final DemoAct act;
+  final DemoScript script;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final commentCount =
+        script.steps.where((step) => step.isComment).length;
+    final seconds = (script.effectiveDurationMs / 1000).round();
+
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -99,22 +97,24 @@ class _ActCard extends ConsumerWidget {
           Row(
             children: [
               Container(
-                width: 26,
-                height: 26,
+                width: 28,
+                height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: EchoColors.primary.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(act.id.replaceAll('act', ''),
-                    style: const TextStyle(
-                        color: EchoColors.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700)),
+                child: Text(
+                  script.id.replaceAll('act', ''),
+                  style: const TextStyle(
+                      color: EchoColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(act.title,
+                child: Text(script.title,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: EchoColors.text,
                           fontWeight: FontWeight.w700,
@@ -123,40 +123,27 @@ class _ActCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(act.subtitle,
+          Text(script.subtitle,
               style: const TextStyle(
                   color: EchoColors.textMuted, fontSize: 12.5, height: 1.5)),
           const SizedBox(height: 10),
           Row(
             children: [
-              _Meta(icon: Icons.timeline, text: '${act.stepCount} 个动作'),
-              const SizedBox(width: 14),
-              _Meta(
-                  icon: Icons.timer_outlined,
-                  text: '${(act.durationMs / 1000).round()} 秒'),
+              _Meta(icon: Icons.timeline, text: '${script.steps.length} 个动作'),
+              const SizedBox(width: 12),
+              _Meta(icon: Icons.timer_outlined, text: '$seconds 秒'),
+              const SizedBox(width: 12),
+              _Meta(icon: Icons.mode_comment_outlined, text: '$commentCount 条评论'),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    // 第三幕的剧情就是"切到清醒模式"，所以这里先把模式切过去
-                    final controller = ref.read(modeControllerProvider.notifier);
-                    if (act.id == 'act3') {
-                      controller.toClear();
-                    } else {
-                      controller.toEcho();
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${act.title}：逐帧播放在 M3 实现')),
-                    );
-                  },
-                  child: const Text('播放'),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push(RoutePaths.demoAct(script.id)),
+              icon: const Icon(Icons.play_arrow_rounded, size: 19),
+              label: const Text('播放这一幕'),
+            ),
           ),
         ],
       ),
@@ -182,37 +169,3 @@ class _Meta extends StatelessWidget {
     );
   }
 }
-
-class DemoAct {
-  const DemoAct({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.stepCount,
-    required this.durationMs,
-  });
-
-  final String id;
-  final String title;
-  final String subtitle;
-  final int stepCount;
-  final int durationMs;
-}
-
-final _demoActsProvider = FutureProvider<List<DemoAct>>((ref) async {
-  final acts = <DemoAct>[];
-  for (final path in DemoPage._assets) {
-    final raw = await rootBundle.loadString(path);
-    final json = jsonDecode(raw) as Map<String, dynamic>;
-    final steps = (json['steps'] as List<dynamic>? ?? const []).length;
-    final preSteps = (json['preSteps'] as List<dynamic>? ?? const []).length;
-    acts.add(DemoAct(
-      id: json['id'] as String? ?? 'act',
-      title: json['title'] as String? ?? '未命名',
-      subtitle: json['subtitle'] as String? ?? '',
-      stepCount: steps + preSteps,
-      durationMs: (json['durationHintMs'] as num?)?.toInt() ?? 0,
-    ));
-  }
-  return acts;
-});
