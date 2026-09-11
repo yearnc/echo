@@ -1,0 +1,37 @@
+{
+  "_note": "演示模式·第一幕『建立幻觉』。全部离线预置，不调用任何 API。steps 按 atMs 时间轴播放，可单步/重播/重置。图片缺失时自动降级为渐变占位块（不会崩）。",
+  "_schemaVersion": 1,
+  "id": "act1",
+  "title": "第一幕：建立幻觉",
+  "subtitle": "发一条随手拍，世界立刻回应了你",
+  "durationHintMs": 42000,
+  "post": {
+    "content": "今天下课后在操场边随手拍的天空，好像有点好看。",
+    "images": ["asset:assets/demo/sky_demo.jpg"],
+    "topicName": "随手拍",
+    "createdAtOffsetMinutes": 0
+  },
+  "steps": [
+    { "atMs": 1500, "type": "stats_burst", "likeCount": 4, "commentCount": 0 },
+    { "atMs": 2400, "type": "like", "personaId": "persona_005", "count": 4, "silent": true },
+    { "atMs": 3800, "type": "notification", "title": "4 位社区住民赞了你的帖子", "body": "你有一条社区互动通知" },
+    { "atMs": 6200, "type": "comment", "personaId": "persona_001", "mediaType": "text",
+      "content": "看到这条的时候刚好在图书馆靠窗的位置，阳光也是这样斜斜的，替你开心一下～" },
+    { "atMs": 9400, "type": "stats_burst", "likeCount": 11, "commentCount": 1 },
+    { "atMs": 11800, "type": "comment", "personaId": "persona_007", "mediaType": "voice",
+      "content": "这个光线是下午四点半之后的吧？暖调压得很舒服，再晚十分钟就过曝了。",
+      "voiceAsset": "asset:assets/audio/demo_act1_laoke.mp3", "voiceDurationMs": 6400,
+      "transcript": "这个光线是下午四点半之后的吧？暖调压得很舒服，再晚十分钟就过曝了。" },
+    { "atMs": 15200, "type": "comment", "personaId": "persona_004", "mediaType": "text",
+      "content": "天呐！！！这张照片的氛围感直接把我按在椅子上起不来了，今天的班我是不上了（虽然我没班）。" },
+    { "atMs": 18000, "type": "stats_burst", "likeCount": 26, "commentCount": 3 },
+    { "atMs": 21400, "type": "comment", "personaId": "persona_010", "mediaType": "text",
+      "content": "四楼靠窗今天有空位，要不要来自习？我帮你看着座。" },
+    { "atMs": 24600, "type": "notification", "title": "温柔学姐 评论了你的帖子", "body": "你有一条社区互动通知" },
+    { "atMs": 28600, "type": "stats_burst", "likeCount": 43, "commentCount": 5 },
+    { "atMs": 32000, "type": "hot_badge", "label": "热", "rank": 9, "hint": "你进入了今日热榜" },
+    { "atMs": 36400, "type": "comment", "personaId": "persona_006", "mediaType": "text",
+      "content": "认真看完，说三点。1）信息的密度刚刚好，读起来不累；2）情绪是递进的，从描述到感受有过渡；3）如果结尾再收一句就完整了。整体是很成熟的表达。" },
+    { "atMs": 40200, "type": "end_card", "text": "这一晚，你刷新了 11 次。" }
+  ]
+}

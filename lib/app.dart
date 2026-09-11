@@ -1,0 +1,127 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/router/app_router.dart';
+import 'core/theme/app_colors.dart';
+import 'core/theme/app_theme.dart';
+import 'data/db/database_provider.dart';
+import 'domain/services/mode_controller.dart';
+
+/// 应用根组件。
+///
+/// 主题跟着模式走：回响模式用深色（沉浸），清醒模式用暖白（安静）。
+/// 这不是"跟随系统"，而是产品语义——两种模式看世界的方式本来就不同。
+class EchoApp extends ConsumerWidget {
+  const EchoApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(modeControllerProvider);
+    final bootstrap = ref.watch(appBootstrapProvider);
+
+    if (bootstrap.isLoading) {
+      return const _Splash();
+    }
+    if (bootstrap.hasError) {
+      return _StartupError(message: '${bootstrap.error}');
+    }
+
+    return MaterialApp.router(
+      title: '回响 Echo',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.clear,
+      darkTheme: AppTheme.echo,
+      themeMode: mode.isEcho ? ThemeMode.dark : ThemeMode.light,
+      routerConfig: appRouter,
+      builder: (context, child) {
+        // 固定文字缩放，避免系统大字体把信息流卡片挤变形
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+}
+
+/// 启动页：开库与播种通常只在这一瞬间可见。
+class _Splash extends StatelessWidget {
+  const _Splash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: EchoColors.bg,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '回响',
+                style: TextStyle(
+                  color: EchoColors.text,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -1,
+                ),
+              ),
+              SizedBox(height: 14),
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: EchoColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 启动失败：本地数据库起不来时要把原因说清楚，而不是白屏。
+class _StartupError extends StatelessWidget {
+  const _StartupError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: EchoColors.bg,
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: EchoColors.like, size: 32),
+                const SizedBox(height: 14),
+                const Text(
+                  '本地数据库启动失败',
+                  style: TextStyle(color: EchoColors.text, fontSize: 16),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: EchoColors.textMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "_note": "内置表情包清单（阶段A）。path 用 asset: 前缀；项目作者把图片按下面的命名丢进 assets/stickers/<分类>/ 即可生效，业务代码不用改。图片缺失时自动降级为该表情的名称文字贴片（不会崩）。用户上传的表情包不入这个文件，走 stickers 数据表（source=file）。",
+  "_schemaVersion": 1,
+  "namingConvention": "assets/stickers/<categoryId>/<序号>.png，建议 240x240 PNG 透明底，体积 <100KB",
+  "emptyBehavior": "missing_file → 显示 name 文字贴片",
+  "categories": [
+    { "id": "happy", "name": "开心" },
+    { "id": "comfort", "name": "安慰" },
+    { "id": "roast", "name": "吐槽" },
+    { "id": "shock", "name": "震惊" },
+    { "id": "like", "name": "点赞" },
+    { "id": "speechless", "name": "无语" },
+    { "id": "encourage", "name": "鼓励" },
+    { "id": "custom", "name": "自定义" }
+  ],
+  "stickers": [
+    { "id": "sticker_happy_01", "name": "开心·拍手", "category": "happy", "path": "asset:assets/stickers/happy/01.png", "isUser": false },
+    { "id": "sticker_happy_02", "name": "开心·转圈", "category": "happy", "path": "asset:assets/stickers/happy/02.png", "isUser": false },
+    { "id": "sticker_happy_03", "name": "开心·星星眼", "category": "happy", "path": "asset:assets/stickers/happy/03.png", "isUser": false },
+    { "id": "sticker_comfort_01", "name": "安慰·摸摸头", "category": "comfort", "path": "asset:assets/stickers/comfort/01.png", "isUser": false },
+    { "id": "sticker_comfort_02", "name": "安慰·递纸巾", "category": "comfort", "path": "asset:assets/stickers/comfort/02.png", "isUser": false },
+    { "id": "sticker_comfort_03", "name": "安慰·抱抱", "category": "comfort", "path": "asset:assets/stickers/comfort/03.png", "isUser": false },
+    { "id": "sticker_roast_01", "name": "吐槽·就这", "category": "roast", "path": "asset:assets/stickers/roast/01.png", "isUser": false },
+    { "id": "sticker_roast_02", "name": "吐槽·看戏", "category": "roast", "path": "asset:assets/stickers/roast/02.png", "isUser": false },
+    { "id": "sticker_roast_03", "name": "吐槽·报警了", "category": "roast", "path": "asset:assets/stickers/roast/03.png", "isUser": false },
+    { "id": "sticker_shock_01", "name": "震惊·瞳孔地震", "category": "shock", "path": "asset:assets/stickers/shock/01.png", "isUser": false },
+    { "id": "sticker_shock_02", "name": "震惊·后退一步", "category": "shock", "path": "asset:assets/stickers/shock/02.png", "isUser": false },
+    { "id": "sticker_like_01", "name": "点赞·大拇指", "category": "like", "path": "asset:assets/stickers/like/01.png", "isUser": false },
+    { "id": "sticker_like_02", "name": "点赞·双击666", "category": "like", "path": "asset:assets/stickers/like/02.png", "isUser": false },
+    { "id": "sticker_speechless_01", "name": "无语·点点点", "category": "speechless", "path": "asset:assets/stickers/speechless/01.png", "isUser": false },
+    { "id": "sticker_speechless_02", "name": "无语·微笑脸", "category": "speechless", "path": "asset:assets/stickers/speechless/02.png", "isUser": false },
+    { "id": "sticker_encourage_01", "name": "鼓励·加油", "category": "encourage", "path": "asset:assets/stickers/encourage/01.png", "isUser": false },
+    { "id": "sticker_encourage_02", "name": "鼓励·递奶茶", "category": "encourage", "path": "asset:assets/stickers/encourage/02.png", "isUser": false },
+    { "id": "sticker_encourage_03", "name": "鼓励·你可以的", "category": "encourage", "path": "asset:assets/stickers/encourage/03.png", "isUser": false }
+  ]
+}

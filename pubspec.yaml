@@ -1,0 +1,128 @@
+name: echo
+description: "《回响 Echo》双模式论坛式 AI 反馈模拟 APP —— 思政实践项目《数字时代大学生自我价值感的异化与重建》配套应用"
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.3
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^3.4.3
+  go_router: ^18.0.1
+  drift: ^2.35.0
+  sqlite3_flutter_libs: ^0.6.0+eol
+  dio: ^5.11.1
+  flutter_secure_storage: ^11.1.0
+  flutter_local_notifications: ^22.3.0
+  image_picker: ^1.2.3
+  path_provider: ^2.1.6
+  just_audio: ^0.10.6
+  intl: ^0.20.3
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.35.0
+  build_runner: ^2.16.1
+
+# sqlite3 的构建钩子默认从 GitHub Releases 下载预编译 SQLite 原生库，
+# 但 GitHub 直连在国内超时（HttpException: 信号灯超时时间已到）。
+# 这里按官方文档换成 GitHub 代理（package:sqlite3 会对下载文件做 sha256 校验，
+# 所以走第三方代理不影响供应链安全）。
+# 若该代理失效，可替换为 ghfast.top / ghproxy.net，或改用 source: source 本地编译。
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3
+      url_pattern: "https://gh-proxy.com/https://github.com/simolus3/sqlite3.dart/releases/download/$RELEASE_TAG/$FILENAME"
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # 素材目录：图片类目录已整体注册，往目录里丢文件即可生效，无需改动本文件。
+  # 各目录下的 _placeholder.png 是 1x1 占位图（保证空目录能被 Flutter 打包），
+  # 放入真实素材后可以直接删掉。
+  assets:
+    - assets/personas/          # 12 个人格配置 personas.json
+    - assets/demo/              # 演示模式三幕脚本 act1~3.json
+    - assets/stickers.json      # 表情包清单
+    - assets/avatars/           # 人格头像（persona_001.png ~ persona_012.png）
+    - assets/audio/             # 语音条音频
+    - assets/images/            # 其他图片
+    - assets/stickers/happy/
+    - assets/stickers/comfort/
+    - assets/stickers/roast/
+    - assets/stickers/shock/
+    - assets/stickers/like/
+    - assets/stickers/speechless/
+    - assets/stickers/encourage/
+    - assets/stickers/custom/
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
