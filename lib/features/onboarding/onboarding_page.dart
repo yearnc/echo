@@ -32,20 +32,27 @@ class _OnboardingPageState extends State<OnboardingPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Spacer(),
-              Text('回响',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: EchoColors.text,
-                        fontSize: 40,
-                        letterSpacing: -1.2,
-                      )),
+              Text(
+                '回响',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: EchoColors.text,
+                  fontSize: 40,
+                  letterSpacing: -1.2,
+                ),
+              ),
               const SizedBox(height: 6),
-              const Text('Echo · 回响广场',
-                  style: TextStyle(color: EchoColors.textMuted, fontSize: 13)),
+              Text(
+                'Echo · 回响广场',
+                style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+              ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 '这里有一个永远热情的社区。\n它会认真看你发的每一条，然后回应你。',
                 style: TextStyle(
-                    color: EchoColors.textMuted, fontSize: 13.5, height: 1.8),
+                  color: EchoColors.textMuted,
+                  fontSize: 13.5,
+                  height: 1.8,
+                ),
               ),
               const SizedBox(height: 26),
               _ModeOption(
@@ -75,7 +82,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       child: Checkbox(
                         value: _agreed,
                         onChanged: (v) => setState(() => _agreed = v ?? false),
-                        side: const BorderSide(color: EchoColors.textFaint),
+                        side: BorderSide(color: EchoColors.textFaint),
                         activeColor: EchoColors.primary,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -84,8 +91,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     Expanded(
                       child: Text(
                         AppTexts.switchToEchoAgeGate,
-                        style: const TextStyle(
-                            color: EchoColors.textMuted, fontSize: 12, height: 1.5),
+                        style: TextStyle(
+                          color: EchoColors.textMuted,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
                       ),
                     ),
                   ],
@@ -100,7 +110,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Center(
+              Center(
                 child: Text(
                   AppTexts.aiDisclaimer,
                   style: TextStyle(color: EchoColors.textFaint, fontSize: 10.5),
@@ -157,30 +167,43 @@ class _ModeOption extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(title,
-                          style: const TextStyle(
-                            color: EchoColors.text,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          )),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: EchoColors.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: EchoColors.overlay,
                           borderRadius: BorderRadius.circular(5),
                         ),
-                        child: Text(badge,
-                            style: const TextStyle(
-                                color: EchoColors.textMuted, fontSize: 10)),
+                        child: Text(
+                          badge,
+                          style: TextStyle(
+                            color: EchoColors.textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 5),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: EchoColors.textMuted, fontSize: 12, height: 1.5)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: EchoColors.textMuted,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),

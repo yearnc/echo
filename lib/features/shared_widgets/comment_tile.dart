@@ -58,25 +58,36 @@ class CommentTile extends ConsumerWidget {
                       Text(
                         name,
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: EchoColors.text,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: EchoColors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       if (persona != null) ...[
                         const SizedBox(width: 6),
-                        Text('Lv.${persona.level}',
-                            style: const TextStyle(
-                                color: EchoColors.textFaint, fontSize: 10)),
+                        Text(
+                          'Lv.${persona.level}',
+                          style: TextStyle(
+                            color: EchoColors.textFaint,
+                            fontSize: 10,
+                          ),
+                        ),
                       ],
                       if (highlighted) ...[
                         const SizedBox(width: 6),
-                        const Icon(Icons.local_fire_department,
-                            size: 12, color: EchoColors.hot),
+                        Icon(
+                          Icons.local_fire_department,
+                          size: 12,
+                          color: EchoColors.hot,
+                        ),
                       ],
                       const Spacer(),
-                      Text(RelativeTime.short(createdAt),
-                          style: const TextStyle(
-                              color: EchoColors.textFaint, fontSize: 11)),
+                      Text(
+                        RelativeTime.short(createdAt),
+                        style: TextStyle(
+                          color: EchoColors.textFaint,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 5),
@@ -85,24 +96,33 @@ class CommentTile extends ConsumerWidget {
                   else
                     Text(
                       comment.content ?? '',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: EchoColors.text, height: 1.6),
                     ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.favorite_border,
-                          size: 13, color: EchoColors.textFaint),
+                      Icon(
+                        Icons.favorite_border,
+                        size: 13,
+                        color: EchoColors.textFaint,
+                      ),
                       const SizedBox(width: 4),
-                      Text('${comment.likeCount}',
-                          style: const TextStyle(
-                              color: EchoColors.textFaint, fontSize: 11)),
+                      Text(
+                        '${comment.likeCount}',
+                        style: TextStyle(
+                          color: EchoColors.textFaint,
+                          fontSize: 11,
+                        ),
+                      ),
                       const SizedBox(width: 14),
-                      const Text('回复',
-                          style: TextStyle(
-                              color: EchoColors.textFaint, fontSize: 11)),
+                      Text(
+                        '回复',
+                        style: TextStyle(
+                          color: EchoColors.textFaint,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -138,8 +158,11 @@ class VoiceBubble extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.play_arrow_rounded,
-                  size: 20, color: EchoColors.accent),
+              Icon(
+                Icons.play_arrow_rounded,
+                size: 20,
+                color: EchoColors.accent,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Row(
@@ -158,20 +181,28 @@ class VoiceBubble extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text('$seconds"',
-                  style: const TextStyle(
-                      color: EchoColors.textMuted, fontSize: 11)),
+              Text(
+                '$seconds"',
+                style: TextStyle(color: EchoColors.textMuted, fontSize: 11),
+              ),
             ],
           ),
           if (comment.transcript != null) ...[
             const SizedBox(height: 8),
-            Text('“${comment.transcript}”',
-                style: const TextStyle(
-                    color: EchoColors.textMuted, fontSize: 12, height: 1.5)),
+            Text(
+              '“${comment.transcript}”',
+              style: TextStyle(
+                color: EchoColors.textMuted,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
           ],
           const SizedBox(height: 6),
-          const Text('AI 生成语音',
-              style: TextStyle(color: EchoColors.textFaint, fontSize: 10)),
+          Text(
+            'AI 生成语音',
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 10),
+          ),
         ],
       ),
     );

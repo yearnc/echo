@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../domain/models/app_mode.dart';
@@ -22,7 +23,12 @@ class AppShell extends ConsumerWidget {
   static const List<_NavItem> _echoTabs = [
     _NavItem('/feed', Icons.auto_awesome_outlined, Icons.auto_awesome, '首页'),
     _NavItem('/compose', Icons.add_box_outlined, Icons.add_box, '发布'),
-    _NavItem('/notifications', Icons.notifications_none, Icons.notifications, '通知'),
+    _NavItem(
+      '/notifications',
+      Icons.notifications_none,
+      Icons.notifications,
+      '通知',
+    ),
     _NavItem('/profile', Icons.person_outline, Icons.person, '我的'),
   ];
 
@@ -42,8 +48,22 @@ class AppShell extends ConsumerWidget {
     // 红点数据直接来自未读通知条数，所以不会出现"数字和列表对不上"
     final unread = ref.watch(unreadNotificationCountProvider).value ?? 0;
 
-    var index = tabs.indexWhere((tab) => location.startsWith(tab.path));
-    if (index < 0) index = 0;
+    // 找不到匹配的 tab（例如从「我的」push 出来的设置页）时**谁都不选中**。
+    // 之前这里回落到 0，结果站在设置页上底部却亮着"首页"，看着像坏了。
+    final index = tabs.indexWhere((tab) => location.startsWith(tab.path));
+
+    // 冷启动时模式是从配置里读回来的，而 GoRouter 的落地页固定是首页——
+    // 两者对不上就把人送回该模式的首页（上次关掉 APP 时是清醒模式的话）。
+    // 只纠正这两个首页，不碰 /settings、/post/xxx 这类本就不在导航里的页面。
+    final wrongHome =
+        (location == RoutePaths.feed && mode.isClear) ||
+        (location == RoutePaths.records && mode.isEcho);
+    if (wrongHome) {
+      final fallback = mode.isEcho ? RoutePaths.feed : RoutePaths.records;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go(fallback);
+      });
+    }
 
     return Scaffold(
       body: Column(
@@ -114,7 +134,8 @@ class _BottomBar extends StatelessWidget {
                     selected: i == currentIndex,
                     active: active,
                     inactive: inactive,
-                    showBadge: tabs[i].path == '/notifications' && unreadCount > 0,
+                    showBadge:
+                        tabs[i].path == '/notifications' && unreadCount > 0,
                     onTap: () => onTap(tabs[i].path),
                   ),
                 ),
@@ -156,7 +177,11 @@ class _TabButton extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(selected ? item.activeIcon : item.icon, size: 22, color: color),
+              Icon(
+                selected ? item.activeIcon : item.icon,
+                size: 22,
+                color: color,
+              ),
               if (showBadge)
                 Positioned(
                   right: -3,
@@ -164,7 +189,7 @@ class _TabButton extends StatelessWidget {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: EchoColors.like,
                       shape: BoxShape.circle,
                     ),

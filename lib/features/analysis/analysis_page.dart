@@ -16,12 +16,10 @@ class AnalysisPage extends ConsumerWidget {
   static const _PresetAnalysis _preset = _PresetAnalysis(
     imageDescription:
         '画面为中景天空，云层呈絮状分布，左侧偏暖色、右侧偏冷色；光来自画面右下方，属于逆光，主体无遮挡。画面内没有人物或建筑。',
-    emotionAnalysis:
-        '文案为平淡陈述，含不确定语气（"好像有点"），情绪强度低，偏中性；没有明显的求助或负面表达。',
+    emotionAnalysis: '文案为平淡陈述，含不确定语气（"好像有点"），情绪强度低，偏中性；没有明显的求助或负面表达。',
     logicAnalysis: '陈述句 + 主观评价结构完整，未发现逻辑跳跃。',
     factCheck: '"下课""操场边"为个人经历描述，无法也无需外部核查。',
-    suggestions:
-        '如果想要更准确的记录，可以补上拍摄时间与地点；若希望练习表达，可尝试用三个具体名词替代表容词。',
+    suggestions: '如果想要更准确的记录，可以补上拍摄时间与地点；若希望练习表达，可尝试用三个具体名词替代表容词。',
   );
 
   @override
@@ -33,17 +31,17 @@ class AnalysisPage extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          Text('客观分析',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: ClearColors.text,
-                    fontSize: 24,
-                  )),
+          Text(
+            '客观分析',
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(color: ClearColors.text, fontSize: 24),
+          ),
           const SizedBox(height: 4),
-          Text('系统只描述它看到的东西，不评价你。',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: ClearColors.textMuted)),
+          Text(
+            '系统只描述它看到的东西，不评价你。',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: ClearColors.textMuted),
+          ),
           const SizedBox(height: 16),
           if (mode.isEcho) const _NeedClearMode(),
           if (mode.isClear) ...[
@@ -87,10 +85,13 @@ class AnalysisPage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: ClearColors.divider),
               ),
-              child: const Text(
+              child: Text(
                 '阶段 A 展示的是预置分析结果；接入你自己的模型后，这里会由真实 API 生成。',
                 style: TextStyle(
-                    color: ClearColors.textMuted, fontSize: 11.5, height: 1.6),
+                  color: ClearColors.textMuted,
+                  fontSize: 11.5,
+                  height: 1.6,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -98,7 +99,7 @@ class AnalysisPage extends ConsumerWidget {
               child: Text(
                 AppTexts.permanentNotice,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: ClearColors.textFaint, fontSize: 10.5),
+                style: TextStyle(color: ClearColors.textFaint, fontSize: 10.5),
               ),
             ),
           ],
@@ -120,9 +121,13 @@ class _NeedClearMode extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: EchoColors.divider),
       ),
-      child: const Text(
+      child: Text(
         '客观分析属于清醒模式。\n切到清醒模式后，AI 互动会停止，这里只留下对内容的描述与分析。',
-        style: TextStyle(color: EchoColors.textMuted, height: 1.7, fontSize: 13),
+        style: TextStyle(
+          color: EchoColors.textMuted,
+          height: 1.7,
+          fontSize: 13,
+        ),
       ),
     );
   }
@@ -143,25 +148,33 @@ class _AnalyzedPostPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('被分析的内容',
-              style: TextStyle(
-                  color: ClearColors.textFaint,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            '被分析的内容',
+            style: TextStyle(
+              color: ClearColors.textFaint,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('今天下课后在操场边随手拍的天空，好像有点好看。',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: ClearColors.text)),
+          Text(
+            '今天下课后在操场边随手拍的天空，好像有点好看。',
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: ClearColors.text),
+          ),
           const SizedBox(height: 8),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.visibility_off_outlined,
-                  size: 13, color: ClearColors.textFaint),
+              Icon(
+                Icons.visibility_off_outlined,
+                size: 13,
+                color: ClearColors.textFaint,
+              ),
               SizedBox(width: 5),
-              Text('点赞数与评论数已隐藏',
-                  style: TextStyle(color: ClearColors.textFaint, fontSize: 11)),
+              Text(
+                '点赞数与评论数已隐藏',
+                style: TextStyle(color: ClearColors.textFaint, fontSize: 11),
+              ),
             ],
           ),
         ],
@@ -200,25 +213,30 @@ class _AnalysisSection extends StatelessWidget {
             children: [
               Icon(icon, size: 16, color: ClearColors.primary),
               const SizedBox(width: 8),
-              Text(title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: ClearColors.text,
-                        fontWeight: FontWeight.w600,
-                      )),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: ClearColors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
-              Text('$index',
-                  style: const TextStyle(
-                      color: ClearColors.divider,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700)),
+              Text(
+                '$index',
+                style: TextStyle(
+                  color: ClearColors.divider,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 9),
-          Text(content,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: ClearColors.textMuted)),
+          Text(
+            content,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: ClearColors.textMuted),
+          ),
         ],
       ),
     );

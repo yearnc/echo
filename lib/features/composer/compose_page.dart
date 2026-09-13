@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/media/media_service.dart';
+import '../../data/repositories/plan_script_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/echo_settings.dart';
+import '../../domain/models/plan_script.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/scheduler_service.dart';
 
@@ -33,6 +35,13 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   int _humanLevel = 3;
   bool _publishing = false;
 
+  /// 策划模式：勾上之后不再随机排期，改按选中的脚本执行。
+  bool _planMode = false;
+  PlanScript? _script;
+
+  /// 脚本选择弹窗是否已经开着（防止连点叠出好几层）。
+  bool _sheetOpen = false;
+
   /// 已附图（`file:` 引用，已复制进 APP 私有目录）
   final List<String> _imageRefs = [];
 
@@ -48,6 +57,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
     final isEcho = mode.isEcho;
+    // 在这里订阅脚本列表：一是让 stream 及时发值，二是点「选择」时能立刻用上，
+    // 不用等一次异步往返（那一下会让人以为按钮坏了）。
+    final scripts =
+        ref.watch(planScriptsProvider).value ?? const <PlanScript>[];
 
     return Container(
       color: isEcho ? EchoColors.bg : ClearColors.bg,
@@ -57,9 +70,9 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           Text(
             isEcho ? '发布' : '记录',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: isEcho ? EchoColors.text : ClearColors.text,
-                  fontSize: 24,
-                ),
+              color: isEcho ? EchoColors.text : ClearColors.text,
+              fontSize: 24,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -92,6 +105,54 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           ),
           const SizedBox(height: 18),
           if (isEcho) ...[
+            const _SectionLabel('策划模式'),
+            _PlanModeCard(
+              enabled: _planMode,
+              script: _script,
+              onToggle: (value) => _togglePlanMode(value, scripts),
+              onPick: () => _pickScript(scripts),
+              onManage: () => context.push(RoutePaths.scripts),
+            ),
+            const SizedBox(height: 20),
+            if (!_planMode) ...[
+              const _SectionLabel('你希望它被怎么对待'),
+              _SettingRow(
+                label: '回复频率',
+                value: _density,
+                options: const ['低', '中', '高', '自动'],
+                onChanged: (v) => setState(() => _density = v),
+              ),
+              _SettingRow(
+                label: '点赞量',
+                value: _likeLevel,
+                options: const ['低', '中', '高', '自动'],
+                onChanged: (v) => setState(() => _likeLevel = v),
+              ),
+              _SettingRow(
+                label: '拟人程度',
+                value: '$_humanLevel 档',
+                options: const ['1', '2', '3', '4', '5'],
+                onChanged: (v) => setState(() => _humanLevel = int.parse(v)),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: EchoColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: EchoColors.divider),
+                ),
+                child: Text(
+                  '这些设置只影响 AI 生成内容的表现形式。反馈会在 0—48 小时内随机出现。',
+                  style: TextStyle(
+                    color: EchoColors.textFaint,
+                    fontSize: 11.5,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
             const _SectionLabel('话题'),
             Wrap(
               spacing: 8,
@@ -104,41 +165,6 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                     onTap: () => setState(() => _topic = topic),
                   ),
               ],
-            ),
-            const SizedBox(height: 20),
-            const _SectionLabel('你希望它被怎么对待'),
-            _SettingRow(
-              label: '回复频率',
-              value: _density,
-              options: const ['低', '中', '高', '自动'],
-              onChanged: (v) => setState(() => _density = v),
-            ),
-            _SettingRow(
-              label: '点赞量',
-              value: _likeLevel,
-              options: const ['低', '中', '高', '自动'],
-              onChanged: (v) => setState(() => _likeLevel = v),
-            ),
-            _SettingRow(
-              label: '拟人程度',
-              value: '$_humanLevel 档',
-              options: const ['1', '2', '3', '4', '5'],
-              onChanged: (v) =>
-                  setState(() => _humanLevel = int.parse(v)),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: EchoColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EchoColors.divider),
-              ),
-              child: const Text(
-                '这些设置只影响 AI 生成内容的表现形式。反馈会在 0—48 小时内随机出现。',
-                style: TextStyle(
-                    color: EchoColors.textFaint, fontSize: 11.5, height: 1.6),
-              ),
             ),
           ] else
             const _ClearModeNote(),
@@ -177,6 +203,74 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     await ref.read(mediaServiceProvider).deleteByRef(imageRef);
   }
 
+  Future<void> _togglePlanMode(bool value, List<PlanScript> scripts) async {
+    if (!value) {
+      setState(() => _planMode = false);
+      return;
+    }
+
+    setState(() => _planMode = true);
+    if (_script != null) return;
+
+    // 打开策划模式就先把脚本选上，省得用户面对一个空选择框
+    if (scripts.isNotEmpty) {
+      _applyScript(scripts.first, withContent: false);
+      return;
+    }
+
+    // 刚启动那一瞬间列表可能还没到，等一次
+    final loaded = await ref.read(planScriptsProvider.future);
+    if (!mounted || loaded.isEmpty) return;
+    _applyScript(loaded.first, withContent: false);
+  }
+
+  /// 选中脚本：把它的开局内容填进编辑区（用户仍然可以改）。
+  void _applyScript(PlanScript script, {bool withContent = true}) {
+    setState(() {
+      _script = script;
+      if (!withContent) return;
+      if (script.postContent.isNotEmpty) _controller.text = script.postContent;
+      if (script.topicName != null) _topic = script.topicName!;
+      if (script.postImages.isNotEmpty) {
+        _imageRefs
+          ..clear()
+          ..addAll(script.postImages);
+      }
+    });
+  }
+
+  Future<void> _pickScript(List<PlanScript> scripts) async {
+    // 防手快：连点会叠出一摞 bottom sheet
+    if (_sheetOpen) return;
+    _sheetOpen = true;
+
+    // 绝大多数时候列表已经在手上，直接弹；只有刚启动那一帧还没读到才等一下
+    final available = scripts.isNotEmpty
+        ? scripts
+        : await ref.read(planScriptsProvider.future);
+
+    if (!mounted) {
+      _sheetOpen = false;
+      return;
+    }
+    if (available.isEmpty) {
+      _sheetOpen = false;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('还没有脚本，去「管理脚本」新建一个吧')));
+      return;
+    }
+
+    final picked = await showModalBottomSheet<PlanScript>(
+      context: context,
+      backgroundColor: EchoColors.surface,
+      builder: (_) => _ScriptSheet(scripts: available, currentId: _script?.id),
+    );
+    _sheetOpen = false;
+
+    if (picked == null || !mounted) return;
+    _applyScript(picked);
+  }
+
   Future<void> _publish() async {
     final text = _controller.text.trim();
     if (text.isEmpty) {
@@ -187,9 +281,12 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
     setState(() => _publishing = true);
     final isEcho = ref.read(modeControllerProvider).isEcho;
+    final script = isEcho && _planMode ? _script : null;
 
     try {
-      final postId = await ref.read(postRepositoryProvider).create(
+      final postId = await ref
+          .read(postRepositoryProvider)
+          .create(
             content: text,
             images: List.of(_imageRefs),
             topicName: isEcho ? _topic : null,
@@ -201,16 +298,22 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             humanLevel: isEcho ? _humanLevel : null,
           );
 
-      // 回响模式：发帖的同时就把 0—48 小时的互动排好队（离线也不会丢）
+      // 回响模式：发帖的同时就把将来的互动排好队（离线也不会丢）
       if (isEcho) {
-        await ref.read(schedulerServiceProvider).planForPost(
-              postId: postId,
-              settings: EchoSettings(
-                density: ReplyDensity.fromLabel(_density),
-                likeLevel: LikeLevel.fromLabel(_likeLevel),
-                humanLevel: HumanLevel.fromValue(_humanLevel),
-              ),
-            );
+        final scheduler = ref.read(schedulerServiceProvider);
+        if (script != null) {
+          // 策划模式：按脚本的秒级时间点精确排期
+          await scheduler.planFromScript(postId: postId, script: script);
+        } else {
+          await scheduler.planForPost(
+            postId: postId,
+            settings: EchoSettings(
+              density: ReplyDensity.fromLabel(_density),
+              likeLevel: LikeLevel.fromLabel(_likeLevel),
+              humanLevel: HumanLevel.fromValue(_humanLevel),
+            ),
+          );
+        }
       }
 
       if (!mounted) return;
@@ -222,9 +325,11 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isEcho
-              ? '已发布。反馈会在 0—48 小时内陆续出现。'
-              : '已记录。'),
+          content: Text(
+            isEcho
+                ? (script == null ? '已发布。反馈会在 0—48 小时内陆续出现。' : '已发布。脚本开始运行了。')
+                : '已记录。',
+          ),
         ),
       );
       context.go(isEcho ? RoutePaths.feed : RoutePaths.records);
@@ -295,8 +400,10 @@ class _AttachRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 4),
               child: Center(
-                child: Text('最多 $_maxImages 张图',
-                    style: TextStyle(color: muted, fontSize: 12)),
+                child: Text(
+                  '最多 $_maxImages 张图',
+                  style: TextStyle(color: muted, fontSize: 12),
+                ),
               ),
             ),
         ],
@@ -361,11 +468,14 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
-      child: Text(text,
-          style: const TextStyle(
-              color: EchoColors.textFaint,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600)),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: EchoColors.textFaint,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -432,8 +542,10 @@ class _SettingRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 76,
-            child: Text(label,
-                style: const TextStyle(color: EchoColors.textMuted, fontSize: 13)),
+            child: Text(
+              label,
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+            ),
           ),
           Expanded(
             child: Wrap(
@@ -443,8 +555,10 @@ class _SettingRow extends StatelessWidget {
                   GestureDetector(
                     onTap: () => onChanged(option),
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: value.startsWith(option)
                             ? EchoColors.primary.withValues(alpha: 0.18)
@@ -488,9 +602,188 @@ class _ClearModeNote extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: ClearColors.divider),
       ),
-      child: const Text(
+      child: Text(
         '清醒模式下不会生成任何虚拟反馈。如果想看看内容的客观分析，可以在发布后进入「分析」页。',
-        style: TextStyle(color: ClearColors.textMuted, fontSize: 12, height: 1.6),
+        style: TextStyle(
+          color: ClearColors.textMuted,
+          fontSize: 12,
+          height: 1.6,
+        ),
+      ),
+    );
+  }
+}
+
+/// 发布页的「策划模式」开关与脚本入口。
+///
+/// 打开它，这条帖子就不走随机排期，而是按脚本里写好的秒数逐条执行；
+/// 关掉它，那三个旋钮（回复频率/点赞量/拟人程度）才重新生效。
+class _PlanModeCard extends StatelessWidget {
+  const _PlanModeCard({
+    required this.enabled,
+    required this.script,
+    required this.onToggle,
+    required this.onPick,
+    required this.onManage,
+  });
+
+  final bool enabled;
+  final PlanScript? script;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onPick;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: enabled
+              ? EchoColors.primary.withValues(alpha: 0.5)
+              : EchoColors.divider,
+        ),
+      ),
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: enabled,
+            onChanged: onToggle,
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            title: Text(
+              '按脚本安排互动',
+              style: TextStyle(color: EchoColors.text, fontSize: 13.5),
+            ),
+            subtitle: Text(
+              '精确到发帖后第几秒：谁点赞、谁评论',
+              style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
+            ),
+          ),
+          if (enabled) ...[
+            Divider(height: 1, color: EchoColors.divider),
+            InkWell(
+              onTap: onPick,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.theater_comedy_outlined,
+                      size: 16,
+                      color: EchoColors.textMuted,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        script?.name ?? '选一个脚本',
+                        style: TextStyle(
+                          color: script == null
+                              ? EchoColors.textMuted
+                              : EchoColors.text,
+                          fontSize: 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '选择',
+                      style: TextStyle(color: EchoColors.primary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, color: EchoColors.divider),
+            InkWell(
+              onTap: onManage,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(12, 11, 12, 11),
+                child: Row(
+                  children: [
+                    Icon(Icons.tune, size: 16, color: EchoColors.textMuted),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '管理脚本',
+                        style: TextStyle(color: EchoColors.text, fontSize: 13),
+                      ),
+                    ),
+                    Text(
+                      '编辑',
+                      style: TextStyle(
+                        color: EchoColors.textFaint,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 脚本选择弹窗。
+class _ScriptSheet extends StatelessWidget {
+  const _ScriptSheet({required this.scripts, required this.currentId});
+
+  final List<PlanScript> scripts;
+  final String? currentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              '选择脚本',
+              style: TextStyle(
+                color: EchoColors.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: scripts.length,
+              itemBuilder: (context, index) {
+                final script = scripts[index];
+                final selected = script.id == currentId;
+                return ListTile(
+                  dense: true,
+                  title: Text(
+                    script.name,
+                    style: TextStyle(
+                      color: selected ? EchoColors.primary : EchoColors.text,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${script.steps.length} 个事件${script.isBuiltIn ? ' · 内置' : ''}',
+                    style: TextStyle(
+                      color: EchoColors.textFaint,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                  trailing: selected
+                      ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(script),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

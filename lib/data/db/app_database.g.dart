@@ -1931,18 +1931,6 @@ class $AiPersonasTable extends AiPersonas
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
-  static const VerificationMeta _ipLocationMeta = const VerificationMeta(
-    'ipLocation',
-  );
-  @override
-  late final GeneratedColumn<String> ipLocation = GeneratedColumn<String>(
-    'ip_location',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
-  );
   static const VerificationMeta _followersMeta = const VerificationMeta(
     'followers',
   );
@@ -2034,7 +2022,6 @@ class $AiPersonasTable extends AiPersonas
     scope,
     level,
     badges,
-    ipLocation,
     followers,
     following,
     personalityType,
@@ -2160,12 +2147,6 @@ class $AiPersonasTable extends AiPersonas
         badges.isAcceptableOrUnknown(data['badges']!, _badgesMeta),
       );
     }
-    if (data.containsKey('ip_location')) {
-      context.handle(
-        _ipLocationMeta,
-        ipLocation.isAcceptableOrUnknown(data['ip_location']!, _ipLocationMeta),
-      );
-    }
     if (data.containsKey('followers')) {
       context.handle(
         _followersMeta,
@@ -2280,10 +2261,6 @@ class $AiPersonasTable extends AiPersonas
         DriftSqlType.string,
         data['${effectivePrefix}badges'],
       )!,
-      ipLocation: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}ip_location'],
-      )!,
       followers: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}followers'],
@@ -2333,7 +2310,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
   final String scope;
   final int level;
   final String badges;
-  final String ipLocation;
   final int followers;
   final int following;
   final String personalityType;
@@ -2356,7 +2332,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     required this.scope,
     required this.level,
     required this.badges,
-    required this.ipLocation,
     required this.followers,
     required this.following,
     required this.personalityType,
@@ -2382,7 +2357,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     map['scope'] = Variable<String>(scope);
     map['level'] = Variable<int>(level);
     map['badges'] = Variable<String>(badges);
-    map['ip_location'] = Variable<String>(ipLocation);
     map['followers'] = Variable<int>(followers);
     map['following'] = Variable<int>(following);
     map['personality_type'] = Variable<String>(personalityType);
@@ -2411,7 +2385,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       scope: Value(scope),
       level: Value(level),
       badges: Value(badges),
-      ipLocation: Value(ipLocation),
       followers: Value(followers),
       following: Value(following),
       personalityType: Value(personalityType),
@@ -2446,7 +2419,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       scope: serializer.fromJson<String>(json['scope']),
       level: serializer.fromJson<int>(json['level']),
       badges: serializer.fromJson<String>(json['badges']),
-      ipLocation: serializer.fromJson<String>(json['ipLocation']),
       followers: serializer.fromJson<int>(json['followers']),
       following: serializer.fromJson<int>(json['following']),
       personalityType: serializer.fromJson<String>(json['personalityType']),
@@ -2474,7 +2446,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       'scope': serializer.toJson<String>(scope),
       'level': serializer.toJson<int>(level),
       'badges': serializer.toJson<String>(badges),
-      'ipLocation': serializer.toJson<String>(ipLocation),
       'followers': serializer.toJson<int>(followers),
       'following': serializer.toJson<int>(following),
       'personalityType': serializer.toJson<String>(personalityType),
@@ -2500,7 +2471,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     String? scope,
     int? level,
     String? badges,
-    String? ipLocation,
     int? followers,
     int? following,
     String? personalityType,
@@ -2523,7 +2493,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     scope: scope ?? this.scope,
     level: level ?? this.level,
     badges: badges ?? this.badges,
-    ipLocation: ipLocation ?? this.ipLocation,
     followers: followers ?? this.followers,
     following: following ?? this.following,
     personalityType: personalityType ?? this.personalityType,
@@ -2560,9 +2529,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       scope: data.scope.present ? data.scope.value : this.scope,
       level: data.level.present ? data.level.value : this.level,
       badges: data.badges.present ? data.badges.value : this.badges,
-      ipLocation: data.ipLocation.present
-          ? data.ipLocation.value
-          : this.ipLocation,
       followers: data.followers.present ? data.followers.value : this.followers,
       following: data.following.present ? data.following.value : this.following,
       personalityType: data.personalityType.present
@@ -2596,7 +2562,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
           ..write('scope: $scope, ')
           ..write('level: $level, ')
           ..write('badges: $badges, ')
-          ..write('ipLocation: $ipLocation, ')
           ..write('followers: $followers, ')
           ..write('following: $following, ')
           ..write('personalityType: $personalityType, ')
@@ -2624,7 +2589,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     scope,
     level,
     badges,
-    ipLocation,
     followers,
     following,
     personalityType,
@@ -2651,7 +2615,6 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
           other.scope == this.scope &&
           other.level == this.level &&
           other.badges == this.badges &&
-          other.ipLocation == this.ipLocation &&
           other.followers == this.followers &&
           other.following == this.following &&
           other.personalityType == this.personalityType &&
@@ -2676,7 +2639,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
   final Value<String> scope;
   final Value<int> level;
   final Value<String> badges;
-  final Value<String> ipLocation;
   final Value<int> followers;
   final Value<int> following;
   final Value<String> personalityType;
@@ -2700,7 +2662,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     this.scope = const Value.absent(),
     this.level = const Value.absent(),
     this.badges = const Value.absent(),
-    this.ipLocation = const Value.absent(),
     this.followers = const Value.absent(),
     this.following = const Value.absent(),
     this.personalityType = const Value.absent(),
@@ -2725,7 +2686,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     this.scope = const Value.absent(),
     this.level = const Value.absent(),
     this.badges = const Value.absent(),
-    this.ipLocation = const Value.absent(),
     this.followers = const Value.absent(),
     this.following = const Value.absent(),
     this.personalityType = const Value.absent(),
@@ -2751,7 +2711,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     Expression<String>? scope,
     Expression<int>? level,
     Expression<String>? badges,
-    Expression<String>? ipLocation,
     Expression<int>? followers,
     Expression<int>? following,
     Expression<String>? personalityType,
@@ -2776,7 +2735,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
       if (scope != null) 'scope': scope,
       if (level != null) 'level': level,
       if (badges != null) 'badges': badges,
-      if (ipLocation != null) 'ip_location': ipLocation,
       if (followers != null) 'followers': followers,
       if (following != null) 'following': following,
       if (personalityType != null) 'personality_type': personalityType,
@@ -2803,7 +2761,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     Value<String>? scope,
     Value<int>? level,
     Value<String>? badges,
-    Value<String>? ipLocation,
     Value<int>? followers,
     Value<int>? following,
     Value<String>? personalityType,
@@ -2828,7 +2785,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
       scope: scope ?? this.scope,
       level: level ?? this.level,
       badges: badges ?? this.badges,
-      ipLocation: ipLocation ?? this.ipLocation,
       followers: followers ?? this.followers,
       following: following ?? this.following,
       personalityType: personalityType ?? this.personalityType,
@@ -2887,9 +2843,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     if (badges.present) {
       map['badges'] = Variable<String>(badges.value);
     }
-    if (ipLocation.present) {
-      map['ip_location'] = Variable<String>(ipLocation.value);
-    }
     if (followers.present) {
       map['followers'] = Variable<int>(followers.value);
     }
@@ -2932,7 +2885,6 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
           ..write('scope: $scope, ')
           ..write('level: $level, ')
           ..write('badges: $badges, ')
-          ..write('ipLocation: $ipLocation, ')
           ..write('followers: $followers, ')
           ..write('following: $following, ')
           ..write('personalityType: $personalityType, ')
@@ -4912,6 +4864,15 @@ class $NotificationLogsTable extends NotificationLogs
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
     'scheduledAt',
   );
@@ -4963,6 +4924,7 @@ class $NotificationLogsTable extends NotificationLogs
     type,
     title,
     body,
+    postId,
     scheduledAt,
     deliveredAt,
     isRead,
@@ -5005,6 +4967,12 @@ class $NotificationLogsTable extends NotificationLogs
       context.handle(
         _bodyMeta,
         body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
       );
     }
     if (data.containsKey('scheduled_at')) {
@@ -5062,6 +5030,10 @@ class $NotificationLogsTable extends NotificationLogs
         DriftSqlType.string,
         data['${effectivePrefix}body'],
       )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      ),
       scheduledAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}scheduled_at'],
@@ -5093,6 +5065,9 @@ class NotificationLogRow extends DataClass
   final String type;
   final String title;
   final String body;
+
+  /// 这条通知指向的帖子（点击通知跳转用）。系统通知可以为空。
+  final String? postId;
   final int? scheduledAt;
   final int? deliveredAt;
   final bool isRead;
@@ -5102,6 +5077,7 @@ class NotificationLogRow extends DataClass
     required this.type,
     required this.title,
     required this.body,
+    this.postId,
     this.scheduledAt,
     this.deliveredAt,
     required this.isRead,
@@ -5114,6 +5090,9 @@ class NotificationLogRow extends DataClass
     map['type'] = Variable<String>(type);
     map['title'] = Variable<String>(title);
     map['body'] = Variable<String>(body);
+    if (!nullToAbsent || postId != null) {
+      map['post_id'] = Variable<String>(postId);
+    }
     if (!nullToAbsent || scheduledAt != null) {
       map['scheduled_at'] = Variable<int>(scheduledAt);
     }
@@ -5131,6 +5110,9 @@ class NotificationLogRow extends DataClass
       type: Value(type),
       title: Value(title),
       body: Value(body),
+      postId: postId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(postId),
       scheduledAt: scheduledAt == null && nullToAbsent
           ? const Value.absent()
           : Value(scheduledAt),
@@ -5152,6 +5134,7 @@ class NotificationLogRow extends DataClass
       type: serializer.fromJson<String>(json['type']),
       title: serializer.fromJson<String>(json['title']),
       body: serializer.fromJson<String>(json['body']),
+      postId: serializer.fromJson<String?>(json['postId']),
       scheduledAt: serializer.fromJson<int?>(json['scheduledAt']),
       deliveredAt: serializer.fromJson<int?>(json['deliveredAt']),
       isRead: serializer.fromJson<bool>(json['isRead']),
@@ -5166,6 +5149,7 @@ class NotificationLogRow extends DataClass
       'type': serializer.toJson<String>(type),
       'title': serializer.toJson<String>(title),
       'body': serializer.toJson<String>(body),
+      'postId': serializer.toJson<String?>(postId),
       'scheduledAt': serializer.toJson<int?>(scheduledAt),
       'deliveredAt': serializer.toJson<int?>(deliveredAt),
       'isRead': serializer.toJson<bool>(isRead),
@@ -5178,6 +5162,7 @@ class NotificationLogRow extends DataClass
     String? type,
     String? title,
     String? body,
+    Value<String?> postId = const Value.absent(),
     Value<int?> scheduledAt = const Value.absent(),
     Value<int?> deliveredAt = const Value.absent(),
     bool? isRead,
@@ -5187,6 +5172,7 @@ class NotificationLogRow extends DataClass
     type: type ?? this.type,
     title: title ?? this.title,
     body: body ?? this.body,
+    postId: postId.present ? postId.value : this.postId,
     scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
     deliveredAt: deliveredAt.present ? deliveredAt.value : this.deliveredAt,
     isRead: isRead ?? this.isRead,
@@ -5198,6 +5184,7 @@ class NotificationLogRow extends DataClass
       type: data.type.present ? data.type.value : this.type,
       title: data.title.present ? data.title.value : this.title,
       body: data.body.present ? data.body.value : this.body,
+      postId: data.postId.present ? data.postId.value : this.postId,
       scheduledAt: data.scheduledAt.present
           ? data.scheduledAt.value
           : this.scheduledAt,
@@ -5216,6 +5203,7 @@ class NotificationLogRow extends DataClass
           ..write('type: $type, ')
           ..write('title: $title, ')
           ..write('body: $body, ')
+          ..write('postId: $postId, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('isRead: $isRead, ')
@@ -5230,6 +5218,7 @@ class NotificationLogRow extends DataClass
     type,
     title,
     body,
+    postId,
     scheduledAt,
     deliveredAt,
     isRead,
@@ -5243,6 +5232,7 @@ class NotificationLogRow extends DataClass
           other.type == this.type &&
           other.title == this.title &&
           other.body == this.body &&
+          other.postId == this.postId &&
           other.scheduledAt == this.scheduledAt &&
           other.deliveredAt == this.deliveredAt &&
           other.isRead == this.isRead &&
@@ -5254,6 +5244,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
   final Value<String> type;
   final Value<String> title;
   final Value<String> body;
+  final Value<String?> postId;
   final Value<int?> scheduledAt;
   final Value<int?> deliveredAt;
   final Value<bool> isRead;
@@ -5264,6 +5255,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     this.type = const Value.absent(),
     this.title = const Value.absent(),
     this.body = const Value.absent(),
+    this.postId = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -5275,6 +5267,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     required String type,
     required String title,
     this.body = const Value.absent(),
+    this.postId = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -5288,6 +5281,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     Expression<String>? type,
     Expression<String>? title,
     Expression<String>? body,
+    Expression<String>? postId,
     Expression<int>? scheduledAt,
     Expression<int>? deliveredAt,
     Expression<bool>? isRead,
@@ -5299,6 +5293,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
       if (type != null) 'type': type,
       if (title != null) 'title': title,
       if (body != null) 'body': body,
+      if (postId != null) 'post_id': postId,
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
       if (isRead != null) 'is_read': isRead,
@@ -5312,6 +5307,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     Value<String>? type,
     Value<String>? title,
     Value<String>? body,
+    Value<String?>? postId,
     Value<int?>? scheduledAt,
     Value<int?>? deliveredAt,
     Value<bool>? isRead,
@@ -5323,6 +5319,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
       type: type ?? this.type,
       title: title ?? this.title,
       body: body ?? this.body,
+      postId: postId ?? this.postId,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       isRead: isRead ?? this.isRead,
@@ -5345,6 +5342,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     }
     if (body.present) {
       map['body'] = Variable<String>(body.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
     }
     if (scheduledAt.present) {
       map['scheduled_at'] = Variable<int>(scheduledAt.value);
@@ -5371,6 +5371,7 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
           ..write('type: $type, ')
           ..write('title: $title, ')
           ..write('body: $body, ')
+          ..write('postId: $postId, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('isRead: $isRead, ')
@@ -6341,6 +6342,2061 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
   }
 }
 
+class $PlanScriptsTable extends PlanScripts
+    with TableInfo<$PlanScriptsTable, PlanScriptRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlanScriptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isBuiltInMeta = const VerificationMeta(
+    'isBuiltIn',
+  );
+  @override
+  late final GeneratedColumn<bool> isBuiltIn = GeneratedColumn<bool>(
+    'is_built_in',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_built_in" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _postContentMeta = const VerificationMeta(
+    'postContent',
+  );
+  @override
+  late final GeneratedColumn<String> postContent = GeneratedColumn<String>(
+    'post_content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _postImagesMeta = const VerificationMeta(
+    'postImages',
+  );
+  @override
+  late final GeneratedColumn<String> postImages = GeneratedColumn<String>(
+    'post_images',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _topicNameMeta = const VerificationMeta(
+    'topicName',
+  );
+  @override
+  late final GeneratedColumn<String> topicName = GeneratedColumn<String>(
+    'topic_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _stepsJsonMeta = const VerificationMeta(
+    'stepsJson',
+  );
+  @override
+  late final GeneratedColumn<String> stepsJson = GeneratedColumn<String>(
+    'steps_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    isBuiltIn,
+    postContent,
+    postImages,
+    topicName,
+    stepsJson,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plan_scripts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlanScriptRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('is_built_in')) {
+      context.handle(
+        _isBuiltInMeta,
+        isBuiltIn.isAcceptableOrUnknown(data['is_built_in']!, _isBuiltInMeta),
+      );
+    }
+    if (data.containsKey('post_content')) {
+      context.handle(
+        _postContentMeta,
+        postContent.isAcceptableOrUnknown(
+          data['post_content']!,
+          _postContentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('post_images')) {
+      context.handle(
+        _postImagesMeta,
+        postImages.isAcceptableOrUnknown(data['post_images']!, _postImagesMeta),
+      );
+    }
+    if (data.containsKey('topic_name')) {
+      context.handle(
+        _topicNameMeta,
+        topicName.isAcceptableOrUnknown(data['topic_name']!, _topicNameMeta),
+      );
+    }
+    if (data.containsKey('steps_json')) {
+      context.handle(
+        _stepsJsonMeta,
+        stepsJson.isAcceptableOrUnknown(data['steps_json']!, _stepsJsonMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PlanScriptRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlanScriptRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      isBuiltIn: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_built_in'],
+      )!,
+      postContent: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_content'],
+      )!,
+      postImages: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_images'],
+      )!,
+      topicName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}topic_name'],
+      ),
+      stepsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}steps_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PlanScriptsTable createAlias(String alias) {
+    return $PlanScriptsTable(attachedDatabase, alias);
+  }
+}
+
+class PlanScriptRow extends DataClass implements Insertable<PlanScriptRow> {
+  final String id;
+  final String name;
+  final bool isBuiltIn;
+
+  /// 开局内容：勾选脚本时填进发布页，用户仍可修改。
+  final String postContent;
+  final String postImages;
+  final String? topicName;
+
+  /// 事件表（JSON 数组），结构见 `domain/models/plan_script.dart`。
+  final String stepsJson;
+  final int createdAt;
+  final int updatedAt;
+  const PlanScriptRow({
+    required this.id,
+    required this.name,
+    required this.isBuiltIn,
+    required this.postContent,
+    required this.postImages,
+    this.topicName,
+    required this.stepsJson,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['is_built_in'] = Variable<bool>(isBuiltIn);
+    map['post_content'] = Variable<String>(postContent);
+    map['post_images'] = Variable<String>(postImages);
+    if (!nullToAbsent || topicName != null) {
+      map['topic_name'] = Variable<String>(topicName);
+    }
+    map['steps_json'] = Variable<String>(stepsJson);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  PlanScriptsCompanion toCompanion(bool nullToAbsent) {
+    return PlanScriptsCompanion(
+      id: Value(id),
+      name: Value(name),
+      isBuiltIn: Value(isBuiltIn),
+      postContent: Value(postContent),
+      postImages: Value(postImages),
+      topicName: topicName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(topicName),
+      stepsJson: Value(stepsJson),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory PlanScriptRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlanScriptRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      isBuiltIn: serializer.fromJson<bool>(json['isBuiltIn']),
+      postContent: serializer.fromJson<String>(json['postContent']),
+      postImages: serializer.fromJson<String>(json['postImages']),
+      topicName: serializer.fromJson<String?>(json['topicName']),
+      stepsJson: serializer.fromJson<String>(json['stepsJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'isBuiltIn': serializer.toJson<bool>(isBuiltIn),
+      'postContent': serializer.toJson<String>(postContent),
+      'postImages': serializer.toJson<String>(postImages),
+      'topicName': serializer.toJson<String?>(topicName),
+      'stepsJson': serializer.toJson<String>(stepsJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  PlanScriptRow copyWith({
+    String? id,
+    String? name,
+    bool? isBuiltIn,
+    String? postContent,
+    String? postImages,
+    Value<String?> topicName = const Value.absent(),
+    String? stepsJson,
+    int? createdAt,
+    int? updatedAt,
+  }) => PlanScriptRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+    postContent: postContent ?? this.postContent,
+    postImages: postImages ?? this.postImages,
+    topicName: topicName.present ? topicName.value : this.topicName,
+    stepsJson: stepsJson ?? this.stepsJson,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  PlanScriptRow copyWithCompanion(PlanScriptsCompanion data) {
+    return PlanScriptRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      isBuiltIn: data.isBuiltIn.present ? data.isBuiltIn.value : this.isBuiltIn,
+      postContent: data.postContent.present
+          ? data.postContent.value
+          : this.postContent,
+      postImages: data.postImages.present
+          ? data.postImages.value
+          : this.postImages,
+      topicName: data.topicName.present ? data.topicName.value : this.topicName,
+      stepsJson: data.stepsJson.present ? data.stepsJson.value : this.stepsJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlanScriptRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
+          ..write('postContent: $postContent, ')
+          ..write('postImages: $postImages, ')
+          ..write('topicName: $topicName, ')
+          ..write('stepsJson: $stepsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    isBuiltIn,
+    postContent,
+    postImages,
+    topicName,
+    stepsJson,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlanScriptRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.isBuiltIn == this.isBuiltIn &&
+          other.postContent == this.postContent &&
+          other.postImages == this.postImages &&
+          other.topicName == this.topicName &&
+          other.stepsJson == this.stepsJson &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class PlanScriptsCompanion extends UpdateCompanion<PlanScriptRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<bool> isBuiltIn;
+  final Value<String> postContent;
+  final Value<String> postImages;
+  final Value<String?> topicName;
+  final Value<String> stepsJson;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const PlanScriptsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.isBuiltIn = const Value.absent(),
+    this.postContent = const Value.absent(),
+    this.postImages = const Value.absent(),
+    this.topicName = const Value.absent(),
+    this.stepsJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlanScriptsCompanion.insert({
+    required String id,
+    required String name,
+    this.isBuiltIn = const Value.absent(),
+    this.postContent = const Value.absent(),
+    this.postImages = const Value.absent(),
+    this.topicName = const Value.absent(),
+    this.stepsJson = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<PlanScriptRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<bool>? isBuiltIn,
+    Expression<String>? postContent,
+    Expression<String>? postImages,
+    Expression<String>? topicName,
+    Expression<String>? stepsJson,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (isBuiltIn != null) 'is_built_in': isBuiltIn,
+      if (postContent != null) 'post_content': postContent,
+      if (postImages != null) 'post_images': postImages,
+      if (topicName != null) 'topic_name': topicName,
+      if (stepsJson != null) 'steps_json': stepsJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlanScriptsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<bool>? isBuiltIn,
+    Value<String>? postContent,
+    Value<String>? postImages,
+    Value<String?>? topicName,
+    Value<String>? stepsJson,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return PlanScriptsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+      postContent: postContent ?? this.postContent,
+      postImages: postImages ?? this.postImages,
+      topicName: topicName ?? this.topicName,
+      stepsJson: stepsJson ?? this.stepsJson,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (isBuiltIn.present) {
+      map['is_built_in'] = Variable<bool>(isBuiltIn.value);
+    }
+    if (postContent.present) {
+      map['post_content'] = Variable<String>(postContent.value);
+    }
+    if (postImages.present) {
+      map['post_images'] = Variable<String>(postImages.value);
+    }
+    if (topicName.present) {
+      map['topic_name'] = Variable<String>(topicName.value);
+    }
+    if (stepsJson.present) {
+      map['steps_json'] = Variable<String>(stepsJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlanScriptsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
+          ..write('postContent: $postContent, ')
+          ..write('postImages: $postImages, ')
+          ..write('topicName: $topicName, ')
+          ..write('stepsJson: $stepsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PlanEventsTable extends PlanEvents
+    with TableInfo<$PlanEventsTable, PlanEventRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlanEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _scriptIdMeta = const VerificationMeta(
+    'scriptId',
+  );
+  @override
+  late final GeneratedColumn<String> scriptId = GeneratedColumn<String>(
+    'script_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personaIdMeta = const VerificationMeta(
+    'personaId',
+  );
+  @override
+  late final GeneratedColumn<String> personaId = GeneratedColumn<String>(
+    'persona_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mediaTypeMeta = const VerificationMeta(
+    'mediaType',
+  );
+  @override
+  late final GeneratedColumn<String> mediaType = GeneratedColumn<String>(
+    'media_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _voiceAssetMeta = const VerificationMeta(
+    'voiceAsset',
+  );
+  @override
+  late final GeneratedColumn<String> voiceAsset = GeneratedColumn<String>(
+    'voice_asset',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transcriptMeta = const VerificationMeta(
+    'transcript',
+  );
+  @override
+  late final GeneratedColumn<String> transcript = GeneratedColumn<String>(
+    'transcript',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deltaMeta = const VerificationMeta('delta');
+  @override
+  late final GeneratedColumn<int> delta = GeneratedColumn<int>(
+    'delta',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _likesMeta = const VerificationMeta('likes');
+  @override
+  late final GeneratedColumn<int> likes = GeneratedColumn<int>(
+    'likes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _commentsMeta = const VerificationMeta(
+    'comments',
+  );
+  @override
+  late final GeneratedColumn<int> comments = GeneratedColumn<int>(
+    'comments',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _toModeMeta = const VerificationMeta('toMode');
+  @override
+  late final GeneratedColumn<String> toMode = GeneratedColumn<String>(
+    'to_mode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _analysisJsonMeta = const VerificationMeta(
+    'analysisJson',
+  );
+  @override
+  late final GeneratedColumn<String> analysisJson = GeneratedColumn<String>(
+    'analysis_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
+    'scheduledAt',
+  );
+  @override
+  late final GeneratedColumn<int> scheduledAt = GeneratedColumn<int>(
+    'scheduled_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _executedAtMeta = const VerificationMeta(
+    'executedAt',
+  );
+  @override
+  late final GeneratedColumn<int> executedAt = GeneratedColumn<int>(
+    'executed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    postId,
+    scriptId,
+    type,
+    personaId,
+    mediaType,
+    content,
+    voiceAsset,
+    transcript,
+    delta,
+    likes,
+    comments,
+    toMode,
+    analysisJson,
+    scheduledAt,
+    executedAt,
+    status,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plan_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlanEventRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('script_id')) {
+      context.handle(
+        _scriptIdMeta,
+        scriptId.isAcceptableOrUnknown(data['script_id']!, _scriptIdMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('persona_id')) {
+      context.handle(
+        _personaIdMeta,
+        personaId.isAcceptableOrUnknown(data['persona_id']!, _personaIdMeta),
+      );
+    }
+    if (data.containsKey('media_type')) {
+      context.handle(
+        _mediaTypeMeta,
+        mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('voice_asset')) {
+      context.handle(
+        _voiceAssetMeta,
+        voiceAsset.isAcceptableOrUnknown(data['voice_asset']!, _voiceAssetMeta),
+      );
+    }
+    if (data.containsKey('transcript')) {
+      context.handle(
+        _transcriptMeta,
+        transcript.isAcceptableOrUnknown(data['transcript']!, _transcriptMeta),
+      );
+    }
+    if (data.containsKey('delta')) {
+      context.handle(
+        _deltaMeta,
+        delta.isAcceptableOrUnknown(data['delta']!, _deltaMeta),
+      );
+    }
+    if (data.containsKey('likes')) {
+      context.handle(
+        _likesMeta,
+        likes.isAcceptableOrUnknown(data['likes']!, _likesMeta),
+      );
+    }
+    if (data.containsKey('comments')) {
+      context.handle(
+        _commentsMeta,
+        comments.isAcceptableOrUnknown(data['comments']!, _commentsMeta),
+      );
+    }
+    if (data.containsKey('to_mode')) {
+      context.handle(
+        _toModeMeta,
+        toMode.isAcceptableOrUnknown(data['to_mode']!, _toModeMeta),
+      );
+    }
+    if (data.containsKey('analysis_json')) {
+      context.handle(
+        _analysisJsonMeta,
+        analysisJson.isAcceptableOrUnknown(
+          data['analysis_json']!,
+          _analysisJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('scheduled_at')) {
+      context.handle(
+        _scheduledAtMeta,
+        scheduledAt.isAcceptableOrUnknown(
+          data['scheduled_at']!,
+          _scheduledAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledAtMeta);
+    }
+    if (data.containsKey('executed_at')) {
+      context.handle(
+        _executedAtMeta,
+        executedAt.isAcceptableOrUnknown(data['executed_at']!, _executedAtMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PlanEventRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlanEventRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      scriptId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}script_id'],
+      ),
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      personaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}persona_id'],
+      ),
+      mediaType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_type'],
+      ),
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
+      voiceAsset: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_asset'],
+      ),
+      transcript: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transcript'],
+      ),
+      delta: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delta'],
+      ),
+      likes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}likes'],
+      ),
+      comments: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}comments'],
+      ),
+      toMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}to_mode'],
+      ),
+      analysisJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}analysis_json'],
+      ),
+      scheduledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}scheduled_at'],
+      )!,
+      executedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}executed_at'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+    );
+  }
+
+  @override
+  $PlanEventsTable createAlias(String alias) {
+    return $PlanEventsTable(attachedDatabase, alias);
+  }
+}
+
+class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
+  final String id;
+  final String postId;
+  final String? scriptId;
+
+  /// like_burst / comment / stats / mode / analysis
+  final String type;
+  final String? personaId;
+  final String? mediaType;
+  final String? content;
+  final String? voiceAsset;
+  final String? transcript;
+
+  /// like_burst：这一批多少个赞
+  final int? delta;
+
+  /// stats：直接设定的赞数 / 评论数
+  final int? likes;
+  final int? comments;
+
+  /// mode：目标模式
+  final String? toMode;
+
+  /// analysis：五项分析（JSON）
+  final String? analysisJson;
+  final int scheduledAt;
+  final int? executedAt;
+
+  /// pending / done / cancelled
+  final String status;
+  const PlanEventRow({
+    required this.id,
+    required this.postId,
+    this.scriptId,
+    required this.type,
+    this.personaId,
+    this.mediaType,
+    this.content,
+    this.voiceAsset,
+    this.transcript,
+    this.delta,
+    this.likes,
+    this.comments,
+    this.toMode,
+    this.analysisJson,
+    required this.scheduledAt,
+    this.executedAt,
+    required this.status,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    if (!nullToAbsent || scriptId != null) {
+      map['script_id'] = Variable<String>(scriptId);
+    }
+    map['type'] = Variable<String>(type);
+    if (!nullToAbsent || personaId != null) {
+      map['persona_id'] = Variable<String>(personaId);
+    }
+    if (!nullToAbsent || mediaType != null) {
+      map['media_type'] = Variable<String>(mediaType);
+    }
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || voiceAsset != null) {
+      map['voice_asset'] = Variable<String>(voiceAsset);
+    }
+    if (!nullToAbsent || transcript != null) {
+      map['transcript'] = Variable<String>(transcript);
+    }
+    if (!nullToAbsent || delta != null) {
+      map['delta'] = Variable<int>(delta);
+    }
+    if (!nullToAbsent || likes != null) {
+      map['likes'] = Variable<int>(likes);
+    }
+    if (!nullToAbsent || comments != null) {
+      map['comments'] = Variable<int>(comments);
+    }
+    if (!nullToAbsent || toMode != null) {
+      map['to_mode'] = Variable<String>(toMode);
+    }
+    if (!nullToAbsent || analysisJson != null) {
+      map['analysis_json'] = Variable<String>(analysisJson);
+    }
+    map['scheduled_at'] = Variable<int>(scheduledAt);
+    if (!nullToAbsent || executedAt != null) {
+      map['executed_at'] = Variable<int>(executedAt);
+    }
+    map['status'] = Variable<String>(status);
+    return map;
+  }
+
+  PlanEventsCompanion toCompanion(bool nullToAbsent) {
+    return PlanEventsCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      scriptId: scriptId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scriptId),
+      type: Value(type),
+      personaId: personaId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personaId),
+      mediaType: mediaType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mediaType),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      voiceAsset: voiceAsset == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceAsset),
+      transcript: transcript == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transcript),
+      delta: delta == null && nullToAbsent
+          ? const Value.absent()
+          : Value(delta),
+      likes: likes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(likes),
+      comments: comments == null && nullToAbsent
+          ? const Value.absent()
+          : Value(comments),
+      toMode: toMode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(toMode),
+      analysisJson: analysisJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(analysisJson),
+      scheduledAt: Value(scheduledAt),
+      executedAt: executedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(executedAt),
+      status: Value(status),
+    );
+  }
+
+  factory PlanEventRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlanEventRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      scriptId: serializer.fromJson<String?>(json['scriptId']),
+      type: serializer.fromJson<String>(json['type']),
+      personaId: serializer.fromJson<String?>(json['personaId']),
+      mediaType: serializer.fromJson<String?>(json['mediaType']),
+      content: serializer.fromJson<String?>(json['content']),
+      voiceAsset: serializer.fromJson<String?>(json['voiceAsset']),
+      transcript: serializer.fromJson<String?>(json['transcript']),
+      delta: serializer.fromJson<int?>(json['delta']),
+      likes: serializer.fromJson<int?>(json['likes']),
+      comments: serializer.fromJson<int?>(json['comments']),
+      toMode: serializer.fromJson<String?>(json['toMode']),
+      analysisJson: serializer.fromJson<String?>(json['analysisJson']),
+      scheduledAt: serializer.fromJson<int>(json['scheduledAt']),
+      executedAt: serializer.fromJson<int?>(json['executedAt']),
+      status: serializer.fromJson<String>(json['status']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'scriptId': serializer.toJson<String?>(scriptId),
+      'type': serializer.toJson<String>(type),
+      'personaId': serializer.toJson<String?>(personaId),
+      'mediaType': serializer.toJson<String?>(mediaType),
+      'content': serializer.toJson<String?>(content),
+      'voiceAsset': serializer.toJson<String?>(voiceAsset),
+      'transcript': serializer.toJson<String?>(transcript),
+      'delta': serializer.toJson<int?>(delta),
+      'likes': serializer.toJson<int?>(likes),
+      'comments': serializer.toJson<int?>(comments),
+      'toMode': serializer.toJson<String?>(toMode),
+      'analysisJson': serializer.toJson<String?>(analysisJson),
+      'scheduledAt': serializer.toJson<int>(scheduledAt),
+      'executedAt': serializer.toJson<int?>(executedAt),
+      'status': serializer.toJson<String>(status),
+    };
+  }
+
+  PlanEventRow copyWith({
+    String? id,
+    String? postId,
+    Value<String?> scriptId = const Value.absent(),
+    String? type,
+    Value<String?> personaId = const Value.absent(),
+    Value<String?> mediaType = const Value.absent(),
+    Value<String?> content = const Value.absent(),
+    Value<String?> voiceAsset = const Value.absent(),
+    Value<String?> transcript = const Value.absent(),
+    Value<int?> delta = const Value.absent(),
+    Value<int?> likes = const Value.absent(),
+    Value<int?> comments = const Value.absent(),
+    Value<String?> toMode = const Value.absent(),
+    Value<String?> analysisJson = const Value.absent(),
+    int? scheduledAt,
+    Value<int?> executedAt = const Value.absent(),
+    String? status,
+  }) => PlanEventRow(
+    id: id ?? this.id,
+    postId: postId ?? this.postId,
+    scriptId: scriptId.present ? scriptId.value : this.scriptId,
+    type: type ?? this.type,
+    personaId: personaId.present ? personaId.value : this.personaId,
+    mediaType: mediaType.present ? mediaType.value : this.mediaType,
+    content: content.present ? content.value : this.content,
+    voiceAsset: voiceAsset.present ? voiceAsset.value : this.voiceAsset,
+    transcript: transcript.present ? transcript.value : this.transcript,
+    delta: delta.present ? delta.value : this.delta,
+    likes: likes.present ? likes.value : this.likes,
+    comments: comments.present ? comments.value : this.comments,
+    toMode: toMode.present ? toMode.value : this.toMode,
+    analysisJson: analysisJson.present ? analysisJson.value : this.analysisJson,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    executedAt: executedAt.present ? executedAt.value : this.executedAt,
+    status: status ?? this.status,
+  );
+  PlanEventRow copyWithCompanion(PlanEventsCompanion data) {
+    return PlanEventRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      scriptId: data.scriptId.present ? data.scriptId.value : this.scriptId,
+      type: data.type.present ? data.type.value : this.type,
+      personaId: data.personaId.present ? data.personaId.value : this.personaId,
+      mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
+      content: data.content.present ? data.content.value : this.content,
+      voiceAsset: data.voiceAsset.present
+          ? data.voiceAsset.value
+          : this.voiceAsset,
+      transcript: data.transcript.present
+          ? data.transcript.value
+          : this.transcript,
+      delta: data.delta.present ? data.delta.value : this.delta,
+      likes: data.likes.present ? data.likes.value : this.likes,
+      comments: data.comments.present ? data.comments.value : this.comments,
+      toMode: data.toMode.present ? data.toMode.value : this.toMode,
+      analysisJson: data.analysisJson.present
+          ? data.analysisJson.value
+          : this.analysisJson,
+      scheduledAt: data.scheduledAt.present
+          ? data.scheduledAt.value
+          : this.scheduledAt,
+      executedAt: data.executedAt.present
+          ? data.executedAt.value
+          : this.executedAt,
+      status: data.status.present ? data.status.value : this.status,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlanEventRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('scriptId: $scriptId, ')
+          ..write('type: $type, ')
+          ..write('personaId: $personaId, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('content: $content, ')
+          ..write('voiceAsset: $voiceAsset, ')
+          ..write('transcript: $transcript, ')
+          ..write('delta: $delta, ')
+          ..write('likes: $likes, ')
+          ..write('comments: $comments, ')
+          ..write('toMode: $toMode, ')
+          ..write('analysisJson: $analysisJson, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('executedAt: $executedAt, ')
+          ..write('status: $status')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    postId,
+    scriptId,
+    type,
+    personaId,
+    mediaType,
+    content,
+    voiceAsset,
+    transcript,
+    delta,
+    likes,
+    comments,
+    toMode,
+    analysisJson,
+    scheduledAt,
+    executedAt,
+    status,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlanEventRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.scriptId == this.scriptId &&
+          other.type == this.type &&
+          other.personaId == this.personaId &&
+          other.mediaType == this.mediaType &&
+          other.content == this.content &&
+          other.voiceAsset == this.voiceAsset &&
+          other.transcript == this.transcript &&
+          other.delta == this.delta &&
+          other.likes == this.likes &&
+          other.comments == this.comments &&
+          other.toMode == this.toMode &&
+          other.analysisJson == this.analysisJson &&
+          other.scheduledAt == this.scheduledAt &&
+          other.executedAt == this.executedAt &&
+          other.status == this.status);
+}
+
+class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String?> scriptId;
+  final Value<String> type;
+  final Value<String?> personaId;
+  final Value<String?> mediaType;
+  final Value<String?> content;
+  final Value<String?> voiceAsset;
+  final Value<String?> transcript;
+  final Value<int?> delta;
+  final Value<int?> likes;
+  final Value<int?> comments;
+  final Value<String?> toMode;
+  final Value<String?> analysisJson;
+  final Value<int> scheduledAt;
+  final Value<int?> executedAt;
+  final Value<String> status;
+  final Value<int> rowid;
+  const PlanEventsCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.scriptId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.personaId = const Value.absent(),
+    this.mediaType = const Value.absent(),
+    this.content = const Value.absent(),
+    this.voiceAsset = const Value.absent(),
+    this.transcript = const Value.absent(),
+    this.delta = const Value.absent(),
+    this.likes = const Value.absent(),
+    this.comments = const Value.absent(),
+    this.toMode = const Value.absent(),
+    this.analysisJson = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.executedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlanEventsCompanion.insert({
+    required String id,
+    required String postId,
+    this.scriptId = const Value.absent(),
+    required String type,
+    this.personaId = const Value.absent(),
+    this.mediaType = const Value.absent(),
+    this.content = const Value.absent(),
+    this.voiceAsset = const Value.absent(),
+    this.transcript = const Value.absent(),
+    this.delta = const Value.absent(),
+    this.likes = const Value.absent(),
+    this.comments = const Value.absent(),
+    this.toMode = const Value.absent(),
+    this.analysisJson = const Value.absent(),
+    required int scheduledAt,
+    this.executedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       postId = Value(postId),
+       type = Value(type),
+       scheduledAt = Value(scheduledAt);
+  static Insertable<PlanEventRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? scriptId,
+    Expression<String>? type,
+    Expression<String>? personaId,
+    Expression<String>? mediaType,
+    Expression<String>? content,
+    Expression<String>? voiceAsset,
+    Expression<String>? transcript,
+    Expression<int>? delta,
+    Expression<int>? likes,
+    Expression<int>? comments,
+    Expression<String>? toMode,
+    Expression<String>? analysisJson,
+    Expression<int>? scheduledAt,
+    Expression<int>? executedAt,
+    Expression<String>? status,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (scriptId != null) 'script_id': scriptId,
+      if (type != null) 'type': type,
+      if (personaId != null) 'persona_id': personaId,
+      if (mediaType != null) 'media_type': mediaType,
+      if (content != null) 'content': content,
+      if (voiceAsset != null) 'voice_asset': voiceAsset,
+      if (transcript != null) 'transcript': transcript,
+      if (delta != null) 'delta': delta,
+      if (likes != null) 'likes': likes,
+      if (comments != null) 'comments': comments,
+      if (toMode != null) 'to_mode': toMode,
+      if (analysisJson != null) 'analysis_json': analysisJson,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (executedAt != null) 'executed_at': executedAt,
+      if (status != null) 'status': status,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlanEventsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? postId,
+    Value<String?>? scriptId,
+    Value<String>? type,
+    Value<String?>? personaId,
+    Value<String?>? mediaType,
+    Value<String?>? content,
+    Value<String?>? voiceAsset,
+    Value<String?>? transcript,
+    Value<int?>? delta,
+    Value<int?>? likes,
+    Value<int?>? comments,
+    Value<String?>? toMode,
+    Value<String?>? analysisJson,
+    Value<int>? scheduledAt,
+    Value<int?>? executedAt,
+    Value<String>? status,
+    Value<int>? rowid,
+  }) {
+    return PlanEventsCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      scriptId: scriptId ?? this.scriptId,
+      type: type ?? this.type,
+      personaId: personaId ?? this.personaId,
+      mediaType: mediaType ?? this.mediaType,
+      content: content ?? this.content,
+      voiceAsset: voiceAsset ?? this.voiceAsset,
+      transcript: transcript ?? this.transcript,
+      delta: delta ?? this.delta,
+      likes: likes ?? this.likes,
+      comments: comments ?? this.comments,
+      toMode: toMode ?? this.toMode,
+      analysisJson: analysisJson ?? this.analysisJson,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      executedAt: executedAt ?? this.executedAt,
+      status: status ?? this.status,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (scriptId.present) {
+      map['script_id'] = Variable<String>(scriptId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (personaId.present) {
+      map['persona_id'] = Variable<String>(personaId.value);
+    }
+    if (mediaType.present) {
+      map['media_type'] = Variable<String>(mediaType.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (voiceAsset.present) {
+      map['voice_asset'] = Variable<String>(voiceAsset.value);
+    }
+    if (transcript.present) {
+      map['transcript'] = Variable<String>(transcript.value);
+    }
+    if (delta.present) {
+      map['delta'] = Variable<int>(delta.value);
+    }
+    if (likes.present) {
+      map['likes'] = Variable<int>(likes.value);
+    }
+    if (comments.present) {
+      map['comments'] = Variable<int>(comments.value);
+    }
+    if (toMode.present) {
+      map['to_mode'] = Variable<String>(toMode.value);
+    }
+    if (analysisJson.present) {
+      map['analysis_json'] = Variable<String>(analysisJson.value);
+    }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<int>(scheduledAt.value);
+    }
+    if (executedAt.present) {
+      map['executed_at'] = Variable<int>(executedAt.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlanEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('scriptId: $scriptId, ')
+          ..write('type: $type, ')
+          ..write('personaId: $personaId, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('content: $content, ')
+          ..write('voiceAsset: $voiceAsset, ')
+          ..write('transcript: $transcript, ')
+          ..write('delta: $delta, ')
+          ..write('likes: $likes, ')
+          ..write('comments: $comments, ')
+          ..write('toMode: $toMode, ')
+          ..write('analysisJson: $analysisJson, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('executedAt: $executedAt, ')
+          ..write('status: $status, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ModelConfigsTable extends ModelConfigs
+    with TableInfo<$ModelConfigsTable, ModelConfigRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ModelConfigsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baseUrlMeta = const VerificationMeta(
+    'baseUrl',
+  );
+  @override
+  late final GeneratedColumn<String> baseUrl = GeneratedColumn<String>(
+    'base_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    provider,
+    label,
+    baseUrl,
+    model,
+    enabled,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'model_configs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ModelConfigRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('base_url')) {
+      context.handle(
+        _baseUrlMeta,
+        baseUrl.isAcceptableOrUnknown(data['base_url']!, _baseUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_baseUrlMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelMeta);
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ModelConfigRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ModelConfigRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      baseUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_url'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ModelConfigsTable createAlias(String alias) {
+    return $ModelConfigsTable(attachedDatabase, alias);
+  }
+}
+
+class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
+  final String id;
+
+  /// 预设服务商标识：openai / deepseek / qwen / zhipu / custom
+  final String provider;
+
+  /// 展示名，用户可改
+  final String label;
+
+  /// OpenAI 兼容的 base url（不带 /chat/completions）
+  final String baseUrl;
+  final String model;
+
+  /// 当前启用中的那一条为 true（同一时间只允许一条）
+  final bool enabled;
+  final int createdAt;
+  final int updatedAt;
+  const ModelConfigRow({
+    required this.id,
+    required this.provider,
+    required this.label,
+    required this.baseUrl,
+    required this.model,
+    required this.enabled,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['provider'] = Variable<String>(provider);
+    map['label'] = Variable<String>(label);
+    map['base_url'] = Variable<String>(baseUrl);
+    map['model'] = Variable<String>(model);
+    map['enabled'] = Variable<bool>(enabled);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ModelConfigsCompanion toCompanion(bool nullToAbsent) {
+    return ModelConfigsCompanion(
+      id: Value(id),
+      provider: Value(provider),
+      label: Value(label),
+      baseUrl: Value(baseUrl),
+      model: Value(model),
+      enabled: Value(enabled),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ModelConfigRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ModelConfigRow(
+      id: serializer.fromJson<String>(json['id']),
+      provider: serializer.fromJson<String>(json['provider']),
+      label: serializer.fromJson<String>(json['label']),
+      baseUrl: serializer.fromJson<String>(json['baseUrl']),
+      model: serializer.fromJson<String>(json['model']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'provider': serializer.toJson<String>(provider),
+      'label': serializer.toJson<String>(label),
+      'baseUrl': serializer.toJson<String>(baseUrl),
+      'model': serializer.toJson<String>(model),
+      'enabled': serializer.toJson<bool>(enabled),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ModelConfigRow copyWith({
+    String? id,
+    String? provider,
+    String? label,
+    String? baseUrl,
+    String? model,
+    bool? enabled,
+    int? createdAt,
+    int? updatedAt,
+  }) => ModelConfigRow(
+    id: id ?? this.id,
+    provider: provider ?? this.provider,
+    label: label ?? this.label,
+    baseUrl: baseUrl ?? this.baseUrl,
+    model: model ?? this.model,
+    enabled: enabled ?? this.enabled,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ModelConfigRow copyWithCompanion(ModelConfigsCompanion data) {
+    return ModelConfigRow(
+      id: data.id.present ? data.id.value : this.id,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      label: data.label.present ? data.label.value : this.label,
+      baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
+      model: data.model.present ? data.model.value : this.model,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelConfigRow(')
+          ..write('id: $id, ')
+          ..write('provider: $provider, ')
+          ..write('label: $label, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('model: $model, ')
+          ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    provider,
+    label,
+    baseUrl,
+    model,
+    enabled,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ModelConfigRow &&
+          other.id == this.id &&
+          other.provider == this.provider &&
+          other.label == this.label &&
+          other.baseUrl == this.baseUrl &&
+          other.model == this.model &&
+          other.enabled == this.enabled &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
+  final Value<String> id;
+  final Value<String> provider;
+  final Value<String> label;
+  final Value<String> baseUrl;
+  final Value<String> model;
+  final Value<bool> enabled;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ModelConfigsCompanion({
+    this.id = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.label = const Value.absent(),
+    this.baseUrl = const Value.absent(),
+    this.model = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ModelConfigsCompanion.insert({
+    required String id,
+    required String provider,
+    required String label,
+    required String baseUrl,
+    required String model,
+    this.enabled = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       provider = Value(provider),
+       label = Value(label),
+       baseUrl = Value(baseUrl),
+       model = Value(model),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<ModelConfigRow> custom({
+    Expression<String>? id,
+    Expression<String>? provider,
+    Expression<String>? label,
+    Expression<String>? baseUrl,
+    Expression<String>? model,
+    Expression<bool>? enabled,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (provider != null) 'provider': provider,
+      if (label != null) 'label': label,
+      if (baseUrl != null) 'base_url': baseUrl,
+      if (model != null) 'model': model,
+      if (enabled != null) 'enabled': enabled,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ModelConfigsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? provider,
+    Value<String>? label,
+    Value<String>? baseUrl,
+    Value<String>? model,
+    Value<bool>? enabled,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ModelConfigsCompanion(
+      id: id ?? this.id,
+      provider: provider ?? this.provider,
+      label: label ?? this.label,
+      baseUrl: baseUrl ?? this.baseUrl,
+      model: model ?? this.model,
+      enabled: enabled ?? this.enabled,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (baseUrl.present) {
+      map['base_url'] = Variable<String>(baseUrl.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelConfigsCompanion(')
+          ..write('id: $id, ')
+          ..write('provider: $provider, ')
+          ..write('label: $label, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('model: $model, ')
+          ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6360,6 +8416,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $StickersTable stickers = $StickersTable(this);
+  late final $PlanScriptsTable planScripts = $PlanScriptsTable(this);
+  late final $PlanEventsTable planEvents = $PlanEventsTable(this);
+  late final $ModelConfigsTable modelConfigs = $ModelConfigsTable(this);
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -6376,6 +8435,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'notification_logs_delivered',
     'CREATE INDEX notification_logs_delivered ON notification_logs (delivered_at)',
   );
+  late final Index planEventsDue = Index(
+    'plan_events_due',
+    'CREATE INDEX plan_events_due ON plan_events (status, scheduled_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6391,10 +8454,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     notificationLogs,
     feedbackViewLogs,
     stickers,
+    planScripts,
+    planEvents,
+    modelConfigs,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
     notificationLogsDelivered,
+    planEventsDue,
   ];
 }
 
@@ -6936,6 +9003,24 @@ final class $$PostsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$PlanEventsTable, List<PlanEventRow>>
+  _planEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.planEvents,
+    aliasName: 'posts__id__plan_events__post_id',
+  );
+
+  $$PlanEventsTableProcessedTableManager get planEventsRefs {
+    final manager = $$PlanEventsTableTableManager(
+      $_db,
+      $_db.planEvents,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_planEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
@@ -7072,6 +9157,31 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
           }) => $$AnalysisResultsTableFilterComposer(
             $db: $db,
             $table: $db.analysisResults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> planEventsRefs(
+    Expression<bool> Function($$PlanEventsTableFilterComposer f) f,
+  ) {
+    final $$PlanEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.planEvents,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlanEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.planEvents,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7296,6 +9406,31 @@ class $$PostsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> planEventsRefs<T extends Object>(
+    Expression<T> Function($$PlanEventsTableAnnotationComposer a) f,
+  ) {
+    final $$PlanEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.planEvents,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlanEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.planEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PostsTableTableManager
@@ -7314,6 +9449,7 @@ class $$PostsTableTableManager
           PrefetchHooks Function({
             bool aiInteractionsRefs,
             bool analysisResultsRefs,
+            bool planEventsRefs,
           })
         > {
   $$PostsTableTableManager(_$AppDatabase db, $PostsTable table)
@@ -7416,12 +9552,17 @@ class $$PostsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({aiInteractionsRefs = false, analysisResultsRefs = false}) {
+              ({
+                aiInteractionsRefs = false,
+                analysisResultsRefs = false,
+                planEventsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (aiInteractionsRefs) db.aiInteractions,
                     if (analysisResultsRefs) db.analysisResults,
+                    if (planEventsRefs) db.planEvents,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7468,6 +9609,27 @@ class $$PostsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (planEventsRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          PlanEventRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._planEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).planEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7491,6 +9653,7 @@ typedef $$PostsTableProcessedTableManager =
       PrefetchHooks Function({
         bool aiInteractionsRefs,
         bool analysisResultsRefs,
+        bool planEventsRefs,
       })
     >;
 typedef $$AiPersonasTableCreateCompanionBuilder = AiPersonasCompanion Function({
@@ -7509,7 +9672,6 @@ typedef $$AiPersonasTableCreateCompanionBuilder = AiPersonasCompanion Function({
   Value<String> scope,
   Value<int> level,
   Value<String> badges,
-  Value<String> ipLocation,
   Value<int> followers,
   Value<int> following,
   Value<String> personalityType,
@@ -7534,7 +9696,6 @@ typedef $$AiPersonasTableUpdateCompanionBuilder = AiPersonasCompanion Function({
   Value<String> scope,
   Value<int> level,
   Value<String> badges,
-  Value<String> ipLocation,
   Value<int> followers,
   Value<int> following,
   Value<String> personalityType,
@@ -7648,11 +9809,6 @@ class $$AiPersonasTableFilterComposer
 
   ColumnFilters<String> get badges => $composableBuilder(
     column: $table.badges,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get ipLocation => $composableBuilder(
-    column: $table.ipLocation,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7796,11 +9952,6 @@ class $$AiPersonasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get ipLocation => $composableBuilder(
-    column: $table.ipLocation,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get followers => $composableBuilder(
     column: $table.followers,
     builder: (column) => ColumnOrderings(column),
@@ -7898,11 +10049,6 @@ class $$AiPersonasTableAnnotationComposer
   GeneratedColumn<String> get badges =>
       $composableBuilder(column: $table.badges, builder: (column) => column);
 
-  GeneratedColumn<String> get ipLocation => $composableBuilder(
-    column: $table.ipLocation,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<int> get followers =>
       $composableBuilder(column: $table.followers, builder: (column) => column);
 
@@ -7996,7 +10142,6 @@ class $$AiPersonasTableTableManager
                 Value<String> scope = const Value.absent(),
                 Value<int> level = const Value.absent(),
                 Value<String> badges = const Value.absent(),
-                Value<String> ipLocation = const Value.absent(),
                 Value<int> followers = const Value.absent(),
                 Value<int> following = const Value.absent(),
                 Value<String> personalityType = const Value.absent(),
@@ -8020,7 +10165,6 @@ class $$AiPersonasTableTableManager
                 scope: scope,
                 level: level,
                 badges: badges,
-                ipLocation: ipLocation,
                 followers: followers,
                 following: following,
                 personalityType: personalityType,
@@ -8046,7 +10190,6 @@ class $$AiPersonasTableTableManager
                 Value<String> scope = const Value.absent(),
                 Value<int> level = const Value.absent(),
                 Value<String> badges = const Value.absent(),
-                Value<String> ipLocation = const Value.absent(),
                 Value<int> followers = const Value.absent(),
                 Value<int> following = const Value.absent(),
                 Value<String> personalityType = const Value.absent(),
@@ -8070,7 +10213,6 @@ class $$AiPersonasTableTableManager
                 scope: scope,
                 level: level,
                 badges: badges,
-                ipLocation: ipLocation,
                 followers: followers,
                 following: following,
                 personalityType: personalityType,
@@ -9414,6 +11556,7 @@ typedef $$NotificationLogsTableCreateCompanionBuilder =
       required String type,
       required String title,
       Value<String> body,
+      Value<String?> postId,
       Value<int?> scheduledAt,
       Value<int?> deliveredAt,
       Value<bool> isRead,
@@ -9426,6 +11569,7 @@ typedef $$NotificationLogsTableUpdateCompanionBuilder =
       Value<String> type,
       Value<String> title,
       Value<String> body,
+      Value<String?> postId,
       Value<int?> scheduledAt,
       Value<int?> deliveredAt,
       Value<bool> isRead,
@@ -9459,6 +11603,11 @@ class $$NotificationLogsTableFilterComposer
 
   ColumnFilters<String> get body => $composableBuilder(
     column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get postId => $composableBuilder(
+    column: $table.postId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9512,6 +11661,11 @@ class $$NotificationLogsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get postId => $composableBuilder(
+    column: $table.postId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get scheduledAt => $composableBuilder(
     column: $table.scheduledAt,
     builder: (column) => ColumnOrderings(column),
@@ -9553,6 +11707,9 @@ class $$NotificationLogsTableAnnotationComposer
 
   GeneratedColumn<String> get body =>
       $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get postId =>
+      $composableBuilder(column: $table.postId, builder: (column) => column);
 
   GeneratedColumn<int> get scheduledAt => $composableBuilder(
     column: $table.scheduledAt,
@@ -9612,6 +11769,7 @@ class $$NotificationLogsTableTableManager
                 Value<String> type = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String> body = const Value.absent(),
+                Value<String?> postId = const Value.absent(),
                 Value<int?> scheduledAt = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<bool> isRead = const Value.absent(),
@@ -9622,6 +11780,7 @@ class $$NotificationLogsTableTableManager
                 type: type,
                 title: title,
                 body: body,
+                postId: postId,
                 scheduledAt: scheduledAt,
                 deliveredAt: deliveredAt,
                 isRead: isRead,
@@ -9634,6 +11793,7 @@ class $$NotificationLogsTableTableManager
                 required String type,
                 required String title,
                 Value<String> body = const Value.absent(),
+                Value<String?> postId = const Value.absent(),
                 Value<int?> scheduledAt = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<bool> isRead = const Value.absent(),
@@ -9644,6 +11804,7 @@ class $$NotificationLogsTableTableManager
                 type: type,
                 title: title,
                 body: body,
+                postId: postId,
                 scheduledAt: scheduledAt,
                 deliveredAt: deliveredAt,
                 isRead: isRead,
@@ -10212,6 +12373,1112 @@ typedef $$StickersTableProcessedTableManager =
       StickerRow,
       PrefetchHooks Function()
     >;
+typedef $$PlanScriptsTableCreateCompanionBuilder =
+    PlanScriptsCompanion Function({
+      required String id,
+      required String name,
+      Value<bool> isBuiltIn,
+      Value<String> postContent,
+      Value<String> postImages,
+      Value<String?> topicName,
+      Value<String> stepsJson,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$PlanScriptsTableUpdateCompanionBuilder =
+    PlanScriptsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<bool> isBuiltIn,
+      Value<String> postContent,
+      Value<String> postImages,
+      Value<String?> topicName,
+      Value<String> stepsJson,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$PlanScriptsTableFilterComposer
+    extends Composer<_$AppDatabase, $PlanScriptsTable> {
+  $$PlanScriptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isBuiltIn => $composableBuilder(
+    column: $table.isBuiltIn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get postContent => $composableBuilder(
+    column: $table.postContent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get postImages => $composableBuilder(
+    column: $table.postImages,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get topicName => $composableBuilder(
+    column: $table.topicName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stepsJson => $composableBuilder(
+    column: $table.stepsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PlanScriptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PlanScriptsTable> {
+  $$PlanScriptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isBuiltIn => $composableBuilder(
+    column: $table.isBuiltIn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get postContent => $composableBuilder(
+    column: $table.postContent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get postImages => $composableBuilder(
+    column: $table.postImages,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get topicName => $composableBuilder(
+    column: $table.topicName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stepsJson => $composableBuilder(
+    column: $table.stepsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PlanScriptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PlanScriptsTable> {
+  $$PlanScriptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get isBuiltIn =>
+      $composableBuilder(column: $table.isBuiltIn, builder: (column) => column);
+
+  GeneratedColumn<String> get postContent => $composableBuilder(
+    column: $table.postContent,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get postImages => $composableBuilder(
+    column: $table.postImages,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get topicName =>
+      $composableBuilder(column: $table.topicName, builder: (column) => column);
+
+  GeneratedColumn<String> get stepsJson =>
+      $composableBuilder(column: $table.stepsJson, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$PlanScriptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PlanScriptsTable,
+          PlanScriptRow,
+          $$PlanScriptsTableFilterComposer,
+          $$PlanScriptsTableOrderingComposer,
+          $$PlanScriptsTableAnnotationComposer,
+          $$PlanScriptsTableCreateCompanionBuilder,
+          $$PlanScriptsTableUpdateCompanionBuilder,
+          (
+            PlanScriptRow,
+            BaseReferences<_$AppDatabase, $PlanScriptsTable, PlanScriptRow>,
+          ),
+          PlanScriptRow,
+          PrefetchHooks Function()
+        > {
+  $$PlanScriptsTableTableManager(_$AppDatabase db, $PlanScriptsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlanScriptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlanScriptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlanScriptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<bool> isBuiltIn = const Value.absent(),
+                Value<String> postContent = const Value.absent(),
+                Value<String> postImages = const Value.absent(),
+                Value<String?> topicName = const Value.absent(),
+                Value<String> stepsJson = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlanScriptsCompanion(
+                id: id,
+                name: name,
+                isBuiltIn: isBuiltIn,
+                postContent: postContent,
+                postImages: postImages,
+                topicName: topicName,
+                stepsJson: stepsJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<bool> isBuiltIn = const Value.absent(),
+                Value<String> postContent = const Value.absent(),
+                Value<String> postImages = const Value.absent(),
+                Value<String?> topicName = const Value.absent(),
+                Value<String> stepsJson = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PlanScriptsCompanion.insert(
+                id: id,
+                name: name,
+                isBuiltIn: isBuiltIn,
+                postContent: postContent,
+                postImages: postImages,
+                topicName: topicName,
+                stepsJson: stepsJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PlanScriptsTable, PlanScriptRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $PlanScriptsTable,
+                    PlanScriptRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PlanScriptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PlanScriptsTable,
+      PlanScriptRow,
+      $$PlanScriptsTableFilterComposer,
+      $$PlanScriptsTableOrderingComposer,
+      $$PlanScriptsTableAnnotationComposer,
+      $$PlanScriptsTableCreateCompanionBuilder,
+      $$PlanScriptsTableUpdateCompanionBuilder,
+      (
+        PlanScriptRow,
+        BaseReferences<_$AppDatabase, $PlanScriptsTable, PlanScriptRow>,
+      ),
+      PlanScriptRow,
+      PrefetchHooks Function()
+    >;
+typedef $$PlanEventsTableCreateCompanionBuilder = PlanEventsCompanion Function({
+  required String id,
+  required String postId,
+  Value<String?> scriptId,
+  required String type,
+  Value<String?> personaId,
+  Value<String?> mediaType,
+  Value<String?> content,
+  Value<String?> voiceAsset,
+  Value<String?> transcript,
+  Value<int?> delta,
+  Value<int?> likes,
+  Value<int?> comments,
+  Value<String?> toMode,
+  Value<String?> analysisJson,
+  required int scheduledAt,
+  Value<int?> executedAt,
+  Value<String> status,
+  Value<int> rowid,
+});
+typedef $$PlanEventsTableUpdateCompanionBuilder = PlanEventsCompanion Function({
+  Value<String> id,
+  Value<String> postId,
+  Value<String?> scriptId,
+  Value<String> type,
+  Value<String?> personaId,
+  Value<String?> mediaType,
+  Value<String?> content,
+  Value<String?> voiceAsset,
+  Value<String?> transcript,
+  Value<int?> delta,
+  Value<int?> likes,
+  Value<int?> comments,
+  Value<String?> toMode,
+  Value<String?> analysisJson,
+  Value<int> scheduledAt,
+  Value<int?> executedAt,
+  Value<String> status,
+  Value<int> rowid,
+});
+
+final class $$PlanEventsTableReferences
+    extends BaseReferences<_$AppDatabase, $PlanEventsTable, PlanEventRow> {
+  $$PlanEventsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('plan_events__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PlanEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $PlanEventsTable> {
+  $$PlanEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scriptId => $composableBuilder(
+    column: $table.scriptId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get personaId => $composableBuilder(
+    column: $table.personaId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceAsset => $composableBuilder(
+    column: $table.voiceAsset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get delta => $composableBuilder(
+    column: $table.delta,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get likes => $composableBuilder(
+    column: $table.likes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get comments => $composableBuilder(
+    column: $table.comments,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get toMode => $composableBuilder(
+    column: $table.toMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get analysisJson => $composableBuilder(
+    column: $table.analysisJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlanEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PlanEventsTable> {
+  $$PlanEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scriptId => $composableBuilder(
+    column: $table.scriptId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get personaId => $composableBuilder(
+    column: $table.personaId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voiceAsset => $composableBuilder(
+    column: $table.voiceAsset,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get delta => $composableBuilder(
+    column: $table.delta,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get likes => $composableBuilder(
+    column: $table.likes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get comments => $composableBuilder(
+    column: $table.comments,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get toMode => $composableBuilder(
+    column: $table.toMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get analysisJson => $composableBuilder(
+    column: $table.analysisJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlanEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PlanEventsTable> {
+  $$PlanEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scriptId =>
+      $composableBuilder(column: $table.scriptId, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get personaId =>
+      $composableBuilder(column: $table.personaId, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaType =>
+      $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get voiceAsset => $composableBuilder(
+    column: $table.voiceAsset,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get delta =>
+      $composableBuilder(column: $table.delta, builder: (column) => column);
+
+  GeneratedColumn<int> get likes =>
+      $composableBuilder(column: $table.likes, builder: (column) => column);
+
+  GeneratedColumn<int> get comments =>
+      $composableBuilder(column: $table.comments, builder: (column) => column);
+
+  GeneratedColumn<String> get toMode =>
+      $composableBuilder(column: $table.toMode, builder: (column) => column);
+
+  GeneratedColumn<String> get analysisJson => $composableBuilder(
+    column: $table.analysisJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlanEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PlanEventsTable,
+          PlanEventRow,
+          $$PlanEventsTableFilterComposer,
+          $$PlanEventsTableOrderingComposer,
+          $$PlanEventsTableAnnotationComposer,
+          $$PlanEventsTableCreateCompanionBuilder,
+          $$PlanEventsTableUpdateCompanionBuilder,
+          (PlanEventRow, $$PlanEventsTableReferences),
+          PlanEventRow,
+          PrefetchHooks Function({bool postId})
+        > {
+  $$PlanEventsTableTableManager(_$AppDatabase db, $PlanEventsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlanEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlanEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlanEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> postId = const Value.absent(),
+                Value<String?> scriptId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String?> personaId = const Value.absent(),
+                Value<String?> mediaType = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<String?> voiceAsset = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                Value<int?> delta = const Value.absent(),
+                Value<int?> likes = const Value.absent(),
+                Value<int?> comments = const Value.absent(),
+                Value<String?> toMode = const Value.absent(),
+                Value<String?> analysisJson = const Value.absent(),
+                Value<int> scheduledAt = const Value.absent(),
+                Value<int?> executedAt = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlanEventsCompanion(
+                id: id,
+                postId: postId,
+                scriptId: scriptId,
+                type: type,
+                personaId: personaId,
+                mediaType: mediaType,
+                content: content,
+                voiceAsset: voiceAsset,
+                transcript: transcript,
+                delta: delta,
+                likes: likes,
+                comments: comments,
+                toMode: toMode,
+                analysisJson: analysisJson,
+                scheduledAt: scheduledAt,
+                executedAt: executedAt,
+                status: status,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String postId,
+                Value<String?> scriptId = const Value.absent(),
+                required String type,
+                Value<String?> personaId = const Value.absent(),
+                Value<String?> mediaType = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<String?> voiceAsset = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                Value<int?> delta = const Value.absent(),
+                Value<int?> likes = const Value.absent(),
+                Value<int?> comments = const Value.absent(),
+                Value<String?> toMode = const Value.absent(),
+                Value<String?> analysisJson = const Value.absent(),
+                required int scheduledAt,
+                Value<int?> executedAt = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlanEventsCompanion.insert(
+                id: id,
+                postId: postId,
+                scriptId: scriptId,
+                type: type,
+                personaId: personaId,
+                mediaType: mediaType,
+                content: content,
+                voiceAsset: voiceAsset,
+                transcript: transcript,
+                delta: delta,
+                likes: likes,
+                comments: comments,
+                toMode: toMode,
+                analysisJson: analysisJson,
+                scheduledAt: scheduledAt,
+                executedAt: executedAt,
+                status: status,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PlanEventsTable, PlanEventRow>(table),
+                  $$PlanEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({postId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (postId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.postId,
+                        referencedTable: $$PlanEventsTableReferences
+                            ._postIdTable(db),
+                        referencedColumn: $$PlanEventsTableReferences
+                            ._postIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PlanEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PlanEventsTable,
+      PlanEventRow,
+      $$PlanEventsTableFilterComposer,
+      $$PlanEventsTableOrderingComposer,
+      $$PlanEventsTableAnnotationComposer,
+      $$PlanEventsTableCreateCompanionBuilder,
+      $$PlanEventsTableUpdateCompanionBuilder,
+      (PlanEventRow, $$PlanEventsTableReferences),
+      PlanEventRow,
+      PrefetchHooks Function({bool postId})
+    >;
+typedef $$ModelConfigsTableCreateCompanionBuilder =
+    ModelConfigsCompanion Function({
+      required String id,
+      required String provider,
+      required String label,
+      required String baseUrl,
+      required String model,
+      Value<bool> enabled,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ModelConfigsTableUpdateCompanionBuilder =
+    ModelConfigsCompanion Function({
+      Value<String> id,
+      Value<String> provider,
+      Value<String> label,
+      Value<String> baseUrl,
+      Value<String> model,
+      Value<bool> enabled,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ModelConfigsTableFilterComposer
+    extends Composer<_$AppDatabase, $ModelConfigsTable> {
+  $$ModelConfigsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseUrl => $composableBuilder(
+    column: $table.baseUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ModelConfigsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ModelConfigsTable> {
+  $$ModelConfigsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseUrl => $composableBuilder(
+    column: $table.baseUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ModelConfigsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ModelConfigsTable> {
+  $$ModelConfigsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get baseUrl =>
+      $composableBuilder(column: $table.baseUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ModelConfigsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ModelConfigsTable,
+          ModelConfigRow,
+          $$ModelConfigsTableFilterComposer,
+          $$ModelConfigsTableOrderingComposer,
+          $$ModelConfigsTableAnnotationComposer,
+          $$ModelConfigsTableCreateCompanionBuilder,
+          $$ModelConfigsTableUpdateCompanionBuilder,
+          (
+            ModelConfigRow,
+            BaseReferences<_$AppDatabase, $ModelConfigsTable, ModelConfigRow>,
+          ),
+          ModelConfigRow,
+          PrefetchHooks Function()
+        > {
+  $$ModelConfigsTableTableManager(_$AppDatabase db, $ModelConfigsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ModelConfigsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ModelConfigsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ModelConfigsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<String> baseUrl = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ModelConfigsCompanion(
+                id: id,
+                provider: provider,
+                label: label,
+                baseUrl: baseUrl,
+                model: model,
+                enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String provider,
+                required String label,
+                required String baseUrl,
+                required String model,
+                Value<bool> enabled = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ModelConfigsCompanion.insert(
+                id: id,
+                provider: provider,
+                label: label,
+                baseUrl: baseUrl,
+                model: model,
+                enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ModelConfigsTable, ModelConfigRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ModelConfigsTable,
+                    ModelConfigRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ModelConfigsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ModelConfigsTable,
+      ModelConfigRow,
+      $$ModelConfigsTableFilterComposer,
+      $$ModelConfigsTableOrderingComposer,
+      $$ModelConfigsTableAnnotationComposer,
+      $$ModelConfigsTableCreateCompanionBuilder,
+      $$ModelConfigsTableUpdateCompanionBuilder,
+      (
+        ModelConfigRow,
+        BaseReferences<_$AppDatabase, $ModelConfigsTable, ModelConfigRow>,
+      ),
+      ModelConfigRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10236,4 +13503,10 @@ class $AppDatabaseManager {
       $$FeedbackViewLogsTableTableManager(_db, _db.feedbackViewLogs);
   $$StickersTableTableManager get stickers =>
       $$StickersTableTableManager(_db, _db.stickers);
+  $$PlanScriptsTableTableManager get planScripts =>
+      $$PlanScriptsTableTableManager(_db, _db.planScripts);
+  $$PlanEventsTableTableManager get planEvents =>
+      $$PlanEventsTableTableManager(_db, _db.planEvents);
+  $$ModelConfigsTableTableManager get modelConfigs =>
+      $$ModelConfigsTableTableManager(_db, _db.modelConfigs);
 }

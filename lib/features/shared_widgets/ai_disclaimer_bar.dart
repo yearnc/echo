@@ -17,19 +17,17 @@ class AiDisclaimerBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       decoration: BoxDecoration(
         color: EchoColors.bg.withValues(alpha: 0.92),
-        border: const Border(top: BorderSide(color: EchoColors.divider)),
+        border: Border(top: BorderSide(color: EchoColors.divider)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.smart_toy_outlined, size: 12, color: EchoColors.textFaint),
+          Icon(Icons.smart_toy_outlined, size: 12, color: EchoColors.textFaint),
           const SizedBox(width: 6),
           Text(
             AppTexts.aiDisclaimer,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: EchoColors.textFaint,
-                  fontSize: 11,
-                ),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: EchoColors.textFaint, fontSize: 11),
           ),
         ],
       ),

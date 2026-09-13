@@ -11,39 +11,39 @@ class AppTheme {
   const AppTheme._();
 
   static ThemeData get echo => _build(
-        brightness: Brightness.dark,
-        colors: const _Palette(
-          bg: EchoColors.bg,
-          surface: EchoColors.surface,
-          surfaceHigh: EchoColors.surfaceHigh,
-          primary: EchoColors.primary,
-          accent: EchoColors.accent,
-          text: EchoColors.text,
-          textMuted: EchoColors.textMuted,
-          divider: EchoColors.divider,
-          onPrimary: Colors.white,
-        ),
-        lineHeight: 1.45,
-        leadingWeight: FontWeight.w600,
-      );
+    brightness: Brightness.dark,
+    colors: _Palette(
+      bg: EchoColors.bg,
+      surface: EchoColors.surface,
+      surfaceHigh: EchoColors.surfaceHigh,
+      primary: EchoColors.primary,
+      accent: EchoColors.accent,
+      text: EchoColors.text,
+      textMuted: EchoColors.textMuted,
+      divider: EchoColors.divider,
+      onPrimary: Colors.white,
+    ),
+    lineHeight: 1.45,
+    leadingWeight: FontWeight.w600,
+  );
 
   static ThemeData get clear => _build(
-        brightness: Brightness.light,
-        colors: const _Palette(
-          bg: ClearColors.bg,
-          surface: ClearColors.surface,
-          surfaceHigh: ClearColors.surfaceHigh,
-          primary: ClearColors.primary,
-          accent: ClearColors.accent,
-          text: ClearColors.text,
-          textMuted: ClearColors.textMuted,
-          divider: ClearColors.divider,
-          onPrimary: Colors.white,
-        ),
-        // 清醒模式行高更松，读起来更像纸面
-        lineHeight: 1.62,
-        leadingWeight: FontWeight.w500,
-      );
+    brightness: Brightness.light,
+    colors: _Palette(
+      bg: ClearColors.bg,
+      surface: ClearColors.surface,
+      surfaceHigh: ClearColors.surfaceHigh,
+      primary: ClearColors.primary,
+      accent: ClearColors.accent,
+      text: ClearColors.text,
+      textMuted: ClearColors.textMuted,
+      divider: ClearColors.divider,
+      onPrimary: Colors.white,
+    ),
+    // 清醒模式行高更松，读起来更像纸面
+    lineHeight: 1.62,
+    leadingWeight: FontWeight.w500,
+  );
 
   static ThemeData _build({
     required Brightness brightness,
@@ -51,17 +51,18 @@ class AppTheme {
     required double lineHeight,
     required FontWeight leadingWeight,
   }) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: colors.primary,
-      brightness: brightness,
-    ).copyWith(
-      primary: colors.primary,
-      secondary: colors.accent,
-      surface: colors.surface,
-      onSurface: colors.text,
-      onPrimary: colors.onPrimary,
-      outlineVariant: colors.divider,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: colors.primary,
+          brightness: brightness,
+        ).copyWith(
+          primary: colors.primary,
+          secondary: colors.accent,
+          surface: colors.surface,
+          onSurface: colors.text,
+          onPrimary: colors.onPrimary,
+          outlineVariant: colors.divider,
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -124,7 +125,9 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(brightness == Brightness.dark ? 18 : 14),
+          borderRadius: BorderRadius.circular(
+            brightness == Brightness.dark ? 18 : 14,
+          ),
           side: BorderSide(color: colors.divider),
         ),
       ),
@@ -133,7 +136,9 @@ class AppTheme {
           backgroundColor: colors.primary,
           foregroundColor: colors.onPrimary,
           minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
       ),
@@ -142,14 +147,19 @@ class AppTheme {
           foregroundColor: colors.text,
           minimumSize: const Size(0, 48),
           side: BorderSide(color: colors.divider),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surfaceHigh,
         hintStyle: TextStyle(color: colors.textMuted),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,

@@ -33,7 +33,9 @@ class PostRepository {
     final query = _db.select(_db.posts)
       ..where((t) => t.id.equals(id) & t.deletedAt.isNull());
 
-    return query.watchSingleOrNull().map((row) => row == null ? null : _toDomain(row));
+    return query.watchSingleOrNull().map(
+      (row) => row == null ? null : _toDomain(row),
+    );
   }
 
   Future<Post?> findById(String id) async {
@@ -56,7 +58,9 @@ class PostRepository {
     final id = _newId();
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    await _db.into(_db.posts).insert(
+    await _db
+        .into(_db.posts)
+        .insert(
           PostsCompanion.insert(
             id: id,
             content: Value(content),
@@ -77,11 +81,7 @@ class PostRepository {
   ///
   /// 顺带处理"热榜"：点赞过百就标热——热度本来就是外部评价的产物，
   /// 它在回响模式里出现、在清醒模式里被隐藏，这个反差正是产品要说的。
-  Future<void> addCounters(
-    String id, {
-    int likes = 0,
-    int comments = 0,
-  }) async {
+  Future<void> addCounters(String id, {int likes = 0, int comments = 0}) async {
     if (likes == 0 && comments == 0) return;
 
     final query = _db.select(_db.posts)..where((t) => t.id.equals(id));
@@ -94,6 +94,43 @@ class PostRepository {
         likeCount: Value(nextLikes),
         commentCount: Value(row.commentCount + comments),
         isHot: Value(row.isHot || nextLikes >= 100),
+      ),
+    );
+  }
+
+  /// 直接设定计数（策划脚本里的"设定数据"事件）。
+  ///
+  /// 与 [addCounters] 的区别是它不做加法：脚本说"此刻 203 赞"，就是 203，
+  /// 这样三幕那种"帖子已经火了"的开局才能被准确复现。
+  Future<void> setCounters(String id, {int? likes, int? comments}) async {
+    if (likes == null && comments == null) return;
+
+    final query = _db.select(_db.posts)..where((t) => t.id.equals(id));
+    final row = await query.getSingleOrNull();
+    if (row == null) return;
+
+    final nextLikes = likes ?? row.likeCount;
+    await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(
+      PostsCompanion(
+        likeCount: Value(nextLikes),
+        commentCount: comments == null ? const Value.absent() : Value(comments),
+        isHot: Value(row.isHot || nextLikes >= 100),
+      ),
+    );
+  }
+
+  /// 「我的」页的统计。真实查出来的，不是写死的数字。
+  Stream<ProfileStats> watchStats() {
+    final count = _db.posts.id.count();
+    final likes = _db.posts.likeCount.sum();
+    final query = _db.selectOnly(_db.posts)
+      ..addColumns([count, likes])
+      ..where(_db.posts.deletedAt.isNull());
+
+    return query.watchSingle().map(
+      (row) => ProfileStats(
+        postCount: row.read(count) ?? 0,
+        likeCount: row.read(likes) ?? 0,
       ),
     );
   }
@@ -155,9 +192,22 @@ final postRepositoryProvider = Provider<PostRepository>(
 /// 信息流（回响模式）。scope 为 null 表示不过滤。
 final feedPostsProvider = StreamProvider.autoDispose
     .family<List<Post>, String?>((ref, scope) {
-  return ref.watch(postRepositoryProvider).watchFeed(scope: scope);
-});
+      return ref.watch(postRepositoryProvider).watchFeed(scope: scope);
+    });
 
 final postByIdProvider = StreamProvider.autoDispose.family<Post?, String>(
   (ref, id) => ref.watch(postRepositoryProvider).watchById(id),
 );
+
+/// 「我的」页的统计。
+final profileStatsProvider = StreamProvider.autoDispose<ProfileStats>(
+  (ref) => ref.watch(postRepositoryProvider).watchStats(),
+);
+
+/// 个人主页的汇总数字。
+class ProfileStats {
+  const ProfileStats({required this.postCount, required this.likeCount});
+
+  final int postCount;
+  final int likeCount;
+}

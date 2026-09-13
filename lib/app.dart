@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
+import 'domain/services/appearance_controller.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/scheduler_service.dart';
 
@@ -17,7 +19,14 @@ import 'domain/services/scheduler_service.dart';
 ///
 /// 它还负责一件事：**前台心跳**。排期只在 APP 启动时补发是不够的——
 /// 用户开着 APP 等十分钟什么都不会发生（这是 2026-09-11 实测发现的缺口）。
-/// 所以这里每 30 秒扫一次队列，到点的互动当场兑现。
+///
+/// 心跳有两档，因为两种排期的精度要求不同：
+/// - **随机排期**（普通发帖）：30 秒一档足够，"陆续有人路过"本来就不精确
+/// - **策划排期**（策划帖）：1 秒一档。脚本里写"第 1 秒有点赞"，
+///   就必须真的在第 1 秒跳出来——30 秒的粒度会把这句台词毁掉
+///
+/// 所以定时器固定跑 1 秒，每拍只做一次很轻的计数查询；
+/// 只有确实存在未执行的策划事件时才去兑现，空闲时几乎不花钱。
 class EchoApp extends ConsumerStatefulWidget {
   const EchoApp({super.key});
 
@@ -26,18 +35,31 @@ class EchoApp extends ConsumerStatefulWidget {
 }
 
 class _EchoAppState extends ConsumerState<EchoApp> {
-  /// 前台补发间隔。够快，感觉像"实时"；够慢，不至于每帧都查库。
-  static const Duration _flushInterval = Duration(seconds: 30);
+  static const Duration _tick = Duration(seconds: 1);
+
+  /// 随机排期每多少拍扫一次（1 拍 = 1 秒）。
+  static const int _idleFlushEveryTicks = 30;
 
   Timer? _heartbeat;
+  int _ticks = 0;
 
   @override
   void initState() {
     super.initState();
-    _heartbeat = Timer.periodic(_flushInterval, (_) async {
-      // 出错也不能让心跳断掉：这一次没补上，下一个 30 秒还会再试
+    _heartbeat = Timer.periodic(_tick, (_) async {
+      // 出错也不能让心跳断掉：这一拍没补上，下一拍还会再试
       try {
-        await ref.read(schedulerServiceProvider).flushDue();
+        final scheduler = ref.read(schedulerServiceProvider);
+
+        if (await scheduler.pendingPlanCount() > 0) {
+          await scheduler.flushPlanEvents();
+        }
+
+        _ticks++;
+        if (_ticks >= _idleFlushEveryTicks) {
+          _ticks = 0;
+          await scheduler.flushDue();
+        }
       } catch (_) {
         // 静默：补发失败不该弹窗打断用户
       }
@@ -53,6 +75,7 @@ class _EchoAppState extends ConsumerState<EchoApp> {
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
+    final appearance = ref.watch(appearanceControllerProvider);
     final bootstrap = ref.watch(appBootstrapProvider);
 
     if (bootstrap.isLoading) {
@@ -62,20 +85,30 @@ class _EchoAppState extends ConsumerState<EchoApp> {
       return _StartupError(message: '${bootstrap.error}');
     }
 
+    // 明暗由外观设置决定（auto 时跟模式走）。
+    final palette = switch (appearance) {
+      AppearanceMode.auto => mode.isEcho ? kPaletteDark : kPaletteLight,
+      AppearanceMode.light => kPaletteLight,
+      AppearanceMode.dark => kPaletteDark,
+    };
+    // 页面里的颜色是直接读调色板的，不是走 Theme——所以换调色板之后
+    // 必须让整棵树重建一次，key 变化正好做这件事。
+    applyPalette(palette);
+    final isDark = identical(palette, kPaletteDark);
+
     return MaterialApp.router(
+      key: ValueKey(isDark ? 'theme-dark' : 'theme-light'),
       title: '回响 Echo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.clear,
       darkTheme: AppTheme.echo,
-      themeMode: mode.isEcho ? ThemeMode.dark : ThemeMode.light,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: appRouter,
       builder: (context, child) {
         // 固定文字缩放，避免系统大字体把信息流卡片挤变形
         final media = MediaQuery.of(context);
         return MediaQuery(
-          data: media.copyWith(
-            textScaler: TextScaler.noScaling,
-          ),
+          data: media.copyWith(textScaler: TextScaler.noScaling),
           child: child ?? const SizedBox.shrink(),
         );
       },
@@ -89,7 +122,7 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         backgroundColor: EchoColors.bg,
@@ -141,9 +174,9 @@ class _StartupError extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, color: EchoColors.like, size: 32),
+                Icon(Icons.error_outline, color: EchoColors.like, size: 32),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   '本地数据库启动失败',
                   style: TextStyle(color: EchoColors.text, fontSize: 16),
                 ),
@@ -151,7 +184,7 @@ class _StartupError extends StatelessWidget {
                 Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: EchoColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: EchoColors.textMuted, fontSize: 12),
                 ),
               ],
             ),

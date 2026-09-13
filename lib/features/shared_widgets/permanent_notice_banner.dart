@@ -25,19 +25,23 @@ class PermanentNoticeBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.info_outline, size: 15, color: ClearColors.accent),
+            child: Icon(
+              Icons.info_outline,
+              size: 15,
+              color: ClearColors.accent,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               AppTexts.permanentNotice,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: ClearColors.text,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                  ),
+                color: ClearColors.text,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

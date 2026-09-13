@@ -39,17 +39,21 @@ class PostDetailPage extends ConsumerWidget {
       body: ComplianceFooter(
         mode: mode,
         child: postAsync.when(
-          loading: () => const Center(
+          loading: () => Center(
             child: CircularProgressIndicator(color: EchoColors.primary),
           ),
           error: (error, _) => Center(
-            child: Text('帖子加载失败：$error',
-                style: const TextStyle(color: EchoColors.like, fontSize: 12)),
+            child: Text(
+              '帖子加载失败：$error',
+              style: TextStyle(color: EchoColors.like, fontSize: 12),
+            ),
           ),
           data: (post) => post == null
-              ? const Center(
-                  child: Text('帖子不存在',
-                      style: TextStyle(color: EchoColors.textMuted)),
+              ? Center(
+                  child: Text(
+                    '帖子不存在',
+                    style: TextStyle(color: EchoColors.textMuted),
+                  ),
                 )
               : Column(
                   children: [
@@ -90,13 +94,17 @@ class _NoCommentsYet extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 36),
       child: Column(
-        children: const [
+        children: [
           Icon(Icons.hourglass_empty, size: 22, color: EchoColors.textFaint),
           SizedBox(height: 10),
           Text(
             '还没有人路过这里。\n反馈会在接下来的 0—48 小时里陆续出现。',
             textAlign: TextAlign.center,
-            style: TextStyle(color: EchoColors.textFaint, fontSize: 12, height: 1.7),
+            style: TextStyle(
+              color: EchoColors.textFaint,
+              fontSize: 12,
+              height: 1.7,
+            ),
           ),
         ],
       ),
@@ -113,22 +121,22 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 6, 16, 6),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: EchoColors.divider)),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, color: EchoColors.text),
+            icon: Icon(Icons.arrow_back, color: EchoColors.text),
           ),
           Expanded(
             child: Text(
               topicName ?? '帖子',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: EchoColors.text, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: EchoColors.text,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -149,32 +157,38 @@ class _PostBody extends StatelessWidget {
       children: [
         Row(
           children: [
-            const UserAvatar(name: AppTexts.defaultNickname, size: 40, showRing: true),
+            const UserAvatar(
+              name: AppTexts.defaultNickname,
+              size: 40,
+              showRing: true,
+            ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(AppTexts.defaultNickname,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: EchoColors.text,
-                          fontWeight: FontWeight.w600,
-                        )),
+                Text(
+                  AppTexts.defaultNickname,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: EchoColors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(RelativeTime.format(post.createdAt),
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: EchoColors.textFaint)),
+                Text(
+                  RelativeTime.format(post.createdAt),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: EchoColors.textFaint),
+                ),
               ],
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Text(post.content,
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
-                ?.copyWith(color: EchoColors.text)),
+        Text(
+          post.content,
+          style: Theme.of(context).textTheme.bodyLarge
+              ?.copyWith(color: EchoColors.text),
+        ),
         if (post.hasImages) ...[
           const SizedBox(height: 12),
           PostImage(ref: post.images.first, height: 240),
@@ -182,16 +196,23 @@ class _PostBody extends StatelessWidget {
         const SizedBox(height: 14),
         Row(
           children: [
-            const Icon(Icons.favorite, size: 17, color: EchoColors.like),
+            Icon(Icons.favorite, size: 17, color: EchoColors.like),
             const SizedBox(width: 5),
-            Text('${post.likeCount}',
-                style: const TextStyle(color: EchoColors.like, fontSize: 13)),
+            Text(
+              '${post.likeCount}',
+              style: TextStyle(color: EchoColors.like, fontSize: 13),
+            ),
             const SizedBox(width: 18),
-            const Icon(Icons.mode_comment_outlined,
-                size: 17, color: EchoColors.textMuted),
+            Icon(
+              Icons.mode_comment_outlined,
+              size: 17,
+              color: EchoColors.textMuted,
+            ),
             const SizedBox(width: 5),
-            Text('${post.commentCount}',
-                style: const TextStyle(color: EchoColors.textMuted, fontSize: 13)),
+            Text(
+              '${post.commentCount}',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+            ),
           ],
         ),
       ],
@@ -208,17 +229,17 @@ class _CommentsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('评论 $count',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: EchoColors.text,
-                  fontWeight: FontWeight.w600,
-                )),
+        Text(
+          '评论 $count',
+          style: Theme.of(context).textTheme.titleSmall
+              ?.copyWith(color: EchoColors.text, fontWeight: FontWeight.w600),
+        ),
         const Spacer(),
-        Text('按热度',
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: EchoColors.textFaint)),
+        Text(
+          '按热度',
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: EchoColors.textFaint),
+        ),
       ],
     );
   }
@@ -237,11 +258,14 @@ class _ClearModeHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: EchoColors.divider),
       ),
-      child: const Text(
+      child: Text(
         '清醒模式下不显示虚拟评论。\n切到「分析」可以看到这条内容的客观分析结果。',
-        style: TextStyle(color: EchoColors.textMuted, height: 1.6, fontSize: 13),
+        style: TextStyle(
+          color: EchoColors.textMuted,
+          height: 1.6,
+          fontSize: 13,
+        ),
       ),
     );
   }
 }
-

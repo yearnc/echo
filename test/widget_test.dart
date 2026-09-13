@@ -31,19 +31,30 @@ void main() {
     final now = DateTime(2026, 9, 11, 20, 30);
 
     test('一分钟内显示刚刚', () {
-      expect(RelativeTime.format(now.subtract(const Duration(seconds: 30)), now: now),
-          '刚刚');
+      expect(
+        RelativeTime.format(
+          now.subtract(const Duration(seconds: 30)),
+          now: now,
+        ),
+        '刚刚',
+      );
     });
 
     test('一小时内显示分钟', () {
       expect(
-          RelativeTime.format(now.subtract(const Duration(minutes: 26)), now: now),
-          '26分钟前');
+        RelativeTime.format(
+          now.subtract(const Duration(minutes: 26)),
+          now: now,
+        ),
+        '26分钟前',
+      );
     });
 
     test('当天显示小时', () {
-      expect(RelativeTime.format(now.subtract(const Duration(hours: 3)), now: now),
-          '3小时前');
+      expect(
+        RelativeTime.format(now.subtract(const Duration(hours: 3)), now: now),
+        '3小时前',
+      );
     });
 
     test('跨天显示昨天加时刻', () {
@@ -52,12 +63,17 @@ void main() {
     });
 
     test('更早的同年日期显示月日', () {
-      expect(RelativeTime.format(DateTime(2026, 9, 3, 8, 5), now: now), '9月3日 08:05');
+      expect(
+        RelativeTime.format(DateTime(2026, 9, 3, 8, 5), now: now),
+        '9月3日 08:05',
+      );
     });
 
     test('跨年显示完整日期', () {
-      expect(RelativeTime.format(DateTime(2025, 12, 31, 23, 0), now: now),
-          '2025年12月31日');
+      expect(
+        RelativeTime.format(DateTime(2025, 12, 31, 23, 0), now: now),
+        '2025年12月31日',
+      );
     });
   });
 
@@ -100,17 +116,21 @@ void main() {
 
   group('UserAvatar 文字兜底', () {
     testWidgets('没有图片时渲染昵称首字', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: UserAvatar(name: '温柔学姐', size: 40)),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: UserAvatar(name: '温柔学姐', size: 40)),
+        ),
+      );
 
       expect(find.text('温'), findsOneWidget);
     });
 
     testWidgets('空昵称不会崩', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: UserAvatar(name: '  ', size: 40)),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: UserAvatar(name: '  ', size: 40)),
+        ),
+      );
 
       expect(find.text('?'), findsOneWidget);
     });

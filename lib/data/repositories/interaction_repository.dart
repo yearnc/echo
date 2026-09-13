@@ -24,16 +24,18 @@ class InteractionRepository {
 
   Stream<List<PostComment>> watchComments(String postId) {
     final query = _db.select(_db.aiInteractions)
-      ..where((t) =>
-          t.postId.equals(postId) &
-          t.type.equals(typeComment) &
-          t.status.equals(statusDone) &
-          t.deletedAt.isNull())
+      ..where(
+        (t) =>
+            t.postId.equals(postId) &
+            t.type.equals(typeComment) &
+            t.status.equals(statusDone) &
+            t.deletedAt.isNull(),
+      )
       ..orderBy([(t) => OrderingTerm.asc(t.executedAt)]);
 
     return query.watch().map(
-          (rows) => rows.map(_toComment).toList(growable: false),
-        );
+      (rows) => rows.map(_toComment).toList(growable: false),
+    );
   }
 
   /// 把规划器算出的排期写进队列（发帖时调用）。
@@ -64,12 +66,45 @@ class InteractionRepository {
     await _db.batch((batch) => batch.insertAll(_db.aiInteractions, rows));
   }
 
+  /// 策划事件兑现的评论：它在脚本时间轴上是"已经发生"的，
+  /// 所以直接以 done 状态落库，评论区立刻就能读到。
+  Future<void> insertExecutedComment({
+    required String id,
+    required String postId,
+    required String personaId,
+    String? mediaType,
+    String? content,
+    String? voicePath,
+    String? transcript,
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db
+        .into(_db.aiInteractions)
+        .insert(
+          AiInteractionsCompanion.insert(
+            id: id,
+            postId: postId,
+            personaId: personaId,
+            type: typeComment,
+            mediaType: Value(mediaType ?? 'text'),
+            content: Value(content),
+            voicePath: Value(voicePath),
+            transcript: Value(transcript),
+            scheduledAt: now,
+            executedAt: Value(now),
+            status: const Value(statusDone),
+          ),
+        );
+  }
+
   /// 到点该兑现的排期（冷启动 / 回前台时扫一次）。
   Future<List<PendingInteraction>> duePending(DateTime now) async {
     final query = _db.select(_db.aiInteractions)
-      ..where((t) =>
-          t.status.equals('pending') &
-          t.scheduledAt.isSmallerOrEqualValue(now.millisecondsSinceEpoch))
+      ..where(
+        (t) =>
+            t.status.equals('pending') &
+            t.scheduledAt.isSmallerOrEqualValue(now.millisecondsSinceEpoch),
+      )
       ..orderBy([(t) => OrderingTerm.asc(t.scheduledAt)]);
 
     final rows = await query.get();
@@ -87,15 +122,32 @@ class InteractionRepository {
   }
 
   PendingInteraction _toPending(AiInteractionRow row) => PendingInteraction(
-        id: row.id,
-        postId: row.postId,
-        personaId: row.personaId,
-        type: row.type,
-        content: row.content,
-        mediaType: row.mediaType,
-        voiceDurationMs: row.voiceDurationMs,
-        likeBatch: row.likeCount,
-      );
+    id: row.id,
+    postId: row.postId,
+    personaId: row.personaId,
+    type: row.type,
+    content: row.content,
+    mediaType: row.mediaType,
+    voiceDurationMs: row.voiceDurationMs,
+    likeBatch: row.likeCount,
+  );
+
+  /// 取消所有还没兑现的排期。
+  ///
+  /// 切到清醒模式时调用：用户已经说了不要虚拟反馈，队列里那些"将来会来的
+  /// 点赞和评论"就必须停下来——这是"停止所有待发 AI 互动队列"的字面意思。
+  Future<int> cancelAllPending() async {
+    return (_db.update(_db.aiInteractions)
+          ..where((t) => t.status.equals('pending')))
+        .write(const AiInteractionsCompanion(status: Value('cancelled')));
+  }
+
+  /// 把已经兑现的 AI 互动归档（默认不参与清醒模式的统计）。
+  Future<int> archiveExecuted() async {
+    return (_db.update(_db.aiInteractions)
+          ..where((t) => t.status.equals(statusDone) & t.scope.equals('echo')))
+        .write(const AiInteractionsCompanion(scope: Value('archived')));
+  }
 
   Future<void> markExecuted(String id, {int? likeCount}) async {
     await (_db.update(_db.aiInteractions)..where((t) => t.id.equals(id))).write(
@@ -127,18 +179,19 @@ class InteractionRepository {
   }
 
   CommentMedia _parseMedia(String? raw) => switch (raw) {
-        'voice' => CommentMedia.voice,
-        'image' => CommentMedia.image,
-        'emoji' => CommentMedia.emoji,
-        _ => CommentMedia.text,
-      };
+    'voice' => CommentMedia.voice,
+    'image' => CommentMedia.image,
+    'emoji' => CommentMedia.emoji,
+    _ => CommentMedia.text,
+  };
 }
 
 final interactionRepositoryProvider = Provider<InteractionRepository>(
   (ref) => InteractionRepository(ref.watch(databaseProvider)),
 );
 
-final commentsProvider =
-    StreamProvider.autoDispose.family<List<PostComment>, String>(
-  (ref, postId) => ref.watch(interactionRepositoryProvider).watchComments(postId),
-);
+final commentsProvider = StreamProvider.autoDispose
+    .family<List<PostComment>, String>(
+      (ref, postId) =>
+          ref.watch(interactionRepositoryProvider).watchComments(postId),
+    );

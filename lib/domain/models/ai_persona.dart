@@ -19,7 +19,6 @@ class AiPersona {
     this.voiceModel = '',
     this.level = 1,
     this.badges = const [],
-    this.ipLocation = '',
     this.followers = 0,
     this.following = 0,
     this.memoryEnabled = true,
@@ -46,7 +45,6 @@ class AiPersona {
   final String voiceModel;
   final int level;
   final List<String> badges;
-  final String ipLocation;
   final int followers;
   final int following;
   final bool memoryEnabled;
@@ -84,7 +82,6 @@ class AiPersona {
       voiceModel: json['voiceModel'] as String? ?? '',
       level: (json['level'] as num?)?.toInt() ?? 1,
       badges: parseList('badges', (e) => e as String),
-      ipLocation: json['ipLocation'] as String? ?? '',
       followers: (json['followers'] as num?)?.toInt() ?? 0,
       following: (json['following'] as num?)?.toInt() ?? 0,
       memoryEnabled: json['memoryEnabled'] as bool? ?? true,

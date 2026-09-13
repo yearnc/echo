@@ -44,6 +44,9 @@ class NotificationLogs extends Table {
   TextColumn get type => text()();
   TextColumn get title => text()();
   TextColumn get body => text().withDefault(const Constant(''))();
+
+  /// 这条通知指向的帖子（点击通知跳转用）。系统通知可以为空。
+  TextColumn get postId => text().nullable()();
   IntColumn get scheduledAt => integer().nullable()();
   IntColumn get deliveredAt => integer().nullable()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();

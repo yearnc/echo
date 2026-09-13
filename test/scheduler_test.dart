@@ -2,9 +2,11 @@ import 'dart:math';
 
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
+import 'package:echo/data/repositories/analysis_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/notification_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
+import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/echo_settings.dart';
@@ -14,17 +16,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// 一批测试住民：倾向都调高，方便验证"该发生的都发生了"。
 List<AiPersona> buildPersonas({int count = 12}) => List.generate(
-      count,
-      (i) => AiPersona(
-        id: 'persona_$i',
-        name: '住民$i',
-        likeProbability: 0.85,
-        commentProbability: 0.7,
-        activeHours: const [0, 8, 12, 20, 23],
-        personalityType: i == 0 ? '沉默点赞型' : '温和鼓励型',
-        commentSamples: const ['示例评论一号', '示例评论二号'],
-      ),
-    );
+  count,
+  (i) => AiPersona(
+    id: 'persona_$i',
+    name: '住民$i',
+    likeProbability: 0.85,
+    commentProbability: 0.7,
+    activeHours: const [0, 8, 12, 20, 23],
+    personalityType: i == 0 ? '沉默点赞型' : '温和鼓励型',
+    commentSamples: const ['示例评论一号', '示例评论二号'],
+  ),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -74,7 +76,11 @@ void main() {
             .fold<int>(0, (sum, item) => sum + item.likeBatch);
         final (min, max) = level.totalRange;
 
-        expect(total, greaterThanOrEqualTo(min), reason: '${level.label} 档点赞不足');
+        expect(
+          total,
+          greaterThanOrEqualTo(min),
+          reason: '${level.label} 档点赞不足',
+        );
         expect(total, lessThanOrEqualTo(max), reason: '${level.label} 档点赞超出');
       }
     });
@@ -89,8 +95,11 @@ void main() {
       final crowd = planned.where((item) => item.isLike && item.likeBatch > 1);
 
       expect(crowd, isNotEmpty, reason: '高点赞档必须有人群批次');
-      expect(crowd.map((item) => item.personaId).toSet(), hasLength(1),
-          reason: '所有人群批次共用一个已存在的住民头像，避免凭空造人');
+      expect(
+        crowd.map((item) => item.personaId).toSet(),
+        hasLength(1),
+        reason: '所有人群批次共用一个已存在的住民头像，避免凭空造人',
+      );
     });
 
     test('频率档位越高，说话的人越多', () {
@@ -137,11 +146,8 @@ void main() {
     });
 
     test('人格为空时返回空排期，不崩', () {
-      final planned = InteractionPlanner(random: Random(1)).plan(
-        now: now,
-        personas: const [],
-        settings: EchoSettings.defaults,
-      );
+      final planned = InteractionPlanner(random: Random(1))
+          .plan(now: now, personas: const [], settings: EchoSettings.defaults);
 
       expect(planned, isEmpty);
     });
@@ -161,9 +167,11 @@ void main() {
       notifications = NotificationRepository(db);
       scheduler = SchedulerService(
         interactions: interactions,
+        planEvents: PlanEventRepository(db),
         posts: posts,
         notifications: notifications,
         personas: const PersonaRepository(),
+        analyses: AnalysisRepository(db),
         planner: InteractionPlanner(random: Random(9)),
       );
 

@@ -24,8 +24,9 @@ class PersonaRepository {
   }
 }
 
-final personaRepositoryProvider =
-    Provider<PersonaRepository>((ref) => const PersonaRepository());
+final personaRepositoryProvider = Provider<PersonaRepository>(
+  (ref) => const PersonaRepository(),
+);
 
 /// 全部人格（首次读取后缓存）。
 final personasProvider = FutureProvider<List<AiPersona>>(

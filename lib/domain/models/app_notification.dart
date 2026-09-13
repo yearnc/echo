@@ -8,6 +8,7 @@ class AppNotification {
     required this.type,
     required this.title,
     this.body = '',
+    this.postId,
     required this.createdAt,
     this.isRead = false,
   });
@@ -18,6 +19,10 @@ class AppNotification {
   final String type;
   final String title;
   final String body;
+
+  /// 这条通知说的是哪条帖子（点击跳转用）。系统通知为空。
+  final String? postId;
+
   final DateTime createdAt;
   final bool isRead;
 }

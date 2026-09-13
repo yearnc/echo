@@ -53,5 +53,6 @@ class MediaService {
   }
 }
 
-final mediaServiceProvider =
-    Provider<MediaService>((ref) => const MediaService());
+final mediaServiceProvider = Provider<MediaService>(
+  (ref) => const MediaService(),
+);

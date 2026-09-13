@@ -96,10 +96,12 @@ void main() {
     }) async {
       final postId = await posts.create(content: '被评论的帖子');
 
-      await db.into(db.aiPersonas).insert(
-            AiPersonasCompanion.insert(id: 'persona_test', name: '测试住民'),
-          );
-      await db.into(db.aiInteractions).insert(
+      await db
+          .into(db.aiPersonas)
+          .insert(AiPersonasCompanion.insert(id: 'persona_test', name: '测试住民'));
+      await db
+          .into(db.aiInteractions)
+          .insert(
             AiInteractionsCompanion.insert(
               id: 'i_1',
               postId: postId,
@@ -143,12 +145,16 @@ void main() {
 
     test('同一人格可以对同一帖子评论多次（连续回复/追问）', () async {
       final postId = await posts.create(content: '被连续回复的帖子');
-      await db.into(db.aiPersonas).insert(
+      await db
+          .into(db.aiPersonas)
+          .insert(
             AiPersonasCompanion.insert(id: 'persona_chatty', name: '话痨住民'),
           );
 
       for (var i = 0; i < 3; i++) {
-        await db.into(db.aiInteractions).insert(
+        await db
+            .into(db.aiInteractions)
+            .insert(
               AiInteractionsCompanion.insert(
                 id: 'chatty_$i',
                 postId: postId,
@@ -164,8 +170,7 @@ void main() {
 
       final visible = await interactions.watchComments(postId).first;
 
-      expect(visible, hasLength(3),
-          reason: '同一住民的多次评论都必须留下——这是"连续回复"效果的前提');
+      expect(visible, hasLength(3), reason: '同一住民的多次评论都必须留下——这是"连续回复"效果的前提');
     });
 
     test('markExecuted 会把排队中的互动转为可见', () async {

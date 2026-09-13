@@ -16,17 +16,17 @@ enum ReplyDensity {
 
   /// 参与互动的人格数量区间。
   (int, int) get personaRange => switch (this) {
-        ReplyDensity.low => (1, 3),
-        ReplyDensity.medium => (3, 6),
-        ReplyDensity.high => (7, 10),
-        // 自动：交给内容判断，阶段 A 取中间偏上
-        ReplyDensity.auto => (4, 8),
-      };
+    ReplyDensity.low => (1, 3),
+    ReplyDensity.medium => (3, 6),
+    ReplyDensity.high => (7, 10),
+    // 自动：交给内容判断，阶段 A 取中间偏上
+    ReplyDensity.auto => (4, 8),
+  };
 
   static ReplyDensity fromLabel(String? label) => values.firstWhere(
-        (value) => value.label == label,
-        orElse: () => ReplyDensity.medium,
-      );
+    (value) => value.label == label,
+    orElse: () => ReplyDensity.medium,
+  );
 }
 
 /// 点赞量：低 / 中 / 高 / 自动。
@@ -41,16 +41,16 @@ enum LikeLevel {
 
   /// 点赞总量的区间（规划书 §6.4 的表格）。
   (int, int) get totalRange => switch (this) {
-        LikeLevel.low => (5, 15),
-        LikeLevel.medium => (15, 40),
-        LikeLevel.high => (40, 100),
-        LikeLevel.auto => (20, 60),
-      };
+    LikeLevel.low => (5, 15),
+    LikeLevel.medium => (15, 40),
+    LikeLevel.high => (40, 100),
+    LikeLevel.auto => (20, 60),
+  };
 
   static LikeLevel fromLabel(String? label) => values.firstWhere(
-        (value) => value.label == label,
-        orElse: () => LikeLevel.medium,
-      );
+    (value) => value.label == label,
+    orElse: () => LikeLevel.medium,
+  );
 }
 
 /// AI 拟人程度：1 官方助手 → 5 戏精人格（规划书 §6.5）。

@@ -20,8 +20,8 @@ class NotificationRepository {
       ..limit(limit);
 
     return query.watch().map(
-          (rows) => rows.map(_toDomain).toList(growable: false),
-        );
+      (rows) => rows.map(_toDomain).toList(growable: false),
+    );
   }
 
   /// 未读数量（底部导航的红点用）。
@@ -42,15 +42,19 @@ class NotificationRepository {
     required String type,
     required String title,
     String body = '',
+    String? postId,
     String scope = 'echo',
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.into(_db.notificationLogs).insert(
+    await _db
+        .into(_db.notificationLogs)
+        .insert(
           NotificationLogsCompanion(
             id: Value(id ?? 'n_${DateTime.now().microsecondsSinceEpoch}'),
             type: Value(type),
             title: Value(title),
             body: Value(body),
+            postId: Value(postId),
             scheduledAt: Value(now),
             deliveredAt: Value(now),
             scope: Value(scope),
@@ -59,21 +63,22 @@ class NotificationRepository {
   }
 
   Future<void> markAllRead() async {
-    await _db.update(_db.notificationLogs).write(
-          const NotificationLogsCompanion(isRead: Value(true)),
-        );
+    await _db
+        .update(_db.notificationLogs)
+        .write(const NotificationLogsCompanion(isRead: Value(true)));
   }
 
   AppNotification _toDomain(NotificationLogRow row) => AppNotification(
-        id: row.id,
-        type: row.type,
-        title: row.title,
-        body: row.body,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-          row.deliveredAt ?? row.scheduledAt ?? 0,
-        ),
-        isRead: row.isRead,
-      );
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    postId: row.postId,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      row.deliveredAt ?? row.scheduledAt ?? 0,
+    ),
+    isRead: row.isRead,
+  );
 }
 
 final notificationRepositoryProvider = Provider<NotificationRepository>(

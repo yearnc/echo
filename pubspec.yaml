@@ -86,10 +86,10 @@ flutter:
   # 各目录下的 _placeholder.png 是 1x1 占位图（保证空目录能被 Flutter 打包），
   # 放入真实素材后可以直接删掉。
   assets:
-    - assets/personas/          # 12 个人格配置 personas.json
-    - assets/demo/              # 演示模式三幕脚本 act1~3.json
+    - assets/personas/          # 24 个人格配置 personas.json
+    - assets/demo/              # 三幕脚本资产（首次启动转成内置策划脚本）
     - assets/stickers.json      # 表情包清单
-    - assets/avatars/           # 人格头像（persona_001.png ~ persona_012.png）
+    - assets/avatars/           # 人格头像（persona_001.png ~ persona_024.png）
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
     - assets/stickers/happy/

@@ -2,14 +2,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/analysis/analysis_page.dart';
 import '../../features/composer/compose_page.dart';
-import '../../features/demo/demo_page.dart';
-import '../../features/demo/demo_player_page.dart';
 import '../../features/feed/feed_page.dart';
+import '../../features/models/model_edit_page.dart';
+import '../../features/models/models_page.dart';
 import '../../features/notifications/notifications_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
 import '../../features/post_detail/post_detail_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
+import '../../features/scripts/script_edit_page.dart';
+import '../../features/scripts/scripts_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
 
@@ -25,18 +27,29 @@ class RoutePaths {
   static const String profile = '/profile';
   static const String analysis = '/analysis';
   static const String settings = '/settings';
-  static const String demo = '/demo';
+
+  /// 策划脚本管理。
+  static const String scripts = '/scripts';
+
+  /// 模型配置中心。
+  static const String models = '/models';
 
   static String post(String id) => '/post/$id';
 
-  /// 演示模式某一幕的舞台。
-  static String demoAct(String actId) => '/demo/$actId';
+  /// 脚本编辑页。
+  static String scriptEdit(String id) => '/scripts/$id';
+
+  /// 模型配置编辑页。
+  static String modelEdit(String id) => '/models/$id';
+
+  /// 新建模型配置（草稿，保存后才真正落库）。
+  static const String modelNew = '/models/new';
 }
 
-/// 阶段 A 路由表。
+/// 路由表。
 ///
 /// 带底部导航的页面放在 [ShellRoute] 里（骨架负责合规小字与永久提示），
-/// 沉浸式页面（帖子详情、演示模式、引导页）单独成路由，自己挂合规模块。
+/// 沉浸式页面（帖子详情、脚本编辑、引导页）单独成路由，自己挂合规模块。
 final appRouter = GoRouter(
   initialLocation: RoutePaths.feed,
   routes: [
@@ -83,14 +96,29 @@ final appRouter = GoRouter(
           PostDetailPage(postId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
-      path: RoutePaths.demo,
-      builder: (context, state) => const DemoPage(),
+      path: RoutePaths.scripts,
+      builder: (context, state) => const ScriptsPage(),
       routes: [
         GoRoute(
-          path: ':actId',
-          builder: (context, state) => DemoPlayerPage(
-            actId: state.pathParameters['actId'] ?? 'act1',
-          ),
+          path: ':id',
+          builder: (context, state) =>
+              ScriptEditPage(scriptId: state.pathParameters['id'] ?? ''),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: RoutePaths.models,
+      builder: (context, state) => const ModelsPage(),
+      routes: [
+        // 静态段要排在 :id 前面，否则 "/models/new" 会被当成一个配置 id
+        GoRoute(
+          path: 'new',
+          builder: (context, state) => const ModelEditPage(),
+        ),
+        GoRoute(
+          path: ':id',
+          builder: (context, state) =>
+              ModelEditPage(configId: state.pathParameters['id']),
         ),
       ],
     ),

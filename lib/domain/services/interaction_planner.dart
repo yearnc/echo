@@ -75,12 +75,17 @@ class InteractionPlanner {
       // 每个人格有自己的点赞倾向：沉默的赞几乎必点，潜水员很少点
       if (_random.nextDouble() > persona.likeProbability) continue;
 
-      planned.add(PlannedInteraction(
-        personaId: persona.id,
-        type: 'like',
-        scheduledAt: _nudgeToActiveHour(likeTimes[likeIndex % likeTimes.length], persona),
-        likeBatch: 1,
-      ));
+      planned.add(
+        PlannedInteraction(
+          personaId: persona.id,
+          type: 'like',
+          scheduledAt: _nudgeToActiveHour(
+            likeTimes[likeIndex % likeTimes.length],
+            persona,
+          ),
+          likeBatch: 1,
+        ),
+      );
       likeIndex++;
       remainingLikes -= 1;
     }
@@ -90,15 +95,17 @@ class InteractionPlanner {
     final crowdBearer = _pickCrowdBearer(selected);
     while (remainingLikes > 0) {
       final batch = min(remainingLikes, _randomIn((5, 40)));
-      planned.add(PlannedInteraction(
-        personaId: crowdBearer.id,
-        type: 'like',
-        scheduledAt: _nudgeToActiveHour(
-          likeTimes[likeIndex % likeTimes.length],
-          crowdBearer,
+      planned.add(
+        PlannedInteraction(
+          personaId: crowdBearer.id,
+          type: 'like',
+          scheduledAt: _nudgeToActiveHour(
+            likeTimes[likeIndex % likeTimes.length],
+            crowdBearer,
+          ),
+          likeBatch: batch,
         ),
-        likeBatch: batch,
-      ));
+      );
       likeIndex++;
       remainingLikes -= batch;
     }
@@ -117,18 +124,22 @@ class InteractionPlanner {
       if (_random.nextDouble() > persona.commentProbability) continue;
 
       final samples = persona.commentSamples;
-      planned.add(PlannedInteraction(
-        personaId: persona.id,
-        type: 'comment',
-        scheduledAt: _nudgeToActiveHour(
-          commentTimes[commentIndex % commentTimes.length],
-          persona,
+      planned.add(
+        PlannedInteraction(
+          personaId: persona.id,
+          type: 'comment',
+          scheduledAt: _nudgeToActiveHour(
+            commentTimes[commentIndex % commentTimes.length],
+            persona,
+          ),
+          content: samples.isEmpty
+              ? null
+              : samples[_random.nextInt(samples.length)],
+          // 语音评论要等 TTS 音色接进来（阶段 B）。在那之前统一按文本排期，
+          // 免得评论区出现"有波形、没声音"的假语音条。
+          mediaType: 'text',
         ),
-        content: samples.isEmpty ? null : samples[_random.nextInt(samples.length)],
-        // 语音评论要等 TTS 音色接进来（阶段 B）。在那之前统一按文本排期，
-        // 免得评论区出现"有波形、没声音"的假语音条。
-        mediaType: 'text',
-      ));
+      );
       commentIndex++;
 
       // 刻意**不**让同一个人格对同一条帖子评论第二次。
@@ -144,7 +155,10 @@ class InteractionPlanner {
   }
 
   /// 按频率档位挑住民，并优先挑"这个点本来就活跃"的人。
-  List<AiPersona> _pickPersonas(List<AiPersona> personas, ReplyDensity density) {
+  List<AiPersona> _pickPersonas(
+    List<AiPersona> personas,
+    ReplyDensity density,
+  ) {
     final (min, max) = density.personaRange;
     final count = min + _random.nextInt(max - min + 1);
 

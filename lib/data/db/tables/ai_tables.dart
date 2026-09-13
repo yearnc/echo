@@ -15,14 +15,14 @@ class AiPersonas extends Table {
   TextColumn get tone => text().withDefault(const Constant(''))();
   TextColumn get activeHours => text().withDefault(const Constant('[]'))();
   RealColumn get likeProbability => real().withDefault(const Constant(0.5))();
-  RealColumn get commentProbability => real().withDefault(const Constant(0.4))();
+  RealColumn get commentProbability =>
+      real().withDefault(const Constant(0.4))();
   TextColumn get replyLength => text().withDefault(const Constant('medium'))();
   TextColumn get voiceModel => text().withDefault(const Constant(''))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   TextColumn get scope => text().withDefault(const Constant('echo'))();
   IntColumn get level => integer().withDefault(const Constant(1))();
   TextColumn get badges => text().withDefault(const Constant('[]'))();
-  TextColumn get ipLocation => text().withDefault(const Constant(''))();
   IntColumn get followers => integer().withDefault(const Constant(0))();
   IntColumn get following => integer().withDefault(const Constant(0))();
   TextColumn get personalityType => text().withDefault(const Constant(''))();

@@ -38,11 +38,7 @@ class Post {
 
   bool get hasImages => images.isNotEmpty;
 
-  Post copyWith({
-    int? likeCount,
-    int? commentCount,
-    bool? isHot,
-  }) {
+  Post copyWith({int? likeCount, int? commentCount, bool? isHot}) {
     return Post(
       id: id,
       content: content,

@@ -13,20 +13,20 @@ enum AppMode {
   bool get isClear => this == AppMode.clear;
 
   String get label => switch (this) {
-        AppMode.echo => '回响模式',
-        AppMode.clear => '清醒模式',
-      };
+    AppMode.echo => '回响模式',
+    AppMode.clear => '清醒模式',
+  };
 
   String get tagline => switch (this) {
-        AppMode.echo => '被看见的感觉，来得比想象中快',
-        AppMode.clear => '只有客观描述，没有人为你打分',
-      };
+    AppMode.echo => '被看见的感觉，来得比想象中快',
+    AppMode.clear => '只有客观描述，没有人为你打分',
+  };
 
   /// 数据库 `scope` 字段的取值来源（规划书 §2.4.3）。
   String get scope => switch (this) {
-        AppMode.echo => 'echo',
-        AppMode.clear => 'clear',
-      };
+    AppMode.echo => 'echo',
+    AppMode.clear => 'clear',
+  };
 
   AppMode get opposite => this == AppMode.echo ? AppMode.clear : AppMode.echo;
 

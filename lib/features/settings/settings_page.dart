@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../domain/services/appearance_controller.dart';
 import '../../domain/services/mode_controller.dart';
+import '../shared_widgets/mode_switch_flow.dart';
 
 /// 设置页（规划书 §2.3 的目录结构）。
 ///
@@ -17,19 +19,50 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(modeControllerProvider);
+    final appearance = ref.watch(appearanceControllerProvider);
     final isEcho = mode.isEcho;
 
-    return Container(
-      color: isEcho ? EchoColors.bg : ClearColors.bg,
-      child: ListView(
+    // 从「我的」push 进来时（有上级页面）才需要返回键与标题栏；
+    // 清醒模式下设置是底部导航的一个 tab，那时不该出现返回键。
+    final canPop = context.canPop();
+    final bg = isEcho ? EchoColors.bg : ClearColors.bg;
+    final surface = isEcho ? EchoColors.surface : ClearColors.surface;
+    final fg = isEcho ? EchoColors.text : ClearColors.text;
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: canPop
+          ? AppBar(
+              backgroundColor: surface,
+              elevation: 0,
+              iconTheme: IconThemeData(color: fg),
+              title: Text('设置', style: TextStyle(color: fg, fontSize: 16)),
+            )
+          : null,
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          Text('设置',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: isEcho ? EchoColors.text : ClearColors.text,
-                    fontSize: 24,
-                  )),
+          if (!canPop)
+            Text(
+              '设置',
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(color: fg, fontSize: 24),
+            ),
           const SizedBox(height: 16),
+          _Group(
+            title: '外观',
+            isEcho: isEcho,
+            children: [
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.brightness_6_outlined,
+                title: '明暗',
+                subtitle: '默认跟随模式：回响深色、清醒暖白',
+                value: appearance.label,
+                onTap: () => _pickAppearance(context, ref),
+              ),
+            ],
+          ),
           _Group(
             title: '模式管理',
             isEcho: isEcho,
@@ -42,7 +75,9 @@ class SettingsPage extends ConsumerWidget {
               ),
               _Row(
                 isEcho: isEcho,
-                icon: mode.isEcho ? Icons.nightlight_outlined : Icons.wb_sunny_outlined,
+                icon: mode.isEcho
+                    ? Icons.nightlight_outlined
+                    : Icons.wb_sunny_outlined,
                 title: mode.isEcho ? '切到清醒模式' : '切到回响模式',
                 subtitle: mode.isEcho ? '停止虚拟互动，归档 AI 内容' : '需二次确认与年龄确认',
                 onTap: () => _toggleMode(context, ref),
@@ -64,15 +99,8 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.hub_outlined,
                 title: '模型配置中心',
-                subtitle: '一键配置主流模型 / 自定义接口',
-                onTap: () => _soon(context, '模型配置中心'),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.key_outlined,
-                title: 'API Key',
-                subtitle: '本地加密存储，不上传自有服务器',
-                onTap: () => _soon(context, '密钥管理'),
+                subtitle: '地址、模型名与密钥，支持测试连接',
+                onTap: () => context.push(RoutePaths.models),
               ),
             ],
           ),
@@ -84,7 +112,7 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.people_alt_outlined,
                 title: 'AI 人格管理',
-                value: '12 位',
+                value: '24 位',
                 onTap: () => _soon(context, '人格管理'),
               ),
               _Row(
@@ -155,10 +183,10 @@ class SettingsPage extends ConsumerWidget {
             children: [
               _Row(
                 isEcho: isEcho,
-                icon: Icons.science_outlined,
-                title: '演示模式',
-                subtitle: '微视频三幕，离线可跑',
-                onTap: () => context.push(RoutePaths.demo),
+                icon: Icons.theater_comedy_outlined,
+                title: '策划脚本',
+                subtitle: '管理可保留的互动脚本',
+                onTap: () => context.push(RoutePaths.scripts),
               ),
               _Row(
                 isEcho: isEcho,
@@ -184,20 +212,54 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  void _toggleMode(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(modeControllerProvider.notifier);
-    if (ref.read(modeControllerProvider).isEcho) {
-      controller.toClear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已切到清醒模式')),
-      );
-    } else {
-      // 阶段 A：先直接切；M4 会补上二次确认、年龄门与冷却期
-      controller.toEcho();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已切到回响模式（M4 会补二次确认与年龄门）')),
-      );
-    }
+  Future<void> _toggleMode(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(modeControllerProvider);
+    // 二次确认、年龄门、冷却期都在这个流程里
+    await runModeSwitch(context, ref, current.opposite);
+  }
+
+  Future<void> _pickAppearance(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(appearanceControllerProvider);
+
+    final picked = await showModalBottomSheet<AppearanceMode>(
+      context: context,
+      backgroundColor: currentPalette.surface,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            for (final option in AppearanceMode.values)
+              ListTile(
+                dense: true,
+                title: Text(
+                  option.label,
+                  style: TextStyle(color: currentPalette.text, fontSize: 14),
+                ),
+                subtitle: Text(
+                  switch (option) {
+                    AppearanceMode.auto => '回响模式深色，清醒模式暖白',
+                    AppearanceMode.light => '两种模式都用暖白',
+                    AppearanceMode.dark => '两种模式都用深色',
+                  },
+                  style: TextStyle(
+                    color: currentPalette.textFaint,
+                    fontSize: 11.5,
+                  ),
+                ),
+                trailing: option == current
+                    ? Icon(Icons.check, size: 18, color: currentPalette.primary)
+                    : null,
+                onTap: () => Navigator.of(context).pop(option),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null) return;
+    await ref.read(appearanceControllerProvider.notifier).setMode(picked);
   }
 
   void _soon(BuildContext context, String name) {
@@ -226,12 +288,14 @@ class _Group extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 2, bottom: 8),
-            child: Text(title,
-                style: TextStyle(
-                  color: isEcho ? EchoColors.textFaint : ClearColors.textFaint,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                )),
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isEcho ? EchoColors.textFaint : ClearColors.textFaint,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -287,8 +351,14 @@ class _Row extends StatelessWidget {
                   Text(title, style: TextStyle(color: text, fontSize: 14)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
-                    Text(subtitle!,
-                        style: TextStyle(color: faint, fontSize: 11.5, height: 1.4)),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: faint,
+                        fontSize: 11.5,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
                 ],
               ),

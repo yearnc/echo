@@ -38,12 +38,18 @@ class PostImage extends StatelessWidget {
     if (ref.startsWith('file:')) {
       final file = File(ref.substring('file:'.length));
       if (!file.existsSync()) return _placeholder();
-      return Image.file(file, fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _placeholder());
+      return Image.file(
+        file,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _placeholder(),
+      );
     }
     if (ref.startsWith('http://') || ref.startsWith('https://')) {
-      return Image.network(ref, fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _placeholder());
+      return Image.network(
+        ref,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _placeholder(),
+      );
     }
     return _placeholder();
   }
@@ -51,28 +57,26 @@ class PostImage extends StatelessWidget {
   Widget _placeholder() {
     final fileName = ref.split('/').last;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      // 占位底色跟着当前调色板走，日间下不会突然出现一块深色
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2A1F4A), Color(0xFF1B2E3D)],
+          colors: [EchoColors.surfaceHigh, EchoColors.overlay],
         ),
       ),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.image_outlined, color: EchoColors.textFaint, size: 26),
+            Icon(Icons.image_outlined, color: EchoColors.textFaint, size: 26),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 '素材待放入 $fileName',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: EchoColors.textFaint,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
               ),
             ),
           ],
