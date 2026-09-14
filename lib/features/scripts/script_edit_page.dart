@@ -391,8 +391,6 @@ class _StepTile extends StatelessWidget {
         return '+${step.delta ?? 0} 个赞';
       case PlanStepType.stats:
         return '赞 ${step.likes ?? '-'} · 评论 ${step.comments ?? '-'}';
-      case PlanStepType.mode:
-        return step.toMode == 'clear' ? '切换到清醒模式' : '切换回响模式';
       case PlanStepType.analysis:
         return '展示五项客观分析';
       default:
@@ -415,7 +413,6 @@ class _StepEditor extends StatefulWidget {
 class _StepEditorState extends State<_StepEditor> {
   late String _type;
   late String? _personaId;
-  late String _toMode;
   late bool _voice;
 
   late final TextEditingController _atCtrl;
@@ -437,7 +434,6 @@ class _StepEditorState extends State<_StepEditor> {
     _personaId =
         initial?.personaId ??
         (widget.personas.isEmpty ? null : widget.personas.first.id);
-    _toMode = initial?.toMode ?? 'clear';
     _voice = initial?.mediaType == 'voice';
 
     _atCtrl = TextEditingController(text: initial?.at ?? '5');
@@ -517,7 +513,6 @@ class _StepEditorState extends State<_StepEditor> {
       comments: _type == PlanStepType.stats
           ? int.tryParse(_commentsCtrl.text)
           : null,
-      toMode: _type == PlanStepType.mode ? _toMode : null,
       analysis: _type == PlanStepType.analysis
           ? PlanAnalysis(
               imageDescription: _emptyToNull(_imageCtrl.text),
@@ -673,19 +668,6 @@ class _StepEditorState extends State<_StepEditor> {
                 ),
               ),
             ],
-          ),
-        ];
-
-      case PlanStepType.mode:
-        return [
-          const _FieldLabel('切到哪个模式'),
-          _Dropdown<String>(
-            value: _toMode,
-            items: const [
-              DropdownMenuItem(value: 'clear', child: Text('清醒模式')),
-              DropdownMenuItem(value: 'echo', child: Text('回响模式')),
-            ],
-            onChanged: (value) => setState(() => _toMode = value ?? _toMode),
           ),
         ];
 

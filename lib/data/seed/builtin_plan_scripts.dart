@@ -6,9 +6,15 @@ import '../../domain/models/plan_script.dart';
 
 /// 把原来的三幕演示脚本（`assets/demo/act1~3.json`）转成策划脚本。
 ///
-/// 只保留"会在真实信息流里发生"的五类事件：评论、点赞、设定数据、
-/// 切模式、展示客观分析。幕标题、解说字幕、进度条、引导卡这些
-/// **拍摄专用装饰**一律丢弃——策划模式下画面里就是 APP 本身，没有舞台。
+/// 只保留**属于这条帖子的**事件：评论、点赞、设定计数，以及清醒模式要用的
+/// 客观分析。其余一律丢弃——包括切模式、跳页面这两类。
+///
+/// 原因见 `PlanStepType` 的注释：策划模式只安排"这条帖子会收到什么回应"，
+/// 不操控 APP 的其他状态。所以第三幕的"切到清醒模式""打开价值澄清"
+/// 现在都靠人手动完成——那几步本来就该是真实操作。
+///
+/// 幕标题、解说字幕、进度条、引导卡这些**拍摄专用装饰**同样丢弃：
+/// 策划模式下画面里就是 APP 本身，没有舞台。
 ///
 /// 第三幕的 `postRef: act1` 在这里被展开成第一幕的开局内容：
 /// "同一张照片"是那一幕的关键，所以它必须能直接填进发布页。
@@ -25,16 +31,14 @@ class BuiltinPlanScripts {
     PlanStepType.comment,
     PlanStepType.likeBurst,
     PlanStepType.stats,
-    PlanStepType.mode,
     PlanStepType.analysis,
-    PlanStepType.openValues,
-    PlanStepType.openActions,
   };
 
   static const Map<String, String> _names = {
     'act1': '第一幕 · 天空照',
     'act2': '第二幕 · 深夜垃圾桶',
-    'act3': '第三幕 · 切清醒模式',
+    // 名字里不再提"切清醒模式"——那一步现在由人在拍摄时手动做
+    'act3': '第三幕 · 同一张天空照',
   };
 
   static Future<List<PlanScript>> load() async {

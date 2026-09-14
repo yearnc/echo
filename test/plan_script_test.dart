@@ -12,7 +12,6 @@ import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/plan_script_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/seed/builtin_plan_scripts.dart';
-import 'package:echo/domain/models/app_mode.dart';
 import 'package:echo/domain/models/plan_script.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,7 +79,11 @@ void main() {
             content: '你好',
           ),
           PlanStep(at: '10~20', type: PlanStepType.likeBurst, delta: 12),
-          PlanStep(at: '30', type: PlanStepType.mode, toMode: 'clear'),
+          PlanStep(
+            at: '30',
+            type: PlanStepType.analysis,
+            analysis: PlanAnalysis(imageDescription: '一片云'),
+          ),
         ],
       );
 
@@ -92,7 +95,7 @@ void main() {
       expect(restored.topicName, '日常');
       expect(restored.steps.length, 3);
       expect(restored.steps[1].delta, 12);
-      expect(restored.steps[2].toMode, 'clear');
+      expect(restored.steps[2].analysis?.imageDescription, '一片云');
     });
 
     test('语音条的时长不会在序列化时丢掉', () {
@@ -160,7 +163,8 @@ void main() {
         reason: '时长在转换时丢了，评论区会显示成 0"',
       );
 
-      // 拍摄专用装饰不该被带进策划模式
+      // 拍摄专用装饰，以及**不属于"帖子会收到什么回应"的操作**，都不该被带进来。
+      // 后三类是明确的边界：策划模式不切模式、不跳页面。
       const banned = {
         'overlay',
         'end_card',
@@ -168,6 +172,10 @@ void main() {
         'confirm_dialog',
         'rebuild_guide',
         'weekly_report_preview',
+        'settings_hint',
+        'mode',
+        'open_values',
+        'open_actions',
       };
       for (final script in scripts) {
         for (final step in script.steps) {
@@ -178,6 +186,29 @@ void main() {
           );
         }
       }
+    });
+
+    test('第三幕只剩「展示客观分析」，一个自动互动都没有', () async {
+      final scripts = await BuiltinPlanScripts.load();
+      final third = scripts[2];
+
+      expect(
+        third.steps.map((step) => step.type).toSet(),
+        {PlanStepType.analysis},
+        reason: '第三幕的戏剧内容就是"没有回响"：'
+            '切模式、跳页面、装饰步骤全部丢弃，只留客观分析',
+      );
+      expect(third.postContent, isNotEmpty, reason: '开局内容要能直接填进发布页');
+    });
+
+    test('第一幕该有的互动一个不少', () async {
+      final scripts = await BuiltinPlanScripts.load();
+      final first = scripts.first;
+      final types = first.steps.map((step) => step.type).toSet();
+
+      expect(types, contains(PlanStepType.comment));
+      expect(types, contains(PlanStepType.likeBurst));
+      expect(types, contains(PlanStepType.stats));
     });
   });
 
@@ -215,7 +246,6 @@ void main() {
     late AppDatabase db;
     late PostRepository posts;
     late SchedulerService scheduler;
-    AppMode? switched;
 
     setUp(() async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -227,9 +257,7 @@ void main() {
         notifications: NotificationRepository(db),
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
-        switchMode: (mode) => switched = mode,
       );
-      switched = null;
 
       await db
           .into(db.aiPersonas)
@@ -359,13 +387,12 @@ void main() {
       expect(post.isHot, isTrue);
     });
 
-    test('切模式与展示分析各自走自己的通道', () async {
+    test('展示客观分析会把五项分析落库', () async {
       final postId = await posts.create(content: '天空照', scope: 'echo');
       const script = PlanScript(
         id: 's4',
         name: '测试',
         steps: [
-          PlanStep(at: '5', type: PlanStepType.mode, toMode: 'clear'),
           PlanStep(
             at: '11',
             type: PlanStepType.analysis,
@@ -380,8 +407,6 @@ void main() {
       await scheduler.planFromScript(postId: postId, script: script);
       await rewindSchedule();
       await scheduler.flushPlanEvents();
-
-      expect(switched, AppMode.clear);
 
       final saved = await AnalysisRepository(db).findByPost(postId);
       expect(saved, isNotNull);

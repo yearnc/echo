@@ -93,6 +93,14 @@ class PlanScript {
 }
 
 /// 事件类型常量。
+///
+/// **作用域**：策划模式只安排「这条帖子会收到什么回应」——点赞、评论，
+/// 以及营造开局热度的计数设定。它**不碰 APP 的其他状态**：不切模式、
+/// 不跳页面、不代替用户点任何按钮。
+///
+/// 明确的边界：切到清醒模式、去看客观分析、去做价值澄清，这些在拍摄时
+/// 都由人手动完成。它们本来就该是真实操作——脚本代劳的话，第三幕
+/// "觉醒"这个动作就也变成演的了，那正是这部片子要戳破的东西。
 abstract final class PlanStepType {
   /// 一批点赞（delta 个）
   static const String likeBurst = 'like_burst';
@@ -103,44 +111,18 @@ abstract final class PlanStepType {
   /// 把赞数/评论数直接设成某个值（营造"这条帖子已经火了"的开局）
   static const String stats = 'stats';
 
-  /// 切换模式（回响 ↔ 清醒）
-  static const String mode = 'mode';
-
-  /// 展示客观分析（只出现在画面上，不参与计数）
+  /// 展示客观分析（清醒模式的内容，只提供素材，不改变任何状态）
   static const String analysis = 'analysis';
 
-  /// 跳到价值澄清页（第三幕"觉醒与重构"的落点）。
-  static const String openValues = 'open_values';
-
-  /// 跳到真实行动页。
-  static const String openActions = 'open_actions';
-
-  /// 需要跳转的两类事件：它们不改变数据，只是把用户带到该去的地方。
-  static const List<String> navigationTypes = [openValues, openActions];
-
-  static const List<String> all = [
-    likeBurst,
-    comment,
-    stats,
-    mode,
-    analysis,
-    openValues,
-    openActions,
-  ];
+  static const List<String> all = [likeBurst, comment, stats, analysis];
 
   static String label(String type) => switch (type) {
     likeBurst => '点赞',
     comment => '评论',
     stats => '设定数据',
-    mode => '切换模式',
     analysis => '客观分析',
-    openValues => '打开价值澄清',
-    openActions => '打开真实行动',
     _ => type,
   };
-
-  /// 该类型是不是"带人去某个页面"。
-  static bool isNavigation(String type) => navigationTypes.contains(type);
 }
 
 /// 一条策划事件。
@@ -160,7 +142,6 @@ class PlanStep {
     this.delta,
     this.likes,
     this.comments,
-    this.toMode,
     this.analysis,
     this.highlight = false,
   });
@@ -192,9 +173,6 @@ class PlanStep {
   /// stats：直接设定的赞数 / 评论数。
   final int? likes;
   final int? comments;
-
-  /// mode：目标模式（echo / clear）。
-  final String? toMode;
 
   /// analysis：五项客观分析。
   final PlanAnalysis? analysis;
@@ -242,7 +220,6 @@ class PlanStep {
     int? delta,
     int? likes,
     int? comments,
-    String? toMode,
     PlanAnalysis? analysis,
     bool? highlight,
   }) {
@@ -258,7 +235,6 @@ class PlanStep {
       delta: delta ?? this.delta,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
-      toMode: toMode ?? this.toMode,
       analysis: analysis ?? this.analysis,
       highlight: highlight ?? this.highlight,
     );
@@ -276,7 +252,6 @@ class PlanStep {
     if (delta != null) 'delta': delta,
     if (likes != null) 'likes': likes,
     if (comments != null) 'comments': comments,
-    if (toMode != null) 'to': toMode,
     if (analysis != null) 'analysis': analysis!.toJson(),
     if (highlight) 'highlight': true,
   };
@@ -296,7 +271,6 @@ class PlanStep {
       delta: (json['delta'] as num?)?.toInt(),
       likes: (json['likes'] as num?)?.toInt(),
       comments: (json['comments'] as num?)?.toInt(),
-      toMode: json['to'] as String?,
       analysis: analysisJson == null
           ? null
           : PlanAnalysis.fromJson(analysisJson),

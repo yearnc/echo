@@ -52,7 +52,6 @@ class PlanEventRepository {
           delta: Value(step.delta),
           likes: Value(step.likes),
           comments: Value(step.comments),
-          toMode: Value(step.toMode),
           analysisJson: Value(
             step.analysis == null ? null : jsonEncode(step.analysis!.toJson()),
           ),

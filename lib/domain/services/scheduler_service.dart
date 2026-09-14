@@ -3,25 +3,19 @@ import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/router/app_router.dart';
 import '../../data/repositories/analysis_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/plan_event_repository.dart';
 import '../../data/repositories/post_repository.dart';
-import '../models/app_mode.dart';
 import '../models/echo_settings.dart';
 import '../models/plan_script.dart';
 import 'interaction_planner.dart';
-import 'mode_switch_service.dart';
 import 'safety_controller.dart';
 
-/// 切换模式的入口，由 UI 层注入（调度器不该知道自己跑在哪个页面里）。
-typedef ModeSwitcher = void Function(AppMode target);
-
-/// 打开某个页面的入口，同样由 UI 层注入。
-typedef RouteOpener = void Function(String route);
+// 策划脚本只安排"这条帖子会收到什么回应"，所以这里没有"切模式""跳页面"的
+// 入口：那些动作在拍摄时由人手动完成，不由脚本代劳。
 
 /// 互动调度服务（规划书 §7.3 的"现实方案"）。
 ///
@@ -41,8 +35,6 @@ class SchedulerService {
     required this.notifications,
     required this.personas,
     required this.analyses,
-    this.switchMode,
-    this.openRoute,
     this.readCoolDown,
     InteractionPlanner? planner,
   }) : _planner = planner ?? InteractionPlanner();
@@ -53,10 +45,6 @@ class SchedulerService {
   final NotificationRepository notifications;
   final PersonaRepository personas;
   final AnalysisRepository analyses;
-  final ModeSwitcher? switchMode;
-
-  /// 脚本里"打开某页"事件的执行入口。
-  final RouteOpener? openRoute;
 
   /// 冷静模式是否开启。用回调注入而不是直接读设置，
   /// 是为了让调度器仍然可以被单独测试（传 null 就是"从不冷静"）。
@@ -213,9 +201,6 @@ class SchedulerService {
             comments: event.comments,
           );
 
-        case PlanStepType.mode:
-          switchMode?.call(AppMode.fromScope(event.toMode));
-
         case PlanStepType.analysis:
           final raw = event.analysisJson;
           if (raw == null || raw.isEmpty) break;
@@ -225,28 +210,11 @@ class SchedulerService {
               jsonDecode(raw) as Map<String, dynamic>,
             ),
           );
-
-        // 这两类不产生数据，只是把用户带到该去的地方（第三幕的"出路"）。
-        case PlanStepType.openValues:
-        case PlanStepType.openActions:
-          final route = routeFor(event.type);
-          if (route != null) openRoute?.call(route);
       }
     }
 
     return due.length;
   }
-
-  /// 事件类型 → 路由。
-  ///
-  /// 路径值必须与 `core/router/app_router.dart` 里的 `RoutePaths` 一致；
-  /// 这里写字符串而不是引用它，是因为 `RoutePaths` 所在文件 import 了所有页面，
-  /// domain 层不该被拖进 UI 的依赖里（`scheduler_service_test` 就只测纯逻辑）。
-  static String? routeFor(String type) => switch (type) {
-    PlanStepType.openValues => '/values',
-    PlanStepType.openActions => '/actions',
-    _ => null,
-  };
 
   /// 还剩多少条随机排期没到点（调试与"预告"用）。
   Future<int> pendingCount() => interactions.countPending();
@@ -263,12 +231,6 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     notifications: ref.watch(notificationRepositoryProvider),
     personas: ref.watch(personaRepositoryProvider),
     analyses: ref.watch(analysisRepositoryProvider),
-    switchMode: (target) {
-      // 脚本里的"切模式"走完整切换规则：该归档的归档、该留痕的留痕。
-      // 冷却期不在这里拦——脚本演出是显式意图，不是用户随手点。
-      ref.read(modeSwitchServiceProvider).switchTo(target);
-    },
-    openRoute: (route) => appRouter.go(route),
     readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );
