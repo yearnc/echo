@@ -28,6 +28,15 @@ class PlannedInteraction {
 
   bool get isLike => type == 'like';
   bool get isComment => type == 'comment';
+
+  PlannedInteraction copyWith({DateTime? scheduledAt}) => PlannedInteraction(
+    personaId: personaId,
+    type: type,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    content: content,
+    mediaType: mediaType,
+    likeBatch: likeBatch,
+  );
 }
 
 /// 互动排期规划器：**纯逻辑，不碰数据库、不联网**。
@@ -42,11 +51,15 @@ class InteractionPlanner {
   /// 默认排期窗口：0—48 小时（规划书 §3.6）。
   static const Duration defaultWindow = Duration(hours: 48);
 
+  /// [delay] 会把所有排期整体往后推，用于冷静模式（规划书 §6.9）。
+  /// 它作用在最终结果上而不是窗口起点，这样"摊开到 48 小时"的形态不变，
+  /// 只是整体晚一点开始。
   List<PlannedInteraction> plan({
     required DateTime now,
     required List<AiPersona> personas,
     required EchoSettings settings,
     Duration? window,
+    Duration delay = Duration.zero,
   }) {
     if (personas.isEmpty) return const [];
 
@@ -144,14 +157,20 @@ class InteractionPlanner {
 
       // 刻意**不**让同一个人格对同一条帖子评论第二次。
       //
-      // 规划书 §3.6 提过"连续回复、追问"，但项目作者的判断更重要（2026-09-11）：
+      // 规划书 §3.6 提过"连续回复、追问"，但下面这个判断更重要（2026-09-11 定）：
       // 一个账号在同一条帖子下留两条语气不同的评论，会立刻暴露"这是 AI"，
       // 破坏整个社区的可信度。真正的"追问"应该是**楼中楼回复**——
       // 那属于阶段 B：需要先有对话上下文，而不是并列两条顶层评论。
     }
 
     planned.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-    return planned;
+    if (delay <= Duration.zero) return planned;
+
+    // 冷静模式：整批往后推。反馈不是不来，是不那么快就来——
+    // 这正是要练的：等待期间不刷新，也过得下去。
+    return planned
+        .map((item) => item.copyWith(scheduledAt: item.scheduledAt.add(delay)))
+        .toList(growable: false);
   }
 
   /// 按频率档位挑住民，并优先挑"这个点本来就活跃"的人。

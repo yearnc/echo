@@ -52,6 +52,9 @@ class PlanEvents extends Table {
   TextColumn get mediaType => text().nullable()();
   TextColumn get content => text().nullable()();
   TextColumn get voiceAsset => text().nullable()();
+
+  /// 语音条时长（毫秒）。脚本里带过来的，评论区靠它显示 "6"" 而不是 "0""。
+  IntColumn get voiceDurationMs => integer().nullable()();
   TextColumn get transcript => text().nullable()();
 
   /// like_burst：这一批多少个赞

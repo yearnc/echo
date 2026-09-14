@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../../features/actions/actions_page.dart';
 import '../../features/analysis/analysis_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/feed/feed_page.dart';
@@ -10,10 +11,13 @@ import '../../features/onboarding/onboarding_page.dart';
 import '../../features/post_detail/post_detail_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
+import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
 import '../../features/scripts/scripts_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
+import '../../features/stickers/stickers_page.dart';
+import '../../features/values/values_page.dart';
 
 /// 路由路径常量。通知点击跳转、深链都从这里取，避免散落的字符串。
 class RoutePaths {
@@ -33,6 +37,18 @@ class RoutePaths {
 
   /// 模型配置中心。
   static const String models = '/models';
+
+  /// 价值澄清（清醒模式）。
+  static const String values = '/values';
+
+  /// 真实行动记录（清醒模式）。
+  static const String actions = '/actions';
+
+  /// 心理安全（冷静模式 / 援助入口）。
+  static const String safety = '/settings/safety';
+
+  /// 头像与表情包管理。
+  static const String stickers = '/settings/stickers';
 
   static String post(String id) => '/post/$id';
 
@@ -94,6 +110,22 @@ final appRouter = GoRouter(
       path: '/post/:id',
       builder: (context, state) =>
           PostDetailPage(postId: state.pathParameters['id'] ?? ''),
+    ),
+    GoRoute(
+      path: RoutePaths.values,
+      builder: (context, state) => const ValuesPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.actions,
+      builder: (context, state) => const ActionsPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.safety,
+      builder: (context, state) => const SafetyPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.stickers,
+      builder: (context, state) => const StickersPage(),
     ),
     GoRoute(
       path: RoutePaths.scripts,

@@ -31,7 +31,7 @@ class ScriptsPage extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            tooltip: '恢复内置脚本',
+            tooltip: '重置内置脚本',
             icon: const Icon(Icons.restore),
             onPressed: () => _restoreBuiltIns(context, ref),
           ),
@@ -77,7 +77,41 @@ class ScriptsPage extends ConsumerWidget {
   }
 
   /// 内置脚本删了也能找回来——所以删除不该有心理负担。
+  ///
+  /// 顺带把改动过的内置脚本刷新回出厂版本：脚本定义会随功能一起长，
+  /// 老库里那份不会自己更新。自己复制的副本不受影响，所以先弹一次确认。
   Future<void> _restoreBuiltIns(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: Text(
+          '重置内置脚本',
+          style: TextStyle(color: EchoColors.text, fontSize: 15),
+        ),
+        content: Text(
+          '三个内置脚本会被还原成出厂版本（包括你直接改过的内容）。\n'
+          '你自己复制出来的副本不受影响。',
+          style: TextStyle(
+            color: EchoColors.textMuted,
+            fontSize: 13,
+            height: 1.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('取消', style: TextStyle(color: EchoColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('重置', style: TextStyle(color: EchoColors.primary)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
     final builtIns = await BuiltinPlanScripts.load();
     final restored = await ref
         .read(planScriptRepositoryProvider)
@@ -86,7 +120,7 @@ class ScriptsPage extends ConsumerWidget {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(restored == 0 ? '内置脚本都在，没有要恢复的' : '已恢复 $restored 个内置脚本'),
+        content: Text(restored == 0 ? '内置脚本已是最新，没有要动的' : '已重置 $restored 个内置脚本'),
       ),
     );
   }

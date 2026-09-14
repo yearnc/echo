@@ -72,21 +72,36 @@ class PlanScriptRepository {
     await _insertAll(scripts);
   }
 
-  /// 把还没入库的内置脚本补回来。
+  /// 把内置脚本还原成出厂版本。
   ///
-  /// 内置脚本是可以删的（用户可能压根不需要那三幕），但删了不该就找不回来——
-  /// 所以脚本页留了一个"恢复内置脚本"的入口。返回补回来的条数。
+  /// 做两件事：补回被删掉的，以及**刷新与出厂版本不一致的**——
+  /// 后者是必要的：脚本定义会随着功能一起长（比如第三幕后来多了
+  /// 「打开价值澄清」这类事件），已经播种过的库不会自动拿到新版本。
+  ///
+  /// 用户自己复制出来的副本不受影响——想保留对三幕的改动，就该先复制一份。
+  /// 返回写入的条数。
   Future<int> restoreBuiltIns(List<PlanScript> builtIns) async {
-    final existing = (await _db.select(_db.planScripts).get())
-        .map((row) => row.id)
-        .toSet();
-    final missing = builtIns
-        .where((script) => !existing.contains(script.id))
-        .toList(growable: false);
-    if (missing.isEmpty) return 0;
+    final existing = {
+      for (final row in await _db.select(_db.planScripts).get()) row.id: row,
+    };
 
-    await _insertAll(missing);
-    return missing.length;
+    final toWrite = <PlanScript>[];
+    for (final script in builtIns) {
+      final row = existing[script.id];
+      if (row == null) {
+        toWrite.add(script);
+        continue;
+      }
+      final changed =
+          row.stepsJson != _encodeSteps(script.steps) ||
+          row.postContent != script.postContent ||
+          row.name != script.name;
+      if (changed) toWrite.add(script);
+    }
+    if (toWrite.isEmpty) return 0;
+
+    await _insertAll(toWrite);
+    return toWrite.length;
   }
 
   Future<void> _insertAll(List<PlanScript> scripts) async {
@@ -106,6 +121,8 @@ class PlanScriptRepository {
             topicName: Value(script.topicName),
             stepsJson: Value(_encodeSteps(script.steps)),
           ),
+          // 刷新已有行要用覆盖模式，否则主键冲突直接抛异常
+          mode: InsertMode.insertOrReplace,
         );
       }
     });

@@ -1,5 +1,5 @@
 {
-  "_note": "内置表情包清单（阶段A）。path 用 asset: 前缀；项目作者把图片按下面的命名丢进 assets/stickers/<分类>/ 即可生效，业务代码不用改。图片缺失时自动降级为该表情的名称文字贴片（不会崩）。用户上传的表情包不入这个文件，走 stickers 数据表（source=file）。",
+  "_note": "内置表情包清单（阶段A）。path 用 asset: 前缀；把图片按下面的命名丢进 assets/stickers/<分类>/ 即可生效，业务代码不用改。图片缺失时自动降级为该表情的名称文字贴片（不会崩）。用户上传的表情包不入这个文件，走 stickers 数据表（source=file）。",
   "_schemaVersion": 1,
   "namingConvention": "assets/stickers/<categoryId>/<序号>.png，建议 240x240 PNG 透明底，体积 <100KB",
   "emptyBehavior": "missing_file → 显示 name 文字贴片",

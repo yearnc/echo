@@ -109,7 +109,24 @@ abstract final class PlanStepType {
   /// 展示客观分析（只出现在画面上，不参与计数）
   static const String analysis = 'analysis';
 
-  static const List<String> all = [likeBurst, comment, stats, mode, analysis];
+  /// 跳到价值澄清页（第三幕"觉醒与重构"的落点）。
+  static const String openValues = 'open_values';
+
+  /// 跳到真实行动页。
+  static const String openActions = 'open_actions';
+
+  /// 需要跳转的两类事件：它们不改变数据，只是把用户带到该去的地方。
+  static const List<String> navigationTypes = [openValues, openActions];
+
+  static const List<String> all = [
+    likeBurst,
+    comment,
+    stats,
+    mode,
+    analysis,
+    openValues,
+    openActions,
+  ];
 
   static String label(String type) => switch (type) {
     likeBurst => '点赞',
@@ -117,8 +134,13 @@ abstract final class PlanStepType {
     stats => '设定数据',
     mode => '切换模式',
     analysis => '客观分析',
+    openValues => '打开价值澄清',
+    openActions => '打开真实行动',
     _ => type,
   };
+
+  /// 该类型是不是"带人去某个页面"。
+  static bool isNavigation(String type) => navigationTypes.contains(type);
 }
 
 /// 一条策划事件。
@@ -134,6 +156,7 @@ class PlanStep {
     this.content,
     this.voiceAsset,
     this.transcript,
+    this.durationMs,
     this.delta,
     this.likes,
     this.comments,
@@ -156,6 +179,12 @@ class PlanStep {
   final String? content;
   final String? voiceAsset;
   final String? transcript;
+
+  /// 语音条的时长（毫秒）。
+  ///
+  /// 阶段 A 还没有真实 TTS，语音条播的是预置音频，所以时长得从脚本里带过来——
+  /// 否则评论区只能显示 0"，而 0" 的语音条在画面上就是穿帮。
+  final int? durationMs;
 
   /// like_burst：这一批多少个赞。
   final int? delta;
@@ -209,6 +238,7 @@ class PlanStep {
     String? content,
     String? voiceAsset,
     String? transcript,
+    int? durationMs,
     int? delta,
     int? likes,
     int? comments,
@@ -224,6 +254,7 @@ class PlanStep {
       content: content ?? this.content,
       voiceAsset: voiceAsset ?? this.voiceAsset,
       transcript: transcript ?? this.transcript,
+      durationMs: durationMs ?? this.durationMs,
       delta: delta ?? this.delta,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
@@ -241,6 +272,7 @@ class PlanStep {
     if (content != null) 'content': content,
     if (voiceAsset != null) 'voiceAsset': voiceAsset,
     if (transcript != null) 'transcript': transcript,
+    if (durationMs != null) 'voiceDurationMs': durationMs,
     if (delta != null) 'delta': delta,
     if (likes != null) 'likes': likes,
     if (comments != null) 'comments': comments,
@@ -260,6 +292,7 @@ class PlanStep {
       content: json['content'] as String?,
       voiceAsset: json['voiceAsset'] as String?,
       transcript: json['transcript'] as String?,
+      durationMs: (json['voiceDurationMs'] as num?)?.toInt(),
       delta: (json['delta'] as num?)?.toInt(),
       likes: (json['likes'] as num?)?.toInt(),
       comments: (json['comments'] as num?)?.toInt(),

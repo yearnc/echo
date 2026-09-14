@@ -7,6 +7,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
+import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/post_image.dart';
@@ -18,17 +19,47 @@ import '../shell/app_shell.dart';
 /// 评论区在回响模式里是"逐条延迟出现"的（阶段 B 由调度器驱动），
 /// 阶段 A 直接按预置顺序铺开——但每条评论的入场动画保留，
 /// 因为那种"一条条冒出来"的节奏正是异化体验的一部分。
-class PostDetailPage extends ConsumerWidget {
+class PostDetailPage extends ConsumerStatefulWidget {
   const PostDetailPage({super.key, required this.postId});
 
   final String postId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PostDetailPage> createState() => _PostDetailPageState();
+}
+
+class _PostDetailPageState extends ConsumerState<PostDetailPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 首帧之后再记：showSnackBar 需要一个已经挂到树上的 context
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recordView());
+  }
+
+  /// 打开详情页 = 查看了一次反馈。这是防沉迷提醒的判定依据（规划书 §6.9）：
+  /// 真正值得留意的信号不是"用了多久"，而是"多频繁地回来看有没有人理我"。
+  Future<void> _recordView() async {
+    if (!mounted) return;
+    // 清醒模式里没有反馈可看，不该计入
+    if (!ref.read(modeControllerProvider).isEcho) return;
+
+    final guard = ref.read(addictionGuardProvider);
+    await guard.recordView(widget.postId);
+    final warning = await guard.evaluate();
+    if (warning == null || !mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(warning)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
-    final postAsync = ref.watch(postByIdProvider(postId));
+    final postAsync = ref.watch(postByIdProvider(widget.postId));
     final comments =
-        ref.watch(commentsProvider(postId)).value ?? const <PostComment>[];
+        ref.watch(commentsProvider(widget.postId)).value ??
+        const <PostComment>[];
 
     // 必须是 Scaffold：这个页面不在底部导航骨架里（独立路由），
     // 没有 Material 祖先的话，页面里所有文字都会继承 Flutter 兜底文本样式

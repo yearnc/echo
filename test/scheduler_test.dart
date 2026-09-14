@@ -120,7 +120,7 @@ void main() {
     });
 
     test('同一人格不会对同一条帖子评论两次（人设一致性）', () {
-      // 项目作者 2026-09-11 的判断：一个账号留两条语气不同的评论会立刻暴露 AI 身份。
+      // 2026-09-11 定下的规则：一个账号留两条语气不同的评论会立刻暴露 AI 身份。
       // 真正的"追问"要等阶段 B 的楼中楼（需要对话上下文），不是并列两条顶层评论。
       for (final density in ReplyDensity.values) {
         final planned = InteractionPlanner(random: Random(2)).plan(

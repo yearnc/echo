@@ -27,6 +27,8 @@ class BuiltinPlanScripts {
     PlanStepType.stats,
     PlanStepType.mode,
     PlanStepType.analysis,
+    PlanStepType.openValues,
+    PlanStepType.openActions,
   };
 
   static const Map<String, String> _names = {

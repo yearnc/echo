@@ -1,17 +1,121 @@
-# echo
+# 回响 Echo
 
-A new Flutter project.
+一个**单 App 双模式**的社交媒体模拟器。同一块屏幕，两个世界：
 
-## Getting Started
+- **回响模式** —— 一个平行校园社区「回响广场」。你发帖，会有 AI 住民来点赞、评论、发语音。**这里没有一个真实用户。**
+- **清醒模式** —— 关掉所有虚拟反馈，只留客观分析（图片描述 / 情绪 / 逻辑 / 事实核查 / 改进建议）与价值重建练习（价值澄清、真实行动记录）。
 
-This project is a starting point for a Flutter application.
+做这个东西的动机很简单：**「被回应」的感觉是可以被制造的**，而人在多大程度上依赖它，往往要等到它消失时才看得清。这个 APP 想把这件事摆到台面上，让你亲手开关一次。
 
-A few resources to get you started if this is your first Flutter project:
+> 项目背景：思政实践课题《数字时代大学生自我价值感的异化与重建》，同时是一部微电影的核心道具。所以它对「拍摄」这件事有硬要求——见下面「三幕演示」。
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## 状态
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+**阶段 A（微视频演示 MVP）已完成**（M0 环境 → M6 收尾）。
+
+| 里程碑 | 内容 |
+|---|---|
+| M0 | Flutter + JDK17 + Android SDK 就绪，真机可跑 |
+| M1 | 双主题、路由、Drift 数据库、内置住民与脚本播种 |
+| M2 | 发帖、信息流、帖子详情、评论区 |
+| M3 | 互动调度器（本地队列 + 前台心跳）、策划模式、通知红点、合规小字 |
+| M4 | 清醒模式状态机、归档、二次确认、年龄门、客观分析 |
+| M5 | 模型配置中心（10 家服务商预设 + 自定义，密钥存系统钥匙串） |
+| M6 | 价值澄清、真实行动、心理安全、防沉迷提醒、素材管理、README |
+
+阶段 B（AI 住民自主发帖、私信、关注、热榜、楼中楼追问、真实 TTS）尚未开始。
+
+## 快速开始
+
+### 环境
+
+开发时用的版本：Flutter stable（3.47.3）、JDK 17+、Android SDK（platform-tools / android-35 / build-tools）。
+
+国内建议先配镜像，否则首次拉依赖会很慢：
+
+```bash
+export PUB_HOSTED_URL=https://pub.flutter-io.cn
+export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
+```
+
+### 跑起来
+
+```bash
+flutter pub get
+
+# 数据库代码由 drift 生成；改过 lib/data/db/tables/ 下的表结构后必须重跑
+dart run build_runner build
+
+flutter run                 # 真机或模拟器
+flutter run -d windows      # 桌面预览（手机尺寸窗口，需开启 Windows 开发人员模式）
+```
+
+### 测试
+
+```bash
+flutter test        # 单元测试
+flutter analyze     # 静态分析应当零问题
+```
+
+## 三幕演示（微视频拍摄）
+
+拍摄**不需要任何特殊模式**，也不需要联网或真实模型——「策划模式」把脚本变成排期表，让**一条真帖子**按脚本发生。
+
+1. 打开设置 → **策划脚本**，确认三个内置脚本在（不在就点右上角的「重置内置脚本」）
+2. 回到发布页，勾选**策划模式**，选一个脚本 —— 脚本的开局正文/配图会自动填进发布页
+3. 按下发布，然后**不要再碰屏幕**
+
+| 幕 | 内置脚本 | 会发生什么 |
+|---|---|---|
+| 第一幕 · 建立幻觉 | 第一幕 · 天空照 | 第 1.2 秒设定开局赞数，住民陆续点赞、评论、一条语音条，热度爬到第 60 秒 |
+| 第二幕 · 异化与崩溃 | 第二幕 · 深夜垃圾桶 | 发「垃圾桶」照 → 点赞暴涨 + 那段荒谬千字长评 |
+| 第三幕 · 觉醒与重构 | 第三幕 · 切清醒模式 | 沿用第一幕的**同一张**天空照 → 第 5.2 秒切到清醒模式 → 展示五项客观分析 → 打开价值澄清与真实行动 |
+
+脚本里的时间点可以在脚本管理页里改（`at` 写秒数如 `"30"`，或区间如 `"30~90"` 表示在这段时间里随机取一个时刻）。
+
+**拍摄注意**：合规元素照常显示（回响模式底部「内容由AI生成，仅供参考」、清醒模式的永久提示）。这两处**不能为了画面干净而演掉**——它们本身就是这个作品要说的话之一。
+
+## 配置模型（可选）
+
+阶段 A 的演示与策划模式**完全离线**，不需要任何 API Key。只有「测试连接」和清醒模式的真实分析会用到模型。
+
+设置 → **模型配置中心** → 新建，选一家服务商预设（DeepSeek / 通义千问 / 智谱 / Kimi / 豆包 / 硅基流动 / 混元 / 文心 / MiniMax / OpenAI）或「自定义（OpenAI 兼容）」，填 Key 后点测试连接。
+
+- 密钥存在**系统钥匙串**（Android Keystore / iOS Keychain / Windows 凭据管理器），不写进数据库、不进代码
+- 调用第三方模型时，帖内容会发送给你配置的那个 API —— 设置页与隐私说明里都有明示
+- 其余所有数据只存在本机
+
+## 项目结构
+
+```
+lib/
+├─ app.dart            应用根组件 + 前台心跳
+├─ core/               常量与合规文案、调色板与主题、路由、工具
+├─ domain/
+│  ├─ models/          Post / AiPersona / PlanScript / ModelConfig / Sticker …
+│  └─ services/        模式状态机、调度器、策划排期、防沉迷判定、外观
+├─ data/
+│  ├─ db/              Drift 表定义、迁移、播种（13 张表）
+│  ├─ repositories/    仓储实现
+│  ├─ media/           图片挑选与私有目录落盘
+│  └─ seed/            内置脚本与素材清单的加载
+└─ features/           按页面分组：feed / composer / post_detail / records /
+                       analysis / values / actions / safety / stickers /
+                       scripts / models / settings / onboarding / notifications
+```
+
+数据库共 13 张表（见 `lib/data/db/tables/`）：帖子、住民、互动队列、策划脚本与事件、客观分析、通知、各类日志、素材、价值澄清、真实行动、模型配置。
+
+## 合规与边界
+
+这个项目刻意守着几条线：
+
+- 回响模式所有页面底部固定「内容由AI生成，仅供参考」，数据层 `is_ai = true`
+- 清醒模式的永久提示**不可关闭、不可删除**（界面上没有关闭按钮，代码里也没有删除入口）
+- 防沉迷提醒**默认开启**，但只提醒、不拦截 —— 不锁屏、不劝退、不把使用时长变成需要打败的关卡
+- 心理安全页提供求助入口（全国心理援助热线 12356，以官方最新公布为准）
+- 情绪持续低落时，请找真实的人聊一聊。这个 APP 里的「网友」不能替代真实的对话
+
+## 许可
+
+仓库尚未添加 LICENSE 文件。

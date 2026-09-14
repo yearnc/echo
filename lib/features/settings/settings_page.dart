@@ -120,7 +120,7 @@ class SettingsPage extends ConsumerWidget {
                 icon: Icons.emoji_emotions_outlined,
                 title: '头像与表情包',
                 subtitle: '支持导入自己的图片',
-                onTap: () => _soon(context, '素材管理'),
+                onTap: () => context.push(RoutePaths.stickers),
               ),
               _Row(
                 isEcho: isEcho,
@@ -158,8 +158,8 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.favorite_border,
                 title: '心理安全',
-                subtitle: '冷静模式 / 反馈查看阈值',
-                onTap: () => _soon(context, '心理安全设置'),
+                subtitle: '冷静模式 / 反馈查看阈值 / 心理援助',
+                onTap: () => context.push(RoutePaths.safety),
               ),
               _Row(
                 isEcho: isEcho,
@@ -192,7 +192,7 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.code,
                 title: '版本',
-                value: '0.1.0 (M1)',
+                value: '0.1.0 (阶段 A 完成)',
               ),
             ],
           ),

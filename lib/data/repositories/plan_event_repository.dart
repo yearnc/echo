@@ -47,6 +47,7 @@ class PlanEventRepository {
           mediaType: Value(step.mediaType),
           content: Value(step.content),
           voiceAsset: Value(step.voiceAsset),
+          voiceDurationMs: Value(step.durationMs),
           transcript: Value(step.transcript),
           delta: Value(step.delta),
           likes: Value(step.likes),

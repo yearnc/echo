@@ -1,5 +1,5 @@
 {
-  "_note": "回响广场预置 AI 人格（阶段A：12个）。avatar 字段是【引用】而不是路径：'asset:assets/avatars/xxx.png' 表示内置图片，'file:<APP私有目录相对路径>' 表示用户上传，空字符串 '' 表示走文字头像兜底。项目作者后续把图片丢进 assets/avatars/ 并在 sticker/json 登记即可生效，无需改代码。",
+  "_note": "回响广场预置 AI 人格（阶段A：12个）。avatar 字段是【引用】而不是路径：'asset:assets/avatars/xxx.png' 表示内置图片，'file:<APP私有目录相对路径>' 表示用户上传，空字符串 '' 表示走文字头像兜底。后续把图片丢进 assets/avatars/ 并在 json 里登记即可生效，无需改代码。",
   "_schemaVersion": 1,
   "personas": [
     {

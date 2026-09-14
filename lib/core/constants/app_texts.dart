@@ -33,6 +33,16 @@ class AppTexts {
   static const String coolDownReminder = '冷静模式已开启：点赞和评论会延迟显示。';
   static const String helpEntry = '心理援助';
 
+  /// 心理援助入口的正文（规划书 §6.10 / §13）。
+  ///
+  /// 只写全国统一热线，号码以官方最新公布为准——不列那些记不准的号码，
+  /// 给错一个号码比不给更糟。
+  static const String helpBody =
+      '全国心理援助热线：12356（24 小时）\n'
+      '（号码以官方最新公布为准）\n\n'
+      '如果只是想说说话，也可以打给身边信任的人。\n'
+      '这里的「网友」不能替代真实的对话。';
+
   // ── 模式切换（规划书 §2.4）──────────────────────────────────
 
   static const String switchToEchoConfirm = '即将重新启用虚拟反馈，可能强化外部评价依赖。';

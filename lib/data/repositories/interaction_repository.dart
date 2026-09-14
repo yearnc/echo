@@ -76,6 +76,7 @@ class InteractionRepository {
     String? content,
     String? voicePath,
     String? transcript,
+    int? voiceDurationMs,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db
@@ -90,6 +91,7 @@ class InteractionRepository {
             content: Value(content),
             voicePath: Value(voicePath),
             transcript: Value(transcript),
+            voiceDurationMs: Value(voiceDurationMs),
             scheduledAt: now,
             executedAt: Value(now),
             status: const Value(statusDone),

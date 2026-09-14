@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'tables/ai_tables.dart';
+import 'tables/clear_tables.dart';
 import 'tables/content_tables.dart';
 import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
@@ -34,6 +35,9 @@ part 'app_database.g.dart';
     PlanScripts,
     PlanEvents,
     ModelConfigs,
+    ValueClarifications,
+    RealActions,
+    AddictionLogs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -43,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,6 +97,17 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         // v6：模型配置（密钥不放这里，在系统钥匙串）。
         await m.createTable(modelConfigs);
+      }
+      if (from < 7) {
+        // v7：清醒模式的价值重建闭环（价值澄清 / 真实行动）+ 防沉迷日志。
+        await m.createTable(valueClarifications);
+        await m.createTable(realActions);
+        await m.createTable(addictionLogs);
+      }
+      if (from < 8) {
+        // v8：策划事件带上语音时长。原先这一步在转换时丢了，
+        // 评论区只能显示 0"——老库里的语音条重排一次即可恢复。
+        await m.addColumn(planEvents, planEvents.voiceDurationMs);
       }
     },
   );

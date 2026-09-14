@@ -68,3 +68,24 @@ class FeedbackViewLogs extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// 防沉迷日志（规划书 §8 / §13）。
+///
+/// 只记录、不拦截：它的用途是让用户（和周报）能回看"这周被提醒了几次、
+/// 冷静模式开了多久"，而不是拿来做惩罚或强制退出——那会把工具变成家长。
+@DataClassName('AddictionLogRow')
+class AddictionLogs extends Table {
+  TextColumn get id => text()();
+
+  /// feedback_threshold / cooldown_on / cooldown_off / session_long
+  TextColumn get eventType => text()();
+
+  /// 事件附带的数值：触发时的查看次数、使用时长（分钟）等。
+  IntColumn get value => integer().withDefault(const Constant(0))();
+
+  IntColumn get createdAt => integer()();
+  TextColumn get scope => text().withDefault(const Constant('shared'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

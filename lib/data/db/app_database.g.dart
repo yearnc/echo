@@ -6998,6 +6998,17 @@ class $PlanEventsTable extends PlanEvents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _voiceDurationMsMeta = const VerificationMeta(
+    'voiceDurationMs',
+  );
+  @override
+  late final GeneratedColumn<int> voiceDurationMs = GeneratedColumn<int>(
+    'voice_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _transcriptMeta = const VerificationMeta(
     'transcript',
   );
@@ -7100,6 +7111,7 @@ class $PlanEventsTable extends PlanEvents
     mediaType,
     content,
     voiceAsset,
+    voiceDurationMs,
     transcript,
     delta,
     likes,
@@ -7171,6 +7183,15 @@ class $PlanEventsTable extends PlanEvents
       context.handle(
         _voiceAssetMeta,
         voiceAsset.isAcceptableOrUnknown(data['voice_asset']!, _voiceAssetMeta),
+      );
+    }
+    if (data.containsKey('voice_duration_ms')) {
+      context.handle(
+        _voiceDurationMsMeta,
+        voiceDurationMs.isAcceptableOrUnknown(
+          data['voice_duration_ms']!,
+          _voiceDurationMsMeta,
+        ),
       );
     }
     if (data.containsKey('transcript')) {
@@ -7276,6 +7297,10 @@ class $PlanEventsTable extends PlanEvents
         DriftSqlType.string,
         data['${effectivePrefix}voice_asset'],
       ),
+      voiceDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}voice_duration_ms'],
+      ),
       transcript: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}transcript'],
@@ -7332,6 +7357,9 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
   final String? mediaType;
   final String? content;
   final String? voiceAsset;
+
+  /// 语音条时长（毫秒）。脚本里带过来的，评论区靠它显示 "6"" 而不是 "0""。
+  final int? voiceDurationMs;
   final String? transcript;
 
   /// like_burst：这一批多少个赞
@@ -7360,6 +7388,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
     this.mediaType,
     this.content,
     this.voiceAsset,
+    this.voiceDurationMs,
     this.transcript,
     this.delta,
     this.likes,
@@ -7390,6 +7419,9 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
     }
     if (!nullToAbsent || voiceAsset != null) {
       map['voice_asset'] = Variable<String>(voiceAsset);
+    }
+    if (!nullToAbsent || voiceDurationMs != null) {
+      map['voice_duration_ms'] = Variable<int>(voiceDurationMs);
     }
     if (!nullToAbsent || transcript != null) {
       map['transcript'] = Variable<String>(transcript);
@@ -7437,6 +7469,9 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
       voiceAsset: voiceAsset == null && nullToAbsent
           ? const Value.absent()
           : Value(voiceAsset),
+      voiceDurationMs: voiceDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceDurationMs),
       transcript: transcript == null && nullToAbsent
           ? const Value.absent()
           : Value(transcript),
@@ -7477,6 +7512,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
       mediaType: serializer.fromJson<String?>(json['mediaType']),
       content: serializer.fromJson<String?>(json['content']),
       voiceAsset: serializer.fromJson<String?>(json['voiceAsset']),
+      voiceDurationMs: serializer.fromJson<int?>(json['voiceDurationMs']),
       transcript: serializer.fromJson<String?>(json['transcript']),
       delta: serializer.fromJson<int?>(json['delta']),
       likes: serializer.fromJson<int?>(json['likes']),
@@ -7500,6 +7536,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
       'mediaType': serializer.toJson<String?>(mediaType),
       'content': serializer.toJson<String?>(content),
       'voiceAsset': serializer.toJson<String?>(voiceAsset),
+      'voiceDurationMs': serializer.toJson<int?>(voiceDurationMs),
       'transcript': serializer.toJson<String?>(transcript),
       'delta': serializer.toJson<int?>(delta),
       'likes': serializer.toJson<int?>(likes),
@@ -7521,6 +7558,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
     Value<String?> mediaType = const Value.absent(),
     Value<String?> content = const Value.absent(),
     Value<String?> voiceAsset = const Value.absent(),
+    Value<int?> voiceDurationMs = const Value.absent(),
     Value<String?> transcript = const Value.absent(),
     Value<int?> delta = const Value.absent(),
     Value<int?> likes = const Value.absent(),
@@ -7539,6 +7577,9 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
     mediaType: mediaType.present ? mediaType.value : this.mediaType,
     content: content.present ? content.value : this.content,
     voiceAsset: voiceAsset.present ? voiceAsset.value : this.voiceAsset,
+    voiceDurationMs: voiceDurationMs.present
+        ? voiceDurationMs.value
+        : this.voiceDurationMs,
     transcript: transcript.present ? transcript.value : this.transcript,
     delta: delta.present ? delta.value : this.delta,
     likes: likes.present ? likes.value : this.likes,
@@ -7561,6 +7602,9 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
       voiceAsset: data.voiceAsset.present
           ? data.voiceAsset.value
           : this.voiceAsset,
+      voiceDurationMs: data.voiceDurationMs.present
+          ? data.voiceDurationMs.value
+          : this.voiceDurationMs,
       transcript: data.transcript.present
           ? data.transcript.value
           : this.transcript,
@@ -7592,6 +7636,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
           ..write('mediaType: $mediaType, ')
           ..write('content: $content, ')
           ..write('voiceAsset: $voiceAsset, ')
+          ..write('voiceDurationMs: $voiceDurationMs, ')
           ..write('transcript: $transcript, ')
           ..write('delta: $delta, ')
           ..write('likes: $likes, ')
@@ -7615,6 +7660,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
     mediaType,
     content,
     voiceAsset,
+    voiceDurationMs,
     transcript,
     delta,
     likes,
@@ -7637,6 +7683,7 @@ class PlanEventRow extends DataClass implements Insertable<PlanEventRow> {
           other.mediaType == this.mediaType &&
           other.content == this.content &&
           other.voiceAsset == this.voiceAsset &&
+          other.voiceDurationMs == this.voiceDurationMs &&
           other.transcript == this.transcript &&
           other.delta == this.delta &&
           other.likes == this.likes &&
@@ -7657,6 +7704,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
   final Value<String?> mediaType;
   final Value<String?> content;
   final Value<String?> voiceAsset;
+  final Value<int?> voiceDurationMs;
   final Value<String?> transcript;
   final Value<int?> delta;
   final Value<int?> likes;
@@ -7676,6 +7724,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
     this.mediaType = const Value.absent(),
     this.content = const Value.absent(),
     this.voiceAsset = const Value.absent(),
+    this.voiceDurationMs = const Value.absent(),
     this.transcript = const Value.absent(),
     this.delta = const Value.absent(),
     this.likes = const Value.absent(),
@@ -7696,6 +7745,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
     this.mediaType = const Value.absent(),
     this.content = const Value.absent(),
     this.voiceAsset = const Value.absent(),
+    this.voiceDurationMs = const Value.absent(),
     this.transcript = const Value.absent(),
     this.delta = const Value.absent(),
     this.likes = const Value.absent(),
@@ -7719,6 +7769,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
     Expression<String>? mediaType,
     Expression<String>? content,
     Expression<String>? voiceAsset,
+    Expression<int>? voiceDurationMs,
     Expression<String>? transcript,
     Expression<int>? delta,
     Expression<int>? likes,
@@ -7739,6 +7790,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
       if (mediaType != null) 'media_type': mediaType,
       if (content != null) 'content': content,
       if (voiceAsset != null) 'voice_asset': voiceAsset,
+      if (voiceDurationMs != null) 'voice_duration_ms': voiceDurationMs,
       if (transcript != null) 'transcript': transcript,
       if (delta != null) 'delta': delta,
       if (likes != null) 'likes': likes,
@@ -7761,6 +7813,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
     Value<String?>? mediaType,
     Value<String?>? content,
     Value<String?>? voiceAsset,
+    Value<int?>? voiceDurationMs,
     Value<String?>? transcript,
     Value<int?>? delta,
     Value<int?>? likes,
@@ -7781,6 +7834,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
       mediaType: mediaType ?? this.mediaType,
       content: content ?? this.content,
       voiceAsset: voiceAsset ?? this.voiceAsset,
+      voiceDurationMs: voiceDurationMs ?? this.voiceDurationMs,
       transcript: transcript ?? this.transcript,
       delta: delta ?? this.delta,
       likes: likes ?? this.likes,
@@ -7820,6 +7874,9 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
     }
     if (voiceAsset.present) {
       map['voice_asset'] = Variable<String>(voiceAsset.value);
+    }
+    if (voiceDurationMs.present) {
+      map['voice_duration_ms'] = Variable<int>(voiceDurationMs.value);
     }
     if (transcript.present) {
       map['transcript'] = Variable<String>(transcript.value);
@@ -7865,6 +7922,7 @@ class PlanEventsCompanion extends UpdateCompanion<PlanEventRow> {
           ..write('mediaType: $mediaType, ')
           ..write('content: $content, ')
           ..write('voiceAsset: $voiceAsset, ')
+          ..write('voiceDurationMs: $voiceDurationMs, ')
           ..write('transcript: $transcript, ')
           ..write('delta: $delta, ')
           ..write('likes: $likes, ')
@@ -8397,6 +8455,1235 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   }
 }
 
+class $ValueClarificationsTable extends ValueClarifications
+    with TableInfo<$ValueClarificationsTable, ValueClarificationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ValueClarificationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clear'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    content,
+    sortOrder,
+    createdAt,
+    deletedAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'value_clarifications';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ValueClarificationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ValueClarificationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ValueClarificationRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $ValueClarificationsTable createAlias(String alias) {
+    return $ValueClarificationsTable(attachedDatabase, alias);
+  }
+}
+
+class ValueClarificationRow extends DataClass
+    implements Insertable<ValueClarificationRow> {
+  final String id;
+  final String content;
+  final int sortOrder;
+  final int createdAt;
+  final int? deletedAt;
+  final String scope;
+  const ValueClarificationRow({
+    required this.id,
+    required this.content,
+    required this.sortOrder,
+    required this.createdAt,
+    this.deletedAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['content'] = Variable<String>(content);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  ValueClarificationsCompanion toCompanion(bool nullToAbsent) {
+    return ValueClarificationsCompanion(
+      id: Value(id),
+      content: Value(content),
+      sortOrder: Value(sortOrder),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory ValueClarificationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ValueClarificationRow(
+      id: serializer.fromJson<String>(json['id']),
+      content: serializer.fromJson<String>(json['content']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'content': serializer.toJson<String>(content),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  ValueClarificationRow copyWith({
+    String? id,
+    String? content,
+    int? sortOrder,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? scope,
+  }) => ValueClarificationRow(
+    id: id ?? this.id,
+    content: content ?? this.content,
+    sortOrder: sortOrder ?? this.sortOrder,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    scope: scope ?? this.scope,
+  );
+  ValueClarificationRow copyWithCompanion(ValueClarificationsCompanion data) {
+    return ValueClarificationRow(
+      id: data.id.present ? data.id.value : this.id,
+      content: data.content.present ? data.content.value : this.content,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ValueClarificationRow(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, content, sortOrder, createdAt, deletedAt, scope);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ValueClarificationRow &&
+          other.id == this.id &&
+          other.content == this.content &&
+          other.sortOrder == this.sortOrder &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt &&
+          other.scope == this.scope);
+}
+
+class ValueClarificationsCompanion
+    extends UpdateCompanion<ValueClarificationRow> {
+  final Value<String> id;
+  final Value<String> content;
+  final Value<int> sortOrder;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const ValueClarificationsCompanion({
+    this.id = const Value.absent(),
+    this.content = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ValueClarificationsCompanion.insert({
+    required String id,
+    required String content,
+    this.sortOrder = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       content = Value(content),
+       createdAt = Value(createdAt);
+  static Insertable<ValueClarificationRow> custom({
+    Expression<String>? id,
+    Expression<String>? content,
+    Expression<int>? sortOrder,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (content != null) 'content': content,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ValueClarificationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? content,
+    Value<int>? sortOrder,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return ValueClarificationsCompanion(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ValueClarificationsCompanion(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RealActionsTable extends RealActions
+    with TableInfo<$RealActionsTable, RealActionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RealActionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clear'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    description,
+    category,
+    createdAt,
+    deletedAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'real_actions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RealActionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RealActionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RealActionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $RealActionsTable createAlias(String alias) {
+    return $RealActionsTable(attachedDatabase, alias);
+  }
+}
+
+class RealActionRow extends DataClass implements Insertable<RealActionRow> {
+  final String id;
+  final String title;
+  final String description;
+
+  /// sport / reading / social / creation / other，见 `RealActionCategory`。
+  final String category;
+  final int createdAt;
+  final int? deletedAt;
+  final String scope;
+  const RealActionRow({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.createdAt,
+    this.deletedAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['category'] = Variable<String>(category);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  RealActionsCompanion toCompanion(bool nullToAbsent) {
+    return RealActionsCompanion(
+      id: Value(id),
+      title: Value(title),
+      description: Value(description),
+      category: Value(category),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory RealActionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RealActionRow(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      category: serializer.fromJson<String>(json['category']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'category': serializer.toJson<String>(category),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  RealActionRow copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? category,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? scope,
+  }) => RealActionRow(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    description: description ?? this.description,
+    category: category ?? this.category,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    scope: scope ?? this.scope,
+  );
+  RealActionRow copyWithCompanion(RealActionsCompanion data) {
+    return RealActionRow(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      category: data.category.present ? data.category.value : this.category,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RealActionRow(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('category: $category, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    description,
+    category,
+    createdAt,
+    deletedAt,
+    scope,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RealActionRow &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.category == this.category &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt &&
+          other.scope == this.scope);
+}
+
+class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> category;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const RealActionsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.category = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RealActionsCompanion.insert({
+    required String id,
+    required String title,
+    this.description = const Value.absent(),
+    required String category,
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
+       category = Value(category),
+       createdAt = Value(createdAt);
+  static Insertable<RealActionRow> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? category,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (category != null) 'category': category,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RealActionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? title,
+    Value<String>? description,
+    Value<String>? category,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return RealActionsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RealActionsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('category: $category, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AddictionLogsTable extends AddictionLogs
+    with TableInfo<$AddictionLogsTable, AddictionLogRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AddictionLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventTypeMeta = const VerificationMeta(
+    'eventType',
+  );
+  @override
+  late final GeneratedColumn<String> eventType = GeneratedColumn<String>(
+    'event_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<int> value = GeneratedColumn<int>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('shared'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    eventType,
+    value,
+    createdAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'addiction_logs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AddictionLogRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('event_type')) {
+      context.handle(
+        _eventTypeMeta,
+        eventType.isAcceptableOrUnknown(data['event_type']!, _eventTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventTypeMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AddictionLogRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AddictionLogRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      eventType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_type'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}value'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $AddictionLogsTable createAlias(String alias) {
+    return $AddictionLogsTable(attachedDatabase, alias);
+  }
+}
+
+class AddictionLogRow extends DataClass implements Insertable<AddictionLogRow> {
+  final String id;
+
+  /// feedback_threshold / cooldown_on / cooldown_off / session_long
+  final String eventType;
+
+  /// 事件附带的数值：触发时的查看次数、使用时长（分钟）等。
+  final int value;
+  final int createdAt;
+  final String scope;
+  const AddictionLogRow({
+    required this.id,
+    required this.eventType,
+    required this.value,
+    required this.createdAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['event_type'] = Variable<String>(eventType);
+    map['value'] = Variable<int>(value);
+    map['created_at'] = Variable<int>(createdAt);
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  AddictionLogsCompanion toCompanion(bool nullToAbsent) {
+    return AddictionLogsCompanion(
+      id: Value(id),
+      eventType: Value(eventType),
+      value: Value(value),
+      createdAt: Value(createdAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory AddictionLogRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AddictionLogRow(
+      id: serializer.fromJson<String>(json['id']),
+      eventType: serializer.fromJson<String>(json['eventType']),
+      value: serializer.fromJson<int>(json['value']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'eventType': serializer.toJson<String>(eventType),
+      'value': serializer.toJson<int>(value),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  AddictionLogRow copyWith({
+    String? id,
+    String? eventType,
+    int? value,
+    int? createdAt,
+    String? scope,
+  }) => AddictionLogRow(
+    id: id ?? this.id,
+    eventType: eventType ?? this.eventType,
+    value: value ?? this.value,
+    createdAt: createdAt ?? this.createdAt,
+    scope: scope ?? this.scope,
+  );
+  AddictionLogRow copyWithCompanion(AddictionLogsCompanion data) {
+    return AddictionLogRow(
+      id: data.id.present ? data.id.value : this.id,
+      eventType: data.eventType.present ? data.eventType.value : this.eventType,
+      value: data.value.present ? data.value.value : this.value,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AddictionLogRow(')
+          ..write('id: $id, ')
+          ..write('eventType: $eventType, ')
+          ..write('value: $value, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, eventType, value, createdAt, scope);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AddictionLogRow &&
+          other.id == this.id &&
+          other.eventType == this.eventType &&
+          other.value == this.value &&
+          other.createdAt == this.createdAt &&
+          other.scope == this.scope);
+}
+
+class AddictionLogsCompanion extends UpdateCompanion<AddictionLogRow> {
+  final Value<String> id;
+  final Value<String> eventType;
+  final Value<int> value;
+  final Value<int> createdAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const AddictionLogsCompanion({
+    this.id = const Value.absent(),
+    this.eventType = const Value.absent(),
+    this.value = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AddictionLogsCompanion.insert({
+    required String id,
+    required String eventType,
+    this.value = const Value.absent(),
+    required int createdAt,
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       eventType = Value(eventType),
+       createdAt = Value(createdAt);
+  static Insertable<AddictionLogRow> custom({
+    Expression<String>? id,
+    Expression<String>? eventType,
+    Expression<int>? value,
+    Expression<int>? createdAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (eventType != null) 'event_type': eventType,
+      if (value != null) 'value': value,
+      if (createdAt != null) 'created_at': createdAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AddictionLogsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? eventType,
+    Value<int>? value,
+    Value<int>? createdAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return AddictionLogsCompanion(
+      id: id ?? this.id,
+      eventType: eventType ?? this.eventType,
+      value: value ?? this.value,
+      createdAt: createdAt ?? this.createdAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (eventType.present) {
+      map['event_type'] = Variable<String>(eventType.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<int>(value.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AddictionLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('eventType: $eventType, ')
+          ..write('value: $value, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -8419,6 +9706,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PlanScriptsTable planScripts = $PlanScriptsTable(this);
   late final $PlanEventsTable planEvents = $PlanEventsTable(this);
   late final $ModelConfigsTable modelConfigs = $ModelConfigsTable(this);
+  late final $ValueClarificationsTable valueClarifications =
+      $ValueClarificationsTable(this);
+  late final $RealActionsTable realActions = $RealActionsTable(this);
+  late final $AddictionLogsTable addictionLogs = $AddictionLogsTable(this);
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -8439,6 +9730,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'plan_events_due',
     'CREATE INDEX plan_events_due ON plan_events (status, scheduled_at)',
   );
+  late final Index realActionsCreated = Index(
+    'real_actions_created',
+    'CREATE INDEX real_actions_created ON real_actions (created_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8457,11 +9752,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     planScripts,
     planEvents,
     modelConfigs,
+    valueClarifications,
+    realActions,
+    addictionLogs,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
     notificationLogsDelivered,
     planEventsDue,
+    realActionsCreated,
   ];
 }
 
@@ -12671,6 +13970,7 @@ typedef $$PlanEventsTableCreateCompanionBuilder = PlanEventsCompanion Function({
   Value<String?> mediaType,
   Value<String?> content,
   Value<String?> voiceAsset,
+  Value<int?> voiceDurationMs,
   Value<String?> transcript,
   Value<int?> delta,
   Value<int?> likes,
@@ -12691,6 +13991,7 @@ typedef $$PlanEventsTableUpdateCompanionBuilder = PlanEventsCompanion Function({
   Value<String?> mediaType,
   Value<String?> content,
   Value<String?> voiceAsset,
+  Value<int?> voiceDurationMs,
   Value<String?> transcript,
   Value<int?> delta,
   Value<int?> likes,
@@ -12766,6 +14067,11 @@ class $$PlanEventsTableFilterComposer
 
   ColumnFilters<String> get voiceAsset => $composableBuilder(
     column: $table.voiceAsset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get voiceDurationMs => $composableBuilder(
+    column: $table.voiceDurationMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12882,6 +14188,11 @@ class $$PlanEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get voiceDurationMs => $composableBuilder(
+    column: $table.voiceDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get transcript => $composableBuilder(
     column: $table.transcript,
     builder: (column) => ColumnOrderings(column),
@@ -12983,6 +14294,11 @@ class $$PlanEventsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get voiceDurationMs => $composableBuilder(
+    column: $table.voiceDurationMs,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get transcript => $composableBuilder(
     column: $table.transcript,
     builder: (column) => column,
@@ -13078,6 +14394,7 @@ class $$PlanEventsTableTableManager
                 Value<String?> mediaType = const Value.absent(),
                 Value<String?> content = const Value.absent(),
                 Value<String?> voiceAsset = const Value.absent(),
+                Value<int?> voiceDurationMs = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 Value<int?> delta = const Value.absent(),
                 Value<int?> likes = const Value.absent(),
@@ -13097,6 +14414,7 @@ class $$PlanEventsTableTableManager
                 mediaType: mediaType,
                 content: content,
                 voiceAsset: voiceAsset,
+                voiceDurationMs: voiceDurationMs,
                 transcript: transcript,
                 delta: delta,
                 likes: likes,
@@ -13118,6 +14436,7 @@ class $$PlanEventsTableTableManager
                 Value<String?> mediaType = const Value.absent(),
                 Value<String?> content = const Value.absent(),
                 Value<String?> voiceAsset = const Value.absent(),
+                Value<int?> voiceDurationMs = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 Value<int?> delta = const Value.absent(),
                 Value<int?> likes = const Value.absent(),
@@ -13137,6 +14456,7 @@ class $$PlanEventsTableTableManager
                 mediaType: mediaType,
                 content: content,
                 voiceAsset: voiceAsset,
+                voiceDurationMs: voiceDurationMs,
                 transcript: transcript,
                 delta: delta,
                 likes: likes,
@@ -13479,6 +14799,710 @@ typedef $$ModelConfigsTableProcessedTableManager =
       ModelConfigRow,
       PrefetchHooks Function()
     >;
+typedef $$ValueClarificationsTableCreateCompanionBuilder =
+    ValueClarificationsCompanion Function({
+      required String id,
+      required String content,
+      Value<int> sortOrder,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$ValueClarificationsTableUpdateCompanionBuilder =
+    ValueClarificationsCompanion Function({
+      Value<String> id,
+      Value<String> content,
+      Value<int> sortOrder,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$ValueClarificationsTableFilterComposer
+    extends Composer<_$AppDatabase, $ValueClarificationsTable> {
+  $$ValueClarificationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ValueClarificationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ValueClarificationsTable> {
+  $$ValueClarificationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ValueClarificationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ValueClarificationsTable> {
+  $$ValueClarificationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$ValueClarificationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ValueClarificationsTable,
+          ValueClarificationRow,
+          $$ValueClarificationsTableFilterComposer,
+          $$ValueClarificationsTableOrderingComposer,
+          $$ValueClarificationsTableAnnotationComposer,
+          $$ValueClarificationsTableCreateCompanionBuilder,
+          $$ValueClarificationsTableUpdateCompanionBuilder,
+          (
+            ValueClarificationRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ValueClarificationsTable,
+              ValueClarificationRow
+            >,
+          ),
+          ValueClarificationRow,
+          PrefetchHooks Function()
+        > {
+  $$ValueClarificationsTableTableManager(
+    _$AppDatabase db,
+    $ValueClarificationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ValueClarificationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ValueClarificationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ValueClarificationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ValueClarificationsCompanion(
+                id: id,
+                content: content,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String content,
+                Value<int> sortOrder = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ValueClarificationsCompanion.insert(
+                id: id,
+                content: content,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ValueClarificationsTable, ValueClarificationRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ValueClarificationsTable,
+                    ValueClarificationRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ValueClarificationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ValueClarificationsTable,
+      ValueClarificationRow,
+      $$ValueClarificationsTableFilterComposer,
+      $$ValueClarificationsTableOrderingComposer,
+      $$ValueClarificationsTableAnnotationComposer,
+      $$ValueClarificationsTableCreateCompanionBuilder,
+      $$ValueClarificationsTableUpdateCompanionBuilder,
+      (
+        ValueClarificationRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ValueClarificationsTable,
+          ValueClarificationRow
+        >,
+      ),
+      ValueClarificationRow,
+      PrefetchHooks Function()
+    >;
+typedef $$RealActionsTableCreateCompanionBuilder =
+    RealActionsCompanion Function({
+      required String id,
+      required String title,
+      Value<String> description,
+      required String category,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$RealActionsTableUpdateCompanionBuilder =
+    RealActionsCompanion Function({
+      Value<String> id,
+      Value<String> title,
+      Value<String> description,
+      Value<String> category,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$RealActionsTableFilterComposer
+    extends Composer<_$AppDatabase, $RealActionsTable> {
+  $$RealActionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RealActionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RealActionsTable> {
+  $$RealActionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RealActionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RealActionsTable> {
+  $$RealActionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$RealActionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RealActionsTable,
+          RealActionRow,
+          $$RealActionsTableFilterComposer,
+          $$RealActionsTableOrderingComposer,
+          $$RealActionsTableAnnotationComposer,
+          $$RealActionsTableCreateCompanionBuilder,
+          $$RealActionsTableUpdateCompanionBuilder,
+          (
+            RealActionRow,
+            BaseReferences<_$AppDatabase, $RealActionsTable, RealActionRow>,
+          ),
+          RealActionRow,
+          PrefetchHooks Function()
+        > {
+  $$RealActionsTableTableManager(_$AppDatabase db, $RealActionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RealActionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RealActionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RealActionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RealActionsCompanion(
+                id: id,
+                title: title,
+                description: description,
+                category: category,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String title,
+                Value<String> description = const Value.absent(),
+                required String category,
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RealActionsCompanion.insert(
+                id: id,
+                title: title,
+                description: description,
+                category: category,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$RealActionsTable, RealActionRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $RealActionsTable,
+                    RealActionRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RealActionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RealActionsTable,
+      RealActionRow,
+      $$RealActionsTableFilterComposer,
+      $$RealActionsTableOrderingComposer,
+      $$RealActionsTableAnnotationComposer,
+      $$RealActionsTableCreateCompanionBuilder,
+      $$RealActionsTableUpdateCompanionBuilder,
+      (
+        RealActionRow,
+        BaseReferences<_$AppDatabase, $RealActionsTable, RealActionRow>,
+      ),
+      RealActionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$AddictionLogsTableCreateCompanionBuilder =
+    AddictionLogsCompanion Function({
+      required String id,
+      required String eventType,
+      Value<int> value,
+      required int createdAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$AddictionLogsTableUpdateCompanionBuilder =
+    AddictionLogsCompanion Function({
+      Value<String> id,
+      Value<String> eventType,
+      Value<int> value,
+      Value<int> createdAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$AddictionLogsTableFilterComposer
+    extends Composer<_$AppDatabase, $AddictionLogsTable> {
+  $$AddictionLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AddictionLogsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AddictionLogsTable> {
+  $$AddictionLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AddictionLogsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AddictionLogsTable> {
+  $$AddictionLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get eventType =>
+      $composableBuilder(column: $table.eventType, builder: (column) => column);
+
+  GeneratedColumn<int> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$AddictionLogsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AddictionLogsTable,
+          AddictionLogRow,
+          $$AddictionLogsTableFilterComposer,
+          $$AddictionLogsTableOrderingComposer,
+          $$AddictionLogsTableAnnotationComposer,
+          $$AddictionLogsTableCreateCompanionBuilder,
+          $$AddictionLogsTableUpdateCompanionBuilder,
+          (
+            AddictionLogRow,
+            BaseReferences<_$AppDatabase, $AddictionLogsTable, AddictionLogRow>,
+          ),
+          AddictionLogRow,
+          PrefetchHooks Function()
+        > {
+  $$AddictionLogsTableTableManager(_$AppDatabase db, $AddictionLogsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AddictionLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AddictionLogsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AddictionLogsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> eventType = const Value.absent(),
+                Value<int> value = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AddictionLogsCompanion(
+                id: id,
+                eventType: eventType,
+                value: value,
+                createdAt: createdAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String eventType,
+                Value<int> value = const Value.absent(),
+                required int createdAt,
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AddictionLogsCompanion.insert(
+                id: id,
+                eventType: eventType,
+                value: value,
+                createdAt: createdAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AddictionLogsTable, AddictionLogRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AddictionLogsTable,
+                    AddictionLogRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AddictionLogsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AddictionLogsTable,
+      AddictionLogRow,
+      $$AddictionLogsTableFilterComposer,
+      $$AddictionLogsTableOrderingComposer,
+      $$AddictionLogsTableAnnotationComposer,
+      $$AddictionLogsTableCreateCompanionBuilder,
+      $$AddictionLogsTableUpdateCompanionBuilder,
+      (
+        AddictionLogRow,
+        BaseReferences<_$AppDatabase, $AddictionLogsTable, AddictionLogRow>,
+      ),
+      AddictionLogRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -13509,4 +15533,10 @@ class $AppDatabaseManager {
       $$PlanEventsTableTableManager(_db, _db.planEvents);
   $$ModelConfigsTableTableManager get modelConfigs =>
       $$ModelConfigsTableTableManager(_db, _db.modelConfigs);
+  $$ValueClarificationsTableTableManager get valueClarifications =>
+      $$ValueClarificationsTableTableManager(_db, _db.valueClarifications);
+  $$RealActionsTableTableManager get realActions =>
+      $$RealActionsTableTableManager(_db, _db.realActions);
+  $$AddictionLogsTableTableManager get addictionLogs =>
+      $$AddictionLogsTableTableManager(_db, _db.addictionLogs);
 }

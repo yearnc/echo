@@ -95,6 +95,28 @@ void main() {
       expect(restored.steps[2].toMode, 'clear');
     });
 
+    test('语音条的时长不会在序列化时丢掉', () {
+      // 曾经丢过：时长只在旧的三幕 JSON 里，转换到 PlanStep 时没有这个字段，
+      // 结果评论区把语音条显示成 0"。
+      const step = PlanStep(
+        at: '11.2',
+        type: PlanStepType.comment,
+        personaId: 'persona_007',
+        mediaType: 'voice',
+        voiceAsset: 'asset:assets/audio/demo_act1_laoke.mp3',
+        transcript: '随手拍的挺有意思的',
+        durationMs: 6400,
+      );
+
+      final restored = PlanStep.fromJson(
+        jsonDecode(jsonEncode(step.toJson())) as Map<String, dynamic>,
+      );
+
+      expect(restored.durationMs, 6400);
+      expect(restored.mediaType, 'voice');
+      expect(restored.voiceAsset, contains('demo_act1_laoke'));
+    });
+
     test('兼容旧脚本的 atMs（毫秒）写法', () {
       final step = PlanStep.fromJson(<String, dynamic>{
         'atMs': 1500,
@@ -123,6 +145,19 @@ void main() {
       expect(
         scripts[2].steps.any((s) => s.type == PlanStepType.analysis),
         isTrue,
+      );
+
+      // 语音条必须带着时长过来，否则评论区显示 0"
+      final voiceSteps = [
+        for (final script in scripts)
+          for (final step in script.steps)
+            if (step.mediaType == 'voice') step,
+      ];
+      expect(voiceSteps, isNotEmpty, reason: '第一幕有一条语音评论');
+      expect(
+        voiceSteps.every((step) => (step.durationMs ?? 0) > 0),
+        isTrue,
+        reason: '时长在转换时丢了，评论区会显示成 0"',
       );
 
       // 拍摄专用装饰不该被带进策划模式
@@ -275,6 +310,33 @@ void main() {
       final notices = await db.select(db.notificationLogs).get();
       expect(notices.length, 2);
       expect(notices.every((n) => n.postId == postId), isTrue);
+    });
+
+    test('语音评论兑现后带上时长', () async {
+      final postId = await posts.create(content: '天空照', scope: 'echo');
+      const script = PlanScript(
+        id: 's_voice',
+        name: '语音',
+        steps: [
+          PlanStep(
+            at: '5',
+            type: PlanStepType.comment,
+            personaId: 'persona_0',
+            mediaType: 'voice',
+            voiceAsset: 'asset:assets/audio/demo.mp3',
+            transcript: '好听',
+            durationMs: 6400,
+          ),
+        ],
+      );
+
+      await scheduler.planFromScript(postId: postId, script: script);
+      await rewindSchedule();
+      await scheduler.flushPlanEvents();
+
+      final rows = await db.select(db.aiInteractions).get();
+      expect(rows.single.voiceDurationMs, 6400);
+      expect(rows.single.mediaType, 'voice');
     });
 
     test('设定数据事件直接把计数设成脚本里的值', () async {

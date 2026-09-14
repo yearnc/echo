@@ -6,6 +6,7 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/clear_journal_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/mode_switch_service.dart';
@@ -78,7 +79,7 @@ class _RebuildGuideBanner extends ConsumerWidget {
   }
 }
 
-/// 清醒模式的"记录"页（规划书 §4 / §5.1）。
+/// 清醒模式的「记录」页（规划书 §4 / §5.1）。
 ///
 /// 与回响模式首页的对照是刻意的：**没有点赞、没有评论、没有热度标签**。
 /// 唯一的数字是"这周真实行动了几次"，而那是用户自己数出来的。
@@ -118,14 +119,14 @@ class RecordsPage extends ConsumerWidget {
             icon: Icons.psychology_alt_outlined,
             title: '价值澄清',
             subtitle: '写下你真正重视的 5 件事',
-            route: RoutePaths.analysis,
+            route: RoutePaths.values,
           ),
           const SizedBox(height: 10),
           const _EntryCard(
             icon: Icons.directions_walk,
             title: '真实行动',
             subtitle: '记录今天做过的一件线下小事',
-            route: RoutePaths.analysis,
+            route: RoutePaths.actions,
           ),
           const SizedBox(height: 20),
           Text(
@@ -153,11 +154,13 @@ class RecordsPage extends ConsumerWidget {
   }
 }
 
-class _WeeklyCard extends StatelessWidget {
+class _WeeklyCard extends ConsumerWidget {
   const _WeeklyCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actionCount = ref.watch(weeklyActionCountProvider).value;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -187,10 +190,12 @@ class _WeeklyCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Row(
-            children: const [
-              _WeeklyStat(value: '4', label: '真实行动'),
-              _WeeklyStat(value: '5', label: '情绪平稳（天）'),
-              _WeeklyStat(value: '0', label: '展示的点赞数'),
+            children: [
+              _WeeklyStat(
+                value: actionCount == null ? '—' : '$actionCount',
+                label: '真实行动',
+              ),
+              const _WeeklyStat(value: '0', label: '展示的点赞数'),
             ],
           ),
           const SizedBox(height: 12),
@@ -254,7 +259,8 @@ class _EntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.go(route),
+      // push 而不是 go：这两页是沉浸式的，退回来还在记录页
+      onTap: () => context.push(route),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(14),
