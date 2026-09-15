@@ -69,6 +69,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
+  # 桌面预览那套窗口图标也一起换，不然只有手机上有新图标很奇怪。
+  # 这一项要写成子配置（不像 android/ios 那样是布尔开关）。
+  windows:
+    generate: true
+    image_path: "assets/icon/icon.png"
+    icon_size: 256
   image_path: "assets/icon/icon.png"
   adaptive_icon_background: "#070410"
   adaptive_icon_foreground: "assets/icon/icon_foreground.png"
