@@ -59,6 +59,23 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.35.0
   build_runner: ^2.16.1
+  flutter_launcher_icons: ^0.14.0
+
+# 应用图标：源文件在 assets/icon/（icon.png 是整块方形图，icon_foreground.png 是
+# 抠好的透明符号）。换图之后跑一句 `dart run flutter_launcher_icons` 就够了。
+#
+# 自适应图标的前景已经按安全区（画布中间的 66.7%）缩到 62% 并居中，
+# 所以这里不再让工具去猜缩放——它只管把两张图摊到各个密度。
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#070410"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  # 工具默认会给前景再套一层 16% 的 inset（它假设给的图是满幅内容）。
+  # 我们的前景已经带着留白，再缩一圈就小了，所以关掉。
+  adaptive_icon_foreground_inset: 0
+  remove_alpha_ios: true
 
 # sqlite3 的构建钩子默认从 GitHub Releases 下载预编译 SQLite 原生库，
 # 但 GitHub 直连在国内超时（HttpException: 信号灯超时时间已到）。
