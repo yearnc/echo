@@ -16,8 +16,8 @@
 
 | # | 项目 | 方案 | 备注 |
 |---|------|------|------|
-| 1 | Flutter SDK | 解压到 `D:\flutter`（从 `storage.flutter-io.cn` 镜像取最新 stable zip） | 不装在 C 盘，省系统盘 |
-| 2 | 环境变量 | `PUB_HOSTED_URL=https://pub.flutter-io.cn`、`FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn`、`PATH` 加 `D:\flutter\bin` | 国内拉包提速关键 |
+| 1 | Flutter SDK | 解压到 `<Flutter 目录>`（从 `storage.flutter-io.cn` 镜像取最新 stable zip） | 不装在 C 盘，省系统盘 |
+| 2 | 环境变量 | `PUB_HOSTED_URL=https://pub.flutter-io.cn`、`FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn`、`PATH` 加 `<Flutter 目录>\bin` | 国内拉包提速关键 |
 | 3 | JDK 17 | 优先用 Android Studio 自带的 JBR；或单独装 Temurin 17 并设 `JAVA_HOME` | `flutter config --jdk-dir` 可指定 |
 | 4 | Android SDK | 装 Android Studio → SDK Manager 勾：platform-tools、platforms;android-35、build-tools;35.x、cmdline-tools | 模拟器可选（真机更稳） |
 | 5 | Gradle 镜像 | `android/settings.gradle.kts` 与 `gradle-wrapper.properties` 换阿里云 maven / 腾讯镜像 | 否则首次构建能卡半小时 |
@@ -80,7 +80,7 @@
 ## 3. 目录结构（feature-first）
 
 ```
-D:\Project\Echo\
+<项目目录>\
 ├─ android\  ios\  windows\   # windows 目标用于桌面预览（手机尺寸窗口）
 ├─ assets\
 │  ├─ personas\personas.json # 12 个预置 AI 住民
@@ -315,7 +315,7 @@ abstract class ObjectiveAnalysisService {
 
 | 里程碑 | 状态 | 完成内容 / 剩余 |
 |---|---|---|
-| **M0 环境** | ✅ 2026-09-11 | Flutter 3.47.3（`D:\flutter`）+ Android SDK 36（`D:\Android\Sdk`）+ NDK r28c；debug APK 构建成功；Windows 桌面预览跑通（需开发者模式）。踩坑详见 [环境搭建备忘](环境搭建备忘.md) |
+| **M0 环境** | ✅ 2026-09-11 | Flutter 3.47.3（`<Flutter 目录>`）+ Android SDK 36（`<Android SDK 目录>`）+ NDK r28c；debug APK 构建成功；Windows 桌面预览跑通（需开发者模式）。踩坑详见 [环境搭建备忘](环境搭建备忘.md) |
 | **M1 骨架** | ✅ 2026-09-11 | 双主题、go_router 双模式导航、Drift **10 张表** + 种子（12 住民 / 14 设置）、合规组件、头像三级兜底；analyze 零问题 |
 | **M2 回响基础** | ✅ 2026-09-11 | PostRepository / InteractionRepository；信息流/详情/评论区/记录页全部订阅数据库；发布页真实落库；图片选完复制进私有目录 |
 | **M3 互动与演示** | ✅ 2026-09-11 | 演示模式三幕（含**拍摄模式**）+ DemoTimeline + 播放器（播放/暂停/单步/重置 + 模式感知配色）<br>**调度器**：发帖即排期（0—48h）+ 冷启动补发 + **前台心跳（每 30 秒）**<br>**通知**：真实数据 + 红点 + 看过即已读 |
@@ -501,7 +501,7 @@ README 和规划书都要求它"固定"，现在挂回骨架。
 
 ## 10. Git 与 GitHub 计划
 
-- `D:\Project\Echo` 初始化 git（`main` 分支），`.gitignore` 用 Flutter 官方模板 + 排除 `*.keystore`、`local.properties`、`google-services.json`
+- `<项目目录>` 初始化 git（`main` 分支），`.gitignore` 用 Flutter 官方模板 + 排除 `*.keystore`、`local.properties`、`google-services.json`
 - **密钥绝不上库**：API Key 只存设备 Keystore，代码里只留 `assets/personas` 等非敏感配置
 - 每个里程碑一个提交，遵循 conventional commits（`feat:` / `fix:` / `chore:` / `test:` / `docs:`）
 - ~~推送私有仓库~~ → **2026-09-11 已开源**：`yearnc/echo`（PUBLIC，分支 `main`）。这是思政课项目，故开源

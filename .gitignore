@@ -64,3 +64,12 @@ key.properties
 # 第三方模型 API Key 只存在设备 Keystore 里，任何 fallback 配置文件都不入库
 *secret*.json
 *credentials*.json
+
+# 打包产物：APK 走 GitHub Release 发布，不进仓库
+*.apk
+*.aab
+*.ipa
+
+# 平台配置文件（Firebase 等），可能带项目标识
+google-services.json
+GoogleService-Info.plist
