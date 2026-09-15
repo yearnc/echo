@@ -131,23 +131,16 @@ void main() {
     });
   });
 
-  group('三幕脚本转成内置策划脚本', () {
-    test('转换后只剩会真实发生的事件，且第三幕复用第一幕的开局内容', () async {
+  group('演示脚本转成内置策划脚本', () {
+    test('转换后只剩会真实发生的事件', () async {
       final scripts = await BuiltinPlanScripts.load();
 
-      expect(scripts.length, 3);
+      expect(scripts.length, 2, reason: '第三幕已下线，内置的只剩前两幕');
       expect(scripts.every((s) => s.isBuiltIn), isTrue);
       expect(
         scripts.first.steps.any((s) => s.type == PlanStepType.comment),
         isTrue,
         reason: '第一幕应该有评论',
-      );
-
-      // 第三幕的关键是"同一张天空照"，所以它的开局内容必须与第一幕一致
-      expect(scripts[2].postContent, scripts[0].postContent);
-      expect(
-        scripts[2].steps.any((s) => s.type == PlanStepType.analysis),
-        isTrue,
       );
 
       // 语音条必须带着时长过来，否则评论区显示 0"
@@ -188,19 +181,6 @@ void main() {
       }
     });
 
-    test('第三幕只剩「展示客观分析」，一个自动互动都没有', () async {
-      final scripts = await BuiltinPlanScripts.load();
-      final third = scripts[2];
-
-      expect(
-        third.steps.map((step) => step.type).toSet(),
-        {PlanStepType.analysis},
-        reason: '第三幕的戏剧内容就是"没有回响"：'
-            '切模式、跳页面、装饰步骤全部丢弃，只留客观分析',
-      );
-      expect(third.postContent, isNotEmpty, reason: '开局内容要能直接填进发布页');
-    });
-
     test('第一幕该有的互动一个不少', () async {
       final scripts = await BuiltinPlanScripts.load();
       final first = scripts.first;
@@ -223,22 +203,47 @@ void main() {
 
     tearDown(() async => db.close());
 
-    test('首次启动播种三个，删掉之后还能恢复', () async {
+    test('首次启动播种内置脚本，删掉之后还能恢复', () async {
       final builtIns = await BuiltinPlanScripts.load();
 
       await repo.seedIfEmpty(builtIns);
-      expect(await repo.count(), 3, reason: '三幕应该都播下去');
+      expect(await repo.count(), 2, reason: '前两幕应该被播下去');
 
       // 内置脚本是可以删的
       await repo.delete(builtIns.first.id);
+      expect(await repo.count(), 1);
+
+      final restored = await repo.restoreBuiltIns(builtIns);
+      expect(restored.written, 1, reason: '补回被删的那个');
       expect(await repo.count(), 2);
 
-      expect(await repo.restoreBuiltIns(builtIns), 1, reason: '补回被删的那个');
-      expect(await repo.count(), 3);
-
       // 都在的时候不该重复插
-      expect(await repo.restoreBuiltIns(builtIns), 0);
-      expect(await repo.count(), 3);
+      expect(await repo.restoreBuiltIns(builtIns), (written: 0, removed: 0));
+      expect(await repo.count(), 2);
+    });
+
+    test('已经下线的内置脚本会被清掉，用户副本不动', () async {
+      final builtIns = await BuiltinPlanScripts.load();
+
+      // 模拟老库：多一条已经不再随版本发布的内置脚本（第三幕）
+      await repo.save(
+        const PlanScript(
+          id: 'builtin_act3',
+          name: '第三幕 · 同一张天空照',
+          isBuiltIn: true,
+        ),
+      );
+      await repo.save(const PlanScript(id: 'script_copy', name: '我复制的第一幕'));
+
+      final result = await repo.restoreBuiltIns(builtIns);
+
+      expect(result.removed, 1, reason: '下线的那个要被清掉');
+      expect(await repo.findById('builtin_act3'), isNull);
+      expect(
+        await repo.findById('script_copy'),
+        isNotNull,
+        reason: '用户自己的脚本不该被碰',
+      );
     });
   });
 

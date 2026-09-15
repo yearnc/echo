@@ -138,12 +138,15 @@ class ActionsPage extends ConsumerWidget {
 }
 
 /// 本周统计：只有一个数字，且不带任何对比。
+///
+/// 数的和记录页周报是同一个数（真实行动 + 发布页写的图文记录）——
+/// 同一件事在哪儿看都该是同一个数字。
 class _WeeklyBanner extends ConsumerWidget {
   const _WeeklyBanner();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(weeklyActionCountProvider).value;
+    final count = ref.watch(weeklyRecordCountProvider).value;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -252,10 +255,7 @@ class _ActionTile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   RelativeTime.format(action.createdAt),
-                  style: TextStyle(
-                    color: ClearColors.textFaint,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: ClearColors.textFaint, fontSize: 11),
                 ),
               ],
             ),

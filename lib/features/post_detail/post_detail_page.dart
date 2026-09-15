@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/mode_controller.dart';
@@ -48,9 +49,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final warning = await guard.evaluate();
     if (warning == null || !mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(warning)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(warning)));
   }
 
   @override
@@ -115,8 +115,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 }
 
-/// 回响模式下评论不是立刻出现的——0—48 小时内随机到达。
-/// 所以空评论区要给一个"还在路上"的说法，而不是"暂无评论"。
+/// 回响模式下评论不是立刻出现的，所以空评论区留一句"还在路上"，而不是"暂无评论"。
+///
+/// 这里此前还写着"反馈会在接下来的 0—48 小时里陆续出现"——那是把调度机制
+/// 念给用户听。画面里该有的是"这个帖子还很安静"，不是一个排期表在报工期。
 class _NoCommentsYet extends StatelessWidget {
   const _NoCommentsYet();
 
@@ -129,7 +131,7 @@ class _NoCommentsYet extends StatelessWidget {
           Icon(Icons.hourglass_empty, size: 22, color: EchoColors.textFaint),
           SizedBox(height: 10),
           Text(
-            '还没有人路过这里。\n反馈会在接下来的 0—48 小时里陆续出现。',
+            '还没有人路过这里。',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: EchoColors.textFaint,
@@ -176,20 +178,25 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _PostBody extends StatelessWidget {
+class _PostBody extends ConsumerWidget {
   const _PostBody({required this.post});
 
   final Post post;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 帖子都是本机用户发的，昵称头像跟着资料页走
+    final me = ref.watch(userProfileProvider).value;
+    final myName = me?.displayName ?? AppTexts.defaultNickname;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const UserAvatar(
-              name: AppTexts.defaultNickname,
+            UserAvatar(
+              name: myName,
+              avatarRef: me?.avatarOrNull,
               size: 40,
               showRing: true,
             ),
@@ -198,7 +205,7 @@ class _PostBody extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  AppTexts.defaultNickname,
+                  myName,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: EchoColors.text,
                     fontWeight: FontWeight.w600,

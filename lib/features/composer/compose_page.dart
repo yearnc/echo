@@ -325,11 +325,8 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            isEcho
-                ? (script == null ? '已发布。反馈会在 0—48 小时内陆续出现。' : '已发布。脚本开始运行了。')
-                : '已记录。',
-          ),
+          // 只说"发布成功"就够了：反馈什么时候来是机制，不是用户此刻需要读的东西
+          content: Text(isEcho ? '发布成功' : '已记录。'),
         ),
       );
       context.go(isEcho ? RoutePaths.feed : RoutePaths.records);

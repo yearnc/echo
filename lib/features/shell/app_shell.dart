@@ -65,13 +65,22 @@ class AppShell extends ConsumerWidget {
       });
     }
 
+    // 上边这一圈要留给系统状态栏。Android 15 起 edge-to-edge 是强制的，
+    // 页面内容会直接画到状态栏底下（实测：首页顶部那行字和状态栏叠在一起）。
+    // 底边不留：那是 bottomNavigationBar 自己那个 SafeArea 的活儿。
     return Scaffold(
-      body: Column(
-        children: [
-          // 清醒模式的永久提示必须在最上方且不可关闭
-          if (mode.isClear) const PermanentNoticeBanner(),
-          Expanded(child: child),
-        ],
+      backgroundColor: EchoColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // 清醒模式的永久提示必须在最上方且不可关闭
+            if (mode.isClear) const PermanentNoticeBanner(),
+            Expanded(child: child),
+            // 回响模式的合规小字同样固定挂在这一层：页面滚到哪它都在
+            if (mode.isEcho) const AiDisclaimerBar(),
+          ],
+        ),
       ),
       bottomNavigationBar: _BottomBar(
         tabs: tabs,
@@ -221,12 +230,15 @@ class ComplianceFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (mode.isClear) const PermanentNoticeBanner(),
-        Expanded(child: child),
-        if (mode.isEcho) const AiDisclaimerBar(),
-      ],
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          if (mode.isClear) const PermanentNoticeBanner(),
+          Expanded(child: child),
+          if (mode.isEcho) const AiDisclaimerBar(),
+        ],
+      ),
     );
   }
 }

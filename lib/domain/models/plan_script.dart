@@ -7,7 +7,9 @@ import 'dart:math';
 /// `ai_interactions` 的排期；之后就像普通帖子一样被调度器逐条兑现。
 /// 所以屏幕上没有任何"演示 UI"，帖子本身就是一条普通帖子。
 ///
-/// 三个内置脚本由 `assets/demo/act1~3.json` 转换而来（三幕脚本资产不浪费）。
+/// 内置脚本由 `assets/demo/act1~2.json` 转换而来（原来的三幕资产不浪费）。
+/// 第三幕已下线：它唯一的动作（展示客观分析）没有页面读，
+/// 而清醒模式发帖本来就不排期——那一幕不需要脚本。
 class PlanScript {
   const PlanScript({
     required this.id,
@@ -24,8 +26,8 @@ class PlanScript {
   final String id;
   final String name;
 
-  /// 内置脚本（三幕转来的）。内置脚本也能改、能复制，只是不允许删除，
-  /// 免得用户手滑之后再也找不回三幕。
+  /// 内置脚本（前两幕转来的）。能改、能复制、也能删——
+  /// 删掉之后脚本页的「重置内置脚本」会把出厂版本补回来，所以删除不该有心理负担。
   final bool isBuiltIn;
 
   /// 开局内容：勾选脚本时填进发布页的正文，用户还能改。
@@ -99,8 +101,8 @@ class PlanScript {
 /// 不跳页面、不代替用户点任何按钮。
 ///
 /// 明确的边界：切到清醒模式、去看客观分析、去做价值澄清，这些在拍摄时
-/// 都由人手动完成。它们本来就该是真实操作——脚本代劳的话，第三幕
-/// "觉醒"这个动作就也变成演的了，那正是这部片子要戳破的东西。
+/// 都由人手动完成。它们本来就该是真实操作——脚本代劳的话，"觉醒"
+/// 这个动作也就成了演的，而那正是这部片子要戳破的东西。
 abstract final class PlanStepType {
   /// 一批点赞（delta 个）
   static const String likeBurst = 'like_burst';
@@ -111,7 +113,10 @@ abstract final class PlanStepType {
   /// 把赞数/评论数直接设成某个值（营造"这条帖子已经火了"的开局）
   static const String stats = 'stats';
 
-  /// 展示客观分析（清醒模式的内容，只提供素材，不改变任何状态）
+  /// 展示客观分析（清醒模式的内容，只提供素材，不改变任何状态）。
+  ///
+  /// 注意：当前**没有任何页面读它**——清醒模式的客观分析由分析页直接给出。
+  /// 留着这个类型是为了阶段 B 接真实模型时用，别指望它现在能改变画面。
   static const String analysis = 'analysis';
 
   static const List<String> all = [likeBurst, comment, stats, analysis];

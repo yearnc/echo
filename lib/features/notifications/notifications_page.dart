@@ -140,8 +140,10 @@ class _EmptyNotifications extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
+          // 只说这一页是干什么的，不说互动什么时候来——
+          // "0—48 小时"是调度机制，不该出现在用户眼前（同帖子详情空评论区）
           Text(
-            '互动会在 0—48 小时内陆续出现',
+            '有人回应你的时候，这里会有提示',
             style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
           ),
         ],

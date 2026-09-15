@@ -42,10 +42,11 @@ void main() {
 
       await journal.reorderValues([third, first, second]);
 
-      expect(
-        (await journal.listValues()).map((item) => item.content),
-        ['第三条', '第一条', '第二条'],
-      );
+      expect((await journal.listValues()).map((item) => item.content), [
+        '第三条',
+        '第一条',
+        '第二条',
+      ]);
     });
 
     test('修改内容不会打乱顺序', () async {
@@ -69,11 +70,10 @@ void main() {
 
       final items = await journal.listValues();
       expect(items.map((item) => item.content), ['A', 'C']);
-      expect(
-        items.map((item) => item.sortOrder),
-        [0, 1],
-        reason: '空洞会让上移/下移的下标计算出错',
-      );
+      expect(items.map((item) => item.sortOrder), [
+        0,
+        1,
+      ], reason: '空洞会让上移/下移的下标计算出错');
     });
 
     test('软删除的条目不会出现在订阅流里', () async {
@@ -123,38 +123,18 @@ void main() {
       expect(actions.single.category, RealActionCategory.other);
     });
 
-    test('软删除后不再出现，也不再计入数量', () async {
+    test('软删除后不再出现，但行还留在库里', () async {
       final id = await journal.addAction(title: '要被删的');
-
-      expect(await journal.countActionsSince(0), 1);
       await journal.deleteAction(id);
 
       expect(await journal.watchActions().first, isEmpty);
-      expect(await journal.countActionsSince(0), 0);
-    });
 
-    test('countActionsSince 只数窗口内记下的', () async {
-      // 直接插一条"很久以前"的记录，绕过 addAction 的当前时间戳
-      await db
-          .into(db.realActions)
-          .insert(
-            RealActionsCompanion.insert(
-              id: 'action_old',
-              title: '上个月做的',
-              category: 'other',
-              createdAt: DateTime.now()
-                  .subtract(const Duration(days: 40))
-                  .millisecondsSinceEpoch,
-            ),
-          );
-      await journal.addAction(title: '今天做的');
-
-      final weekAgo = DateTime.now()
-          .subtract(const Duration(days: 7))
-          .millisecondsSinceEpoch;
-
-      expect(await journal.countActionsSince(weekAgo), 1);
-      expect(await journal.countActionsSince(0), 2);
+      // 软删除是刻意的：周报要统计"这周记了几件"，硬删除会让已经算过的数
+      // 在下次打开时变小——那比数字本身更可疑。
+      final row = await (db.select(
+        db.realActions,
+      )..where((t) => t.id.equals(id))).getSingle();
+      expect(row.deletedAt, isNotNull);
     });
   });
 }

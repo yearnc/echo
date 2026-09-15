@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
@@ -107,9 +108,21 @@ class _EchoAppState extends ConsumerState<EchoApp> {
       builder: (context, child) {
         // 固定文字缩放，避免系统大字体把信息流卡片挤变形
         final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(textScaler: TextScaler.noScaling),
-          child: child ?? const SizedBox.shrink(),
+        // 状态栏 / 手势条也是画面的一部分：深色底配浅色图标，浅色底配深色图标。
+        // 不显式指定的话，Android 会按**系统**主题给图标着色——
+        // 回响模式（深色）碰上系统浅色时，图标会糊在背景里看不见。
+        final overlay = isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlay.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: Colors.transparent,
+          ),
+          child: MediaQuery(
+            data: media.copyWith(textScaler: TextScaler.noScaling),
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

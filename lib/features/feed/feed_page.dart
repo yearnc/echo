@@ -9,6 +9,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -126,6 +127,9 @@ class _PostCard extends ConsumerWidget {
             .take(3)
             .map((comment) => comment.personaId)
             .toList(growable: false);
+    // 发帖人就是本机用户，昵称头像跟着资料页走
+    final me = ref.watch(userProfileProvider).value;
+    final myName = me?.displayName ?? AppTexts.defaultNickname;
 
     return GestureDetector(
       onTap: () => context.push(RoutePaths.post(post.id)),
@@ -141,8 +145,9 @@ class _PostCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const UserAvatar(
-                  name: AppTexts.defaultNickname,
+                UserAvatar(
+                  name: myName,
+                  avatarRef: me?.avatarOrNull,
                   size: 38,
                   showRing: true,
                 ),
@@ -152,7 +157,7 @@ class _PostCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        AppTexts.defaultNickname,
+                        myName,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: EchoColors.text,
                           fontWeight: FontWeight.w600,

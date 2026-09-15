@@ -72,18 +72,29 @@ class PlanScriptRepository {
     await _insertAll(scripts);
   }
 
-  /// 把内置脚本还原成出厂版本。
+  /// 把内置脚本同步回出厂状态。
   ///
-  /// 做两件事：补回被删掉的，以及**刷新与出厂版本不一致的**——
-  /// 后者是必要的：脚本定义会随着功能一起长（比如第三幕后来多了
-  /// 「打开价值澄清」这类事件），已经播种过的库不会自动拿到新版本。
+  /// 做三件事：补回被删掉的、**刷新与出厂版本不一致的**、以及
+  /// **清掉已经下线的**。
   ///
-  /// 用户自己复制出来的副本不受影响——想保留对三幕的改动，就该先复制一份。
-  /// 返回写入的条数。
-  Future<int> restoreBuiltIns(List<PlanScript> builtIns) async {
+  /// 前两件是必要的：脚本定义会随着功能一起长，已经播种过的库不会自动更新。
+  /// 第三件同样是必要的：内置脚本的**集合**本身会变——第三幕已经取消
+  /// （它唯一的动作没有页面读，且清醒模式发帖本来就不排期），
+  /// 老库里那一行不会自己消失，不清理就会永远留一个点了没反应的死脚本。
+  ///
+  /// 用户自己复制出来的副本不受影响——想保留改动，就该先复制一份。
+  Future<({int written, int removed})> restoreBuiltIns(
+    List<PlanScript> builtIns,
+  ) async {
     final existing = {
       for (final row in await _db.select(_db.planScripts).get()) row.id: row,
     };
+
+    final shippedIds = {for (final script in builtIns) script.id};
+    final retiredIds = [
+      for (final row in existing.values)
+        if (row.isBuiltIn && !shippedIds.contains(row.id)) row.id,
+    ];
 
     final toWrite = <PlanScript>[];
     for (final script in builtIns) {
@@ -98,10 +109,15 @@ class PlanScriptRepository {
           row.name != script.name;
       if (changed) toWrite.add(script);
     }
-    if (toWrite.isEmpty) return 0;
 
-    await _insertAll(toWrite);
-    return toWrite.length;
+    if (toWrite.isNotEmpty) await _insertAll(toWrite);
+    if (retiredIds.isNotEmpty) {
+      await (_db.delete(
+        _db.planScripts,
+      )..where((t) => t.id.isIn(retiredIds))).go();
+    }
+
+    return (written: toWrite.length, removed: retiredIds.length);
   }
 
   Future<void> _insertAll(List<PlanScript> scripts) async {

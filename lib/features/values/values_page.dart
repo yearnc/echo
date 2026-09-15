@@ -93,16 +93,17 @@ class ValuesPage extends ConsumerWidget {
   Future<void> _add(BuildContext context, WidgetRef ref) async {
     final content = await showDialog<String>(
       context: context,
-      builder: (_) => const _TextInputDialog(
-        title: '重视的一件事',
-        hint: '比如：家人的健康',
-      ),
+      builder: (_) => const _TextInputDialog(title: '重视的一件事', hint: '比如：家人的健康'),
     );
     if (content == null || content.trim().isEmpty) return;
     await ref.read(clearJournalRepositoryProvider).addValue(content);
   }
 
-  Future<void> _edit(BuildContext context, WidgetRef ref, ValueItem item) async {
+  Future<void> _edit(
+    BuildContext context,
+    WidgetRef ref,
+    ValueItem item,
+  ) async {
     final content = await showDialog<String>(
       context: context,
       builder: (_) => _TextInputDialog(
@@ -157,10 +158,7 @@ class ValuesPage extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              '取消',
-              style: TextStyle(color: ClearColors.textMuted),
-            ),
+            child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -198,8 +196,7 @@ class _Intro extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '只能写 ${ValuesPage.maxItems} 件，所以必须取舍——这才是这个练习的意义，'
-            '不是收集愿望，是排序。\n'
+            '只能写 ${ValuesPage.maxItems} 件，所以必须取舍——不是收集愿望，是排序。\n'
             '这份清单不参加任何评比，也不会有人为它点赞。',
             style: TextStyle(
               color: ClearColors.textMuted,

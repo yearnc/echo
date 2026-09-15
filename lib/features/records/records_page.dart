@@ -8,8 +8,11 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/clear_journal_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../domain/models/clear_journal.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/mode_switch_service.dart';
+import '../../domain/services/record_timeline.dart';
+import '../shared_widgets/post_image.dart';
 
 /// 是否该显示一次"重建引导"（切到清醒模式之后）。
 final rebuildGuideProvider = FutureProvider.autoDispose<bool>(
@@ -82,14 +85,21 @@ class _RebuildGuideBanner extends ConsumerWidget {
 /// 清醒模式的「记录」页（规划书 §4 / §5.1）。
 ///
 /// 与回响模式首页的对照是刻意的：**没有点赞、没有评论、没有热度标签**。
-/// 唯一的数字是"这周真实行动了几次"，而那是用户自己数出来的。
+/// 唯一的数字是"这周记了几件"，而那是用户自己数出来的。
+///
+/// 「最近」是**一条时间线**：发布页写下的图文记录，和真实行动页打下的点，
+/// 合成同一条往下走。它们本来就是同一件事的两种记法——一个能配图、成段，
+/// 一个带分类、够快——分成两个列表只让人觉得"功能散了"（2026-09-15 实测反馈）。
 class RecordsPage extends ConsumerWidget {
   const RecordsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final recordsAsync = ref.watch(feedPostsProvider('clear'));
-    final records = recordsAsync.value ?? const <Post>[];
+    final records =
+        ref.watch(feedPostsProvider('clear')).value ?? const <Post>[];
+    final actions =
+        ref.watch(realActionsProvider).value ?? const <RealAction>[];
+    final entries = buildTimeline(posts: records, actions: actions);
     final showRebuildGuide = ref.watch(rebuildGuideProvider).value ?? false;
 
     return Container(
@@ -137,7 +147,7 @@ class RecordsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 10),
-          if (records.isEmpty)
+          if (entries.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Text(
@@ -147,7 +157,7 @@ class RecordsPage extends ConsumerWidget {
               ),
             )
           else
-            for (final record in records) _RecordTile(record: record),
+            for (final entry in entries) _EntryTile(entry: entry),
         ],
       ),
     );
@@ -159,7 +169,7 @@ class _WeeklyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final actionCount = ref.watch(weeklyActionCountProvider).value;
+    final actionCount = ref.watch(weeklyRecordCountProvider).value;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -193,9 +203,9 @@ class _WeeklyCard extends ConsumerWidget {
             children: [
               _WeeklyStat(
                 value: actionCount == null ? '—' : '$actionCount',
-                label: '真实行动',
+                // 两种记法一起数，所以标签不能再写"真实行动"——那是其中一个入口的名字
+                label: '件你亲手记下的',
               ),
-              const _WeeklyStat(value: '0', label: '展示的点赞数'),
             ],
           ),
           const SizedBox(height: 12),
@@ -303,13 +313,16 @@ class _EntryCard extends StatelessWidget {
   }
 }
 
-class _RecordTile extends StatelessWidget {
-  const _RecordTile({required this.record});
+/// 时间线上的一条。两种记法在这里长得一样，只有分类标签和图片会区分它们。
+class _EntryTile extends StatelessWidget {
+  const _EntryTile({required this.entry});
 
-  final Post record;
+  final TimelineEntry entry;
 
   @override
   Widget build(BuildContext context) {
+    final category = entry.category;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -321,14 +334,43 @@ class _RecordTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (category != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: ClearColors.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                category,
+                style: TextStyle(color: ClearColors.accent, fontSize: 10.5),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
-            record.content,
+            entry.text,
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: ClearColors.text),
           ),
+          if (entry.detail.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              entry.detail,
+              style: TextStyle(
+                color: ClearColors.textMuted,
+                fontSize: 12.5,
+                height: 1.6,
+              ),
+            ),
+          ],
+          if (entry.images.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            PostImage(ref: entry.images.first, height: 180),
+          ],
           const SizedBox(height: 8),
           Text(
-            RelativeTime.format(record.createdAt),
+            RelativeTime.format(entry.at),
             style: TextStyle(color: ClearColors.textFaint, fontSize: 11),
           ),
         ],

@@ -9,6 +9,7 @@ import '../../features/models/models_page.dart';
 import '../../features/notifications/notifications_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
 import '../../features/post_detail/post_detail_page.dart';
+import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
 import '../../features/safety/safety_page.dart';
@@ -49,6 +50,9 @@ class RoutePaths {
 
   /// 头像与表情包管理。
   static const String stickers = '/settings/stickers';
+
+  /// 编辑我的资料（昵称 / 头像）。
+  static const String profileEdit = '/settings/profile';
 
   static String post(String id) => '/post/$id';
 
@@ -126,6 +130,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.stickers,
       builder: (context, state) => const StickersPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.profileEdit,
+      builder: (context, state) => const ProfileEditPage(),
     ),
     GoRoute(
       path: RoutePaths.scripts,

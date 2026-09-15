@@ -6,6 +6,7 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 「我的」页：个人资料 + 模式管理入口。
@@ -40,25 +41,55 @@ class _ProfileHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 统计是真查出来的——个人主页上摆四个写死的数字，拍进镜头就露馅了。
     final stats = ref.watch(profileStatsProvider).value;
+    // 昵称与头像来自 `user_profile` 单行表：改一次，首页、详情页、这里一起变。
+    final profile = ref.watch(userProfileProvider).value;
+    final nickname = profile?.displayName ?? AppTexts.defaultNickname;
 
     return Column(
       children: [
-        const UserAvatar(
-          name: AppTexts.defaultNickname,
-          size: 72,
-          showRing: true,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          AppTexts.defaultNickname,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(color: EchoColors.text, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '仅存于这台设备',
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: EchoColors.textMuted),
+        // 点头像或名字就能改资料——不额外摆一个"编辑"按钮，
+        // 但旁边留一支小铅笔，让人知道这里点得动
+        InkWell(
+          onTap: () => context.push(RoutePaths.profileEdit),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Column(
+              children: [
+                UserAvatar(
+                  name: nickname,
+                  avatarRef: profile?.avatarOrNull,
+                  size: 72,
+                  showRing: true,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      nickname,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: EchoColors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 15,
+                      color: EchoColors.textFaint,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '仅存于这台设备',
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: EchoColors.textMuted),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 14),
         Row(

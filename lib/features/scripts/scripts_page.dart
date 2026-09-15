@@ -79,7 +79,10 @@ class ScriptsPage extends ConsumerWidget {
   /// 内置脚本删了也能找回来——所以删除不该有心理负担。
   ///
   /// 顺带把改动过的内置脚本刷新回出厂版本：脚本定义会随功能一起长，
-  /// 老库里那份不会自己更新。自己复制的副本不受影响，所以先弹一次确认。
+  /// 老库里那份不会自己更新。已经下线的内置脚本（比如第三幕）也会在这一步
+  /// 被清掉，所以这是一次真删，先弹确认说清楚。
+  ///
+  /// 自己复制的副本不受影响。
   Future<void> _restoreBuiltIns(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -90,8 +93,8 @@ class ScriptsPage extends ConsumerWidget {
           style: TextStyle(color: EchoColors.text, fontSize: 15),
         ),
         content: Text(
-          '三个内置脚本会被还原成出厂版本（包括你直接改过的内容）。\n'
-          '你自己复制出来的副本不受影响。',
+          '内置脚本会被还原成出厂版本（包括你直接改过的内容）。\n'
+          '已经下线的内置脚本会一起清掉；你自己复制出来的副本不受影响。',
           style: TextStyle(
             color: EchoColors.textMuted,
             fontSize: 13,
@@ -113,16 +116,22 @@ class ScriptsPage extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     final builtIns = await BuiltinPlanScripts.load();
-    final restored = await ref
+    final result = await ref
         .read(planScriptRepositoryProvider)
         .restoreBuiltIns(builtIns);
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(restored == 0 ? '内置脚本已是最新，没有要动的' : '已重置 $restored 个内置脚本'),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(_restoreMessage(result))));
+  }
+
+  /// 报"动了什么"而不是"做完了"：刷新了几个、下线了几个，一眼能对上。
+  static String _restoreMessage(({int written, int removed}) result) {
+    final parts = [
+      if (result.written > 0) '刷新 ${result.written} 个',
+      if (result.removed > 0) '下线 ${result.removed} 个',
+    ];
+    return parts.isEmpty ? '内置脚本已是最新，没有要动的' : '内置脚本：${parts.join('、')}';
   }
 }
 

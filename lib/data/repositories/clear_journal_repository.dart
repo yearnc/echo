@@ -4,8 +4,10 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/clear_journal.dart';
+import '../../domain/services/record_timeline.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
+import 'post_repository.dart';
 
 /// 清醒模式的读写：价值澄清 + 真实行动（规划书 §4）。
 ///
@@ -60,22 +62,19 @@ class ClearJournalRepository {
   }
 
   Future<void> updateValueContent(String id, String content) async {
-    await (_db.update(
-      _db.valueClarifications,
-    )..where((t) => t.id.equals(id))).write(
-      ValueClarificationsCompanion(content: Value(content.trim())),
-    );
+    await (_db.update(_db.valueClarifications)..where((t) => t.id.equals(id)))
+        .write(ValueClarificationsCompanion(content: Value(content.trim())));
   }
 
   /// 软删除，并把后面的条目往前挪，免得 sortOrder 出现空洞。
   Future<void> deleteValue(String id) async {
-    await (_db.update(_db.valueClarifications)
-          ..where((t) => t.id.equals(id)))
-        .write(
-          ValueClarificationsCompanion(
-            deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+    await (_db.update(
+      _db.valueClarifications,
+    )..where((t) => t.id.equals(id))).write(
+      ValueClarificationsCompanion(
+        deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
     await _normalizeValueOrder();
   }
 
@@ -144,19 +143,6 @@ class ClearJournalRepository {
     );
   }
 
-  /// 某个时间点之后记了几条（周报用）。
-  Future<int> countActionsSince(int sinceMs) async {
-    final count = _db.realActions.id.count();
-    final query = _db.selectOnly(_db.realActions)
-      ..addColumns([count])
-      ..where(
-        _db.realActions.deletedAt.isNull() &
-            _db.realActions.createdAt.isBiggerOrEqualValue(sinceMs),
-      );
-    final row = await query.getSingle();
-    return row.read(count) ?? 0;
-  }
-
   RealAction _toRealAction(RealActionRow row) => RealAction(
     id: row.id,
     title: row.title,
@@ -189,14 +175,20 @@ final realActionsProvider = StreamProvider<List<RealAction>>(
   (ref) => ref.watch(clearJournalRepositoryProvider).watchActions(),
 );
 
-/// 最近 7 天记了几件真实行动。
+/// 最近 7 天"记下的"条数：真实行动 + 发布页写的图文记录。
 ///
-/// 订阅列表本身，所以新增/删除后这个数会跟着重算——
+/// 之前只数真实行动那一半，而记录页的「最近」只显示发布页那一半，
+/// 两个数字像在两个世界里。它们本来就是同一件事的两种记法（见 [buildTimeline]），
+/// 所以一起数、一起显示。
+///
+/// 订阅两个数据源本身，所以新增/删除后这个数会跟着重算——
 /// 不能让用户删了一条记录、数字却还停在旧值。
-final weeklyActionCountProvider = FutureProvider.autoDispose<int>((ref) async {
-  ref.watch(realActionsProvider);
-  final since = DateTime.now()
-      .subtract(const Duration(days: 7))
-      .millisecondsSinceEpoch;
-  return ref.watch(clearJournalRepositoryProvider).countActionsSince(since);
+final weeklyRecordCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  final posts = await ref.watch(feedPostsProvider('clear').future);
+  final actions = await ref.watch(realActionsProvider.future);
+  final since = DateTime.now().subtract(const Duration(days: 7));
+  return countEntriesSince(
+    buildTimeline(posts: posts, actions: actions),
+    since,
+  );
 });

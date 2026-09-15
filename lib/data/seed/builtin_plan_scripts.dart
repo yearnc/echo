@@ -4,27 +4,30 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../../domain/models/plan_script.dart';
 
-/// 把原来的三幕演示脚本（`assets/demo/act1~3.json`）转成策划脚本。
+/// 把原来的演示脚本（`assets/demo/act1~2.json`）转成策划脚本。
 ///
 /// 只保留**属于这条帖子的**事件：评论、点赞、设定计数，以及清醒模式要用的
 /// 客观分析。其余一律丢弃——包括切模式、跳页面这两类。
 ///
 /// 原因见 `PlanStepType` 的注释：策划模式只安排"这条帖子会收到什么回应"，
-/// 不操控 APP 的其他状态。所以第三幕的"切到清醒模式""打开价值澄清"
-/// 现在都靠人手动完成——那几步本来就该是真实操作。
+/// 不操控 APP 的其他状态。所以"切到清醒模式""打开价值澄清"这几步，
+/// 现在都靠人手动完成——它们本来就该是真实操作。
 ///
 /// 幕标题、解说字幕、进度条、引导卡这些**拍摄专用装饰**同样丢弃：
 /// 策划模式下画面里就是 APP 本身，没有舞台。
 ///
-/// 第三幕的 `postRef: act1` 在这里被展开成第一幕的开局内容：
-/// "同一张照片"是那一幕的关键，所以它必须能直接填进发布页。
+/// **第三幕已经不在内置脚本里了**（2026-09-15 去掉）：它唯一的动作是
+/// "展示客观分析"，而清醒模式的客观分析由分析页直接给出、根本不读策划事件，
+/// 于是它成了一个点了没反应的脚本。更要紧的是第三幕本来就不需要脚本——
+/// 在清醒模式发帖不会排任何互动，"零个自动回应"是模式自带的，
+/// 而清醒模式的发布页也没有策划模式入口。它原本的 `postRef: act1`
+/// （同一张天空照）也跟着一起退休：拍摄时手动发同一张照片即可。
 class BuiltinPlanScripts {
   const BuiltinPlanScripts._();
 
   static const List<String> _assets = [
     'assets/demo/act1.json',
     'assets/demo/act2.json',
-    'assets/demo/act3.json',
   ];
 
   static const Set<String> _keptTypes = {
@@ -37,8 +40,6 @@ class BuiltinPlanScripts {
   static const Map<String, String> _names = {
     'act1': '第一幕 · 天空照',
     'act2': '第二幕 · 深夜垃圾桶',
-    // 名字里不再提"切清醒模式"——那一步现在由人在拍摄时手动做
-    'act3': '第三幕 · 同一张天空照',
   };
 
   static Future<List<PlanScript>> load() async {
@@ -48,24 +49,12 @@ class BuiltinPlanScripts {
       raws.add(jsonDecode(raw) as Map<String, dynamic>);
     }
 
-    // 先收集每一幕自己的帖子，供 postRef 展开用
-    final postByAct = <String, Map<String, dynamic>>{};
-    for (final raw in raws) {
-      final post = raw['post'] as Map<String, dynamic>?;
-      if (post != null) postByAct[raw['id'] as String] = post;
-    }
-
-    return raws.map((raw) => _convert(raw, postByAct)).toList(growable: false);
+    return raws.map(_convert).toList(growable: false);
   }
 
-  static PlanScript _convert(
-    Map<String, dynamic> raw,
-    Map<String, Map<String, dynamic>> postByAct,
-  ) {
+  static PlanScript _convert(Map<String, dynamic> raw) {
     final actId = raw['id'] as String? ?? 'act';
-    final ownPost = raw['post'] as Map<String, dynamic>?;
-    final refId = raw['postRef'] as String?;
-    final post = ownPost ?? (refId == null ? null : postByAct[refId]);
+    final post = raw['post'] as Map<String, dynamic>?;
 
     final rawSteps = [
       ...(raw['preSteps'] as List<dynamic>? ?? const []),
