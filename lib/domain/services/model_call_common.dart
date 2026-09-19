@@ -1,0 +1,71 @@
+import 'package:dio/dio.dart';
+
+/// 模型调用的公共小工具。
+///
+/// 探测（`ModelProbe`）与业务调用（`ModelGateway`）打的是同一个接口、
+/// 撞的是同一批错误码。这些函数只留一份——同一个毛病的说法在两个地方
+/// 不一样，用户会以为是两个问题。
+
+/// 去掉地址末尾的斜杠，好拼 `/chat/completions`。
+String normalizeBaseUrl(String baseUrl) {
+  final trimmed = baseUrl.trim();
+  return trimmed.endsWith('/')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
+}
+
+/// 除了本机与内网，一律要求 https。
+///
+/// 明文 http 会让 API Key 在网络上一路可见，而"从网上抄来的免费中转地址"
+/// 恰恰是这类配置最容易出现的地方。本机与内网放行——那是用户自己跑的服务，
+/// 请求出不了他自己的局域网。
+bool isSecureBaseUrl(String baseUrl) {
+  if (baseUrl.startsWith('https://')) return true;
+
+  final host = Uri.tryParse(baseUrl)?.host ?? '';
+  if (host == 'localhost' || host == '127.0.0.1' || host == '::1') return true;
+  if (host.startsWith('192.168.') || host.startsWith('10.')) return true;
+  if (host.startsWith('172.')) {
+    final second = int.tryParse(host.split('.').elementAt(1));
+    return second != null && second >= 16 && second <= 31;
+  }
+  return false;
+}
+
+/// 把 dio 的错误翻译成用户看得懂的中文。
+String describeModelError(DioException error) {
+  final status = error.response?.statusCode;
+  if (status == 401 || status == 403) {
+    return '密钥被拒绝了（HTTP $status），检查一下 API Key';
+  }
+  if (status == 404) return '地址不对（HTTP 404），检查 base url 和模型名';
+  if (status == 429) return '请求太频繁，或者额度用完了（HTTP 429）';
+  if (status != null) {
+    // 刻意不回显对方返回的正文。第三方端点里返回什么由不得我们，
+    // 而有些中转服务会把请求头原样回显——那里面正带着 API Key。
+    return '对方返回了 HTTP $status，检查一下服务商状态或稍后再试';
+  }
+  return switch (error.type) {
+    DioExceptionType.connectionTimeout => '连接超时，检查网络或代理',
+    DioExceptionType.receiveTimeout => '对方太久没回，可能太慢',
+    DioExceptionType.connectionError => '连不上这个地址，检查网络',
+    _ => error.message ?? '请求失败',
+  };
+}
+
+/// 从 OpenAI 兼容的响应里取出助手的第一条回复文本。
+///
+/// 各家的返回大同小异，但"choices 为空""content 不是字符串"（比如被内容过滤
+/// 截断）都真实存在，所以这里宁可返回 null 也不抛。
+String? extractAssistantContent(Map<String, dynamic>? data) {
+  final choices = data?['choices'];
+  if (choices is! List || choices.isEmpty) return null;
+  final first = choices.first;
+  if (first is! Map) return null;
+  final message = first['message'];
+  if (message is Map) {
+    final content = message['content'];
+    if (content is String && content.trim().isNotEmpty) return content.trim();
+  }
+  return null;
+}

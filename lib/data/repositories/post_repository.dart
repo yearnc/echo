@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,33 @@ class PostRepository {
     if (scope != null) {
       query.where((t) => t.scope.equals(scope));
     }
+
+    return query.watch().map((rows) => rows.map(_toDomain).toList());
+  }
+
+  /// 一批帖子各自是谁发的（只返回住民发的那些）。
+  ///
+  /// 调度器兑现互动时要靠它分出"这是你的帖子"和"这是别人的帖子"——
+  /// 别人的帖子下面来人了，没有理由通知你。
+  Future<Map<String, String>> residentAuthorsOf(Set<String> postIds) async {
+    if (postIds.isEmpty) return const {};
+
+    final query = _db.select(_db.posts)
+      ..where((t) => t.id.isIn(postIds) & t.authorPersonaId.isNotNull());
+
+    final rows = await query.get();
+    // 查询已经过滤掉作者为空的帖子，这里的 `?` 只是把"理论上仍可能为 null"
+    // 表达出来，不该出现的条目会被直接丢掉
+    return {for (final row in rows) row.id: ?row.authorPersonaId};
+  }
+
+  /// 某个住民自己发的动态（住民主页用）。
+  Stream<List<Post>> watchByAuthor(String personaId) {
+    final query = _db.select(_db.posts)
+      ..where(
+        (t) => t.authorPersonaId.equals(personaId) & t.deletedAt.isNull(),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
 
     return query.watch().map((rows) => rows.map(_toDomain).toList());
   }
@@ -75,6 +103,62 @@ class PostRepository {
           ),
         );
     return id;
+  }
+
+  /// 住民自己发的动态（B3）。
+  ///
+  /// 跟用户发帖分开走，有两个原因：它不该带发布页那套参数（回复密度、
+  /// 拟人程度是用户给自己帖子调的旋钮）；而且它的时间**可以是过去**——
+  /// 世界 tick 要补上"用户没开 APP 的那几个小时里社区发生了什么"。
+  Future<String> createResidentPost({
+    required String personaId,
+    required String content,
+    DateTime? createdAt,
+    String? topicName,
+  }) async {
+    final id = _newId();
+    final at = (createdAt ?? DateTime.now()).millisecondsSinceEpoch;
+
+    await _db
+        .into(_db.posts)
+        .insert(
+          PostsCompanion.insert(
+            id: id,
+            content: Value(content),
+            createdAt: at,
+            // 住民动态按 echo 作用域走：切到清醒模式时它跟虚拟反馈一起归档
+            scope: const Value('echo'),
+            topicName: Value(topicName),
+            isAiGenerated: const Value(true),
+            authorPersonaId: Value(personaId),
+            // 住民的动态下面也会有人来评论，那就是这个社区自己的呼吸
+            allowAiReply: const Value(true),
+          ),
+        );
+    return id;
+  }
+
+  /// 点赞 / 取消点赞。返回点完之后"我赞了没有"。
+  ///
+  /// 自己发的帖子也能点：这颗心本来就是给自己看的一个标记，
+  /// 不是"给别人的互动"。住民也不知道它——它只属于这台设备。
+  Future<bool> toggleLike(String postId) async {
+    final query = _db.select(_db.posts)..where((t) => t.id.equals(postId));
+    final row = await query.getSingleOrNull();
+    if (row == null) return false;
+
+    final liked = row.likedAt == null;
+    await (_db.update(_db.posts)..where((t) => t.id.equals(postId))).write(
+      PostsCompanion(
+        likedAt: liked
+            ? Value(DateTime.now().millisecondsSinceEpoch)
+            : const Value<int?>(null),
+        likeCount: Value(
+          liked ? row.likeCount + 1 : max(0, row.likeCount - 1),
+        ),
+      ),
+    );
+    return liked;
   }
 
   /// 互动兑现时回写计数（调度器用）。
@@ -156,6 +240,8 @@ class PostRepository {
       scope: row.scope,
       allowAiReply: row.allowAiReply,
       isHot: row.isHot,
+      authorPersonaId: row.authorPersonaId,
+      likedByMe: row.likedAt != null,
     );
   }
 
@@ -176,13 +262,13 @@ class PostRepository {
   String _newId() =>
       'post_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
 
-  static final _rand = _SimpleRandom();
-}
-
-/// 极简随机：只用来拼 id 后缀，避免为了这点需求引入额外依赖。
-class _SimpleRandom {
-  int nextInt(int max) =>
-      DateTime.now().microsecondsSinceEpoch.remainder(max).abs();
+  /// 时间戳 + 随机后缀。
+  ///
+  /// 后缀必须**真的**随机：`DateTime.now()` 的实际精度常常只有毫秒
+  /// （Windows 上尤其），同一毫秒里连着插两条会拿到同一个时间戳。
+  /// 这原本用的是"拿时间戳当随机数"的写法——发帖一次只插一条，撞不上；
+  /// 直到世界 tick 开始一次连写好几条住民动态，它立刻撞了主键。
+  static final Random _rand = Random();
 }
 
 final postRepositoryProvider = Provider<PostRepository>(
@@ -198,6 +284,13 @@ final feedPostsProvider = StreamProvider.autoDispose
 final postByIdProvider = StreamProvider.autoDispose.family<Post?, String>(
   (ref, id) => ref.watch(postRepositoryProvider).watchById(id),
 );
+
+/// 某个住民发过的动态（住民主页用）。
+final residentPostsProvider = StreamProvider.autoDispose
+    .family<List<Post>, String>(
+      (ref, personaId) =>
+          ref.watch(postRepositoryProvider).watchByAuthor(personaId),
+    );
 
 /// 「我的」页的统计。
 final profileStatsProvider = StreamProvider.autoDispose<ProfileStats>(

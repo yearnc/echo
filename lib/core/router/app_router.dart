@@ -12,6 +12,7 @@ import '../../features/post_detail/post_detail_page.dart';
 import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
+import '../../features/resident/resident_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
 import '../../features/scripts/scripts_page.dart';
@@ -64,6 +65,9 @@ class RoutePaths {
 
   /// 新建模型配置（草稿，保存后才真正落库）。
   static const String modelNew = '/models/new';
+
+  /// AI 住民的个人主页。
+  static String resident(String personaId) => '/resident/$personaId';
 }
 
 /// 路由表。
@@ -114,6 +118,11 @@ final appRouter = GoRouter(
       path: '/post/:id',
       builder: (context, state) =>
           PostDetailPage(postId: state.pathParameters['id'] ?? ''),
+    ),
+    GoRoute(
+      path: '/resident/:id',
+      builder: (context, state) =>
+          ResidentPage(personaId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
       path: RoutePaths.values,

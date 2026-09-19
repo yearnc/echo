@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,23 +24,126 @@ class InteractionRepository {
   static const String typeLike = 'like';
   static const String statusDone = 'done';
 
+  /// 评论区：住民说的 + 我自己说的，合成一条时间线。
+  ///
+  /// 两个来源分表存是有道理的——住民那些要排期、要兑现、切清醒模式时会被取消，
+  /// 而"我刚回了句什么"没有这些事。合并放在读取这一层，排序交给数据库。
   Stream<List<PostComment>> watchComments(String postId) {
-    final query = _db.select(_db.aiInteractions)
-      ..where(
-        (t) =>
-            t.postId.equals(postId) &
-            t.type.equals(typeComment) &
-            t.status.equals(statusDone) &
-            t.deletedAt.isNull(),
-      )
-      ..orderBy([(t) => OrderingTerm.asc(t.executedAt)]);
+    return _db
+        .customSelect(
+          _commentsSql,
+          variables: [
+            Variable<String>(postId),
+            Variable<String>(typeComment),
+            Variable<String>(statusDone),
+            Variable<String>(postId),
+          ],
+          readsFrom: {_db.aiInteractions, _db.userComments},
+        )
+        .watch()
+        .map((rows) => rows.map(_toComment).toList(growable: false));
+  }
 
-    return query.watch().map(
-      (rows) => rows.map(_toComment).toList(growable: false),
+  /// 一条 UNION：上半是兑现了的住民评论，下半是我自己写的，合起来按时间排。
+  static const String _commentsSql = '''
+SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
+       voice_duration_ms, parent_id, reply_to_name, like_count, at, is_ai
+FROM (
+  SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
+         voice_duration_ms, parent_id, NULL AS reply_to_name, like_count,
+         COALESCE(executed_at, scheduled_at) AS at, is_ai
+  FROM ai_interactions
+  WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
+  UNION ALL
+  SELECT id, post_id, NULL AS persona_id, content, 'text' AS media_type,
+         NULL AS voice_path, NULL AS transcript, NULL AS voice_duration_ms,
+         parent_id, reply_to_name, 0 AS like_count,
+         created_at AS at, 0 AS is_ai
+  FROM user_comments
+  WHERE post_id = ? AND deleted_at IS NULL
+)
+ORDER BY at ASC
+''';
+
+  /// 给一条评论点赞 / 取消，返回点完之后的状态。
+  ///
+  /// 跟帖子的赞分开存：帖子是一条一颗心，评论有很多条。而且这里点的可能是
+  /// 住民的评论、也可能是我自己的——两张不同的表，所以赞单独记账。
+  Future<bool> toggleCommentLike(String commentId) async {
+    final existing =
+        await (_db.select(_db.commentLikes)
+              ..where((t) => t.commentId.equals(commentId)))
+            .getSingleOrNull();
+
+    if (existing != null) {
+      await (_db.delete(_db.commentLikes)
+            ..where((t) => t.commentId.equals(commentId)))
+          .go();
+      return false;
+    }
+
+    await _db
+        .into(_db.commentLikes)
+        .insert(
+          CommentLikesCompanion.insert(
+            commentId: commentId,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+    return true;
+  }
+
+  /// 我赞过的评论 id。评论列表靠着它点亮心形。
+  Stream<Set<String>> watchLikedCommentIds() {
+    return _db
+        .select(_db.commentLikes)
+        .watch()
+        .map((rows) => rows.map((row) => row.commentId).toSet());
+  }
+
+  /// 我自己发一条评论；[parentId] 非空表示这是在回某一条。
+  Future<void> addMyComment({
+    required String postId,
+    required String content,
+    String? parentId,
+    String? replyToName,
+  }) async {
+    await _db
+        .into(_db.userComments)
+        .insert(
+          UserCommentsCompanion.insert(
+            id: _newId('uc'),
+            postId: postId,
+            content: content,
+            parentId: Value(parentId),
+            replyToName: Value(replyToName),
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+    await _bumpCommentCount(postId);
+  }
+
+  /// 评论数 +1——帖子卡片上那个数字要跟着动。
+  Future<void> _bumpCommentCount(String postId) async {
+    final query = _db.select(_db.posts)..where((t) => t.id.equals(postId));
+    final row = await query.getSingleOrNull();
+    if (row == null) return;
+
+    await (_db.update(_db.posts)..where((t) => t.id.equals(postId))).write(
+      PostsCompanion(commentCount: Value(row.commentCount + 1)),
     );
   }
 
+  String _newId(String prefix) =>
+      '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
+
+  /// 同 PostRepository：这个后缀必须真的随机，拿时间戳顶上会在同一毫秒里撞。
+  static final Random _rand = Random();
+
   /// 把规划器算出的排期写进队列（发帖时调用）。
+  ///
+  /// id 由「帖子 + 序号」拼成，所以**同一条帖子只排一次期**——
+  /// 排期本来也是发帖那一刻算完就不再追加的。
   Future<void> insertPlanned(
     String postId,
     List<PlannedInteraction> planned,
@@ -113,6 +218,51 @@ class InteractionRepository {
     return rows.map(_toPending).toList(growable: false);
   }
 
+  /// 还没兑现的评论排期，返回对应的住民 id。
+  ///
+  /// 模型写评论时需要知道"这是给谁写的"——同一条帖子下几个人的语气完全不同，
+  /// 而且写之前得先知道是谁在说。
+  Future<List<String>> pendingCommentPersonaIds(String postId) async {
+    final query = _db.selectOnly(_db.aiInteractions)
+      ..addColumns([_db.aiInteractions.personaId])
+      ..where(
+        _db.aiInteractions.postId.equals(postId) &
+            _db.aiInteractions.type.equals(typeComment) &
+            _db.aiInteractions.status.equals('pending'),
+      );
+
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(_db.aiInteractions.personaId))
+        .whereType<String>()
+        .toList(growable: false);
+  }
+
+  /// 把还没兑现的评论换成模型写的内容，返回改了几条。
+  ///
+  /// 已经兑现的**不动**：用户可能已经看到了，评论在眼皮底下变一次很怪。
+  /// 所以这是"在内容送到之前把它换掉"，不是"编辑评论"。
+  Future<int> updatePendingComments(
+    String postId,
+    Map<String, String> contentByPersona,
+  ) async {
+    if (contentByPersona.isEmpty) return 0;
+
+    var updated = 0;
+    for (final entry in contentByPersona.entries) {
+      updated += await (_db.update(_db.aiInteractions)
+            ..where(
+              (t) =>
+                  t.postId.equals(postId) &
+                  t.personaId.equals(entry.key) &
+                  t.type.equals(typeComment) &
+                  t.status.equals('pending'),
+            ))
+          .write(AiInteractionsCompanion(content: Value(entry.value)));
+    }
+    return updated;
+  }
+
   /// 最近已经兑现的互动（信息流补发后给 UI 用）。
   Future<int> countPending() async {
     final count = _db.aiInteractions.id.count();
@@ -161,22 +311,21 @@ class InteractionRepository {
     );
   }
 
-  PostComment _toComment(AiInteractionRow row) {
+  PostComment _toComment(QueryRow row) {
     return PostComment(
-      id: row.id,
-      postId: row.postId,
-      personaId: row.personaId,
-      content: row.content,
-      mediaType: _parseMedia(row.mediaType),
-      voiceAsset: row.voicePath,
-      transcript: row.transcript,
-      voiceDurationMs: row.voiceDurationMs,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        row.executedAt ?? row.scheduledAt,
-      ),
-      parentId: row.parentId,
-      likeCount: row.likeCount,
-      isAi: row.isAi,
+      id: row.read<String>('id'),
+      postId: row.read<String>('post_id'),
+      personaId: row.readNullable<String>('persona_id'),
+      content: row.readNullable<String>('content'),
+      mediaType: _parseMedia(row.readNullable<String>('media_type')),
+      voiceAsset: row.readNullable<String>('voice_path'),
+      transcript: row.readNullable<String>('transcript'),
+      voiceDurationMs: row.readNullable<int>('voice_duration_ms'),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row.read<int>('at')),
+      parentId: row.readNullable<String>('parent_id'),
+      replyToName: row.readNullable<String>('reply_to_name'),
+      likeCount: row.read<int>('like_count'),
+      isAi: row.read<int>('is_ai') != 0,
     );
   }
 
@@ -197,3 +346,8 @@ final commentsProvider = StreamProvider.autoDispose
       (ref, postId) =>
           ref.watch(interactionRepositoryProvider).watchComments(postId),
     );
+
+/// 我赞过的评论 id（评论列表靠它点亮心形）。
+final likedCommentIdsProvider = StreamProvider<Set<String>>(
+  (ref) => ref.watch(interactionRepositoryProvider).watchLikedCommentIds(),
+);

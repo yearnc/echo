@@ -10,6 +10,7 @@ import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/echo_settings.dart';
+import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,6 +173,7 @@ void main() {
         notifications: notifications,
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
+        generator: SampleContentGenerator(),
         planner: InteractionPlanner(random: Random(9)),
       );
 
@@ -284,6 +286,31 @@ void main() {
       final post = await posts.findById(postId);
       expect(post!.likeCount, 120);
       expect(post.isHot, isTrue);
+    });
+
+    test('住民动态底下的互动兑现时不通知用户', () async {
+      // 这条帖子不是你的——是社区里另一个人的动态。
+      // 底下有人来评论，那是社区自己的热闹，没有理由弹到你手机上。
+      final postId = await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '在图书馆，今天的位子很好。',
+      );
+
+      await interactions.insertPlanned(postId, [
+        PlannedInteraction(
+          personaId: 'persona_002',
+          type: 'comment',
+          content: '我去的时候就没位子了',
+          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        ),
+      ]);
+
+      await scheduler.flushDue();
+
+      expect(await db.select(db.notificationLogs).get(), isEmpty);
+      // 但计数照加：评论区要看得见有人来过
+      final post = await posts.findById(postId);
+      expect(post!.commentCount, 1);
     });
   });
 }

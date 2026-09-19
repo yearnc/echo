@@ -30,6 +30,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
 
   ModelConfig? _config;
   String _provider = 'custom';
+  ModelKind _kind = ModelKind.chat;
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
@@ -76,7 +77,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     // 新建草稿：拿第一个预设起个手，但**不写库**——
     // 只有保存过的东西才配出现在列表里。
     if (id == null) {
-      final preset = ModelConfig.presets.first;
+      final preset = ModelConfig.presetsOf(_kind).first;
       setState(() {
         _provider = preset.id;
         _labelCtrl.text = preset.label;
@@ -96,6 +97,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     setState(() {
       _config = config;
       _provider = config?.provider ?? 'custom';
+      _kind = config?.kind ?? ModelKind.chat;
       _labelCtrl.text = config?.label ?? '';
       _baseUrlCtrl.text = config?.baseUrl ?? '';
       _modelCtrl.text = config?.model ?? '';
@@ -111,7 +113,19 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _provider = preset.id;
       _labelCtrl.text = preset.label;
       _baseUrlCtrl.text = preset.baseUrl;
-      _modelCtrl.text = preset.model;
+      // 文生图的型号跟对话完全是两回事，套用预设里那个对话型号只会误导人。
+      // 地址可以留着——同一家服务商的图片接口通常就在同一个域下。
+      _modelCtrl.text = _kind == ModelKind.image ? '' : preset.model;
+      _probe = null;
+    });
+  }
+
+  /// 换用途。型号要一起清掉：对话的型号放到文生图上一定跑不通，反之亦然。
+  void _switchKind(ModelKind kind) {
+    if (_kind == kind) return;
+    setState(() {
+      _kind = kind;
+      _modelCtrl.text = '';
       _probe = null;
     });
   }
@@ -179,10 +193,11 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     final saved = config.copyWith(
       provider: _provider,
       label: _labelCtrl.text.trim().isEmpty
-          ? ModelConfig.presetOf(_provider).label
+          ? ModelConfig.presetOf(_provider, kind: _kind).label
           : _labelCtrl.text.trim(),
       baseUrl: baseUrl,
       model: model,
+      kind: _kind,
     );
 
     await repo.save(saved);
@@ -350,12 +365,47 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
           children: [
+            const _Label('用途'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final kind in ModelKind.values)
+                  _PresetChip(
+                    label: kind.label,
+                    selected: _kind == kind,
+                    onTap: () => _switchKind(kind),
+                  ),
+              ],
+            ),
+            if (_kind == ModelKind.image) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: EchoColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: EchoColors.divider),
+                ),
+                child: Text(
+                  '文生图走 OpenAI 兼容的 /images/generations 接口。'
+                  '下面这几家的地址和型号是照官方文档核过的。\n'
+                  '通义万相和 MiniMax 海螺用的是各自的协议（要先建任务再轮询、'
+                  '返回结构也不同），暂时接不了。',
+                  style: TextStyle(
+                    color: EchoColors.textFaint,
+                    fontSize: 11.5,
+                    height: 1.7,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
             const _Label('服务商'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final preset in ModelConfig.presets)
+                for (final preset in ModelConfig.presetsOf(_kind))
                   _PresetChip(
                     label: preset.label,
                     selected: _provider == preset.id,
@@ -387,13 +437,16 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               style: TextStyle(color: EchoColors.text, fontSize: 14),
               decoration: const InputDecoration(hintText: 'deepseek-flash'),
             ),
-            if (ModelConfig.presetOf(_provider).altModels.isNotEmpty) ...[
+            if (ModelConfig.presetOf(_provider, kind: _kind)
+                .altModels
+                .isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final alt in ModelConfig.presetOf(_provider).altModels)
+                  for (final alt
+                      in ModelConfig.presetOf(_provider, kind: _kind).altModels)
                     _PresetChip(
                       label: alt,
                       selected: _modelCtrl.text.trim() == alt,
@@ -434,27 +487,34 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               ),
             ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: _testing ? null : _test,
-              icon: _testing
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.bolt, size: 16),
-              label: Text(_testing ? '正在测…' : '测试连接'),
-            ),
-            if (_probe != null) ...[
-              const SizedBox(height: 12),
-              _ProbeCard(result: _probe!),
+            // 测试走的是对话接口，文生图那条路没法用它验——藏起来，
+            // 好过让用户点了之后拿到一句"地址不对"
+            if (_kind == ModelKind.chat) ...[
+              OutlinedButton.icon(
+                onPressed: _testing ? null : _test,
+                icon: _testing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.bolt, size: 16),
+                label: Text(_testing ? '正在测…' : '测试连接'),
+              ),
+              if (_probe != null) ...[
+                const SizedBox(height: 12),
+                _ProbeCard(result: _probe!),
+              ],
             ],
             const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: EchoColors.surface,
+            // 同发布页的策划模式卡片：ListTile 的水波纹画在最近的 Material 上，
+            // 外面套一层有背景色的 DecoratedBox 会让它永远不可见（并被断言拦下）
+            Material(
+              color: EchoColors.surface,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EchoColors.divider),
+                side: BorderSide(color: EchoColors.divider),
               ),
               child: SwitchListTile(
                 value: _enabled,

@@ -58,6 +58,20 @@ class ModelConfigRepository {
     );
   }
 
+  /// 一次性读出全部配置。
+  ///
+  /// 与 [watchAll] 并存，是因为用途不同：列表页要跟着数据变，
+  /// 而"当前有没有能用的模型"是一次判断——订阅一份会变的流没有意义。
+  Future<List<ModelConfig>> findAll() async {
+    final query = _db.select(_db.modelConfigs)
+      ..orderBy([
+        (t) => OrderingTerm.desc(t.enabled),
+        (t) => OrderingTerm.desc(t.updatedAt),
+      ]);
+    final rows = await query.get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
   Future<ModelConfig?> findById(String id) async {
     final query = _db.select(_db.modelConfigs)..where((t) => t.id.equals(id));
     final row = await query.getSingleOrNull();
@@ -77,16 +91,23 @@ class ModelConfigRepository {
             model: config.model,
             createdAt: config.createdAt == 0 ? now : config.createdAt,
             updatedAt: now,
+            kind: Value(config.kind.id),
             enabled: Value(config.enabled),
           ),
         );
   }
 
-  /// 启用某一条（同一时间只允许一条启用）。
+  /// 启用某一条（**同一用途**里只允许一条启用）。
+  ///
+  /// 让位的范围要按用途划：配了一条对话模型，不该把用户好不容易调好的
+  /// 文生图配置顺手关掉。
   Future<void> setEnabled(String id) async {
+    final target = await findById(id);
+    if (target == null) return;
+
     await _db.transaction(() async {
-      await _db
-          .update(_db.modelConfigs)
+      await (_db.update(_db.modelConfigs)
+            ..where((t) => t.kind.equals(target.kind.id)))
           .write(const ModelConfigsCompanion(enabled: Value(false)));
       await (_db.update(_db.modelConfigs)..where((t) => t.id.equals(id))).write(
         const ModelConfigsCompanion(enabled: Value(true)),
@@ -116,6 +137,7 @@ class ModelConfigRepository {
     label: row.label,
     baseUrl: row.baseUrl,
     model: row.model,
+    kind: ModelKind.fromId(row.kind),
     enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

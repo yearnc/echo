@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,8 +11,11 @@ import '../../data/media/media_service.dart';
 import '../../data/repositories/plan_script_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/echo_settings.dart';
+import '../../domain/models/moderation_result.dart';
 import '../../domain/models/plan_script.dart';
+import '../../domain/services/content_moderator.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/model_gateway.dart';
 import '../../domain/services/scheduler_service.dart';
 
 /// 发布页（规划书 §6.1）。
@@ -33,7 +37,12 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   String _density = '中';
   String _likeLevel = '中';
   int _humanLevel = 3;
-  bool _publishing = false;
+
+  /// 非 null 就是在忙，内容是按钮上显示的字。
+  ///
+  /// 用一个字符串而不是 bool：发布这条路上有两段实打实的等待（审核可能要走一次
+  /// 模型往返、保存要落库排期），让用户盯着同一个"保存中…"发呆好几秒不像话。
+  String? _busy;
 
   /// 策划模式：勾上之后不再随机排期，改按选中的脚本执行。
   bool _planMode = false;
@@ -172,13 +181,13 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _publishing ? null : _publish,
+              onPressed: _busy == null ? _publish : null,
               style: isEcho
                   ? null
                   : FilledButton.styleFrom(
                       backgroundColor: ClearColors.primary,
                     ),
-              child: Text(_publishing ? '保存中…' : (isEcho ? '发布' : '记录')),
+              child: Text(_busy ?? (isEcho ? '发布' : '记录')),
             ),
           ),
         ],
@@ -279,11 +288,51 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       return;
     }
 
-    setState(() => _publishing = true);
     final isEcho = ref.read(modeControllerProvider).isEcho;
+    // 策划模式的互动来自离线脚本、不经过模型，所以下面那条"还没配模型"的提醒
+    // 对它不适用——脚本帖不依赖任何 API。
     final script = isEcho && _planMode ? _script : null;
 
     try {
+      // ── ① 有没有接上模型：审核和"要不要提醒去配"用的是同一次查询 ──
+      setState(() => _busy = '检查内容…');
+      final activeModel = await ref.read(modelGatewayProvider).activeConfig();
+      if (!mounted) return;
+
+      // ── ② 审核：本地词表是确定命中，直接拦；模型是概率判断，一律留确认的出口 ──
+      final moderation = await ref
+          .read(contentModeratorProvider)
+          .check(text: text, withModel: activeModel);
+      if (!mounted) return;
+
+      if (moderation.isBlocked && !moderation.fromModel) {
+        setState(() => _busy = null);
+        await _showBlocked(moderation);
+        return;
+      }
+      if (moderation.verdict != ModerationVerdict.pass) {
+        final proceed = await _confirmModeration(moderation);
+        if (!mounted) return;
+        if (proceed != true) {
+          setState(() => _busy = null);
+          return;
+        }
+      }
+
+      // ── ③ 回响模式的回应要靠模型生成，没配就先问一句要不要去配 ──
+      if (isEcho && script == null && activeModel == null) {
+        final goSetup = await _askModelSetup();
+        if (!mounted) return;
+        if (goSetup == true) {
+          // 内容留在编辑区：配完模型回来接着发，不用重写一遍
+          setState(() => _busy = null);
+          context.push(RoutePaths.models);
+          return;
+        }
+      }
+
+      // ── ④ 落库 + 排期 ──
+      setState(() => _busy = isEcho ? '发布中…' : '保存中…');
       final postId = await ref
           .read(postRepositoryProvider)
           .create(
@@ -313,6 +362,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
               humanLevel: HumanLevel.fromValue(_humanLevel),
             ),
           );
+          // 排期那一步已经用预置台词填好内容了。配了模型的话，让它在后台
+          // 把还没到点的评论换成人写的——**不 await**：写五六条要好几秒，
+          // 用户没道理站在发布页等，而排期本身早就落库了。
+          unawaited(scheduler.upgradeCommentsWithModel(postId));
         }
       }
 
@@ -320,7 +373,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       _controller.clear();
       setState(() {
         _imageRefs.clear();
-        _publishing = false;
+        _busy = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -332,10 +385,123 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       context.go(isEcho ? RoutePaths.feed : RoutePaths.records);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _publishing = false);
+      setState(() => _busy = null);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('保存失败：$error')));
     }
+  }
+
+  /// 本地词表命中：只有"返回修改"一个出口。
+  ///
+  /// 只有这种情况不给申诉——词表里的每一个都是没有歧义的词，命中就是真的写了。
+  /// 模型给的 block 不走这里，走 [\_confirmModeration]：那是概率判断，得有翻案的机会。
+  ///
+  /// 界面刻意不回显命中的那几个字。用户不需要知道自己是撞上了哪两个字，
+  /// 需要知道的是这条不能发、以及能回去改。
+  Future<void> _showBlocked(ModerationResult result) {
+    final lines = <String>[
+      if (result.reason.isNotEmpty) result.reason,
+      if (result.categories.isNotEmpty)
+        '涉及：${result.categories.map(moderationCategoryLabel).join('、')}',
+    ];
+
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: Text(
+          '这条内容不能发布',
+          style: TextStyle(color: EchoColors.text, fontSize: 15.5),
+        ),
+        content: Text(
+          lines.isEmpty ? '内容不符合社区规范。' : lines.join('\n'),
+          style: TextStyle(
+            color: EchoColors.textMuted,
+            fontSize: 13,
+            height: 1.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              '返回修改',
+              style: TextStyle(color: EchoColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 审核提示后的确认。
+  ///
+  /// review 要给这个出口，是因为模型判定一定有假阳性；模型给的 block 同样要给，
+  /// 理由一样——"这句话到底是什么意思"只有写它的人说得清。真正不给出口的只有
+  /// 本地词表那些没有歧义的词。
+  Future<bool?> _confirmModeration(ModerationResult result) => _ask(
+    title: result.isBlocked ? '审核没通过' : '再确认一下',
+    body: result.reason.isEmpty
+        ? '这条内容可能不太适合公开在社区里，确认之后再发布。'
+        : result.reason,
+    confirmLabel: '仍然发布',
+    cancelLabel: '返回修改',
+  );
+
+  /// 还没配模型就发帖。
+  ///
+  /// 提醒的落点是"你现在拿到的是什么"（示例内容），不是"你少配了一样东西"——
+  /// 前者是用户能拿来判断的信息，后者是在催他做一件他可能并不想做的事。
+  Future<bool?> _askModelSetup() => _ask(
+    title: '还没有配置 AI 服务',
+    body:
+        '这条帖子照常发布，回应会由内置的示例内容生成。\n\n'
+        '填上你自己的模型之后，评论和动态才会真的由 AI 生成。'
+        'API Key 只存在这台设备上，不会传到别处。',
+    confirmLabel: '去配置',
+    cancelLabel: '先这样发布',
+  );
+
+  Future<bool?> _ask({
+    required String title,
+    required String body,
+    required String confirmLabel,
+    required String cancelLabel,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: Text(
+          title,
+          style: TextStyle(color: EchoColors.text, fontSize: 15.5),
+        ),
+        content: Text(
+          body,
+          style: TextStyle(
+            color: EchoColors.textMuted,
+            fontSize: 13,
+            height: 1.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              cancelLabel,
+              style: TextStyle(color: EchoColors.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              confirmLabel,
+              style: TextStyle(color: EchoColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -632,11 +798,15 @@ class _PlanModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: EchoColors.surface,
+    // 用 Material 打底而不是 Container：里面的 SwitchListTile 本质是 ListTile，
+    // 它把背景与水波纹画在最近的 Material 上。外面套一层带背景色的 DecoratedBox，
+    // 水波纹就永远看不见——Flutter 会直接抛断言提醒这件事。
+    return Material(
+      color: EchoColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
+        side: BorderSide(
           color: enabled
               ? EchoColors.primary.withValues(alpha: 0.5)
               : EchoColors.divider,

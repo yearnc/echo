@@ -60,6 +60,8 @@ dev_dependencies:
   drift_dev: ^2.35.0
   build_runner: ^2.16.1
   flutter_launcher_icons: ^0.14.0
+  # 迁移测试要手工造一个旧版本的库再让 AppDatabase 去升——那一步得直接用它的底层 API
+  sqlite3: ^3.5.2
 
 # 应用图标：源文件在 assets/icon/（icon.png 是整块方形图，icon_foreground.png 是
 # 抠好的透明符号）。换图之后跑一句 `dart run flutter_launcher_icons` 就够了。
@@ -109,10 +111,10 @@ flutter:
   # 各目录下的 _placeholder.png 是 1x1 占位图（保证空目录能被 Flutter 打包），
   # 放入真实素材后可以直接删掉。
   assets:
-    - assets/personas/          # 24 个人格配置 personas.json
+    - assets/personas/          # 住民配置 personas.json（含圈层与作息）
     - assets/demo/              # 三幕脚本资产（首次启动转成内置策划脚本）
     - assets/stickers.json      # 表情包清单
-    - assets/avatars/           # 人格头像（persona_001.png ~ persona_024.png）
+    - assets/avatars/           # 住民头像（文件名与 personas.json 的 id 对应）
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
     - assets/stickers/happy/

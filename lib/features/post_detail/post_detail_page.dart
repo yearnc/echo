@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_texts.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
+import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/comment_tile.dart';
+import '../shared_widgets/like_button.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
 import '../shell/app_shell.dart';
@@ -30,6 +34,10 @@ class PostDetailPage extends ConsumerStatefulWidget {
 }
 
 class _PostDetailPageState extends ConsumerState<PostDetailPage> {
+  /// 正在回谁；两个都为空就是普通发言。
+  String? _replyToId;
+  String? _replyToName;
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +59,26 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(warning)));
+  }
+
+  /// 开始回某一条。住民显示住民的名字，我自己的评论显示我的名字。
+  void _startReply(PostComment comment) {
+    final personaId = comment.personaId;
+    setState(() {
+      _replyToId = comment.id;
+      _replyToName = personaId == null
+          ? (ref.read(userProfileProvider).value?.displayName ??
+                AppTexts.defaultNickname)
+          : ref.read(personaNameProvider(personaId));
+    });
+  }
+
+  void _clearReply() {
+    if (_replyToId == null && _replyToName == null) return;
+    setState(() {
+      _replyToId = null;
+      _replyToName = null;
+    });
   }
 
   @override
@@ -103,12 +131,171 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                             const _NoCommentsYet()
                           else
                             for (final comment in comments)
-                              CommentTile(comment: comment),
+                              CommentTile(
+                                comment: comment,
+                                onReply: () => _startReply(comment),
+                              ),
                         ],
+                      ),
+                    ),
+                    // 输入框只给回响模式：清醒模式里没有"社区"这回事，
+                    // 记录是写给自己的
+                    if (mode.isEcho)
+                      _CommentComposer(
+                        postId: post.id,
+                        replyToId: _replyToId,
+                        replyToName: _replyToName,
+                        onDone: _clearReply,
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 说一句话。
+///
+/// 之前评论区只有住民在说话，想回一句都没地方回——社区得是双向的，
+/// 不然"被看见"这件事只是单向的表演。
+class _CommentComposer extends ConsumerStatefulWidget {
+  const _CommentComposer({
+    required this.postId,
+    this.replyToId,
+    this.replyToName,
+    this.onDone,
+  });
+
+  final String postId;
+
+  /// 非空表示这条是回给某一条的。
+  final String? replyToId;
+  final String? replyToName;
+
+  /// 发完之后通知外面把"正在回复"清掉。
+  final VoidCallback? onDone;
+
+  @override
+  ConsumerState<_CommentComposer> createState() => _CommentComposerState();
+}
+
+class _CommentComposerState extends ConsumerState<_CommentComposer> {
+  final TextEditingController _ctrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(interactionRepositoryProvider)
+          .addMyComment(
+            postId: widget.postId,
+            content: text,
+            parentId: widget.replyToId,
+            replyToName: widget.replyToName,
+          );
+      if (!mounted) return;
+      _ctrl.clear();
+      widget.onDone?.call();
+      setState(() => _sending = false);
+      FocusScope.of(context).unfocus();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        border: Border(top: BorderSide(color: EchoColors.divider)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if ((widget.replyToName ?? '').isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '正在回复 ${widget.replyToName}',
+                        style: TextStyle(
+                          color: EchoColors.primary,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: widget.onDone,
+                      child: Text(
+                        '取消',
+                        style: TextStyle(
+                          color: EchoColors.textFaint,
+                          fontSize: 11.5,
+                        ),
                       ),
                     ),
                   ],
                 ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      style: TextStyle(color: EchoColors.text, fontSize: 13.5),
+                      decoration: InputDecoration(
+                        hintText: (widget.replyToName ?? '').isEmpty
+                            ? '说点什么…'
+                            : '回复 ${widget.replyToName}…',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _sending ? null : _send,
+                    color: EchoColors.primary,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -185,39 +372,55 @@ class _PostBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 帖子都是本机用户发的，昵称头像跟着资料页走
+    // 谁发的：住民的动态显示住民本人，用户自己发的才显示"我"
+    final author = post.authorPersonaId == null
+        ? null
+        : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final myName = me?.displayName ?? AppTexts.defaultNickname;
+    final name = author?.name ?? me?.displayName ?? AppTexts.defaultNickname;
+    final avatarRef = author?.avatar ?? me?.avatarOrNull;
+    final openAuthor = author == null
+        ? null
+        : () => context.push(RoutePaths.resident(author.id));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            UserAvatar(
-              name: myName,
-              avatarRef: me?.avatarOrNull,
-              size: 40,
-              showRing: true,
+            GestureDetector(
+              onTap: openAuthor,
+              child: UserAvatar(
+                name: name,
+                avatarRef: avatarRef,
+                size: 40,
+                showRing: true,
+              ),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  myName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: EchoColors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
+            Expanded(
+              child: GestureDetector(
+                onTap: openAuthor,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: EchoColors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      RelativeTime.format(post.createdAt),
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: EchoColors.textFaint),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  RelativeTime.format(post.createdAt),
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: EchoColors.textFaint),
-                ),
-              ],
+              ),
             ),
           ],
         ),
@@ -234,12 +437,9 @@ class _PostBody extends ConsumerWidget {
         const SizedBox(height: 14),
         Row(
           children: [
-            Icon(Icons.favorite, size: 17, color: EchoColors.like),
-            const SizedBox(width: 5),
-            Text(
-              '${post.likeCount}',
-              style: TextStyle(color: EchoColors.like, fontSize: 13),
-            ),
+            // 这里本来就有一颗心，只是它一直是死的（实心，看着像"已赞"）。
+            // 换成信息流卡片用的那个组件，它自己会跟着状态变空/变实。
+            LikeButton(post: post),
             const SizedBox(width: 18),
             Icon(
               Icons.mode_comment_outlined,

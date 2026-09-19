@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import 'ai_tables.dart';
+
 /// 配置与内容类表（规划书 §8）。
 
 // 所有 Drift 行类统一加 `Row` 后缀：领域模型（Post / AiPersona / Sticker…）
@@ -55,6 +57,20 @@ class Posts extends Table {
   BoolColumn get isHot => boolean().withDefault(const Constant(false))();
   IntColumn get likeCount => integer().withDefault(const Constant(0))();
   IntColumn get commentCount => integer().withDefault(const Constant(0))();
+
+  /// 我点过赞的时刻；null 表示没点过。
+  ///
+  /// 存时刻而不是布尔值，是因为"什么时候点的"以后可能有用（比如排序、
+  /// 比如看自己的互动轨迹）；而它反正只占一个整数。
+  IntColumn get likedAt => integer().nullable()();
+
+  /// 住民自己发的动态在这里记下作者；用户发的为 null。
+  ///
+  /// 住民动态走同一张 `posts` 表而不是另开一张（阶段 B 计划书决策 3）：
+  /// 信息流、帖子详情、评论区、点赞计数全部现成，`ai_interactions` 的外键
+  /// 也不用改语义——"谁发的"只多这一个字段。
+  TextColumn get authorPersonaId =>
+      text().nullable().references(AiPersonas, #id)();
 
   @override
   Set<Column> get primaryKey => {id};

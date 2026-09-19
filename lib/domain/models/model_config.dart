@@ -1,3 +1,21 @@
+/// 这条配置是干什么用的。
+///
+/// 对话和生成图片通常不是同一家、同一个模型，硬要用户拿一条配置兼顾是强人所难；
+/// 而且两者的价钱差一个量级，用户完全可能只想配便宜的那个。
+/// 所以分开配，也允许只配其中之一。
+enum ModelKind {
+  chat('chat', '对话'),
+  image('image', '文生图');
+
+  const ModelKind(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static ModelKind fromId(String? raw) =>
+      raw == image.id ? image : chat;
+}
+
 /// 模型接入配置（规划书 §6.9 / M5）。
 ///
 /// 只放"怎么连"（地址、模型名）——**API Key 不在这里**，
@@ -9,6 +27,7 @@ class ModelConfig {
     required this.label,
     required this.baseUrl,
     required this.model,
+    this.kind = ModelKind.chat,
     this.enabled = false,
     this.createdAt = 0,
     this.updatedAt = 0,
@@ -25,6 +44,9 @@ class ModelConfig {
   /// OpenAI 兼容的 base url（不带 /chat/completions）
   final String baseUrl;
   final String model;
+
+  /// 用途：对话 / 文生图。
+  final ModelKind kind;
 
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
@@ -134,16 +156,70 @@ class ModelConfig {
     ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
   ];
 
-  static ModelPreset presetOf(String providerId) => presets.firstWhere(
-    (preset) => preset.id == providerId,
-    orElse: () => presets.last,
-  );
+  /// 文生图预设（2026-09-19 逐家对着官方文档核过）。
+  ///
+  /// 只列**确认兼容 OpenAI 图片接口**的那几家：请求 `{model, prompt, size}`、
+  /// 响应 `data[0].url` 或 `data[0].b64_json`。
+  ///
+  /// 另外几家主流服务商**故意不列**——阿里云百炼的通义万相要先建异步任务再轮询，
+  /// MiniMax 海螺是 `/v1/image_generation` 且返回 `data.image_urls`，形状都差得远。
+  /// 放进来只会让用户配完之后拿到一句看不懂的报错；宁可不列。
+  static const List<ModelPreset> imagePresets = [
+    ModelPreset(
+      id: 'ark',
+      label: '火山方舟（豆包）',
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+      model: 'doubao-seedream-5-0-pro-260628',
+      altModels: [
+        'doubao-seedream-5-0-260128',
+        'doubao-seedream-4-5-251128',
+      ],
+    ),
+    ModelPreset(
+      id: 'zhipu-image',
+      label: '智谱 GLM-Image',
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      model: 'glm-image',
+      altModels: ['cogview-4-250304', 'cogview-3-flash'],
+    ),
+    ModelPreset(
+      id: 'siliconflow',
+      label: '硅基流动',
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      // 文档示例里给的型号；完整清单在模型广场，登录才看得到
+      model: 'Kwai-Kolors/Kolors',
+    ),
+    ModelPreset(
+      id: 'openai-image',
+      label: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-image-1.5',
+      altModels: ['gpt-image-1-mini', 'dall-e-3'],
+    ),
+    ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
+  ];
+
+  /// 某个用途下有哪些预设。
+  static List<ModelPreset> presetsOf(ModelKind kind) =>
+      kind == ModelKind.image ? imagePresets : presets;
+
+  static ModelPreset presetOf(
+    String providerId, {
+    ModelKind kind = ModelKind.chat,
+  }) {
+    final list = presetsOf(kind);
+    return list.firstWhere(
+      (preset) => preset.id == providerId,
+      orElse: () => list.last,
+    );
+  }
 
   ModelConfig copyWith({
     String? provider,
     String? label,
     String? baseUrl,
     String? model,
+    ModelKind? kind,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -154,6 +230,7 @@ class ModelConfig {
       label: label ?? this.label,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
+      kind: kind ?? this.kind,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

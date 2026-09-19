@@ -23,7 +23,13 @@ class ModelConfigs extends Table {
 
   TextColumn get model => text()();
 
-  /// 当前启用中的那一条为 true（同一时间只允许一条）
+  /// 用途：chat（对话）/ image（文生图）。
+  ///
+  /// 两者是分开配的，也允许只配其中之一——文生图比对话贵一个量级，
+  /// 用户完全可能只想用便宜的那个。
+  TextColumn get kind => text().withDefault(const Constant('chat'))();
+
+  /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 
   IntColumn get createdAt => integer()();

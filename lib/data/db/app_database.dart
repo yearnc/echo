@@ -12,6 +12,7 @@ import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
 import 'tables/model_tables.dart';
 import 'tables/plan_tables.dart';
+import 'tables/social_tables.dart';
 
 part 'app_database.g.dart';
 
@@ -27,6 +28,12 @@ part 'app_database.g.dart';
     Posts,
     AiPersonas,
     AiInteractions,
+    AiRelationships,
+    PersonaRoutines,
+    PrivateMessages,
+    UserComments,
+    CommentLikes,
+    Topics,
     AnalysisResults,
     ModeSwitchLogs,
     NotificationLogs,
@@ -47,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -108,6 +115,45 @@ class AppDatabase extends _$AppDatabase {
         // v8：策划事件带上语音时长。原先这一步在转换时丢了，
         // 评论区只能显示 0"——老库里的语音条重排一次即可恢复。
         await m.addColumn(planEvents, planEvents.voiceDurationMs);
+      }
+      if (from < 9) {
+        // v9：阶段 B 的社区关系层（规划书 §3 / §8）。
+        //
+        // 四张新表 + 两个新列，一次给齐：住民与用户的关系、住民的作息轨迹、
+        // 私信、话题；帖子多一个"住民作者"，住民多一个"圈层"。
+        //
+        // 全是**新增**，没有删改既有结构——老库升上来时帖子、互动、设置、
+        // 记录一概不动，这是这一版迁移唯一要保证的事。
+        await m.createTable(aiRelationships);
+        await m.createTable(personaRoutines);
+        await m.createTable(privateMessages);
+        await m.createTable(topics);
+        await m.addColumn(posts, posts.authorPersonaId);
+        await m.addColumn(aiPersonas, aiPersonas.circle);
+      }
+      if (from < 10) {
+        // v10：模型配置分用途（对话 / 文生图）。
+        // 老配置都是拿来聊天的，默认值正好就是它。
+        await m.addColumn(modelConfigs, modelConfigs.kind);
+      }
+      if (from < 11) {
+        // v11：用户自己也能点赞和评论了。
+        // 之前只有住民在说话——社区是单向的，回一句都没地方回。
+        await m.createTable(userComments);
+        await m.addColumn(posts, posts.likedAt);
+      }
+      if (from < 12) {
+        // v12：评论也能点赞、也能回了。
+        await m.createTable(commentLikes);
+
+        // user_comments 是 v11 才有的表，而 `createTable` 用的永远是**当前**
+        // 的表定义（里面已经有 parent_id / reply_to_name 了）。所以从 v10 及
+        // 更早升上来时，上面那个 createTable 已经把这两列建好了，这里再加一次
+        // 就是 "duplicate column name"。只有从 v11 升上来时才真的缺这两列。
+        if (from >= 11) {
+          await m.addColumn(userComments, userComments.parentId);
+          await m.addColumn(userComments, userComments.replyToName);
+        }
       }
     },
   );

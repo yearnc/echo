@@ -801,965 +801,6 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
   }
 }
 
-class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $PostsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _contentMeta = const VerificationMeta(
-    'content',
-  );
-  @override
-  late final GeneratedColumn<String> content = GeneratedColumn<String>(
-    'content',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
-  );
-  static const VerificationMeta _imagesMeta = const VerificationMeta('images');
-  @override
-  late final GeneratedColumn<String> images = GeneratedColumn<String>(
-    'images',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('[]'),
-  );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
-  @override
-  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
-    'updated_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
-  @override
-  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
-    'scope',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('shared'),
-  );
-  static const VerificationMeta _isAiGeneratedMeta = const VerificationMeta(
-    'isAiGenerated',
-  );
-  @override
-  late final GeneratedColumn<bool> isAiGenerated = GeneratedColumn<bool>(
-    'is_ai_generated',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_ai_generated" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
-    'deletedAt',
-  );
-  @override
-  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
-    'deleted_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _topicIdMeta = const VerificationMeta(
-    'topicId',
-  );
-  @override
-  late final GeneratedColumn<String> topicId = GeneratedColumn<String>(
-    'topic_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _topicNameMeta = const VerificationMeta(
-    'topicName',
-  );
-  @override
-  late final GeneratedColumn<String> topicName = GeneratedColumn<String>(
-    'topic_name',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _allowAiReplyMeta = const VerificationMeta(
-    'allowAiReply',
-  );
-  @override
-  late final GeneratedColumn<bool> allowAiReply = GeneratedColumn<bool>(
-    'allow_ai_reply',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("allow_ai_reply" IN (0, 1))',
-    ),
-    defaultValue: const Constant(true),
-  );
-  static const VerificationMeta _replyDensityMeta = const VerificationMeta(
-    'replyDensity',
-  );
-  @override
-  late final GeneratedColumn<String> replyDensity = GeneratedColumn<String>(
-    'reply_density',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _likeLevelMeta = const VerificationMeta(
-    'likeLevel',
-  );
-  @override
-  late final GeneratedColumn<String> likeLevel = GeneratedColumn<String>(
-    'like_level',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _humanLevelMeta = const VerificationMeta(
-    'humanLevel',
-  );
-  @override
-  late final GeneratedColumn<int> humanLevel = GeneratedColumn<int>(
-    'human_level',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _isHotMeta = const VerificationMeta('isHot');
-  @override
-  late final GeneratedColumn<bool> isHot = GeneratedColumn<bool>(
-    'is_hot',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_hot" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _likeCountMeta = const VerificationMeta(
-    'likeCount',
-  );
-  @override
-  late final GeneratedColumn<int> likeCount = GeneratedColumn<int>(
-    'like_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _commentCountMeta = const VerificationMeta(
-    'commentCount',
-  );
-  @override
-  late final GeneratedColumn<int> commentCount = GeneratedColumn<int>(
-    'comment_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    content,
-    images,
-    createdAt,
-    updatedAt,
-    scope,
-    isAiGenerated,
-    deletedAt,
-    topicId,
-    topicName,
-    allowAiReply,
-    replyDensity,
-    likeLevel,
-    humanLevel,
-    isHot,
-    likeCount,
-    commentCount,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'posts';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<PostRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('content')) {
-      context.handle(
-        _contentMeta,
-        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
-      );
-    }
-    if (data.containsKey('images')) {
-      context.handle(
-        _imagesMeta,
-        images.isAcceptableOrUnknown(data['images']!, _imagesMeta),
-      );
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    }
-    if (data.containsKey('scope')) {
-      context.handle(
-        _scopeMeta,
-        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
-      );
-    }
-    if (data.containsKey('is_ai_generated')) {
-      context.handle(
-        _isAiGeneratedMeta,
-        isAiGenerated.isAcceptableOrUnknown(
-          data['is_ai_generated']!,
-          _isAiGeneratedMeta,
-        ),
-      );
-    }
-    if (data.containsKey('deleted_at')) {
-      context.handle(
-        _deletedAtMeta,
-        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
-      );
-    }
-    if (data.containsKey('topic_id')) {
-      context.handle(
-        _topicIdMeta,
-        topicId.isAcceptableOrUnknown(data['topic_id']!, _topicIdMeta),
-      );
-    }
-    if (data.containsKey('topic_name')) {
-      context.handle(
-        _topicNameMeta,
-        topicName.isAcceptableOrUnknown(data['topic_name']!, _topicNameMeta),
-      );
-    }
-    if (data.containsKey('allow_ai_reply')) {
-      context.handle(
-        _allowAiReplyMeta,
-        allowAiReply.isAcceptableOrUnknown(
-          data['allow_ai_reply']!,
-          _allowAiReplyMeta,
-        ),
-      );
-    }
-    if (data.containsKey('reply_density')) {
-      context.handle(
-        _replyDensityMeta,
-        replyDensity.isAcceptableOrUnknown(
-          data['reply_density']!,
-          _replyDensityMeta,
-        ),
-      );
-    }
-    if (data.containsKey('like_level')) {
-      context.handle(
-        _likeLevelMeta,
-        likeLevel.isAcceptableOrUnknown(data['like_level']!, _likeLevelMeta),
-      );
-    }
-    if (data.containsKey('human_level')) {
-      context.handle(
-        _humanLevelMeta,
-        humanLevel.isAcceptableOrUnknown(data['human_level']!, _humanLevelMeta),
-      );
-    }
-    if (data.containsKey('is_hot')) {
-      context.handle(
-        _isHotMeta,
-        isHot.isAcceptableOrUnknown(data['is_hot']!, _isHotMeta),
-      );
-    }
-    if (data.containsKey('like_count')) {
-      context.handle(
-        _likeCountMeta,
-        likeCount.isAcceptableOrUnknown(data['like_count']!, _likeCountMeta),
-      );
-    }
-    if (data.containsKey('comment_count')) {
-      context.handle(
-        _commentCountMeta,
-        commentCount.isAcceptableOrUnknown(
-          data['comment_count']!,
-          _commentCountMeta,
-        ),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  PostRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return PostRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      content: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}content'],
-      )!,
-      images: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}images'],
-      )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}created_at'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}updated_at'],
-      ),
-      scope: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}scope'],
-      )!,
-      isAiGenerated: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_ai_generated'],
-      )!,
-      deletedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}deleted_at'],
-      ),
-      topicId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}topic_id'],
-      ),
-      topicName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}topic_name'],
-      ),
-      allowAiReply: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}allow_ai_reply'],
-      )!,
-      replyDensity: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}reply_density'],
-      ),
-      likeLevel: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}like_level'],
-      ),
-      humanLevel: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}human_level'],
-      ),
-      isHot: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_hot'],
-      )!,
-      likeCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_count'],
-      )!,
-      commentCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}comment_count'],
-      )!,
-    );
-  }
-
-  @override
-  $PostsTable createAlias(String alias) {
-    return $PostsTable(attachedDatabase, alias);
-  }
-}
-
-class PostRow extends DataClass implements Insertable<PostRow> {
-  final String id;
-  final String content;
-  final String images;
-  final int createdAt;
-  final int? updatedAt;
-  final String scope;
-  final bool isAiGenerated;
-  final int? deletedAt;
-  final String? topicId;
-  final String? topicName;
-  final bool allowAiReply;
-  final String? replyDensity;
-  final String? likeLevel;
-  final int? humanLevel;
-  final bool isHot;
-  final int likeCount;
-  final int commentCount;
-  const PostRow({
-    required this.id,
-    required this.content,
-    required this.images,
-    required this.createdAt,
-    this.updatedAt,
-    required this.scope,
-    required this.isAiGenerated,
-    this.deletedAt,
-    this.topicId,
-    this.topicName,
-    required this.allowAiReply,
-    this.replyDensity,
-    this.likeLevel,
-    this.humanLevel,
-    required this.isHot,
-    required this.likeCount,
-    required this.commentCount,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['content'] = Variable<String>(content);
-    map['images'] = Variable<String>(images);
-    map['created_at'] = Variable<int>(createdAt);
-    if (!nullToAbsent || updatedAt != null) {
-      map['updated_at'] = Variable<int>(updatedAt);
-    }
-    map['scope'] = Variable<String>(scope);
-    map['is_ai_generated'] = Variable<bool>(isAiGenerated);
-    if (!nullToAbsent || deletedAt != null) {
-      map['deleted_at'] = Variable<int>(deletedAt);
-    }
-    if (!nullToAbsent || topicId != null) {
-      map['topic_id'] = Variable<String>(topicId);
-    }
-    if (!nullToAbsent || topicName != null) {
-      map['topic_name'] = Variable<String>(topicName);
-    }
-    map['allow_ai_reply'] = Variable<bool>(allowAiReply);
-    if (!nullToAbsent || replyDensity != null) {
-      map['reply_density'] = Variable<String>(replyDensity);
-    }
-    if (!nullToAbsent || likeLevel != null) {
-      map['like_level'] = Variable<String>(likeLevel);
-    }
-    if (!nullToAbsent || humanLevel != null) {
-      map['human_level'] = Variable<int>(humanLevel);
-    }
-    map['is_hot'] = Variable<bool>(isHot);
-    map['like_count'] = Variable<int>(likeCount);
-    map['comment_count'] = Variable<int>(commentCount);
-    return map;
-  }
-
-  PostsCompanion toCompanion(bool nullToAbsent) {
-    return PostsCompanion(
-      id: Value(id),
-      content: Value(content),
-      images: Value(images),
-      createdAt: Value(createdAt),
-      updatedAt: updatedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(updatedAt),
-      scope: Value(scope),
-      isAiGenerated: Value(isAiGenerated),
-      deletedAt: deletedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(deletedAt),
-      topicId: topicId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(topicId),
-      topicName: topicName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(topicName),
-      allowAiReply: Value(allowAiReply),
-      replyDensity: replyDensity == null && nullToAbsent
-          ? const Value.absent()
-          : Value(replyDensity),
-      likeLevel: likeLevel == null && nullToAbsent
-          ? const Value.absent()
-          : Value(likeLevel),
-      humanLevel: humanLevel == null && nullToAbsent
-          ? const Value.absent()
-          : Value(humanLevel),
-      isHot: Value(isHot),
-      likeCount: Value(likeCount),
-      commentCount: Value(commentCount),
-    );
-  }
-
-  factory PostRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return PostRow(
-      id: serializer.fromJson<String>(json['id']),
-      content: serializer.fromJson<String>(json['content']),
-      images: serializer.fromJson<String>(json['images']),
-      createdAt: serializer.fromJson<int>(json['createdAt']),
-      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
-      scope: serializer.fromJson<String>(json['scope']),
-      isAiGenerated: serializer.fromJson<bool>(json['isAiGenerated']),
-      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
-      topicId: serializer.fromJson<String?>(json['topicId']),
-      topicName: serializer.fromJson<String?>(json['topicName']),
-      allowAiReply: serializer.fromJson<bool>(json['allowAiReply']),
-      replyDensity: serializer.fromJson<String?>(json['replyDensity']),
-      likeLevel: serializer.fromJson<String?>(json['likeLevel']),
-      humanLevel: serializer.fromJson<int?>(json['humanLevel']),
-      isHot: serializer.fromJson<bool>(json['isHot']),
-      likeCount: serializer.fromJson<int>(json['likeCount']),
-      commentCount: serializer.fromJson<int>(json['commentCount']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'content': serializer.toJson<String>(content),
-      'images': serializer.toJson<String>(images),
-      'createdAt': serializer.toJson<int>(createdAt),
-      'updatedAt': serializer.toJson<int?>(updatedAt),
-      'scope': serializer.toJson<String>(scope),
-      'isAiGenerated': serializer.toJson<bool>(isAiGenerated),
-      'deletedAt': serializer.toJson<int?>(deletedAt),
-      'topicId': serializer.toJson<String?>(topicId),
-      'topicName': serializer.toJson<String?>(topicName),
-      'allowAiReply': serializer.toJson<bool>(allowAiReply),
-      'replyDensity': serializer.toJson<String?>(replyDensity),
-      'likeLevel': serializer.toJson<String?>(likeLevel),
-      'humanLevel': serializer.toJson<int?>(humanLevel),
-      'isHot': serializer.toJson<bool>(isHot),
-      'likeCount': serializer.toJson<int>(likeCount),
-      'commentCount': serializer.toJson<int>(commentCount),
-    };
-  }
-
-  PostRow copyWith({
-    String? id,
-    String? content,
-    String? images,
-    int? createdAt,
-    Value<int?> updatedAt = const Value.absent(),
-    String? scope,
-    bool? isAiGenerated,
-    Value<int?> deletedAt = const Value.absent(),
-    Value<String?> topicId = const Value.absent(),
-    Value<String?> topicName = const Value.absent(),
-    bool? allowAiReply,
-    Value<String?> replyDensity = const Value.absent(),
-    Value<String?> likeLevel = const Value.absent(),
-    Value<int?> humanLevel = const Value.absent(),
-    bool? isHot,
-    int? likeCount,
-    int? commentCount,
-  }) => PostRow(
-    id: id ?? this.id,
-    content: content ?? this.content,
-    images: images ?? this.images,
-    createdAt: createdAt ?? this.createdAt,
-    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
-    scope: scope ?? this.scope,
-    isAiGenerated: isAiGenerated ?? this.isAiGenerated,
-    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
-    topicId: topicId.present ? topicId.value : this.topicId,
-    topicName: topicName.present ? topicName.value : this.topicName,
-    allowAiReply: allowAiReply ?? this.allowAiReply,
-    replyDensity: replyDensity.present ? replyDensity.value : this.replyDensity,
-    likeLevel: likeLevel.present ? likeLevel.value : this.likeLevel,
-    humanLevel: humanLevel.present ? humanLevel.value : this.humanLevel,
-    isHot: isHot ?? this.isHot,
-    likeCount: likeCount ?? this.likeCount,
-    commentCount: commentCount ?? this.commentCount,
-  );
-  PostRow copyWithCompanion(PostsCompanion data) {
-    return PostRow(
-      id: data.id.present ? data.id.value : this.id,
-      content: data.content.present ? data.content.value : this.content,
-      images: data.images.present ? data.images.value : this.images,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-      scope: data.scope.present ? data.scope.value : this.scope,
-      isAiGenerated: data.isAiGenerated.present
-          ? data.isAiGenerated.value
-          : this.isAiGenerated,
-      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
-      topicId: data.topicId.present ? data.topicId.value : this.topicId,
-      topicName: data.topicName.present ? data.topicName.value : this.topicName,
-      allowAiReply: data.allowAiReply.present
-          ? data.allowAiReply.value
-          : this.allowAiReply,
-      replyDensity: data.replyDensity.present
-          ? data.replyDensity.value
-          : this.replyDensity,
-      likeLevel: data.likeLevel.present ? data.likeLevel.value : this.likeLevel,
-      humanLevel: data.humanLevel.present
-          ? data.humanLevel.value
-          : this.humanLevel,
-      isHot: data.isHot.present ? data.isHot.value : this.isHot,
-      likeCount: data.likeCount.present ? data.likeCount.value : this.likeCount,
-      commentCount: data.commentCount.present
-          ? data.commentCount.value
-          : this.commentCount,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('PostRow(')
-          ..write('id: $id, ')
-          ..write('content: $content, ')
-          ..write('images: $images, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('scope: $scope, ')
-          ..write('isAiGenerated: $isAiGenerated, ')
-          ..write('deletedAt: $deletedAt, ')
-          ..write('topicId: $topicId, ')
-          ..write('topicName: $topicName, ')
-          ..write('allowAiReply: $allowAiReply, ')
-          ..write('replyDensity: $replyDensity, ')
-          ..write('likeLevel: $likeLevel, ')
-          ..write('humanLevel: $humanLevel, ')
-          ..write('isHot: $isHot, ')
-          ..write('likeCount: $likeCount, ')
-          ..write('commentCount: $commentCount')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    content,
-    images,
-    createdAt,
-    updatedAt,
-    scope,
-    isAiGenerated,
-    deletedAt,
-    topicId,
-    topicName,
-    allowAiReply,
-    replyDensity,
-    likeLevel,
-    humanLevel,
-    isHot,
-    likeCount,
-    commentCount,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is PostRow &&
-          other.id == this.id &&
-          other.content == this.content &&
-          other.images == this.images &&
-          other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt &&
-          other.scope == this.scope &&
-          other.isAiGenerated == this.isAiGenerated &&
-          other.deletedAt == this.deletedAt &&
-          other.topicId == this.topicId &&
-          other.topicName == this.topicName &&
-          other.allowAiReply == this.allowAiReply &&
-          other.replyDensity == this.replyDensity &&
-          other.likeLevel == this.likeLevel &&
-          other.humanLevel == this.humanLevel &&
-          other.isHot == this.isHot &&
-          other.likeCount == this.likeCount &&
-          other.commentCount == this.commentCount);
-}
-
-class PostsCompanion extends UpdateCompanion<PostRow> {
-  final Value<String> id;
-  final Value<String> content;
-  final Value<String> images;
-  final Value<int> createdAt;
-  final Value<int?> updatedAt;
-  final Value<String> scope;
-  final Value<bool> isAiGenerated;
-  final Value<int?> deletedAt;
-  final Value<String?> topicId;
-  final Value<String?> topicName;
-  final Value<bool> allowAiReply;
-  final Value<String?> replyDensity;
-  final Value<String?> likeLevel;
-  final Value<int?> humanLevel;
-  final Value<bool> isHot;
-  final Value<int> likeCount;
-  final Value<int> commentCount;
-  final Value<int> rowid;
-  const PostsCompanion({
-    this.id = const Value.absent(),
-    this.content = const Value.absent(),
-    this.images = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.scope = const Value.absent(),
-    this.isAiGenerated = const Value.absent(),
-    this.deletedAt = const Value.absent(),
-    this.topicId = const Value.absent(),
-    this.topicName = const Value.absent(),
-    this.allowAiReply = const Value.absent(),
-    this.replyDensity = const Value.absent(),
-    this.likeLevel = const Value.absent(),
-    this.humanLevel = const Value.absent(),
-    this.isHot = const Value.absent(),
-    this.likeCount = const Value.absent(),
-    this.commentCount = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  PostsCompanion.insert({
-    required String id,
-    this.content = const Value.absent(),
-    this.images = const Value.absent(),
-    required int createdAt,
-    this.updatedAt = const Value.absent(),
-    this.scope = const Value.absent(),
-    this.isAiGenerated = const Value.absent(),
-    this.deletedAt = const Value.absent(),
-    this.topicId = const Value.absent(),
-    this.topicName = const Value.absent(),
-    this.allowAiReply = const Value.absent(),
-    this.replyDensity = const Value.absent(),
-    this.likeLevel = const Value.absent(),
-    this.humanLevel = const Value.absent(),
-    this.isHot = const Value.absent(),
-    this.likeCount = const Value.absent(),
-    this.commentCount = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       createdAt = Value(createdAt);
-  static Insertable<PostRow> custom({
-    Expression<String>? id,
-    Expression<String>? content,
-    Expression<String>? images,
-    Expression<int>? createdAt,
-    Expression<int>? updatedAt,
-    Expression<String>? scope,
-    Expression<bool>? isAiGenerated,
-    Expression<int>? deletedAt,
-    Expression<String>? topicId,
-    Expression<String>? topicName,
-    Expression<bool>? allowAiReply,
-    Expression<String>? replyDensity,
-    Expression<String>? likeLevel,
-    Expression<int>? humanLevel,
-    Expression<bool>? isHot,
-    Expression<int>? likeCount,
-    Expression<int>? commentCount,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (content != null) 'content': content,
-      if (images != null) 'images': images,
-      if (createdAt != null) 'created_at': createdAt,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (scope != null) 'scope': scope,
-      if (isAiGenerated != null) 'is_ai_generated': isAiGenerated,
-      if (deletedAt != null) 'deleted_at': deletedAt,
-      if (topicId != null) 'topic_id': topicId,
-      if (topicName != null) 'topic_name': topicName,
-      if (allowAiReply != null) 'allow_ai_reply': allowAiReply,
-      if (replyDensity != null) 'reply_density': replyDensity,
-      if (likeLevel != null) 'like_level': likeLevel,
-      if (humanLevel != null) 'human_level': humanLevel,
-      if (isHot != null) 'is_hot': isHot,
-      if (likeCount != null) 'like_count': likeCount,
-      if (commentCount != null) 'comment_count': commentCount,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  PostsCompanion copyWith({
-    Value<String>? id,
-    Value<String>? content,
-    Value<String>? images,
-    Value<int>? createdAt,
-    Value<int?>? updatedAt,
-    Value<String>? scope,
-    Value<bool>? isAiGenerated,
-    Value<int?>? deletedAt,
-    Value<String?>? topicId,
-    Value<String?>? topicName,
-    Value<bool>? allowAiReply,
-    Value<String?>? replyDensity,
-    Value<String?>? likeLevel,
-    Value<int?>? humanLevel,
-    Value<bool>? isHot,
-    Value<int>? likeCount,
-    Value<int>? commentCount,
-    Value<int>? rowid,
-  }) {
-    return PostsCompanion(
-      id: id ?? this.id,
-      content: content ?? this.content,
-      images: images ?? this.images,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      scope: scope ?? this.scope,
-      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
-      deletedAt: deletedAt ?? this.deletedAt,
-      topicId: topicId ?? this.topicId,
-      topicName: topicName ?? this.topicName,
-      allowAiReply: allowAiReply ?? this.allowAiReply,
-      replyDensity: replyDensity ?? this.replyDensity,
-      likeLevel: likeLevel ?? this.likeLevel,
-      humanLevel: humanLevel ?? this.humanLevel,
-      isHot: isHot ?? this.isHot,
-      likeCount: likeCount ?? this.likeCount,
-      commentCount: commentCount ?? this.commentCount,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (content.present) {
-      map['content'] = Variable<String>(content.value);
-    }
-    if (images.present) {
-      map['images'] = Variable<String>(images.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<int>(createdAt.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<int>(updatedAt.value);
-    }
-    if (scope.present) {
-      map['scope'] = Variable<String>(scope.value);
-    }
-    if (isAiGenerated.present) {
-      map['is_ai_generated'] = Variable<bool>(isAiGenerated.value);
-    }
-    if (deletedAt.present) {
-      map['deleted_at'] = Variable<int>(deletedAt.value);
-    }
-    if (topicId.present) {
-      map['topic_id'] = Variable<String>(topicId.value);
-    }
-    if (topicName.present) {
-      map['topic_name'] = Variable<String>(topicName.value);
-    }
-    if (allowAiReply.present) {
-      map['allow_ai_reply'] = Variable<bool>(allowAiReply.value);
-    }
-    if (replyDensity.present) {
-      map['reply_density'] = Variable<String>(replyDensity.value);
-    }
-    if (likeLevel.present) {
-      map['like_level'] = Variable<String>(likeLevel.value);
-    }
-    if (humanLevel.present) {
-      map['human_level'] = Variable<int>(humanLevel.value);
-    }
-    if (isHot.present) {
-      map['is_hot'] = Variable<bool>(isHot.value);
-    }
-    if (likeCount.present) {
-      map['like_count'] = Variable<int>(likeCount.value);
-    }
-    if (commentCount.present) {
-      map['comment_count'] = Variable<int>(commentCount.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('PostsCompanion(')
-          ..write('id: $id, ')
-          ..write('content: $content, ')
-          ..write('images: $images, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('scope: $scope, ')
-          ..write('isAiGenerated: $isAiGenerated, ')
-          ..write('deletedAt: $deletedAt, ')
-          ..write('topicId: $topicId, ')
-          ..write('topicName: $topicName, ')
-          ..write('allowAiReply: $allowAiReply, ')
-          ..write('replyDensity: $replyDensity, ')
-          ..write('likeLevel: $likeLevel, ')
-          ..write('humanLevel: $humanLevel, ')
-          ..write('isHot: $isHot, ')
-          ..write('likeCount: $likeCount, ')
-          ..write('commentCount: $commentCount, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $AiPersonasTable extends AiPersonas
     with TableInfo<$AiPersonasTable, AiPersonaRow> {
   @override
@@ -1967,6 +1008,16 @@ class $AiPersonasTable extends AiPersonas
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _circleMeta = const VerificationMeta('circle');
+  @override
+  late final GeneratedColumn<String> circle = GeneratedColumn<String>(
+    'circle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _memoryEnabledMeta = const VerificationMeta(
     'memoryEnabled',
   );
@@ -2025,6 +1076,7 @@ class $AiPersonasTable extends AiPersonas
     followers,
     following,
     personalityType,
+    circle,
     memoryEnabled,
     relationshipLevel,
     deletedAt,
@@ -2168,6 +1220,12 @@ class $AiPersonasTable extends AiPersonas
         ),
       );
     }
+    if (data.containsKey('circle')) {
+      context.handle(
+        _circleMeta,
+        circle.isAcceptableOrUnknown(data['circle']!, _circleMeta),
+      );
+    }
     if (data.containsKey('memory_enabled')) {
       context.handle(
         _memoryEnabledMeta,
@@ -2273,6 +1331,10 @@ class $AiPersonasTable extends AiPersonas
         DriftSqlType.string,
         data['${effectivePrefix}personality_type'],
       )!,
+      circle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}circle'],
+      )!,
       memoryEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}memory_enabled'],
@@ -2313,6 +1375,10 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
   final int followers;
   final int following;
   final String personalityType;
+
+  /// 圈层：信息流按圈子分发时的归属（同校圈 / 树洞 / 学习 / 运动 / 摄影…）。
+  /// 空字符串表示"哪个圈子都沾一点"，分发时按同校圈算。
+  final String circle;
   final bool memoryEnabled;
   final int relationshipLevel;
   final int? deletedAt;
@@ -2335,6 +1401,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     required this.followers,
     required this.following,
     required this.personalityType,
+    required this.circle,
     required this.memoryEnabled,
     required this.relationshipLevel,
     this.deletedAt,
@@ -2360,6 +1427,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     map['followers'] = Variable<int>(followers);
     map['following'] = Variable<int>(following);
     map['personality_type'] = Variable<String>(personalityType);
+    map['circle'] = Variable<String>(circle);
     map['memory_enabled'] = Variable<bool>(memoryEnabled);
     map['relationship_level'] = Variable<int>(relationshipLevel);
     if (!nullToAbsent || deletedAt != null) {
@@ -2388,6 +1456,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       followers: Value(followers),
       following: Value(following),
       personalityType: Value(personalityType),
+      circle: Value(circle),
       memoryEnabled: Value(memoryEnabled),
       relationshipLevel: Value(relationshipLevel),
       deletedAt: deletedAt == null && nullToAbsent
@@ -2422,6 +1491,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       followers: serializer.fromJson<int>(json['followers']),
       following: serializer.fromJson<int>(json['following']),
       personalityType: serializer.fromJson<String>(json['personalityType']),
+      circle: serializer.fromJson<String>(json['circle']),
       memoryEnabled: serializer.fromJson<bool>(json['memoryEnabled']),
       relationshipLevel: serializer.fromJson<int>(json['relationshipLevel']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
@@ -2449,6 +1519,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       'followers': serializer.toJson<int>(followers),
       'following': serializer.toJson<int>(following),
       'personalityType': serializer.toJson<String>(personalityType),
+      'circle': serializer.toJson<String>(circle),
       'memoryEnabled': serializer.toJson<bool>(memoryEnabled),
       'relationshipLevel': serializer.toJson<int>(relationshipLevel),
       'deletedAt': serializer.toJson<int?>(deletedAt),
@@ -2474,6 +1545,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     int? followers,
     int? following,
     String? personalityType,
+    String? circle,
     bool? memoryEnabled,
     int? relationshipLevel,
     Value<int?> deletedAt = const Value.absent(),
@@ -2496,6 +1568,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     followers: followers ?? this.followers,
     following: following ?? this.following,
     personalityType: personalityType ?? this.personalityType,
+    circle: circle ?? this.circle,
     memoryEnabled: memoryEnabled ?? this.memoryEnabled,
     relationshipLevel: relationshipLevel ?? this.relationshipLevel,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -2534,6 +1607,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
       personalityType: data.personalityType.present
           ? data.personalityType.value
           : this.personalityType,
+      circle: data.circle.present ? data.circle.value : this.circle,
       memoryEnabled: data.memoryEnabled.present
           ? data.memoryEnabled.value
           : this.memoryEnabled,
@@ -2565,6 +1639,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
           ..write('followers: $followers, ')
           ..write('following: $following, ')
           ..write('personalityType: $personalityType, ')
+          ..write('circle: $circle, ')
           ..write('memoryEnabled: $memoryEnabled, ')
           ..write('relationshipLevel: $relationshipLevel, ')
           ..write('deletedAt: $deletedAt')
@@ -2592,6 +1667,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
     followers,
     following,
     personalityType,
+    circle,
     memoryEnabled,
     relationshipLevel,
     deletedAt,
@@ -2618,6 +1694,7 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
           other.followers == this.followers &&
           other.following == this.following &&
           other.personalityType == this.personalityType &&
+          other.circle == this.circle &&
           other.memoryEnabled == this.memoryEnabled &&
           other.relationshipLevel == this.relationshipLevel &&
           other.deletedAt == this.deletedAt);
@@ -2642,6 +1719,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
   final Value<int> followers;
   final Value<int> following;
   final Value<String> personalityType;
+  final Value<String> circle;
   final Value<bool> memoryEnabled;
   final Value<int> relationshipLevel;
   final Value<int?> deletedAt;
@@ -2665,6 +1743,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     this.followers = const Value.absent(),
     this.following = const Value.absent(),
     this.personalityType = const Value.absent(),
+    this.circle = const Value.absent(),
     this.memoryEnabled = const Value.absent(),
     this.relationshipLevel = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -2689,6 +1768,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     this.followers = const Value.absent(),
     this.following = const Value.absent(),
     this.personalityType = const Value.absent(),
+    this.circle = const Value.absent(),
     this.memoryEnabled = const Value.absent(),
     this.relationshipLevel = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -2714,6 +1794,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     Expression<int>? followers,
     Expression<int>? following,
     Expression<String>? personalityType,
+    Expression<String>? circle,
     Expression<bool>? memoryEnabled,
     Expression<int>? relationshipLevel,
     Expression<int>? deletedAt,
@@ -2738,6 +1819,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
       if (followers != null) 'followers': followers,
       if (following != null) 'following': following,
       if (personalityType != null) 'personality_type': personalityType,
+      if (circle != null) 'circle': circle,
       if (memoryEnabled != null) 'memory_enabled': memoryEnabled,
       if (relationshipLevel != null) 'relationship_level': relationshipLevel,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -2764,6 +1846,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     Value<int>? followers,
     Value<int>? following,
     Value<String>? personalityType,
+    Value<String>? circle,
     Value<bool>? memoryEnabled,
     Value<int>? relationshipLevel,
     Value<int?>? deletedAt,
@@ -2788,6 +1871,7 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
       followers: followers ?? this.followers,
       following: following ?? this.following,
       personalityType: personalityType ?? this.personalityType,
+      circle: circle ?? this.circle,
       memoryEnabled: memoryEnabled ?? this.memoryEnabled,
       relationshipLevel: relationshipLevel ?? this.relationshipLevel,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -2852,6 +1936,9 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
     if (personalityType.present) {
       map['personality_type'] = Variable<String>(personalityType.value);
     }
+    if (circle.present) {
+      map['circle'] = Variable<String>(circle.value);
+    }
     if (memoryEnabled.present) {
       map['memory_enabled'] = Variable<bool>(memoryEnabled.value);
     }
@@ -2888,9 +1975,1088 @@ class AiPersonasCompanion extends UpdateCompanion<AiPersonaRow> {
           ..write('followers: $followers, ')
           ..write('following: $following, ')
           ..write('personalityType: $personalityType, ')
+          ..write('circle: $circle, ')
           ..write('memoryEnabled: $memoryEnabled, ')
           ..write('relationshipLevel: $relationshipLevel, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PostsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _imagesMeta = const VerificationMeta('images');
+  @override
+  late final GeneratedColumn<String> images = GeneratedColumn<String>(
+    'images',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('shared'),
+  );
+  static const VerificationMeta _isAiGeneratedMeta = const VerificationMeta(
+    'isAiGenerated',
+  );
+  @override
+  late final GeneratedColumn<bool> isAiGenerated = GeneratedColumn<bool>(
+    'is_ai_generated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_ai_generated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _topicIdMeta = const VerificationMeta(
+    'topicId',
+  );
+  @override
+  late final GeneratedColumn<String> topicId = GeneratedColumn<String>(
+    'topic_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _topicNameMeta = const VerificationMeta(
+    'topicName',
+  );
+  @override
+  late final GeneratedColumn<String> topicName = GeneratedColumn<String>(
+    'topic_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _allowAiReplyMeta = const VerificationMeta(
+    'allowAiReply',
+  );
+  @override
+  late final GeneratedColumn<bool> allowAiReply = GeneratedColumn<bool>(
+    'allow_ai_reply',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_ai_reply" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _replyDensityMeta = const VerificationMeta(
+    'replyDensity',
+  );
+  @override
+  late final GeneratedColumn<String> replyDensity = GeneratedColumn<String>(
+    'reply_density',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _likeLevelMeta = const VerificationMeta(
+    'likeLevel',
+  );
+  @override
+  late final GeneratedColumn<String> likeLevel = GeneratedColumn<String>(
+    'like_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _humanLevelMeta = const VerificationMeta(
+    'humanLevel',
+  );
+  @override
+  late final GeneratedColumn<int> humanLevel = GeneratedColumn<int>(
+    'human_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isHotMeta = const VerificationMeta('isHot');
+  @override
+  late final GeneratedColumn<bool> isHot = GeneratedColumn<bool>(
+    'is_hot',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_hot" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _likeCountMeta = const VerificationMeta(
+    'likeCount',
+  );
+  @override
+  late final GeneratedColumn<int> likeCount = GeneratedColumn<int>(
+    'like_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _commentCountMeta = const VerificationMeta(
+    'commentCount',
+  );
+  @override
+  late final GeneratedColumn<int> commentCount = GeneratedColumn<int>(
+    'comment_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _likedAtMeta = const VerificationMeta(
+    'likedAt',
+  );
+  @override
+  late final GeneratedColumn<int> likedAt = GeneratedColumn<int>(
+    'liked_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _authorPersonaIdMeta = const VerificationMeta(
+    'authorPersonaId',
+  );
+  @override
+  late final GeneratedColumn<String> authorPersonaId = GeneratedColumn<String>(
+    'author_persona_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES ai_personas (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    content,
+    images,
+    createdAt,
+    updatedAt,
+    scope,
+    isAiGenerated,
+    deletedAt,
+    topicId,
+    topicName,
+    allowAiReply,
+    replyDensity,
+    likeLevel,
+    humanLevel,
+    isHot,
+    likeCount,
+    commentCount,
+    likedAt,
+    authorPersonaId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'posts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PostRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('images')) {
+      context.handle(
+        _imagesMeta,
+        images.isAcceptableOrUnknown(data['images']!, _imagesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    if (data.containsKey('is_ai_generated')) {
+      context.handle(
+        _isAiGeneratedMeta,
+        isAiGenerated.isAcceptableOrUnknown(
+          data['is_ai_generated']!,
+          _isAiGeneratedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('topic_id')) {
+      context.handle(
+        _topicIdMeta,
+        topicId.isAcceptableOrUnknown(data['topic_id']!, _topicIdMeta),
+      );
+    }
+    if (data.containsKey('topic_name')) {
+      context.handle(
+        _topicNameMeta,
+        topicName.isAcceptableOrUnknown(data['topic_name']!, _topicNameMeta),
+      );
+    }
+    if (data.containsKey('allow_ai_reply')) {
+      context.handle(
+        _allowAiReplyMeta,
+        allowAiReply.isAcceptableOrUnknown(
+          data['allow_ai_reply']!,
+          _allowAiReplyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reply_density')) {
+      context.handle(
+        _replyDensityMeta,
+        replyDensity.isAcceptableOrUnknown(
+          data['reply_density']!,
+          _replyDensityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('like_level')) {
+      context.handle(
+        _likeLevelMeta,
+        likeLevel.isAcceptableOrUnknown(data['like_level']!, _likeLevelMeta),
+      );
+    }
+    if (data.containsKey('human_level')) {
+      context.handle(
+        _humanLevelMeta,
+        humanLevel.isAcceptableOrUnknown(data['human_level']!, _humanLevelMeta),
+      );
+    }
+    if (data.containsKey('is_hot')) {
+      context.handle(
+        _isHotMeta,
+        isHot.isAcceptableOrUnknown(data['is_hot']!, _isHotMeta),
+      );
+    }
+    if (data.containsKey('like_count')) {
+      context.handle(
+        _likeCountMeta,
+        likeCount.isAcceptableOrUnknown(data['like_count']!, _likeCountMeta),
+      );
+    }
+    if (data.containsKey('comment_count')) {
+      context.handle(
+        _commentCountMeta,
+        commentCount.isAcceptableOrUnknown(
+          data['comment_count']!,
+          _commentCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('liked_at')) {
+      context.handle(
+        _likedAtMeta,
+        likedAt.isAcceptableOrUnknown(data['liked_at']!, _likedAtMeta),
+      );
+    }
+    if (data.containsKey('author_persona_id')) {
+      context.handle(
+        _authorPersonaIdMeta,
+        authorPersonaId.isAcceptableOrUnknown(
+          data['author_persona_id']!,
+          _authorPersonaIdMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PostRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PostRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      images: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}images'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      isAiGenerated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_ai_generated'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      topicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}topic_id'],
+      ),
+      topicName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}topic_name'],
+      ),
+      allowAiReply: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_ai_reply'],
+      )!,
+      replyDensity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reply_density'],
+      ),
+      likeLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}like_level'],
+      ),
+      humanLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}human_level'],
+      ),
+      isHot: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_hot'],
+      )!,
+      likeCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}like_count'],
+      )!,
+      commentCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}comment_count'],
+      )!,
+      likedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}liked_at'],
+      ),
+      authorPersonaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}author_persona_id'],
+      ),
+    );
+  }
+
+  @override
+  $PostsTable createAlias(String alias) {
+    return $PostsTable(attachedDatabase, alias);
+  }
+}
+
+class PostRow extends DataClass implements Insertable<PostRow> {
+  final String id;
+  final String content;
+  final String images;
+  final int createdAt;
+  final int? updatedAt;
+  final String scope;
+  final bool isAiGenerated;
+  final int? deletedAt;
+  final String? topicId;
+  final String? topicName;
+  final bool allowAiReply;
+  final String? replyDensity;
+  final String? likeLevel;
+  final int? humanLevel;
+  final bool isHot;
+  final int likeCount;
+  final int commentCount;
+
+  /// 我点过赞的时刻；null 表示没点过。
+  ///
+  /// 存时刻而不是布尔值，是因为"什么时候点的"以后可能有用（比如排序、
+  /// 比如看自己的互动轨迹）；而它反正只占一个整数。
+  final int? likedAt;
+
+  /// 住民自己发的动态在这里记下作者；用户发的为 null。
+  ///
+  /// 住民动态走同一张 `posts` 表而不是另开一张（阶段 B 计划书决策 3）：
+  /// 信息流、帖子详情、评论区、点赞计数全部现成，`ai_interactions` 的外键
+  /// 也不用改语义——"谁发的"只多这一个字段。
+  final String? authorPersonaId;
+  const PostRow({
+    required this.id,
+    required this.content,
+    required this.images,
+    required this.createdAt,
+    this.updatedAt,
+    required this.scope,
+    required this.isAiGenerated,
+    this.deletedAt,
+    this.topicId,
+    this.topicName,
+    required this.allowAiReply,
+    this.replyDensity,
+    this.likeLevel,
+    this.humanLevel,
+    required this.isHot,
+    required this.likeCount,
+    required this.commentCount,
+    this.likedAt,
+    this.authorPersonaId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['content'] = Variable<String>(content);
+    map['images'] = Variable<String>(images);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<int>(updatedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    map['is_ai_generated'] = Variable<bool>(isAiGenerated);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    if (!nullToAbsent || topicId != null) {
+      map['topic_id'] = Variable<String>(topicId);
+    }
+    if (!nullToAbsent || topicName != null) {
+      map['topic_name'] = Variable<String>(topicName);
+    }
+    map['allow_ai_reply'] = Variable<bool>(allowAiReply);
+    if (!nullToAbsent || replyDensity != null) {
+      map['reply_density'] = Variable<String>(replyDensity);
+    }
+    if (!nullToAbsent || likeLevel != null) {
+      map['like_level'] = Variable<String>(likeLevel);
+    }
+    if (!nullToAbsent || humanLevel != null) {
+      map['human_level'] = Variable<int>(humanLevel);
+    }
+    map['is_hot'] = Variable<bool>(isHot);
+    map['like_count'] = Variable<int>(likeCount);
+    map['comment_count'] = Variable<int>(commentCount);
+    if (!nullToAbsent || likedAt != null) {
+      map['liked_at'] = Variable<int>(likedAt);
+    }
+    if (!nullToAbsent || authorPersonaId != null) {
+      map['author_persona_id'] = Variable<String>(authorPersonaId);
+    }
+    return map;
+  }
+
+  PostsCompanion toCompanion(bool nullToAbsent) {
+    return PostsCompanion(
+      id: Value(id),
+      content: Value(content),
+      images: Value(images),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      scope: Value(scope),
+      isAiGenerated: Value(isAiGenerated),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      topicId: topicId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(topicId),
+      topicName: topicName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(topicName),
+      allowAiReply: Value(allowAiReply),
+      replyDensity: replyDensity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyDensity),
+      likeLevel: likeLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(likeLevel),
+      humanLevel: humanLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(humanLevel),
+      isHot: Value(isHot),
+      likeCount: Value(likeCount),
+      commentCount: Value(commentCount),
+      likedAt: likedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(likedAt),
+      authorPersonaId: authorPersonaId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authorPersonaId),
+    );
+  }
+
+  factory PostRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PostRow(
+      id: serializer.fromJson<String>(json['id']),
+      content: serializer.fromJson<String>(json['content']),
+      images: serializer.fromJson<String>(json['images']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+      isAiGenerated: serializer.fromJson<bool>(json['isAiGenerated']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      topicId: serializer.fromJson<String?>(json['topicId']),
+      topicName: serializer.fromJson<String?>(json['topicName']),
+      allowAiReply: serializer.fromJson<bool>(json['allowAiReply']),
+      replyDensity: serializer.fromJson<String?>(json['replyDensity']),
+      likeLevel: serializer.fromJson<String?>(json['likeLevel']),
+      humanLevel: serializer.fromJson<int?>(json['humanLevel']),
+      isHot: serializer.fromJson<bool>(json['isHot']),
+      likeCount: serializer.fromJson<int>(json['likeCount']),
+      commentCount: serializer.fromJson<int>(json['commentCount']),
+      likedAt: serializer.fromJson<int?>(json['likedAt']),
+      authorPersonaId: serializer.fromJson<String?>(json['authorPersonaId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'content': serializer.toJson<String>(content),
+      'images': serializer.toJson<String>(images),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int?>(updatedAt),
+      'scope': serializer.toJson<String>(scope),
+      'isAiGenerated': serializer.toJson<bool>(isAiGenerated),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'topicId': serializer.toJson<String?>(topicId),
+      'topicName': serializer.toJson<String?>(topicName),
+      'allowAiReply': serializer.toJson<bool>(allowAiReply),
+      'replyDensity': serializer.toJson<String?>(replyDensity),
+      'likeLevel': serializer.toJson<String?>(likeLevel),
+      'humanLevel': serializer.toJson<int?>(humanLevel),
+      'isHot': serializer.toJson<bool>(isHot),
+      'likeCount': serializer.toJson<int>(likeCount),
+      'commentCount': serializer.toJson<int>(commentCount),
+      'likedAt': serializer.toJson<int?>(likedAt),
+      'authorPersonaId': serializer.toJson<String?>(authorPersonaId),
+    };
+  }
+
+  PostRow copyWith({
+    String? id,
+    String? content,
+    String? images,
+    int? createdAt,
+    Value<int?> updatedAt = const Value.absent(),
+    String? scope,
+    bool? isAiGenerated,
+    Value<int?> deletedAt = const Value.absent(),
+    Value<String?> topicId = const Value.absent(),
+    Value<String?> topicName = const Value.absent(),
+    bool? allowAiReply,
+    Value<String?> replyDensity = const Value.absent(),
+    Value<String?> likeLevel = const Value.absent(),
+    Value<int?> humanLevel = const Value.absent(),
+    bool? isHot,
+    int? likeCount,
+    int? commentCount,
+    Value<int?> likedAt = const Value.absent(),
+    Value<String?> authorPersonaId = const Value.absent(),
+  }) => PostRow(
+    id: id ?? this.id,
+    content: content ?? this.content,
+    images: images ?? this.images,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+    scope: scope ?? this.scope,
+    isAiGenerated: isAiGenerated ?? this.isAiGenerated,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    topicId: topicId.present ? topicId.value : this.topicId,
+    topicName: topicName.present ? topicName.value : this.topicName,
+    allowAiReply: allowAiReply ?? this.allowAiReply,
+    replyDensity: replyDensity.present ? replyDensity.value : this.replyDensity,
+    likeLevel: likeLevel.present ? likeLevel.value : this.likeLevel,
+    humanLevel: humanLevel.present ? humanLevel.value : this.humanLevel,
+    isHot: isHot ?? this.isHot,
+    likeCount: likeCount ?? this.likeCount,
+    commentCount: commentCount ?? this.commentCount,
+    likedAt: likedAt.present ? likedAt.value : this.likedAt,
+    authorPersonaId: authorPersonaId.present
+        ? authorPersonaId.value
+        : this.authorPersonaId,
+  );
+  PostRow copyWithCompanion(PostsCompanion data) {
+    return PostRow(
+      id: data.id.present ? data.id.value : this.id,
+      content: data.content.present ? data.content.value : this.content,
+      images: data.images.present ? data.images.value : this.images,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      isAiGenerated: data.isAiGenerated.present
+          ? data.isAiGenerated.value
+          : this.isAiGenerated,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      topicId: data.topicId.present ? data.topicId.value : this.topicId,
+      topicName: data.topicName.present ? data.topicName.value : this.topicName,
+      allowAiReply: data.allowAiReply.present
+          ? data.allowAiReply.value
+          : this.allowAiReply,
+      replyDensity: data.replyDensity.present
+          ? data.replyDensity.value
+          : this.replyDensity,
+      likeLevel: data.likeLevel.present ? data.likeLevel.value : this.likeLevel,
+      humanLevel: data.humanLevel.present
+          ? data.humanLevel.value
+          : this.humanLevel,
+      isHot: data.isHot.present ? data.isHot.value : this.isHot,
+      likeCount: data.likeCount.present ? data.likeCount.value : this.likeCount,
+      commentCount: data.commentCount.present
+          ? data.commentCount.value
+          : this.commentCount,
+      likedAt: data.likedAt.present ? data.likedAt.value : this.likedAt,
+      authorPersonaId: data.authorPersonaId.present
+          ? data.authorPersonaId.value
+          : this.authorPersonaId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostRow(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('images: $images, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('scope: $scope, ')
+          ..write('isAiGenerated: $isAiGenerated, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('topicId: $topicId, ')
+          ..write('topicName: $topicName, ')
+          ..write('allowAiReply: $allowAiReply, ')
+          ..write('replyDensity: $replyDensity, ')
+          ..write('likeLevel: $likeLevel, ')
+          ..write('humanLevel: $humanLevel, ')
+          ..write('isHot: $isHot, ')
+          ..write('likeCount: $likeCount, ')
+          ..write('commentCount: $commentCount, ')
+          ..write('likedAt: $likedAt, ')
+          ..write('authorPersonaId: $authorPersonaId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    content,
+    images,
+    createdAt,
+    updatedAt,
+    scope,
+    isAiGenerated,
+    deletedAt,
+    topicId,
+    topicName,
+    allowAiReply,
+    replyDensity,
+    likeLevel,
+    humanLevel,
+    isHot,
+    likeCount,
+    commentCount,
+    likedAt,
+    authorPersonaId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PostRow &&
+          other.id == this.id &&
+          other.content == this.content &&
+          other.images == this.images &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.scope == this.scope &&
+          other.isAiGenerated == this.isAiGenerated &&
+          other.deletedAt == this.deletedAt &&
+          other.topicId == this.topicId &&
+          other.topicName == this.topicName &&
+          other.allowAiReply == this.allowAiReply &&
+          other.replyDensity == this.replyDensity &&
+          other.likeLevel == this.likeLevel &&
+          other.humanLevel == this.humanLevel &&
+          other.isHot == this.isHot &&
+          other.likeCount == this.likeCount &&
+          other.commentCount == this.commentCount &&
+          other.likedAt == this.likedAt &&
+          other.authorPersonaId == this.authorPersonaId);
+}
+
+class PostsCompanion extends UpdateCompanion<PostRow> {
+  final Value<String> id;
+  final Value<String> content;
+  final Value<String> images;
+  final Value<int> createdAt;
+  final Value<int?> updatedAt;
+  final Value<String> scope;
+  final Value<bool> isAiGenerated;
+  final Value<int?> deletedAt;
+  final Value<String?> topicId;
+  final Value<String?> topicName;
+  final Value<bool> allowAiReply;
+  final Value<String?> replyDensity;
+  final Value<String?> likeLevel;
+  final Value<int?> humanLevel;
+  final Value<bool> isHot;
+  final Value<int> likeCount;
+  final Value<int> commentCount;
+  final Value<int?> likedAt;
+  final Value<String?> authorPersonaId;
+  final Value<int> rowid;
+  const PostsCompanion({
+    this.id = const Value.absent(),
+    this.content = const Value.absent(),
+    this.images = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.isAiGenerated = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.topicId = const Value.absent(),
+    this.topicName = const Value.absent(),
+    this.allowAiReply = const Value.absent(),
+    this.replyDensity = const Value.absent(),
+    this.likeLevel = const Value.absent(),
+    this.humanLevel = const Value.absent(),
+    this.isHot = const Value.absent(),
+    this.likeCount = const Value.absent(),
+    this.commentCount = const Value.absent(),
+    this.likedAt = const Value.absent(),
+    this.authorPersonaId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PostsCompanion.insert({
+    required String id,
+    this.content = const Value.absent(),
+    this.images = const Value.absent(),
+    required int createdAt,
+    this.updatedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.isAiGenerated = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.topicId = const Value.absent(),
+    this.topicName = const Value.absent(),
+    this.allowAiReply = const Value.absent(),
+    this.replyDensity = const Value.absent(),
+    this.likeLevel = const Value.absent(),
+    this.humanLevel = const Value.absent(),
+    this.isHot = const Value.absent(),
+    this.likeCount = const Value.absent(),
+    this.commentCount = const Value.absent(),
+    this.likedAt = const Value.absent(),
+    this.authorPersonaId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt);
+  static Insertable<PostRow> custom({
+    Expression<String>? id,
+    Expression<String>? content,
+    Expression<String>? images,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? scope,
+    Expression<bool>? isAiGenerated,
+    Expression<int>? deletedAt,
+    Expression<String>? topicId,
+    Expression<String>? topicName,
+    Expression<bool>? allowAiReply,
+    Expression<String>? replyDensity,
+    Expression<String>? likeLevel,
+    Expression<int>? humanLevel,
+    Expression<bool>? isHot,
+    Expression<int>? likeCount,
+    Expression<int>? commentCount,
+    Expression<int>? likedAt,
+    Expression<String>? authorPersonaId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (content != null) 'content': content,
+      if (images != null) 'images': images,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (scope != null) 'scope': scope,
+      if (isAiGenerated != null) 'is_ai_generated': isAiGenerated,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (topicId != null) 'topic_id': topicId,
+      if (topicName != null) 'topic_name': topicName,
+      if (allowAiReply != null) 'allow_ai_reply': allowAiReply,
+      if (replyDensity != null) 'reply_density': replyDensity,
+      if (likeLevel != null) 'like_level': likeLevel,
+      if (humanLevel != null) 'human_level': humanLevel,
+      if (isHot != null) 'is_hot': isHot,
+      if (likeCount != null) 'like_count': likeCount,
+      if (commentCount != null) 'comment_count': commentCount,
+      if (likedAt != null) 'liked_at': likedAt,
+      if (authorPersonaId != null) 'author_persona_id': authorPersonaId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PostsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? content,
+    Value<String>? images,
+    Value<int>? createdAt,
+    Value<int?>? updatedAt,
+    Value<String>? scope,
+    Value<bool>? isAiGenerated,
+    Value<int?>? deletedAt,
+    Value<String?>? topicId,
+    Value<String?>? topicName,
+    Value<bool>? allowAiReply,
+    Value<String?>? replyDensity,
+    Value<String?>? likeLevel,
+    Value<int?>? humanLevel,
+    Value<bool>? isHot,
+    Value<int>? likeCount,
+    Value<int>? commentCount,
+    Value<int?>? likedAt,
+    Value<String?>? authorPersonaId,
+    Value<int>? rowid,
+  }) {
+    return PostsCompanion(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      images: images ?? this.images,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      scope: scope ?? this.scope,
+      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
+      deletedAt: deletedAt ?? this.deletedAt,
+      topicId: topicId ?? this.topicId,
+      topicName: topicName ?? this.topicName,
+      allowAiReply: allowAiReply ?? this.allowAiReply,
+      replyDensity: replyDensity ?? this.replyDensity,
+      likeLevel: likeLevel ?? this.likeLevel,
+      humanLevel: humanLevel ?? this.humanLevel,
+      isHot: isHot ?? this.isHot,
+      likeCount: likeCount ?? this.likeCount,
+      commentCount: commentCount ?? this.commentCount,
+      likedAt: likedAt ?? this.likedAt,
+      authorPersonaId: authorPersonaId ?? this.authorPersonaId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (images.present) {
+      map['images'] = Variable<String>(images.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (isAiGenerated.present) {
+      map['is_ai_generated'] = Variable<bool>(isAiGenerated.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (topicId.present) {
+      map['topic_id'] = Variable<String>(topicId.value);
+    }
+    if (topicName.present) {
+      map['topic_name'] = Variable<String>(topicName.value);
+    }
+    if (allowAiReply.present) {
+      map['allow_ai_reply'] = Variable<bool>(allowAiReply.value);
+    }
+    if (replyDensity.present) {
+      map['reply_density'] = Variable<String>(replyDensity.value);
+    }
+    if (likeLevel.present) {
+      map['like_level'] = Variable<String>(likeLevel.value);
+    }
+    if (humanLevel.present) {
+      map['human_level'] = Variable<int>(humanLevel.value);
+    }
+    if (isHot.present) {
+      map['is_hot'] = Variable<bool>(isHot.value);
+    }
+    if (likeCount.present) {
+      map['like_count'] = Variable<int>(likeCount.value);
+    }
+    if (commentCount.present) {
+      map['comment_count'] = Variable<int>(commentCount.value);
+    }
+    if (likedAt.present) {
+      map['liked_at'] = Variable<int>(likedAt.value);
+    }
+    if (authorPersonaId.present) {
+      map['author_persona_id'] = Variable<String>(authorPersonaId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostsCompanion(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('images: $images, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('scope: $scope, ')
+          ..write('isAiGenerated: $isAiGenerated, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('topicId: $topicId, ')
+          ..write('topicName: $topicName, ')
+          ..write('allowAiReply: $allowAiReply, ')
+          ..write('replyDensity: $replyDensity, ')
+          ..write('likeLevel: $likeLevel, ')
+          ..write('humanLevel: $humanLevel, ')
+          ..write('isHot: $isHot, ')
+          ..write('likeCount: $likeCount, ')
+          ..write('commentCount: $commentCount, ')
+          ..write('likedAt: $likedAt, ')
+          ..write('authorPersonaId: $authorPersonaId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3857,6 +4023,2814 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
           ..write('parentId: $parentId, ')
           ..write('likeCount: $likeCount, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AiRelationshipsTable extends AiRelationships
+    with TableInfo<$AiRelationshipsTable, AiRelationshipRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiRelationshipsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _personaIdMeta = const VerificationMeta(
+    'personaId',
+  );
+  @override
+  late final GeneratedColumn<String> personaId = GeneratedColumn<String>(
+    'persona_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES ai_personas (id)',
+    ),
+  );
+  static const VerificationMeta _relationshipLevelMeta = const VerificationMeta(
+    'relationshipLevel',
+  );
+  @override
+  late final GeneratedColumn<int> relationshipLevel = GeneratedColumn<int>(
+    'relationship_level',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _intimacyMeta = const VerificationMeta(
+    'intimacy',
+  );
+  @override
+  late final GeneratedColumn<int> intimacy = GeneratedColumn<int>(
+    'intimacy',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _interactionCountMeta = const VerificationMeta(
+    'interactionCount',
+  );
+  @override
+  late final GeneratedColumn<int> interactionCount = GeneratedColumn<int>(
+    'interaction_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastInteractionAtMeta = const VerificationMeta(
+    'lastInteractionAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastInteractionAt = GeneratedColumn<int>(
+    'last_interaction_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _memorySummaryMeta = const VerificationMeta(
+    'memorySummary',
+  );
+  @override
+  late final GeneratedColumn<String> memorySummary = GeneratedColumn<String>(
+    'memory_summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _followStateMeta = const VerificationMeta(
+    'followState',
+  );
+  @override
+  late final GeneratedColumn<String> followState = GeneratedColumn<String>(
+    'follow_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('none'),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('echo'),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    personaId,
+    relationshipLevel,
+    intimacy,
+    interactionCount,
+    lastInteractionAt,
+    memorySummary,
+    followState,
+    scope,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_relationships';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiRelationshipRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('persona_id')) {
+      context.handle(
+        _personaIdMeta,
+        personaId.isAcceptableOrUnknown(data['persona_id']!, _personaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personaIdMeta);
+    }
+    if (data.containsKey('relationship_level')) {
+      context.handle(
+        _relationshipLevelMeta,
+        relationshipLevel.isAcceptableOrUnknown(
+          data['relationship_level']!,
+          _relationshipLevelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('intimacy')) {
+      context.handle(
+        _intimacyMeta,
+        intimacy.isAcceptableOrUnknown(data['intimacy']!, _intimacyMeta),
+      );
+    }
+    if (data.containsKey('interaction_count')) {
+      context.handle(
+        _interactionCountMeta,
+        interactionCount.isAcceptableOrUnknown(
+          data['interaction_count']!,
+          _interactionCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_interaction_at')) {
+      context.handle(
+        _lastInteractionAtMeta,
+        lastInteractionAt.isAcceptableOrUnknown(
+          data['last_interaction_at']!,
+          _lastInteractionAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('memory_summary')) {
+      context.handle(
+        _memorySummaryMeta,
+        memorySummary.isAcceptableOrUnknown(
+          data['memory_summary']!,
+          _memorySummaryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_state')) {
+      context.handle(
+        _followStateMeta,
+        followState.isAcceptableOrUnknown(
+          data['follow_state']!,
+          _followStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {personaId};
+  @override
+  AiRelationshipRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiRelationshipRow(
+      personaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}persona_id'],
+      )!,
+      relationshipLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}relationship_level'],
+      )!,
+      intimacy: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}intimacy'],
+      )!,
+      interactionCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}interaction_count'],
+      )!,
+      lastInteractionAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_interaction_at'],
+      ),
+      memorySummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}memory_summary'],
+      )!,
+      followState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}follow_state'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AiRelationshipsTable createAlias(String alias) {
+    return $AiRelationshipsTable(attachedDatabase, alias);
+  }
+}
+
+class AiRelationshipRow extends DataClass
+    implements Insertable<AiRelationshipRow> {
+  final String personaId;
+
+  /// 亲密档位：0 陌生 → 1 眼熟 → 2 互关 → 3 熟人 → 4 好友
+  /// （规划书 §3.9）。存数字而不是字符串，是因为它要被比较和排序。
+  final int relationshipLevel;
+  final int intimacy;
+
+  /// 互动次数。与 `intimacy` 分开：一个是"聊过几回"，一个是"多亲近"——
+  /// 十条礼貌回复不该等于一次深夜长谈。
+  final int interactionCount;
+  final int? lastInteractionAt;
+
+  /// 压缩过的「我记得你…」。
+  ///
+  /// 不是聊天记录：全量历史喂给模型既贵又没必要，还有隐私上的顾虑
+  /// （用户的帖文不该被整段搬进每一次请求）。见阶段 B 计划书决策 4。
+  final String memorySummary;
+
+  /// 谁关注了谁：none / following / followed / mutual
+  final String followState;
+  final String scope;
+  final int updatedAt;
+  const AiRelationshipRow({
+    required this.personaId,
+    required this.relationshipLevel,
+    required this.intimacy,
+    required this.interactionCount,
+    this.lastInteractionAt,
+    required this.memorySummary,
+    required this.followState,
+    required this.scope,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['persona_id'] = Variable<String>(personaId);
+    map['relationship_level'] = Variable<int>(relationshipLevel);
+    map['intimacy'] = Variable<int>(intimacy);
+    map['interaction_count'] = Variable<int>(interactionCount);
+    if (!nullToAbsent || lastInteractionAt != null) {
+      map['last_interaction_at'] = Variable<int>(lastInteractionAt);
+    }
+    map['memory_summary'] = Variable<String>(memorySummary);
+    map['follow_state'] = Variable<String>(followState);
+    map['scope'] = Variable<String>(scope);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  AiRelationshipsCompanion toCompanion(bool nullToAbsent) {
+    return AiRelationshipsCompanion(
+      personaId: Value(personaId),
+      relationshipLevel: Value(relationshipLevel),
+      intimacy: Value(intimacy),
+      interactionCount: Value(interactionCount),
+      lastInteractionAt: lastInteractionAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastInteractionAt),
+      memorySummary: Value(memorySummary),
+      followState: Value(followState),
+      scope: Value(scope),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AiRelationshipRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiRelationshipRow(
+      personaId: serializer.fromJson<String>(json['personaId']),
+      relationshipLevel: serializer.fromJson<int>(json['relationshipLevel']),
+      intimacy: serializer.fromJson<int>(json['intimacy']),
+      interactionCount: serializer.fromJson<int>(json['interactionCount']),
+      lastInteractionAt: serializer.fromJson<int?>(json['lastInteractionAt']),
+      memorySummary: serializer.fromJson<String>(json['memorySummary']),
+      followState: serializer.fromJson<String>(json['followState']),
+      scope: serializer.fromJson<String>(json['scope']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'personaId': serializer.toJson<String>(personaId),
+      'relationshipLevel': serializer.toJson<int>(relationshipLevel),
+      'intimacy': serializer.toJson<int>(intimacy),
+      'interactionCount': serializer.toJson<int>(interactionCount),
+      'lastInteractionAt': serializer.toJson<int?>(lastInteractionAt),
+      'memorySummary': serializer.toJson<String>(memorySummary),
+      'followState': serializer.toJson<String>(followState),
+      'scope': serializer.toJson<String>(scope),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  AiRelationshipRow copyWith({
+    String? personaId,
+    int? relationshipLevel,
+    int? intimacy,
+    int? interactionCount,
+    Value<int?> lastInteractionAt = const Value.absent(),
+    String? memorySummary,
+    String? followState,
+    String? scope,
+    int? updatedAt,
+  }) => AiRelationshipRow(
+    personaId: personaId ?? this.personaId,
+    relationshipLevel: relationshipLevel ?? this.relationshipLevel,
+    intimacy: intimacy ?? this.intimacy,
+    interactionCount: interactionCount ?? this.interactionCount,
+    lastInteractionAt: lastInteractionAt.present
+        ? lastInteractionAt.value
+        : this.lastInteractionAt,
+    memorySummary: memorySummary ?? this.memorySummary,
+    followState: followState ?? this.followState,
+    scope: scope ?? this.scope,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AiRelationshipRow copyWithCompanion(AiRelationshipsCompanion data) {
+    return AiRelationshipRow(
+      personaId: data.personaId.present ? data.personaId.value : this.personaId,
+      relationshipLevel: data.relationshipLevel.present
+          ? data.relationshipLevel.value
+          : this.relationshipLevel,
+      intimacy: data.intimacy.present ? data.intimacy.value : this.intimacy,
+      interactionCount: data.interactionCount.present
+          ? data.interactionCount.value
+          : this.interactionCount,
+      lastInteractionAt: data.lastInteractionAt.present
+          ? data.lastInteractionAt.value
+          : this.lastInteractionAt,
+      memorySummary: data.memorySummary.present
+          ? data.memorySummary.value
+          : this.memorySummary,
+      followState: data.followState.present
+          ? data.followState.value
+          : this.followState,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiRelationshipRow(')
+          ..write('personaId: $personaId, ')
+          ..write('relationshipLevel: $relationshipLevel, ')
+          ..write('intimacy: $intimacy, ')
+          ..write('interactionCount: $interactionCount, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
+          ..write('memorySummary: $memorySummary, ')
+          ..write('followState: $followState, ')
+          ..write('scope: $scope, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    personaId,
+    relationshipLevel,
+    intimacy,
+    interactionCount,
+    lastInteractionAt,
+    memorySummary,
+    followState,
+    scope,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiRelationshipRow &&
+          other.personaId == this.personaId &&
+          other.relationshipLevel == this.relationshipLevel &&
+          other.intimacy == this.intimacy &&
+          other.interactionCount == this.interactionCount &&
+          other.lastInteractionAt == this.lastInteractionAt &&
+          other.memorySummary == this.memorySummary &&
+          other.followState == this.followState &&
+          other.scope == this.scope &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AiRelationshipsCompanion extends UpdateCompanion<AiRelationshipRow> {
+  final Value<String> personaId;
+  final Value<int> relationshipLevel;
+  final Value<int> intimacy;
+  final Value<int> interactionCount;
+  final Value<int?> lastInteractionAt;
+  final Value<String> memorySummary;
+  final Value<String> followState;
+  final Value<String> scope;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const AiRelationshipsCompanion({
+    this.personaId = const Value.absent(),
+    this.relationshipLevel = const Value.absent(),
+    this.intimacy = const Value.absent(),
+    this.interactionCount = const Value.absent(),
+    this.lastInteractionAt = const Value.absent(),
+    this.memorySummary = const Value.absent(),
+    this.followState = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiRelationshipsCompanion.insert({
+    required String personaId,
+    this.relationshipLevel = const Value.absent(),
+    this.intimacy = const Value.absent(),
+    this.interactionCount = const Value.absent(),
+    this.lastInteractionAt = const Value.absent(),
+    this.memorySummary = const Value.absent(),
+    this.followState = const Value.absent(),
+    this.scope = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : personaId = Value(personaId),
+       updatedAt = Value(updatedAt);
+  static Insertable<AiRelationshipRow> custom({
+    Expression<String>? personaId,
+    Expression<int>? relationshipLevel,
+    Expression<int>? intimacy,
+    Expression<int>? interactionCount,
+    Expression<int>? lastInteractionAt,
+    Expression<String>? memorySummary,
+    Expression<String>? followState,
+    Expression<String>? scope,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (personaId != null) 'persona_id': personaId,
+      if (relationshipLevel != null) 'relationship_level': relationshipLevel,
+      if (intimacy != null) 'intimacy': intimacy,
+      if (interactionCount != null) 'interaction_count': interactionCount,
+      if (lastInteractionAt != null) 'last_interaction_at': lastInteractionAt,
+      if (memorySummary != null) 'memory_summary': memorySummary,
+      if (followState != null) 'follow_state': followState,
+      if (scope != null) 'scope': scope,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiRelationshipsCompanion copyWith({
+    Value<String>? personaId,
+    Value<int>? relationshipLevel,
+    Value<int>? intimacy,
+    Value<int>? interactionCount,
+    Value<int?>? lastInteractionAt,
+    Value<String>? memorySummary,
+    Value<String>? followState,
+    Value<String>? scope,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AiRelationshipsCompanion(
+      personaId: personaId ?? this.personaId,
+      relationshipLevel: relationshipLevel ?? this.relationshipLevel,
+      intimacy: intimacy ?? this.intimacy,
+      interactionCount: interactionCount ?? this.interactionCount,
+      lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
+      memorySummary: memorySummary ?? this.memorySummary,
+      followState: followState ?? this.followState,
+      scope: scope ?? this.scope,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (personaId.present) {
+      map['persona_id'] = Variable<String>(personaId.value);
+    }
+    if (relationshipLevel.present) {
+      map['relationship_level'] = Variable<int>(relationshipLevel.value);
+    }
+    if (intimacy.present) {
+      map['intimacy'] = Variable<int>(intimacy.value);
+    }
+    if (interactionCount.present) {
+      map['interaction_count'] = Variable<int>(interactionCount.value);
+    }
+    if (lastInteractionAt.present) {
+      map['last_interaction_at'] = Variable<int>(lastInteractionAt.value);
+    }
+    if (memorySummary.present) {
+      map['memory_summary'] = Variable<String>(memorySummary.value);
+    }
+    if (followState.present) {
+      map['follow_state'] = Variable<String>(followState.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiRelationshipsCompanion(')
+          ..write('personaId: $personaId, ')
+          ..write('relationshipLevel: $relationshipLevel, ')
+          ..write('intimacy: $intimacy, ')
+          ..write('interactionCount: $interactionCount, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
+          ..write('memorySummary: $memorySummary, ')
+          ..write('followState: $followState, ')
+          ..write('scope: $scope, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PersonaRoutinesTable extends PersonaRoutines
+    with TableInfo<$PersonaRoutinesTable, PersonaRoutineRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PersonaRoutinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _personaIdMeta = const VerificationMeta(
+    'personaId',
+  );
+  @override
+  late final GeneratedColumn<String> personaId = GeneratedColumn<String>(
+    'persona_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES ai_personas (id)',
+    ),
+  );
+  static const VerificationMeta _hourMeta = const VerificationMeta('hour');
+  @override
+  late final GeneratedColumn<int> hour = GeneratedColumn<int>(
+    'hour',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _placeMeta = const VerificationMeta('place');
+  @override
+  late final GeneratedColumn<String> place = GeneratedColumn<String>(
+    'place',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _activityMeta = const VerificationMeta(
+    'activity',
+  );
+  @override
+  late final GeneratedColumn<String> activity = GeneratedColumn<String>(
+    'activity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, personaId, hour, place, activity];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'persona_routines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PersonaRoutineRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('persona_id')) {
+      context.handle(
+        _personaIdMeta,
+        personaId.isAcceptableOrUnknown(data['persona_id']!, _personaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personaIdMeta);
+    }
+    if (data.containsKey('hour')) {
+      context.handle(
+        _hourMeta,
+        hour.isAcceptableOrUnknown(data['hour']!, _hourMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hourMeta);
+    }
+    if (data.containsKey('place')) {
+      context.handle(
+        _placeMeta,
+        place.isAcceptableOrUnknown(data['place']!, _placeMeta),
+      );
+    }
+    if (data.containsKey('activity')) {
+      context.handle(
+        _activityMeta,
+        activity.isAcceptableOrUnknown(data['activity']!, _activityMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PersonaRoutineRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PersonaRoutineRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      personaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}persona_id'],
+      )!,
+      hour: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hour'],
+      )!,
+      place: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}place'],
+      )!,
+      activity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity'],
+      )!,
+    );
+  }
+
+  @override
+  $PersonaRoutinesTable createAlias(String alias) {
+    return $PersonaRoutinesTable(attachedDatabase, alias);
+  }
+}
+
+class PersonaRoutineRow extends DataClass
+    implements Insertable<PersonaRoutineRow> {
+  final int id;
+  final String personaId;
+  final int hour;
+  final String place;
+  final String activity;
+  const PersonaRoutineRow({
+    required this.id,
+    required this.personaId,
+    required this.hour,
+    required this.place,
+    required this.activity,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['persona_id'] = Variable<String>(personaId);
+    map['hour'] = Variable<int>(hour);
+    map['place'] = Variable<String>(place);
+    map['activity'] = Variable<String>(activity);
+    return map;
+  }
+
+  PersonaRoutinesCompanion toCompanion(bool nullToAbsent) {
+    return PersonaRoutinesCompanion(
+      id: Value(id),
+      personaId: Value(personaId),
+      hour: Value(hour),
+      place: Value(place),
+      activity: Value(activity),
+    );
+  }
+
+  factory PersonaRoutineRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PersonaRoutineRow(
+      id: serializer.fromJson<int>(json['id']),
+      personaId: serializer.fromJson<String>(json['personaId']),
+      hour: serializer.fromJson<int>(json['hour']),
+      place: serializer.fromJson<String>(json['place']),
+      activity: serializer.fromJson<String>(json['activity']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'personaId': serializer.toJson<String>(personaId),
+      'hour': serializer.toJson<int>(hour),
+      'place': serializer.toJson<String>(place),
+      'activity': serializer.toJson<String>(activity),
+    };
+  }
+
+  PersonaRoutineRow copyWith({
+    int? id,
+    String? personaId,
+    int? hour,
+    String? place,
+    String? activity,
+  }) => PersonaRoutineRow(
+    id: id ?? this.id,
+    personaId: personaId ?? this.personaId,
+    hour: hour ?? this.hour,
+    place: place ?? this.place,
+    activity: activity ?? this.activity,
+  );
+  PersonaRoutineRow copyWithCompanion(PersonaRoutinesCompanion data) {
+    return PersonaRoutineRow(
+      id: data.id.present ? data.id.value : this.id,
+      personaId: data.personaId.present ? data.personaId.value : this.personaId,
+      hour: data.hour.present ? data.hour.value : this.hour,
+      place: data.place.present ? data.place.value : this.place,
+      activity: data.activity.present ? data.activity.value : this.activity,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonaRoutineRow(')
+          ..write('id: $id, ')
+          ..write('personaId: $personaId, ')
+          ..write('hour: $hour, ')
+          ..write('place: $place, ')
+          ..write('activity: $activity')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, personaId, hour, place, activity);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PersonaRoutineRow &&
+          other.id == this.id &&
+          other.personaId == this.personaId &&
+          other.hour == this.hour &&
+          other.place == this.place &&
+          other.activity == this.activity);
+}
+
+class PersonaRoutinesCompanion extends UpdateCompanion<PersonaRoutineRow> {
+  final Value<int> id;
+  final Value<String> personaId;
+  final Value<int> hour;
+  final Value<String> place;
+  final Value<String> activity;
+  const PersonaRoutinesCompanion({
+    this.id = const Value.absent(),
+    this.personaId = const Value.absent(),
+    this.hour = const Value.absent(),
+    this.place = const Value.absent(),
+    this.activity = const Value.absent(),
+  });
+  PersonaRoutinesCompanion.insert({
+    this.id = const Value.absent(),
+    required String personaId,
+    required int hour,
+    this.place = const Value.absent(),
+    this.activity = const Value.absent(),
+  }) : personaId = Value(personaId),
+       hour = Value(hour);
+  static Insertable<PersonaRoutineRow> custom({
+    Expression<int>? id,
+    Expression<String>? personaId,
+    Expression<int>? hour,
+    Expression<String>? place,
+    Expression<String>? activity,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personaId != null) 'persona_id': personaId,
+      if (hour != null) 'hour': hour,
+      if (place != null) 'place': place,
+      if (activity != null) 'activity': activity,
+    });
+  }
+
+  PersonaRoutinesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? personaId,
+    Value<int>? hour,
+    Value<String>? place,
+    Value<String>? activity,
+  }) {
+    return PersonaRoutinesCompanion(
+      id: id ?? this.id,
+      personaId: personaId ?? this.personaId,
+      hour: hour ?? this.hour,
+      place: place ?? this.place,
+      activity: activity ?? this.activity,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (personaId.present) {
+      map['persona_id'] = Variable<String>(personaId.value);
+    }
+    if (hour.present) {
+      map['hour'] = Variable<int>(hour.value);
+    }
+    if (place.present) {
+      map['place'] = Variable<String>(place.value);
+    }
+    if (activity.present) {
+      map['activity'] = Variable<String>(activity.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonaRoutinesCompanion(')
+          ..write('id: $id, ')
+          ..write('personaId: $personaId, ')
+          ..write('hour: $hour, ')
+          ..write('place: $place, ')
+          ..write('activity: $activity')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PrivateMessagesTable extends PrivateMessages
+    with TableInfo<$PrivateMessagesTable, PrivateMessageRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrivateMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personaIdMeta = const VerificationMeta(
+    'personaId',
+  );
+  @override
+  late final GeneratedColumn<String> personaId = GeneratedColumn<String>(
+    'persona_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES ai_personas (id)',
+    ),
+  );
+  static const VerificationMeta _directionMeta = const VerificationMeta(
+    'direction',
+  );
+  @override
+  late final GeneratedColumn<String> direction = GeneratedColumn<String>(
+    'direction',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _mediaTypeMeta = const VerificationMeta(
+    'mediaType',
+  );
+  @override
+  late final GeneratedColumn<String> mediaType = GeneratedColumn<String>(
+    'media_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('text'),
+  );
+  static const VerificationMeta _voicePathMeta = const VerificationMeta(
+    'voicePath',
+  );
+  @override
+  late final GeneratedColumn<String> voicePath = GeneratedColumn<String>(
+    'voice_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transcriptMeta = const VerificationMeta(
+    'transcript',
+  );
+  @override
+  late final GeneratedColumn<String> transcript = GeneratedColumn<String>(
+    'transcript',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<int> readAt = GeneratedColumn<int>(
+    'read_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('echo'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    personaId,
+    direction,
+    content,
+    mediaType,
+    voicePath,
+    transcript,
+    createdAt,
+    readAt,
+    deletedAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'private_messages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PrivateMessageRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('persona_id')) {
+      context.handle(
+        _personaIdMeta,
+        personaId.isAcceptableOrUnknown(data['persona_id']!, _personaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personaIdMeta);
+    }
+    if (data.containsKey('direction')) {
+      context.handle(
+        _directionMeta,
+        direction.isAcceptableOrUnknown(data['direction']!, _directionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_directionMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('media_type')) {
+      context.handle(
+        _mediaTypeMeta,
+        mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
+    }
+    if (data.containsKey('voice_path')) {
+      context.handle(
+        _voicePathMeta,
+        voicePath.isAcceptableOrUnknown(data['voice_path']!, _voicePathMeta),
+      );
+    }
+    if (data.containsKey('transcript')) {
+      context.handle(
+        _transcriptMeta,
+        transcript.isAcceptableOrUnknown(data['transcript']!, _transcriptMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(
+        _readAtMeta,
+        readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PrivateMessageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrivateMessageRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      personaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}persona_id'],
+      )!,
+      direction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}direction'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      mediaType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_type'],
+      )!,
+      voicePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_path'],
+      ),
+      transcript: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transcript'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      readAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}read_at'],
+      ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $PrivateMessagesTable createAlias(String alias) {
+    return $PrivateMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class PrivateMessageRow extends DataClass
+    implements Insertable<PrivateMessageRow> {
+  final String id;
+  final String personaId;
+
+  /// in = 住民发给我的，out = 我发出去的
+  final String direction;
+  final String content;
+
+  /// text / voice / sticker / image
+  final String mediaType;
+  final String? voicePath;
+  final String? transcript;
+  final int createdAt;
+
+  /// 已读时刻。只有收到的消息才需要它，自己发出去的为 null。
+  final int? readAt;
+  final int? deletedAt;
+  final String scope;
+  const PrivateMessageRow({
+    required this.id,
+    required this.personaId,
+    required this.direction,
+    required this.content,
+    required this.mediaType,
+    this.voicePath,
+    this.transcript,
+    required this.createdAt,
+    this.readAt,
+    this.deletedAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['persona_id'] = Variable<String>(personaId);
+    map['direction'] = Variable<String>(direction);
+    map['content'] = Variable<String>(content);
+    map['media_type'] = Variable<String>(mediaType);
+    if (!nullToAbsent || voicePath != null) {
+      map['voice_path'] = Variable<String>(voicePath);
+    }
+    if (!nullToAbsent || transcript != null) {
+      map['transcript'] = Variable<String>(transcript);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || readAt != null) {
+      map['read_at'] = Variable<int>(readAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  PrivateMessagesCompanion toCompanion(bool nullToAbsent) {
+    return PrivateMessagesCompanion(
+      id: Value(id),
+      personaId: Value(personaId),
+      direction: Value(direction),
+      content: Value(content),
+      mediaType: Value(mediaType),
+      voicePath: voicePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voicePath),
+      transcript: transcript == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transcript),
+      createdAt: Value(createdAt),
+      readAt: readAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory PrivateMessageRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrivateMessageRow(
+      id: serializer.fromJson<String>(json['id']),
+      personaId: serializer.fromJson<String>(json['personaId']),
+      direction: serializer.fromJson<String>(json['direction']),
+      content: serializer.fromJson<String>(json['content']),
+      mediaType: serializer.fromJson<String>(json['mediaType']),
+      voicePath: serializer.fromJson<String?>(json['voicePath']),
+      transcript: serializer.fromJson<String?>(json['transcript']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      readAt: serializer.fromJson<int?>(json['readAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'personaId': serializer.toJson<String>(personaId),
+      'direction': serializer.toJson<String>(direction),
+      'content': serializer.toJson<String>(content),
+      'mediaType': serializer.toJson<String>(mediaType),
+      'voicePath': serializer.toJson<String?>(voicePath),
+      'transcript': serializer.toJson<String?>(transcript),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'readAt': serializer.toJson<int?>(readAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  PrivateMessageRow copyWith({
+    String? id,
+    String? personaId,
+    String? direction,
+    String? content,
+    String? mediaType,
+    Value<String?> voicePath = const Value.absent(),
+    Value<String?> transcript = const Value.absent(),
+    int? createdAt,
+    Value<int?> readAt = const Value.absent(),
+    Value<int?> deletedAt = const Value.absent(),
+    String? scope,
+  }) => PrivateMessageRow(
+    id: id ?? this.id,
+    personaId: personaId ?? this.personaId,
+    direction: direction ?? this.direction,
+    content: content ?? this.content,
+    mediaType: mediaType ?? this.mediaType,
+    voicePath: voicePath.present ? voicePath.value : this.voicePath,
+    transcript: transcript.present ? transcript.value : this.transcript,
+    createdAt: createdAt ?? this.createdAt,
+    readAt: readAt.present ? readAt.value : this.readAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    scope: scope ?? this.scope,
+  );
+  PrivateMessageRow copyWithCompanion(PrivateMessagesCompanion data) {
+    return PrivateMessageRow(
+      id: data.id.present ? data.id.value : this.id,
+      personaId: data.personaId.present ? data.personaId.value : this.personaId,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      content: data.content.present ? data.content.value : this.content,
+      mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
+      voicePath: data.voicePath.present ? data.voicePath.value : this.voicePath,
+      transcript: data.transcript.present
+          ? data.transcript.value
+          : this.transcript,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrivateMessageRow(')
+          ..write('id: $id, ')
+          ..write('personaId: $personaId, ')
+          ..write('direction: $direction, ')
+          ..write('content: $content, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('transcript: $transcript, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('readAt: $readAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    personaId,
+    direction,
+    content,
+    mediaType,
+    voicePath,
+    transcript,
+    createdAt,
+    readAt,
+    deletedAt,
+    scope,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrivateMessageRow &&
+          other.id == this.id &&
+          other.personaId == this.personaId &&
+          other.direction == this.direction &&
+          other.content == this.content &&
+          other.mediaType == this.mediaType &&
+          other.voicePath == this.voicePath &&
+          other.transcript == this.transcript &&
+          other.createdAt == this.createdAt &&
+          other.readAt == this.readAt &&
+          other.deletedAt == this.deletedAt &&
+          other.scope == this.scope);
+}
+
+class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
+  final Value<String> id;
+  final Value<String> personaId;
+  final Value<String> direction;
+  final Value<String> content;
+  final Value<String> mediaType;
+  final Value<String?> voicePath;
+  final Value<String?> transcript;
+  final Value<int> createdAt;
+  final Value<int?> readAt;
+  final Value<int?> deletedAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const PrivateMessagesCompanion({
+    this.id = const Value.absent(),
+    this.personaId = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.content = const Value.absent(),
+    this.mediaType = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.transcript = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrivateMessagesCompanion.insert({
+    required String id,
+    required String personaId,
+    required String direction,
+    this.content = const Value.absent(),
+    this.mediaType = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.transcript = const Value.absent(),
+    required int createdAt,
+    this.readAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       personaId = Value(personaId),
+       direction = Value(direction),
+       createdAt = Value(createdAt);
+  static Insertable<PrivateMessageRow> custom({
+    Expression<String>? id,
+    Expression<String>? personaId,
+    Expression<String>? direction,
+    Expression<String>? content,
+    Expression<String>? mediaType,
+    Expression<String>? voicePath,
+    Expression<String>? transcript,
+    Expression<int>? createdAt,
+    Expression<int>? readAt,
+    Expression<int>? deletedAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personaId != null) 'persona_id': personaId,
+      if (direction != null) 'direction': direction,
+      if (content != null) 'content': content,
+      if (mediaType != null) 'media_type': mediaType,
+      if (voicePath != null) 'voice_path': voicePath,
+      if (transcript != null) 'transcript': transcript,
+      if (createdAt != null) 'created_at': createdAt,
+      if (readAt != null) 'read_at': readAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrivateMessagesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? personaId,
+    Value<String>? direction,
+    Value<String>? content,
+    Value<String>? mediaType,
+    Value<String?>? voicePath,
+    Value<String?>? transcript,
+    Value<int>? createdAt,
+    Value<int?>? readAt,
+    Value<int?>? deletedAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return PrivateMessagesCompanion(
+      id: id ?? this.id,
+      personaId: personaId ?? this.personaId,
+      direction: direction ?? this.direction,
+      content: content ?? this.content,
+      mediaType: mediaType ?? this.mediaType,
+      voicePath: voicePath ?? this.voicePath,
+      transcript: transcript ?? this.transcript,
+      createdAt: createdAt ?? this.createdAt,
+      readAt: readAt ?? this.readAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (personaId.present) {
+      map['persona_id'] = Variable<String>(personaId.value);
+    }
+    if (direction.present) {
+      map['direction'] = Variable<String>(direction.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (mediaType.present) {
+      map['media_type'] = Variable<String>(mediaType.value);
+    }
+    if (voicePath.present) {
+      map['voice_path'] = Variable<String>(voicePath.value);
+    }
+    if (transcript.present) {
+      map['transcript'] = Variable<String>(transcript.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<int>(readAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrivateMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('personaId: $personaId, ')
+          ..write('direction: $direction, ')
+          ..write('content: $content, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('transcript: $transcript, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('readAt: $readAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserCommentsTable extends UserComments
+    with TableInfo<$UserCommentsTable, UserCommentRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserCommentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _parentIdMeta = const VerificationMeta(
+    'parentId',
+  );
+  @override
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+    'parent_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _replyToNameMeta = const VerificationMeta(
+    'replyToName',
+  );
+  @override
+  late final GeneratedColumn<String> replyToName = GeneratedColumn<String>(
+    'reply_to_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    postId,
+    content,
+    parentId,
+    replyToName,
+    createdAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_comments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UserCommentRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('parent_id')) {
+      context.handle(
+        _parentIdMeta,
+        parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
+      );
+    }
+    if (data.containsKey('reply_to_name')) {
+      context.handle(
+        _replyToNameMeta,
+        replyToName.isAcceptableOrUnknown(
+          data['reply_to_name']!,
+          _replyToNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserCommentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserCommentRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      parentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_id'],
+      ),
+      replyToName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reply_to_name'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $UserCommentsTable createAlias(String alias) {
+    return $UserCommentsTable(attachedDatabase, alias);
+  }
+}
+
+class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
+  final String id;
+  final String postId;
+  final String content;
+
+  /// 这条是在回谁。指向的可能是住民的评论（在 `ai_interactions` 里），
+  /// 也可能是别人回我的——跨两张表，所以这里不设外键。
+  final String? parentId;
+
+  /// 被回复的人叫什么。存名字而不是每次去查，是因为对方可能是住民、
+  /// 也可能是"我"，而查名字要跨两张表；这个名字只用来显示"回复 XXX"。
+  final String? replyToName;
+  final int createdAt;
+  final int? deletedAt;
+  const UserCommentRow({
+    required this.id,
+    required this.postId,
+    required this.content,
+    this.parentId,
+    this.replyToName,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || parentId != null) {
+      map['parent_id'] = Variable<String>(parentId);
+    }
+    if (!nullToAbsent || replyToName != null) {
+      map['reply_to_name'] = Variable<String>(replyToName);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  UserCommentsCompanion toCompanion(bool nullToAbsent) {
+    return UserCommentsCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      content: Value(content),
+      parentId: parentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentId),
+      replyToName: replyToName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyToName),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory UserCommentRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserCommentRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      content: serializer.fromJson<String>(json['content']),
+      parentId: serializer.fromJson<String?>(json['parentId']),
+      replyToName: serializer.fromJson<String?>(json['replyToName']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'content': serializer.toJson<String>(content),
+      'parentId': serializer.toJson<String?>(parentId),
+      'replyToName': serializer.toJson<String?>(replyToName),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  UserCommentRow copyWith({
+    String? id,
+    String? postId,
+    String? content,
+    Value<String?> parentId = const Value.absent(),
+    Value<String?> replyToName = const Value.absent(),
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+  }) => UserCommentRow(
+    id: id ?? this.id,
+    postId: postId ?? this.postId,
+    content: content ?? this.content,
+    parentId: parentId.present ? parentId.value : this.parentId,
+    replyToName: replyToName.present ? replyToName.value : this.replyToName,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  UserCommentRow copyWithCompanion(UserCommentsCompanion data) {
+    return UserCommentRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      content: data.content.present ? data.content.value : this.content,
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      replyToName: data.replyToName.present
+          ? data.replyToName.value
+          : this.replyToName,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCommentRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('content: $content, ')
+          ..write('parentId: $parentId, ')
+          ..write('replyToName: $replyToName, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    postId,
+    content,
+    parentId,
+    replyToName,
+    createdAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserCommentRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.content == this.content &&
+          other.parentId == this.parentId &&
+          other.replyToName == this.replyToName &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String> content;
+  final Value<String?> parentId;
+  final Value<String?> replyToName;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const UserCommentsCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.content = const Value.absent(),
+    this.parentId = const Value.absent(),
+    this.replyToName = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserCommentsCompanion.insert({
+    required String id,
+    required String postId,
+    required String content,
+    this.parentId = const Value.absent(),
+    this.replyToName = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       postId = Value(postId),
+       content = Value(content),
+       createdAt = Value(createdAt);
+  static Insertable<UserCommentRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? content,
+    Expression<String>? parentId,
+    Expression<String>? replyToName,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (content != null) 'content': content,
+      if (parentId != null) 'parent_id': parentId,
+      if (replyToName != null) 'reply_to_name': replyToName,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserCommentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? postId,
+    Value<String>? content,
+    Value<String?>? parentId,
+    Value<String?>? replyToName,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return UserCommentsCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      content: content ?? this.content,
+      parentId: parentId ?? this.parentId,
+      replyToName: replyToName ?? this.replyToName,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
+    if (replyToName.present) {
+      map['reply_to_name'] = Variable<String>(replyToName.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCommentsCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('content: $content, ')
+          ..write('parentId: $parentId, ')
+          ..write('replyToName: $replyToName, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CommentLikesTable extends CommentLikes
+    with TableInfo<$CommentLikesTable, CommentLikeRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CommentLikesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _commentIdMeta = const VerificationMeta(
+    'commentId',
+  );
+  @override
+  late final GeneratedColumn<String> commentId = GeneratedColumn<String>(
+    'comment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [commentId, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comment_likes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CommentLikeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('comment_id')) {
+      context.handle(
+        _commentIdMeta,
+        commentId.isAcceptableOrUnknown(data['comment_id']!, _commentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_commentIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {commentId};
+  @override
+  CommentLikeRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CommentLikeRow(
+      commentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}comment_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CommentLikesTable createAlias(String alias) {
+    return $CommentLikesTable(attachedDatabase, alias);
+  }
+}
+
+class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
+  final String commentId;
+  final int createdAt;
+  const CommentLikeRow({required this.commentId, required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['comment_id'] = Variable<String>(commentId);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  CommentLikesCompanion toCompanion(bool nullToAbsent) {
+    return CommentLikesCompanion(
+      commentId: Value(commentId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory CommentLikeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CommentLikeRow(
+      commentId: serializer.fromJson<String>(json['commentId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'commentId': serializer.toJson<String>(commentId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  CommentLikeRow copyWith({String? commentId, int? createdAt}) =>
+      CommentLikeRow(
+        commentId: commentId ?? this.commentId,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  CommentLikeRow copyWithCompanion(CommentLikesCompanion data) {
+    return CommentLikeRow(
+      commentId: data.commentId.present ? data.commentId.value : this.commentId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CommentLikeRow(')
+          ..write('commentId: $commentId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(commentId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CommentLikeRow &&
+          other.commentId == this.commentId &&
+          other.createdAt == this.createdAt);
+}
+
+class CommentLikesCompanion extends UpdateCompanion<CommentLikeRow> {
+  final Value<String> commentId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const CommentLikesCompanion({
+    this.commentId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CommentLikesCompanion.insert({
+    required String commentId,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : commentId = Value(commentId),
+       createdAt = Value(createdAt);
+  static Insertable<CommentLikeRow> custom({
+    Expression<String>? commentId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (commentId != null) 'comment_id': commentId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CommentLikesCompanion copyWith({
+    Value<String>? commentId,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return CommentLikesCompanion(
+      commentId: commentId ?? this.commentId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (commentId.present) {
+      map['comment_id'] = Variable<String>(commentId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CommentLikesCompanion(')
+          ..write('commentId: $commentId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TopicsTable extends Topics with TableInfo<$TopicsTable, TopicRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TopicsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _heatMeta = const VerificationMeta('heat');
+  @override
+  late final GeneratedColumn<int> heat = GeneratedColumn<int>(
+    'heat',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isBuiltInMeta = const VerificationMeta(
+    'isBuiltIn',
+  );
+  @override
+  late final GeneratedColumn<bool> isBuiltIn = GeneratedColumn<bool>(
+    'is_built_in',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_built_in" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('shared'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    heat,
+    isBuiltIn,
+    createdAt,
+    deletedAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'topics';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TopicRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('heat')) {
+      context.handle(
+        _heatMeta,
+        heat.isAcceptableOrUnknown(data['heat']!, _heatMeta),
+      );
+    }
+    if (data.containsKey('is_built_in')) {
+      context.handle(
+        _isBuiltInMeta,
+        isBuiltIn.isAcceptableOrUnknown(data['is_built_in']!, _isBuiltInMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TopicRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TopicRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      heat: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}heat'],
+      )!,
+      isBuiltIn: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_built_in'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $TopicsTable createAlias(String alias) {
+    return $TopicsTable(attachedDatabase, alias);
+  }
+}
+
+class TopicRow extends DataClass implements Insertable<TopicRow> {
+  final String id;
+  final String name;
+  final String description;
+
+  /// 热度。由帖子数、互动数算出来，缓存成整数好排序；
+  /// 怎么算的写在计算它的那处（B6），不在这里。
+  final int heat;
+
+  /// 内置话题从 assets 播种，不可删；用户新建的可以删。
+  final bool isBuiltIn;
+  final int createdAt;
+  final int? deletedAt;
+  final String scope;
+  const TopicRow({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.heat,
+    required this.isBuiltIn,
+    required this.createdAt,
+    this.deletedAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['description'] = Variable<String>(description);
+    map['heat'] = Variable<int>(heat);
+    map['is_built_in'] = Variable<bool>(isBuiltIn);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  TopicsCompanion toCompanion(bool nullToAbsent) {
+    return TopicsCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: Value(description),
+      heat: Value(heat),
+      isBuiltIn: Value(isBuiltIn),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory TopicRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TopicRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String>(json['description']),
+      heat: serializer.fromJson<int>(json['heat']),
+      isBuiltIn: serializer.fromJson<bool>(json['isBuiltIn']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String>(description),
+      'heat': serializer.toJson<int>(heat),
+      'isBuiltIn': serializer.toJson<bool>(isBuiltIn),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  TopicRow copyWith({
+    String? id,
+    String? name,
+    String? description,
+    int? heat,
+    bool? isBuiltIn,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? scope,
+  }) => TopicRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    heat: heat ?? this.heat,
+    isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    scope: scope ?? this.scope,
+  );
+  TopicRow copyWithCompanion(TopicsCompanion data) {
+    return TopicRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      heat: data.heat.present ? data.heat.value : this.heat,
+      isBuiltIn: data.isBuiltIn.present ? data.isBuiltIn.value : this.isBuiltIn,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('heat: $heat, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    description,
+    heat,
+    isBuiltIn,
+    createdAt,
+    deletedAt,
+    scope,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TopicRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.heat == this.heat &&
+          other.isBuiltIn == this.isBuiltIn &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt &&
+          other.scope == this.scope);
+}
+
+class TopicsCompanion extends UpdateCompanion<TopicRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> description;
+  final Value<int> heat;
+  final Value<bool> isBuiltIn;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const TopicsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.heat = const Value.absent(),
+    this.isBuiltIn = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TopicsCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    this.heat = const Value.absent(),
+    this.isBuiltIn = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt);
+  static Insertable<TopicRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<int>? heat,
+    Expression<bool>? isBuiltIn,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (heat != null) 'heat': heat,
+      if (isBuiltIn != null) 'is_built_in': isBuiltIn,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TopicsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? description,
+    Value<int>? heat,
+    Value<bool>? isBuiltIn,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return TopicsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      heat: heat ?? this.heat,
+      isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (heat.present) {
+      map['heat'] = Variable<int>(heat.value);
+    }
+    if (isBuiltIn.present) {
+      map['is_built_in'] = Variable<bool>(isBuiltIn.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('heat: $heat, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7993,6 +10967,16 @@ class $ModelConfigsTable extends ModelConfigs
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('chat'),
+  );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -8037,6 +11021,7 @@ class $ModelConfigsTable extends ModelConfigs
     label,
     baseUrl,
     model,
+    kind,
     enabled,
     createdAt,
     updatedAt,
@@ -8090,6 +11075,12 @@ class $ModelConfigsTable extends ModelConfigs
     } else if (isInserting) {
       context.missing(_modelMeta);
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -8141,6 +11132,10 @@ class $ModelConfigsTable extends ModelConfigs
         DriftSqlType.string,
         data['${effectivePrefix}model'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -8175,7 +11170,13 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
   final String baseUrl;
   final String model;
 
-  /// 当前启用中的那一条为 true（同一时间只允许一条）
+  /// 用途：chat（对话）/ image（文生图）。
+  ///
+  /// 两者是分开配的，也允许只配其中之一——文生图比对话贵一个量级，
+  /// 用户完全可能只想用便宜的那个。
+  final String kind;
+
+  /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   final bool enabled;
   final int createdAt;
   final int updatedAt;
@@ -8185,6 +11186,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     required this.label,
     required this.baseUrl,
     required this.model,
+    required this.kind,
     required this.enabled,
     required this.createdAt,
     required this.updatedAt,
@@ -8197,6 +11199,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     map['label'] = Variable<String>(label);
     map['base_url'] = Variable<String>(baseUrl);
     map['model'] = Variable<String>(model);
+    map['kind'] = Variable<String>(kind);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -8210,6 +11213,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       label: Value(label),
       baseUrl: Value(baseUrl),
       model: Value(model),
+      kind: Value(kind),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -8227,6 +11231,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       label: serializer.fromJson<String>(json['label']),
       baseUrl: serializer.fromJson<String>(json['baseUrl']),
       model: serializer.fromJson<String>(json['model']),
+      kind: serializer.fromJson<String>(json['kind']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -8241,6 +11246,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       'label': serializer.toJson<String>(label),
       'baseUrl': serializer.toJson<String>(baseUrl),
       'model': serializer.toJson<String>(model),
+      'kind': serializer.toJson<String>(kind),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -8253,6 +11259,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     String? label,
     String? baseUrl,
     String? model,
+    String? kind,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -8262,6 +11269,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     label: label ?? this.label,
     baseUrl: baseUrl ?? this.baseUrl,
     model: model ?? this.model,
+    kind: kind ?? this.kind,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -8273,6 +11281,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       label: data.label.present ? data.label.value : this.label,
       baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
       model: data.model.present ? data.model.value : this.model,
+      kind: data.kind.present ? data.kind.value : this.kind,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -8287,6 +11296,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           ..write('label: $label, ')
           ..write('baseUrl: $baseUrl, ')
           ..write('model: $model, ')
+          ..write('kind: $kind, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -8301,6 +11311,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     label,
     baseUrl,
     model,
+    kind,
     enabled,
     createdAt,
     updatedAt,
@@ -8314,6 +11325,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           other.label == this.label &&
           other.baseUrl == this.baseUrl &&
           other.model == this.model &&
+          other.kind == this.kind &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -8325,6 +11337,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   final Value<String> label;
   final Value<String> baseUrl;
   final Value<String> model;
+  final Value<String> kind;
   final Value<bool> enabled;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -8335,6 +11348,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.label = const Value.absent(),
     this.baseUrl = const Value.absent(),
     this.model = const Value.absent(),
+    this.kind = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -8346,6 +11360,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     required String label,
     required String baseUrl,
     required String model,
+    this.kind = const Value.absent(),
     this.enabled = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -8363,6 +11378,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Expression<String>? label,
     Expression<String>? baseUrl,
     Expression<String>? model,
+    Expression<String>? kind,
     Expression<bool>? enabled,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -8374,6 +11390,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       if (label != null) 'label': label,
       if (baseUrl != null) 'base_url': baseUrl,
       if (model != null) 'model': model,
+      if (kind != null) 'kind': kind,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -8387,6 +11404,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Value<String>? label,
     Value<String>? baseUrl,
     Value<String>? model,
+    Value<String>? kind,
     Value<bool>? enabled,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -8398,6 +11416,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       label: label ?? this.label,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
+      kind: kind ?? this.kind,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -8423,6 +11442,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     if (model.present) {
       map['model'] = Variable<String>(model.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
@@ -8446,6 +11468,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ..write('label: $label, ')
           ..write('baseUrl: $baseUrl, ')
           ..write('model: $model, ')
+          ..write('kind: $kind, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -9689,9 +12712,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $UserProfileTable userProfile = $UserProfileTable(this);
-  late final $PostsTable posts = $PostsTable(this);
   late final $AiPersonasTable aiPersonas = $AiPersonasTable(this);
+  late final $PostsTable posts = $PostsTable(this);
   late final $AiInteractionsTable aiInteractions = $AiInteractionsTable(this);
+  late final $AiRelationshipsTable aiRelationships = $AiRelationshipsTable(
+    this,
+  );
+  late final $PersonaRoutinesTable personaRoutines = $PersonaRoutinesTable(
+    this,
+  );
+  late final $PrivateMessagesTable privateMessages = $PrivateMessagesTable(
+    this,
+  );
+  late final $UserCommentsTable userComments = $UserCommentsTable(this);
+  late final $CommentLikesTable commentLikes = $CommentLikesTable(this);
+  late final $TopicsTable topics = $TopicsTable(this);
   late final $AnalysisResultsTable analysisResults = $AnalysisResultsTable(
     this,
   );
@@ -9722,6 +12757,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'ai_interactions_scheduled',
     'CREATE INDEX ai_interactions_scheduled ON ai_interactions (scheduled_at)',
   );
+  late final Index personaRoutinesPersona = Index(
+    'persona_routines_persona',
+    'CREATE INDEX persona_routines_persona ON persona_routines (persona_id)',
+  );
+  late final Index privateMessagesPersona = Index(
+    'private_messages_persona',
+    'CREATE INDEX private_messages_persona ON private_messages (persona_id)',
+  );
+  late final Index userCommentsPost = Index(
+    'user_comments_post',
+    'CREATE INDEX user_comments_post ON user_comments (post_id)',
+  );
   late final Index notificationLogsDelivered = Index(
     'notification_logs_delivered',
     'CREATE INDEX notification_logs_delivered ON notification_logs (delivered_at)',
@@ -9741,9 +12788,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     appSettings,
     userProfile,
-    posts,
     aiPersonas,
+    posts,
     aiInteractions,
+    aiRelationships,
+    personaRoutines,
+    privateMessages,
+    userComments,
+    commentLikes,
+    topics,
     analysisResults,
     modeSwitchLogs,
     notificationLogs,
@@ -9758,6 +12811,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
+    personaRoutinesPersona,
+    privateMessagesPersona,
+    userCommentsPost,
     notificationLogsDelivered,
     planEventsDue,
     realActionsCreated,
@@ -10220,6 +13276,1035 @@ typedef $$UserProfileTableProcessedTableManager =
       UserProfileRow,
       PrefetchHooks Function()
     >;
+typedef $$AiPersonasTableCreateCompanionBuilder = AiPersonasCompanion Function({
+  required String id,
+  required String name,
+  Value<String> avatar,
+  Value<String> bio,
+  Value<String> languageStyle,
+  Value<String> tone,
+  Value<String> activeHours,
+  Value<double> likeProbability,
+  Value<double> commentProbability,
+  Value<String> replyLength,
+  Value<String> voiceModel,
+  Value<bool> isActive,
+  Value<String> scope,
+  Value<int> level,
+  Value<String> badges,
+  Value<int> followers,
+  Value<int> following,
+  Value<String> personalityType,
+  Value<String> circle,
+  Value<bool> memoryEnabled,
+  Value<int> relationshipLevel,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$AiPersonasTableUpdateCompanionBuilder = AiPersonasCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> avatar,
+  Value<String> bio,
+  Value<String> languageStyle,
+  Value<String> tone,
+  Value<String> activeHours,
+  Value<double> likeProbability,
+  Value<double> commentProbability,
+  Value<String> replyLength,
+  Value<String> voiceModel,
+  Value<bool> isActive,
+  Value<String> scope,
+  Value<int> level,
+  Value<String> badges,
+  Value<int> followers,
+  Value<int> following,
+  Value<String> personalityType,
+  Value<String> circle,
+  Value<bool> memoryEnabled,
+  Value<int> relationshipLevel,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+final class $$AiPersonasTableReferences
+    extends BaseReferences<_$AppDatabase, $AiPersonasTable, AiPersonaRow> {
+  $$AiPersonasTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$PostsTable, List<PostRow>> _postsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.posts,
+    aliasName: 'ai_personas__id__posts__author_persona_id',
+  );
+
+  $$PostsTableProcessedTableManager get postsRefs {
+    final manager = $$PostsTableTableManager($_db, $_db.posts).filter(
+      (f) => f.authorPersonaId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_postsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AiInteractionsTable, List<AiInteractionRow>>
+  _aiInteractionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.aiInteractions,
+    aliasName: 'ai_personas__id__ai_interactions__persona_id',
+  );
+
+  $$AiInteractionsTableProcessedTableManager get aiInteractionsRefs {
+    final manager = $$AiInteractionsTableTableManager(
+      $_db,
+      $_db.aiInteractions,
+    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_aiInteractionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AiRelationshipsTable, List<AiRelationshipRow>>
+  _aiRelationshipsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.aiRelationships,
+    aliasName: 'ai_personas__id__ai_relationships__persona_id',
+  );
+
+  $$AiRelationshipsTableProcessedTableManager get aiRelationshipsRefs {
+    final manager = $$AiRelationshipsTableTableManager(
+      $_db,
+      $_db.aiRelationships,
+    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _aiRelationshipsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PersonaRoutinesTable, List<PersonaRoutineRow>>
+  _personaRoutinesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.personaRoutines,
+    aliasName: 'ai_personas__id__persona_routines__persona_id',
+  );
+
+  $$PersonaRoutinesTableProcessedTableManager get personaRoutinesRefs {
+    final manager = $$PersonaRoutinesTableTableManager(
+      $_db,
+      $_db.personaRoutines,
+    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _personaRoutinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PrivateMessagesTable, List<PrivateMessageRow>>
+  _privateMessagesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.privateMessages,
+    aliasName: 'ai_personas__id__private_messages__persona_id',
+  );
+
+  $$PrivateMessagesTableProcessedTableManager get privateMessagesRefs {
+    final manager = $$PrivateMessagesTableTableManager(
+      $_db,
+      $_db.privateMessages,
+    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _privateMessagesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$AiPersonasTableFilterComposer
+    extends Composer<_$AppDatabase, $AiPersonasTable> {
+  $$AiPersonasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatar => $composableBuilder(
+    column: $table.avatar,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get likeProbability => $composableBuilder(
+    column: $table.likeProbability,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get commentProbability => $composableBuilder(
+    column: $table.commentProbability,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replyLength => $composableBuilder(
+    column: $table.replyLength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceModel => $composableBuilder(
+    column: $table.voiceModel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get badges => $composableBuilder(
+    column: $table.badges,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get followers => $composableBuilder(
+    column: $table.followers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get following => $composableBuilder(
+    column: $table.following,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get personalityType => $composableBuilder(
+    column: $table.personalityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get circle => $composableBuilder(
+    column: $table.circle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> postsRefs(
+    Expression<bool> Function($$PostsTableFilterComposer f) f,
+  ) {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.authorPersonaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> aiInteractionsRefs(
+    Expression<bool> Function($$AiInteractionsTableFilterComposer f) f,
+  ) {
+    final $$AiInteractionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiInteractions,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiInteractionsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiInteractions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> aiRelationshipsRefs(
+    Expression<bool> Function($$AiRelationshipsTableFilterComposer f) f,
+  ) {
+    final $$AiRelationshipsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiRelationships,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiRelationshipsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiRelationships,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> personaRoutinesRefs(
+    Expression<bool> Function($$PersonaRoutinesTableFilterComposer f) f,
+  ) {
+    final $$PersonaRoutinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personaRoutines,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonaRoutinesTableFilterComposer(
+            $db: $db,
+            $table: $db.personaRoutines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> privateMessagesRefs(
+    Expression<bool> Function($$PrivateMessagesTableFilterComposer f) f,
+  ) {
+    final $$PrivateMessagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.privateMessages,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrivateMessagesTableFilterComposer(
+            $db: $db,
+            $table: $db.privateMessages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$AiPersonasTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiPersonasTable> {
+  $$AiPersonasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get avatar => $composableBuilder(
+    column: $table.avatar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get likeProbability => $composableBuilder(
+    column: $table.likeProbability,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get commentProbability => $composableBuilder(
+    column: $table.commentProbability,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get replyLength => $composableBuilder(
+    column: $table.replyLength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voiceModel => $composableBuilder(
+    column: $table.voiceModel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get badges => $composableBuilder(
+    column: $table.badges,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get followers => $composableBuilder(
+    column: $table.followers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get following => $composableBuilder(
+    column: $table.following,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get personalityType => $composableBuilder(
+    column: $table.personalityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get circle => $composableBuilder(
+    column: $table.circle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AiPersonasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiPersonasTable> {
+  $$AiPersonasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatar =>
+      $composableBuilder(column: $table.avatar, builder: (column) => column);
+
+  GeneratedColumn<String> get bio =>
+      $composableBuilder(column: $table.bio, builder: (column) => column);
+
+  GeneratedColumn<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tone =>
+      $composableBuilder(column: $table.tone, builder: (column) => column);
+
+  GeneratedColumn<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get likeProbability => $composableBuilder(
+    column: $table.likeProbability,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get commentProbability => $composableBuilder(
+    column: $table.commentProbability,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get replyLength => $composableBuilder(
+    column: $table.replyLength,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get voiceModel => $composableBuilder(
+    column: $table.voiceModel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<int> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
+
+  GeneratedColumn<String> get badges =>
+      $composableBuilder(column: $table.badges, builder: (column) => column);
+
+  GeneratedColumn<int> get followers =>
+      $composableBuilder(column: $table.followers, builder: (column) => column);
+
+  GeneratedColumn<int> get following =>
+      $composableBuilder(column: $table.following, builder: (column) => column);
+
+  GeneratedColumn<String> get personalityType => $composableBuilder(
+    column: $table.personalityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get circle =>
+      $composableBuilder(column: $table.circle, builder: (column) => column);
+
+  GeneratedColumn<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  Expression<T> postsRefs<T extends Object>(
+    Expression<T> Function($$PostsTableAnnotationComposer a) f,
+  ) {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.authorPersonaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> aiInteractionsRefs<T extends Object>(
+    Expression<T> Function($$AiInteractionsTableAnnotationComposer a) f,
+  ) {
+    final $$AiInteractionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiInteractions,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiInteractionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiInteractions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> aiRelationshipsRefs<T extends Object>(
+    Expression<T> Function($$AiRelationshipsTableAnnotationComposer a) f,
+  ) {
+    final $$AiRelationshipsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiRelationships,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiRelationshipsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiRelationships,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> personaRoutinesRefs<T extends Object>(
+    Expression<T> Function($$PersonaRoutinesTableAnnotationComposer a) f,
+  ) {
+    final $$PersonaRoutinesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personaRoutines,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonaRoutinesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.personaRoutines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> privateMessagesRefs<T extends Object>(
+    Expression<T> Function($$PrivateMessagesTableAnnotationComposer a) f,
+  ) {
+    final $$PrivateMessagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.privateMessages,
+      getReferencedColumn: (t) => t.personaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrivateMessagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.privateMessages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$AiPersonasTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiPersonasTable,
+          AiPersonaRow,
+          $$AiPersonasTableFilterComposer,
+          $$AiPersonasTableOrderingComposer,
+          $$AiPersonasTableAnnotationComposer,
+          $$AiPersonasTableCreateCompanionBuilder,
+          $$AiPersonasTableUpdateCompanionBuilder,
+          (AiPersonaRow, $$AiPersonasTableReferences),
+          AiPersonaRow,
+          PrefetchHooks Function({
+            bool postsRefs,
+            bool aiInteractionsRefs,
+            bool aiRelationshipsRefs,
+            bool personaRoutinesRefs,
+            bool privateMessagesRefs,
+          })
+        > {
+  $$AiPersonasTableTableManager(_$AppDatabase db, $AiPersonasTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiPersonasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiPersonasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiPersonasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> avatar = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> activeHours = const Value.absent(),
+                Value<double> likeProbability = const Value.absent(),
+                Value<double> commentProbability = const Value.absent(),
+                Value<String> replyLength = const Value.absent(),
+                Value<String> voiceModel = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> level = const Value.absent(),
+                Value<String> badges = const Value.absent(),
+                Value<int> followers = const Value.absent(),
+                Value<int> following = const Value.absent(),
+                Value<String> personalityType = const Value.absent(),
+                Value<String> circle = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int> relationshipLevel = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiPersonasCompanion(
+                id: id,
+                name: name,
+                avatar: avatar,
+                bio: bio,
+                languageStyle: languageStyle,
+                tone: tone,
+                activeHours: activeHours,
+                likeProbability: likeProbability,
+                commentProbability: commentProbability,
+                replyLength: replyLength,
+                voiceModel: voiceModel,
+                isActive: isActive,
+                scope: scope,
+                level: level,
+                badges: badges,
+                followers: followers,
+                following: following,
+                personalityType: personalityType,
+                circle: circle,
+                memoryEnabled: memoryEnabled,
+                relationshipLevel: relationshipLevel,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> avatar = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> activeHours = const Value.absent(),
+                Value<double> likeProbability = const Value.absent(),
+                Value<double> commentProbability = const Value.absent(),
+                Value<String> replyLength = const Value.absent(),
+                Value<String> voiceModel = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> level = const Value.absent(),
+                Value<String> badges = const Value.absent(),
+                Value<int> followers = const Value.absent(),
+                Value<int> following = const Value.absent(),
+                Value<String> personalityType = const Value.absent(),
+                Value<String> circle = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int> relationshipLevel = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiPersonasCompanion.insert(
+                id: id,
+                name: name,
+                avatar: avatar,
+                bio: bio,
+                languageStyle: languageStyle,
+                tone: tone,
+                activeHours: activeHours,
+                likeProbability: likeProbability,
+                commentProbability: commentProbability,
+                replyLength: replyLength,
+                voiceModel: voiceModel,
+                isActive: isActive,
+                scope: scope,
+                level: level,
+                badges: badges,
+                followers: followers,
+                following: following,
+                personalityType: personalityType,
+                circle: circle,
+                memoryEnabled: memoryEnabled,
+                relationshipLevel: relationshipLevel,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AiPersonasTable, AiPersonaRow>(table),
+                  $$AiPersonasTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                postsRefs = false,
+                aiInteractionsRefs = false,
+                aiRelationshipsRefs = false,
+                personaRoutinesRefs = false,
+                privateMessagesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (postsRefs) db.posts,
+                    if (aiInteractionsRefs) db.aiInteractions,
+                    if (aiRelationshipsRefs) db.aiRelationships,
+                    if (personaRoutinesRefs) db.personaRoutines,
+                    if (privateMessagesRefs) db.privateMessages,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (postsRefs)
+                        await $_getPrefetchedData<
+                          AiPersonaRow,
+                          $AiPersonasTable,
+                          PostRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AiPersonasTableReferences
+                              ._postsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AiPersonasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.authorPersonaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (aiInteractionsRefs)
+                        await $_getPrefetchedData<
+                          AiPersonaRow,
+                          $AiPersonasTable,
+                          AiInteractionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AiPersonasTableReferences
+                              ._aiInteractionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AiPersonasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiInteractionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (aiRelationshipsRefs)
+                        await $_getPrefetchedData<
+                          AiPersonaRow,
+                          $AiPersonasTable,
+                          AiRelationshipRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AiPersonasTableReferences
+                              ._aiRelationshipsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AiPersonasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiRelationshipsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (personaRoutinesRefs)
+                        await $_getPrefetchedData<
+                          AiPersonaRow,
+                          $AiPersonasTable,
+                          PersonaRoutineRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AiPersonasTableReferences
+                              ._personaRoutinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AiPersonasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).personaRoutinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (privateMessagesRefs)
+                        await $_getPrefetchedData<
+                          AiPersonaRow,
+                          $AiPersonasTable,
+                          PrivateMessageRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AiPersonasTableReferences
+                              ._privateMessagesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AiPersonasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).privateMessagesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$AiPersonasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiPersonasTable,
+      AiPersonaRow,
+      $$AiPersonasTableFilterComposer,
+      $$AiPersonasTableOrderingComposer,
+      $$AiPersonasTableAnnotationComposer,
+      $$AiPersonasTableCreateCompanionBuilder,
+      $$AiPersonasTableUpdateCompanionBuilder,
+      (AiPersonaRow, $$AiPersonasTableReferences),
+      AiPersonaRow,
+      PrefetchHooks Function({
+        bool postsRefs,
+        bool aiInteractionsRefs,
+        bool aiRelationshipsRefs,
+        bool personaRoutinesRefs,
+        bool privateMessagesRefs,
+      })
+    >;
 typedef $$PostsTableCreateCompanionBuilder = PostsCompanion Function({
   required String id,
   Value<String> content,
@@ -10238,6 +14323,8 @@ typedef $$PostsTableCreateCompanionBuilder = PostsCompanion Function({
   Value<bool> isHot,
   Value<int> likeCount,
   Value<int> commentCount,
+  Value<int?> likedAt,
+  Value<String?> authorPersonaId,
   Value<int> rowid,
 });
 typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
@@ -10258,12 +14345,31 @@ typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
   Value<bool> isHot,
   Value<int> likeCount,
   Value<int> commentCount,
+  Value<int?> likedAt,
+  Value<String?> authorPersonaId,
   Value<int> rowid,
 });
 
 final class $$PostsTableReferences
     extends BaseReferences<_$AppDatabase, $PostsTable, PostRow> {
   $$PostsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AiPersonasTable _authorPersonaIdTable(_$AppDatabase db) =>
+      db.aiPersonas.createAlias('posts__author_persona_id__ai_personas__id');
+
+  $$AiPersonasTableProcessedTableManager? get authorPersonaId {
+    final $_column = $_itemColumn<String>('author_persona_id');
+    if ($_column == null) return null;
+    final manager = $$AiPersonasTableTableManager(
+      $_db,
+      $_db.aiPersonas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_authorPersonaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<$AiInteractionsTable, List<AiInteractionRow>>
   _aiInteractionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -10278,6 +14384,24 @@ final class $$PostsTableReferences
     ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_aiInteractionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$UserCommentsTable, List<UserCommentRow>>
+  _userCommentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.userComments,
+    aliasName: 'posts__id__user_comments__post_id',
+  );
+
+  $$UserCommentsTableProcessedTableManager get userCommentsRefs {
+    final manager = $$UserCommentsTableTableManager(
+      $_db,
+      $_db.userComments,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_userCommentsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -10415,6 +14539,34 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get likedAt => $composableBuilder(
+    column: $table.likedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AiPersonasTableFilterComposer get authorPersonaId {
+    final $$AiPersonasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.authorPersonaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableFilterComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<bool> aiInteractionsRefs(
     Expression<bool> Function($$AiInteractionsTableFilterComposer f) f,
   ) {
@@ -10431,6 +14583,31 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
           }) => $$AiInteractionsTableFilterComposer(
             $db: $db,
             $table: $db.aiInteractions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> userCommentsRefs(
+    Expression<bool> Function($$UserCommentsTableFilterComposer f) f,
+  ) {
+    final $$UserCommentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userComments,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserCommentsTableFilterComposer(
+            $db: $db,
+            $table: $db.userComments,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -10584,6 +14761,34 @@ class $$PostsTableOrderingComposer
     column: $table.commentCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get likedAt => $composableBuilder(
+    column: $table.likedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AiPersonasTableOrderingComposer get authorPersonaId {
+    final $$AiPersonasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.authorPersonaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableOrderingComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$PostsTableAnnotationComposer
@@ -10656,6 +14861,32 @@ class $$PostsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get likedAt =>
+      $composableBuilder(column: $table.likedAt, builder: (column) => column);
+
+  $$AiPersonasTableAnnotationComposer get authorPersonaId {
+    final $$AiPersonasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.authorPersonaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> aiInteractionsRefs<T extends Object>(
     Expression<T> Function($$AiInteractionsTableAnnotationComposer a) f,
   ) {
@@ -10672,6 +14903,31 @@ class $$PostsTableAnnotationComposer
           }) => $$AiInteractionsTableAnnotationComposer(
             $db: $db,
             $table: $db.aiInteractions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> userCommentsRefs<T extends Object>(
+    Expression<T> Function($$UserCommentsTableAnnotationComposer a) f,
+  ) {
+    final $$UserCommentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userComments,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserCommentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.userComments,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -10746,7 +15002,9 @@ class $$PostsTableTableManager
           (PostRow, $$PostsTableReferences),
           PostRow,
           PrefetchHooks Function({
+            bool authorPersonaId,
             bool aiInteractionsRefs,
+            bool userCommentsRefs,
             bool analysisResultsRefs,
             bool planEventsRefs,
           })
@@ -10781,6 +15039,8 @@ class $$PostsTableTableManager
                 Value<bool> isHot = const Value.absent(),
                 Value<int> likeCount = const Value.absent(),
                 Value<int> commentCount = const Value.absent(),
+                Value<int?> likedAt = const Value.absent(),
+                Value<String?> authorPersonaId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PostsCompanion(
                 id: id,
@@ -10800,6 +15060,8 @@ class $$PostsTableTableManager
                 isHot: isHot,
                 likeCount: likeCount,
                 commentCount: commentCount,
+                likedAt: likedAt,
+                authorPersonaId: authorPersonaId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10821,6 +15083,8 @@ class $$PostsTableTableManager
                 Value<bool> isHot = const Value.absent(),
                 Value<int> likeCount = const Value.absent(),
                 Value<int> commentCount = const Value.absent(),
+                Value<int?> likedAt = const Value.absent(),
+                Value<String?> authorPersonaId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PostsCompanion.insert(
                 id: id,
@@ -10840,6 +15104,8 @@ class $$PostsTableTableManager
                 isHot: isHot,
                 likeCount: likeCount,
                 commentCount: commentCount,
+                likedAt: likedAt,
+                authorPersonaId: authorPersonaId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -10852,7 +15118,9 @@ class $$PostsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                authorPersonaId = false,
                 aiInteractionsRefs = false,
+                userCommentsRefs = false,
                 analysisResultsRefs = false,
                 planEventsRefs = false,
               }) {
@@ -10860,10 +15128,40 @@ class $$PostsTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (aiInteractionsRefs) db.aiInteractions,
+                    if (userCommentsRefs) db.userComments,
                     if (analysisResultsRefs) db.analysisResults,
                     if (planEventsRefs) db.planEvents,
                   ],
-                  addJoins: null,
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (authorPersonaId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.authorPersonaId,
+                            referencedTable: $$PostsTableReferences
+                                ._authorPersonaIdTable(db),
+                            referencedColumn: $$PostsTableReferences
+                                ._authorPersonaIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (aiInteractionsRefs)
@@ -10881,6 +15179,27 @@ class $$PostsTableTableManager
                                 table,
                                 p0,
                               ).aiInteractionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (userCommentsRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          UserCommentRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._userCommentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).userCommentsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.postId == item.id,
@@ -10950,633 +15269,12 @@ typedef $$PostsTableProcessedTableManager =
       (PostRow, $$PostsTableReferences),
       PostRow,
       PrefetchHooks Function({
+        bool authorPersonaId,
         bool aiInteractionsRefs,
+        bool userCommentsRefs,
         bool analysisResultsRefs,
         bool planEventsRefs,
       })
-    >;
-typedef $$AiPersonasTableCreateCompanionBuilder = AiPersonasCompanion Function({
-  required String id,
-  required String name,
-  Value<String> avatar,
-  Value<String> bio,
-  Value<String> languageStyle,
-  Value<String> tone,
-  Value<String> activeHours,
-  Value<double> likeProbability,
-  Value<double> commentProbability,
-  Value<String> replyLength,
-  Value<String> voiceModel,
-  Value<bool> isActive,
-  Value<String> scope,
-  Value<int> level,
-  Value<String> badges,
-  Value<int> followers,
-  Value<int> following,
-  Value<String> personalityType,
-  Value<bool> memoryEnabled,
-  Value<int> relationshipLevel,
-  Value<int?> deletedAt,
-  Value<int> rowid,
-});
-typedef $$AiPersonasTableUpdateCompanionBuilder = AiPersonasCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String> avatar,
-  Value<String> bio,
-  Value<String> languageStyle,
-  Value<String> tone,
-  Value<String> activeHours,
-  Value<double> likeProbability,
-  Value<double> commentProbability,
-  Value<String> replyLength,
-  Value<String> voiceModel,
-  Value<bool> isActive,
-  Value<String> scope,
-  Value<int> level,
-  Value<String> badges,
-  Value<int> followers,
-  Value<int> following,
-  Value<String> personalityType,
-  Value<bool> memoryEnabled,
-  Value<int> relationshipLevel,
-  Value<int?> deletedAt,
-  Value<int> rowid,
-});
-
-final class $$AiPersonasTableReferences
-    extends BaseReferences<_$AppDatabase, $AiPersonasTable, AiPersonaRow> {
-  $$AiPersonasTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static MultiTypedResultKey<$AiInteractionsTable, List<AiInteractionRow>>
-  _aiInteractionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.aiInteractions,
-    aliasName: 'ai_personas__id__ai_interactions__persona_id',
-  );
-
-  $$AiInteractionsTableProcessedTableManager get aiInteractionsRefs {
-    final manager = $$AiInteractionsTableTableManager(
-      $_db,
-      $_db.aiInteractions,
-    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_aiInteractionsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
-class $$AiPersonasTableFilterComposer
-    extends Composer<_$AppDatabase, $AiPersonasTable> {
-  $$AiPersonasTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get avatar => $composableBuilder(
-    column: $table.avatar,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get bio => $composableBuilder(
-    column: $table.bio,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get languageStyle => $composableBuilder(
-    column: $table.languageStyle,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get tone => $composableBuilder(
-    column: $table.tone,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get activeHours => $composableBuilder(
-    column: $table.activeHours,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get likeProbability => $composableBuilder(
-    column: $table.likeProbability,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get commentProbability => $composableBuilder(
-    column: $table.commentProbability,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get replyLength => $composableBuilder(
-    column: $table.replyLength,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get voiceModel => $composableBuilder(
-    column: $table.voiceModel,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get isActive => $composableBuilder(
-    column: $table.isActive,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get scope => $composableBuilder(
-    column: $table.scope,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get level => $composableBuilder(
-    column: $table.level,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get badges => $composableBuilder(
-    column: $table.badges,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get followers => $composableBuilder(
-    column: $table.followers,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get following => $composableBuilder(
-    column: $table.following,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get personalityType => $composableBuilder(
-    column: $table.personalityType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get memoryEnabled => $composableBuilder(
-    column: $table.memoryEnabled,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get relationshipLevel => $composableBuilder(
-    column: $table.relationshipLevel,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get deletedAt => $composableBuilder(
-    column: $table.deletedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  Expression<bool> aiInteractionsRefs(
-    Expression<bool> Function($$AiInteractionsTableFilterComposer f) f,
-  ) {
-    final $$AiInteractionsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.aiInteractions,
-      getReferencedColumn: (t) => t.personaId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiInteractionsTableFilterComposer(
-            $db: $db,
-            $table: $db.aiInteractions,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$AiPersonasTableOrderingComposer
-    extends Composer<_$AppDatabase, $AiPersonasTable> {
-  $$AiPersonasTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get avatar => $composableBuilder(
-    column: $table.avatar,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get bio => $composableBuilder(
-    column: $table.bio,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get languageStyle => $composableBuilder(
-    column: $table.languageStyle,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get tone => $composableBuilder(
-    column: $table.tone,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get activeHours => $composableBuilder(
-    column: $table.activeHours,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get likeProbability => $composableBuilder(
-    column: $table.likeProbability,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get commentProbability => $composableBuilder(
-    column: $table.commentProbability,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get replyLength => $composableBuilder(
-    column: $table.replyLength,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get voiceModel => $composableBuilder(
-    column: $table.voiceModel,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get isActive => $composableBuilder(
-    column: $table.isActive,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get scope => $composableBuilder(
-    column: $table.scope,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get level => $composableBuilder(
-    column: $table.level,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get badges => $composableBuilder(
-    column: $table.badges,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get followers => $composableBuilder(
-    column: $table.followers,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get following => $composableBuilder(
-    column: $table.following,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get personalityType => $composableBuilder(
-    column: $table.personalityType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get memoryEnabled => $composableBuilder(
-    column: $table.memoryEnabled,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get relationshipLevel => $composableBuilder(
-    column: $table.relationshipLevel,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get deletedAt => $composableBuilder(
-    column: $table.deletedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$AiPersonasTableAnnotationComposer
-    extends Composer<_$AppDatabase, $AiPersonasTable> {
-  $$AiPersonasTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get avatar =>
-      $composableBuilder(column: $table.avatar, builder: (column) => column);
-
-  GeneratedColumn<String> get bio =>
-      $composableBuilder(column: $table.bio, builder: (column) => column);
-
-  GeneratedColumn<String> get languageStyle => $composableBuilder(
-    column: $table.languageStyle,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get tone =>
-      $composableBuilder(column: $table.tone, builder: (column) => column);
-
-  GeneratedColumn<String> get activeHours => $composableBuilder(
-    column: $table.activeHours,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get likeProbability => $composableBuilder(
-    column: $table.likeProbability,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get commentProbability => $composableBuilder(
-    column: $table.commentProbability,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get replyLength => $composableBuilder(
-    column: $table.replyLength,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get voiceModel => $composableBuilder(
-    column: $table.voiceModel,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get isActive =>
-      $composableBuilder(column: $table.isActive, builder: (column) => column);
-
-  GeneratedColumn<String> get scope =>
-      $composableBuilder(column: $table.scope, builder: (column) => column);
-
-  GeneratedColumn<int> get level =>
-      $composableBuilder(column: $table.level, builder: (column) => column);
-
-  GeneratedColumn<String> get badges =>
-      $composableBuilder(column: $table.badges, builder: (column) => column);
-
-  GeneratedColumn<int> get followers =>
-      $composableBuilder(column: $table.followers, builder: (column) => column);
-
-  GeneratedColumn<int> get following =>
-      $composableBuilder(column: $table.following, builder: (column) => column);
-
-  GeneratedColumn<String> get personalityType => $composableBuilder(
-    column: $table.personalityType,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get memoryEnabled => $composableBuilder(
-    column: $table.memoryEnabled,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get relationshipLevel => $composableBuilder(
-    column: $table.relationshipLevel,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get deletedAt =>
-      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
-
-  Expression<T> aiInteractionsRefs<T extends Object>(
-    Expression<T> Function($$AiInteractionsTableAnnotationComposer a) f,
-  ) {
-    final $$AiInteractionsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.aiInteractions,
-      getReferencedColumn: (t) => t.personaId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiInteractionsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.aiInteractions,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$AiPersonasTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $AiPersonasTable,
-          AiPersonaRow,
-          $$AiPersonasTableFilterComposer,
-          $$AiPersonasTableOrderingComposer,
-          $$AiPersonasTableAnnotationComposer,
-          $$AiPersonasTableCreateCompanionBuilder,
-          $$AiPersonasTableUpdateCompanionBuilder,
-          (AiPersonaRow, $$AiPersonasTableReferences),
-          AiPersonaRow,
-          PrefetchHooks Function({bool aiInteractionsRefs})
-        > {
-  $$AiPersonasTableTableManager(_$AppDatabase db, $AiPersonasTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$AiPersonasTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$AiPersonasTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$AiPersonasTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<String> avatar = const Value.absent(),
-                Value<String> bio = const Value.absent(),
-                Value<String> languageStyle = const Value.absent(),
-                Value<String> tone = const Value.absent(),
-                Value<String> activeHours = const Value.absent(),
-                Value<double> likeProbability = const Value.absent(),
-                Value<double> commentProbability = const Value.absent(),
-                Value<String> replyLength = const Value.absent(),
-                Value<String> voiceModel = const Value.absent(),
-                Value<bool> isActive = const Value.absent(),
-                Value<String> scope = const Value.absent(),
-                Value<int> level = const Value.absent(),
-                Value<String> badges = const Value.absent(),
-                Value<int> followers = const Value.absent(),
-                Value<int> following = const Value.absent(),
-                Value<String> personalityType = const Value.absent(),
-                Value<bool> memoryEnabled = const Value.absent(),
-                Value<int> relationshipLevel = const Value.absent(),
-                Value<int?> deletedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => AiPersonasCompanion(
-                id: id,
-                name: name,
-                avatar: avatar,
-                bio: bio,
-                languageStyle: languageStyle,
-                tone: tone,
-                activeHours: activeHours,
-                likeProbability: likeProbability,
-                commentProbability: commentProbability,
-                replyLength: replyLength,
-                voiceModel: voiceModel,
-                isActive: isActive,
-                scope: scope,
-                level: level,
-                badges: badges,
-                followers: followers,
-                following: following,
-                personalityType: personalityType,
-                memoryEnabled: memoryEnabled,
-                relationshipLevel: relationshipLevel,
-                deletedAt: deletedAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String name,
-                Value<String> avatar = const Value.absent(),
-                Value<String> bio = const Value.absent(),
-                Value<String> languageStyle = const Value.absent(),
-                Value<String> tone = const Value.absent(),
-                Value<String> activeHours = const Value.absent(),
-                Value<double> likeProbability = const Value.absent(),
-                Value<double> commentProbability = const Value.absent(),
-                Value<String> replyLength = const Value.absent(),
-                Value<String> voiceModel = const Value.absent(),
-                Value<bool> isActive = const Value.absent(),
-                Value<String> scope = const Value.absent(),
-                Value<int> level = const Value.absent(),
-                Value<String> badges = const Value.absent(),
-                Value<int> followers = const Value.absent(),
-                Value<int> following = const Value.absent(),
-                Value<String> personalityType = const Value.absent(),
-                Value<bool> memoryEnabled = const Value.absent(),
-                Value<int> relationshipLevel = const Value.absent(),
-                Value<int?> deletedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => AiPersonasCompanion.insert(
-                id: id,
-                name: name,
-                avatar: avatar,
-                bio: bio,
-                languageStyle: languageStyle,
-                tone: tone,
-                activeHours: activeHours,
-                likeProbability: likeProbability,
-                commentProbability: commentProbability,
-                replyLength: replyLength,
-                voiceModel: voiceModel,
-                isActive: isActive,
-                scope: scope,
-                level: level,
-                badges: badges,
-                followers: followers,
-                following: following,
-                personalityType: personalityType,
-                memoryEnabled: memoryEnabled,
-                relationshipLevel: relationshipLevel,
-                deletedAt: deletedAt,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable<$AiPersonasTable, AiPersonaRow>(table),
-                  $$AiPersonasTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback: ({aiInteractionsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (aiInteractionsRefs) db.aiInteractions,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (aiInteractionsRefs)
-                    await $_getPrefetchedData<
-                      AiPersonaRow,
-                      $AiPersonasTable,
-                      AiInteractionRow
-                    >(
-                      currentTable: table,
-                      referencedTable: $$AiPersonasTableReferences
-                          ._aiInteractionsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$AiPersonasTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).aiInteractionsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.personaId == item.id),
-                      typedResults: items,
-                    ),
-                ];
-              },
-            );
-          },
-        ),
-      );
-}
-
-typedef $$AiPersonasTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $AiPersonasTable,
-      AiPersonaRow,
-      $$AiPersonasTableFilterComposer,
-      $$AiPersonasTableOrderingComposer,
-      $$AiPersonasTableAnnotationComposer,
-      $$AiPersonasTableCreateCompanionBuilder,
-      $$AiPersonasTableUpdateCompanionBuilder,
-      (AiPersonaRow, $$AiPersonasTableReferences),
-      AiPersonaRow,
-      PrefetchHooks Function({bool aiInteractionsRefs})
     >;
 typedef $$AiInteractionsTableCreateCompanionBuilder =
     AiInteractionsCompanion Function({
@@ -12219,6 +15917,1947 @@ typedef $$AiInteractionsTableProcessedTableManager =
       (AiInteractionRow, $$AiInteractionsTableReferences),
       AiInteractionRow,
       PrefetchHooks Function({bool postId, bool personaId})
+    >;
+typedef $$AiRelationshipsTableCreateCompanionBuilder =
+    AiRelationshipsCompanion Function({
+      required String personaId,
+      Value<int> relationshipLevel,
+      Value<int> intimacy,
+      Value<int> interactionCount,
+      Value<int?> lastInteractionAt,
+      Value<String> memorySummary,
+      Value<String> followState,
+      Value<String> scope,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AiRelationshipsTableUpdateCompanionBuilder =
+    AiRelationshipsCompanion Function({
+      Value<String> personaId,
+      Value<int> relationshipLevel,
+      Value<int> intimacy,
+      Value<int> interactionCount,
+      Value<int?> lastInteractionAt,
+      Value<String> memorySummary,
+      Value<String> followState,
+      Value<String> scope,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$AiRelationshipsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AiRelationshipsTable,
+          AiRelationshipRow
+        > {
+  $$AiRelationshipsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AiPersonasTable _personaIdTable(_$AppDatabase db) => db.aiPersonas
+      .createAlias('ai_relationships__persona_id__ai_personas__id');
+
+  $$AiPersonasTableProcessedTableManager get personaId {
+    final $_column = $_itemColumn<String>('persona_id')!;
+
+    final manager = $$AiPersonasTableTableManager(
+      $_db,
+      $_db.aiPersonas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AiRelationshipsTableFilterComposer
+    extends Composer<_$AppDatabase, $AiRelationshipsTable> {
+  $$AiRelationshipsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get intimacy => $composableBuilder(
+    column: $table.intimacy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get interactionCount => $composableBuilder(
+    column: $table.interactionCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get memorySummary => $composableBuilder(
+    column: $table.memorySummary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get followState => $composableBuilder(
+    column: $table.followState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AiPersonasTableFilterComposer get personaId {
+    final $$AiPersonasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableFilterComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiRelationshipsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiRelationshipsTable> {
+  $$AiRelationshipsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get intimacy => $composableBuilder(
+    column: $table.intimacy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get interactionCount => $composableBuilder(
+    column: $table.interactionCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get memorySummary => $composableBuilder(
+    column: $table.memorySummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get followState => $composableBuilder(
+    column: $table.followState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AiPersonasTableOrderingComposer get personaId {
+    final $$AiPersonasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableOrderingComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiRelationshipsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiRelationshipsTable> {
+  $$AiRelationshipsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get relationshipLevel => $composableBuilder(
+    column: $table.relationshipLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get intimacy =>
+      $composableBuilder(column: $table.intimacy, builder: (column) => column);
+
+  GeneratedColumn<int> get interactionCount => $composableBuilder(
+    column: $table.interactionCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get memorySummary => $composableBuilder(
+    column: $table.memorySummary,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get followState => $composableBuilder(
+    column: $table.followState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$AiPersonasTableAnnotationComposer get personaId {
+    final $$AiPersonasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiRelationshipsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiRelationshipsTable,
+          AiRelationshipRow,
+          $$AiRelationshipsTableFilterComposer,
+          $$AiRelationshipsTableOrderingComposer,
+          $$AiRelationshipsTableAnnotationComposer,
+          $$AiRelationshipsTableCreateCompanionBuilder,
+          $$AiRelationshipsTableUpdateCompanionBuilder,
+          (AiRelationshipRow, $$AiRelationshipsTableReferences),
+          AiRelationshipRow,
+          PrefetchHooks Function({bool personaId})
+        > {
+  $$AiRelationshipsTableTableManager(
+    _$AppDatabase db,
+    $AiRelationshipsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiRelationshipsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiRelationshipsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiRelationshipsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> personaId = const Value.absent(),
+                Value<int> relationshipLevel = const Value.absent(),
+                Value<int> intimacy = const Value.absent(),
+                Value<int> interactionCount = const Value.absent(),
+                Value<int?> lastInteractionAt = const Value.absent(),
+                Value<String> memorySummary = const Value.absent(),
+                Value<String> followState = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiRelationshipsCompanion(
+                personaId: personaId,
+                relationshipLevel: relationshipLevel,
+                intimacy: intimacy,
+                interactionCount: interactionCount,
+                lastInteractionAt: lastInteractionAt,
+                memorySummary: memorySummary,
+                followState: followState,
+                scope: scope,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String personaId,
+                Value<int> relationshipLevel = const Value.absent(),
+                Value<int> intimacy = const Value.absent(),
+                Value<int> interactionCount = const Value.absent(),
+                Value<int?> lastInteractionAt = const Value.absent(),
+                Value<String> memorySummary = const Value.absent(),
+                Value<String> followState = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AiRelationshipsCompanion.insert(
+                personaId: personaId,
+                relationshipLevel: relationshipLevel,
+                intimacy: intimacy,
+                interactionCount: interactionCount,
+                lastInteractionAt: lastInteractionAt,
+                memorySummary: memorySummary,
+                followState: followState,
+                scope: scope,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AiRelationshipsTable, AiRelationshipRow>(table),
+                  $$AiRelationshipsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personaId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.personaId,
+                        referencedTable: $$AiRelationshipsTableReferences
+                            ._personaIdTable(db),
+                        referencedColumn: $$AiRelationshipsTableReferences
+                            ._personaIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AiRelationshipsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiRelationshipsTable,
+      AiRelationshipRow,
+      $$AiRelationshipsTableFilterComposer,
+      $$AiRelationshipsTableOrderingComposer,
+      $$AiRelationshipsTableAnnotationComposer,
+      $$AiRelationshipsTableCreateCompanionBuilder,
+      $$AiRelationshipsTableUpdateCompanionBuilder,
+      (AiRelationshipRow, $$AiRelationshipsTableReferences),
+      AiRelationshipRow,
+      PrefetchHooks Function({bool personaId})
+    >;
+typedef $$PersonaRoutinesTableCreateCompanionBuilder =
+    PersonaRoutinesCompanion Function({
+      Value<int> id,
+      required String personaId,
+      required int hour,
+      Value<String> place,
+      Value<String> activity,
+    });
+typedef $$PersonaRoutinesTableUpdateCompanionBuilder =
+    PersonaRoutinesCompanion Function({
+      Value<int> id,
+      Value<String> personaId,
+      Value<int> hour,
+      Value<String> place,
+      Value<String> activity,
+    });
+
+final class $$PersonaRoutinesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PersonaRoutinesTable,
+          PersonaRoutineRow
+        > {
+  $$PersonaRoutinesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AiPersonasTable _personaIdTable(_$AppDatabase db) => db.aiPersonas
+      .createAlias('persona_routines__persona_id__ai_personas__id');
+
+  $$AiPersonasTableProcessedTableManager get personaId {
+    final $_column = $_itemColumn<String>('persona_id')!;
+
+    final manager = $$AiPersonasTableTableManager(
+      $_db,
+      $_db.aiPersonas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PersonaRoutinesTableFilterComposer
+    extends Composer<_$AppDatabase, $PersonaRoutinesTable> {
+  $$PersonaRoutinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hour => $composableBuilder(
+    column: $table.hour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get place => $composableBuilder(
+    column: $table.place,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activity => $composableBuilder(
+    column: $table.activity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AiPersonasTableFilterComposer get personaId {
+    final $$AiPersonasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableFilterComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonaRoutinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PersonaRoutinesTable> {
+  $$PersonaRoutinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hour => $composableBuilder(
+    column: $table.hour,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get place => $composableBuilder(
+    column: $table.place,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activity => $composableBuilder(
+    column: $table.activity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AiPersonasTableOrderingComposer get personaId {
+    final $$AiPersonasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableOrderingComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonaRoutinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PersonaRoutinesTable> {
+  $$PersonaRoutinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get hour =>
+      $composableBuilder(column: $table.hour, builder: (column) => column);
+
+  GeneratedColumn<String> get place =>
+      $composableBuilder(column: $table.place, builder: (column) => column);
+
+  GeneratedColumn<String> get activity =>
+      $composableBuilder(column: $table.activity, builder: (column) => column);
+
+  $$AiPersonasTableAnnotationComposer get personaId {
+    final $$AiPersonasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonaRoutinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PersonaRoutinesTable,
+          PersonaRoutineRow,
+          $$PersonaRoutinesTableFilterComposer,
+          $$PersonaRoutinesTableOrderingComposer,
+          $$PersonaRoutinesTableAnnotationComposer,
+          $$PersonaRoutinesTableCreateCompanionBuilder,
+          $$PersonaRoutinesTableUpdateCompanionBuilder,
+          (PersonaRoutineRow, $$PersonaRoutinesTableReferences),
+          PersonaRoutineRow,
+          PrefetchHooks Function({bool personaId})
+        > {
+  $$PersonaRoutinesTableTableManager(
+    _$AppDatabase db,
+    $PersonaRoutinesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PersonaRoutinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PersonaRoutinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PersonaRoutinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> personaId = const Value.absent(),
+                Value<int> hour = const Value.absent(),
+                Value<String> place = const Value.absent(),
+                Value<String> activity = const Value.absent(),
+              }) => PersonaRoutinesCompanion(
+                id: id,
+                personaId: personaId,
+                hour: hour,
+                place: place,
+                activity: activity,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String personaId,
+                required int hour,
+                Value<String> place = const Value.absent(),
+                Value<String> activity = const Value.absent(),
+              }) => PersonaRoutinesCompanion.insert(
+                id: id,
+                personaId: personaId,
+                hour: hour,
+                place: place,
+                activity: activity,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PersonaRoutinesTable, PersonaRoutineRow>(table),
+                  $$PersonaRoutinesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personaId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.personaId,
+                        referencedTable: $$PersonaRoutinesTableReferences
+                            ._personaIdTable(db),
+                        referencedColumn: $$PersonaRoutinesTableReferences
+                            ._personaIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PersonaRoutinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PersonaRoutinesTable,
+      PersonaRoutineRow,
+      $$PersonaRoutinesTableFilterComposer,
+      $$PersonaRoutinesTableOrderingComposer,
+      $$PersonaRoutinesTableAnnotationComposer,
+      $$PersonaRoutinesTableCreateCompanionBuilder,
+      $$PersonaRoutinesTableUpdateCompanionBuilder,
+      (PersonaRoutineRow, $$PersonaRoutinesTableReferences),
+      PersonaRoutineRow,
+      PrefetchHooks Function({bool personaId})
+    >;
+typedef $$PrivateMessagesTableCreateCompanionBuilder =
+    PrivateMessagesCompanion Function({
+      required String id,
+      required String personaId,
+      required String direction,
+      Value<String> content,
+      Value<String> mediaType,
+      Value<String?> voicePath,
+      Value<String?> transcript,
+      required int createdAt,
+      Value<int?> readAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$PrivateMessagesTableUpdateCompanionBuilder =
+    PrivateMessagesCompanion Function({
+      Value<String> id,
+      Value<String> personaId,
+      Value<String> direction,
+      Value<String> content,
+      Value<String> mediaType,
+      Value<String?> voicePath,
+      Value<String?> transcript,
+      Value<int> createdAt,
+      Value<int?> readAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+final class $$PrivateMessagesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PrivateMessagesTable,
+          PrivateMessageRow
+        > {
+  $$PrivateMessagesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AiPersonasTable _personaIdTable(_$AppDatabase db) => db.aiPersonas
+      .createAlias('private_messages__persona_id__ai_personas__id');
+
+  $$AiPersonasTableProcessedTableManager get personaId {
+    final $_column = $_itemColumn<String>('persona_id')!;
+
+    final manager = $$AiPersonasTableTableManager(
+      $_db,
+      $_db.aiPersonas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PrivateMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $PrivateMessagesTable> {
+  $$PrivateMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get direction => $composableBuilder(
+    column: $table.direction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AiPersonasTableFilterComposer get personaId {
+    final $$AiPersonasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableFilterComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PrivateMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrivateMessagesTable> {
+  $$PrivateMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get direction => $composableBuilder(
+    column: $table.direction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AiPersonasTableOrderingComposer get personaId {
+    final $$AiPersonasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableOrderingComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PrivateMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrivateMessagesTable> {
+  $$PrivateMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get direction =>
+      $composableBuilder(column: $table.direction, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaType =>
+      $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
+  GeneratedColumn<String> get voicePath =>
+      $composableBuilder(column: $table.voicePath, builder: (column) => column);
+
+  GeneratedColumn<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  $$AiPersonasTableAnnotationComposer get personaId {
+    final $$AiPersonasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personaId,
+      referencedTable: $db.aiPersonas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiPersonasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiPersonas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PrivateMessagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PrivateMessagesTable,
+          PrivateMessageRow,
+          $$PrivateMessagesTableFilterComposer,
+          $$PrivateMessagesTableOrderingComposer,
+          $$PrivateMessagesTableAnnotationComposer,
+          $$PrivateMessagesTableCreateCompanionBuilder,
+          $$PrivateMessagesTableUpdateCompanionBuilder,
+          (PrivateMessageRow, $$PrivateMessagesTableReferences),
+          PrivateMessageRow,
+          PrefetchHooks Function({bool personaId})
+        > {
+  $$PrivateMessagesTableTableManager(
+    _$AppDatabase db,
+    $PrivateMessagesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrivateMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrivateMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrivateMessagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> personaId = const Value.absent(),
+                Value<String> direction = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> mediaType = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> readAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrivateMessagesCompanion(
+                id: id,
+                personaId: personaId,
+                direction: direction,
+                content: content,
+                mediaType: mediaType,
+                voicePath: voicePath,
+                transcript: transcript,
+                createdAt: createdAt,
+                readAt: readAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String personaId,
+                required String direction,
+                Value<String> content = const Value.absent(),
+                Value<String> mediaType = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                required int createdAt,
+                Value<int?> readAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrivateMessagesCompanion.insert(
+                id: id,
+                personaId: personaId,
+                direction: direction,
+                content: content,
+                mediaType: mediaType,
+                voicePath: voicePath,
+                transcript: transcript,
+                createdAt: createdAt,
+                readAt: readAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PrivateMessagesTable, PrivateMessageRow>(table),
+                  $$PrivateMessagesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personaId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.personaId,
+                        referencedTable: $$PrivateMessagesTableReferences
+                            ._personaIdTable(db),
+                        referencedColumn: $$PrivateMessagesTableReferences
+                            ._personaIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PrivateMessagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PrivateMessagesTable,
+      PrivateMessageRow,
+      $$PrivateMessagesTableFilterComposer,
+      $$PrivateMessagesTableOrderingComposer,
+      $$PrivateMessagesTableAnnotationComposer,
+      $$PrivateMessagesTableCreateCompanionBuilder,
+      $$PrivateMessagesTableUpdateCompanionBuilder,
+      (PrivateMessageRow, $$PrivateMessagesTableReferences),
+      PrivateMessageRow,
+      PrefetchHooks Function({bool personaId})
+    >;
+typedef $$UserCommentsTableCreateCompanionBuilder =
+    UserCommentsCompanion Function({
+      required String id,
+      required String postId,
+      required String content,
+      Value<String?> parentId,
+      Value<String?> replyToName,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$UserCommentsTableUpdateCompanionBuilder =
+    UserCommentsCompanion Function({
+      Value<String> id,
+      Value<String> postId,
+      Value<String> content,
+      Value<String?> parentId,
+      Value<String?> replyToName,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$UserCommentsTableReferences
+    extends BaseReferences<_$AppDatabase, $UserCommentsTable, UserCommentRow> {
+  $$UserCommentsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('user_comments__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$UserCommentsTableFilterComposer
+    extends Composer<_$AppDatabase, $UserCommentsTable> {
+  $$UserCommentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replyToName => $composableBuilder(
+    column: $table.replyToName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserCommentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserCommentsTable> {
+  $$UserCommentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get replyToName => $composableBuilder(
+    column: $table.replyToName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserCommentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserCommentsTable> {
+  $$UserCommentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get parentId =>
+      $composableBuilder(column: $table.parentId, builder: (column) => column);
+
+  GeneratedColumn<String> get replyToName => $composableBuilder(
+    column: $table.replyToName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserCommentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UserCommentsTable,
+          UserCommentRow,
+          $$UserCommentsTableFilterComposer,
+          $$UserCommentsTableOrderingComposer,
+          $$UserCommentsTableAnnotationComposer,
+          $$UserCommentsTableCreateCompanionBuilder,
+          $$UserCommentsTableUpdateCompanionBuilder,
+          (UserCommentRow, $$UserCommentsTableReferences),
+          UserCommentRow,
+          PrefetchHooks Function({bool postId})
+        > {
+  $$UserCommentsTableTableManager(_$AppDatabase db, $UserCommentsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserCommentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserCommentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserCommentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> postId = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String?> parentId = const Value.absent(),
+                Value<String?> replyToName = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UserCommentsCompanion(
+                id: id,
+                postId: postId,
+                content: content,
+                parentId: parentId,
+                replyToName: replyToName,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String postId,
+                required String content,
+                Value<String?> parentId = const Value.absent(),
+                Value<String?> replyToName = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UserCommentsCompanion.insert(
+                id: id,
+                postId: postId,
+                content: content,
+                parentId: parentId,
+                replyToName: replyToName,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$UserCommentsTable, UserCommentRow>(table),
+                  $$UserCommentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({postId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (postId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.postId,
+                        referencedTable: $$UserCommentsTableReferences
+                            ._postIdTable(db),
+                        referencedColumn: $$UserCommentsTableReferences
+                            ._postIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$UserCommentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UserCommentsTable,
+      UserCommentRow,
+      $$UserCommentsTableFilterComposer,
+      $$UserCommentsTableOrderingComposer,
+      $$UserCommentsTableAnnotationComposer,
+      $$UserCommentsTableCreateCompanionBuilder,
+      $$UserCommentsTableUpdateCompanionBuilder,
+      (UserCommentRow, $$UserCommentsTableReferences),
+      UserCommentRow,
+      PrefetchHooks Function({bool postId})
+    >;
+typedef $$CommentLikesTableCreateCompanionBuilder =
+    CommentLikesCompanion Function({
+      required String commentId,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$CommentLikesTableUpdateCompanionBuilder =
+    CommentLikesCompanion Function({
+      Value<String> commentId,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+class $$CommentLikesTableFilterComposer
+    extends Composer<_$AppDatabase, $CommentLikesTable> {
+  $$CommentLikesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get commentId => $composableBuilder(
+    column: $table.commentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CommentLikesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CommentLikesTable> {
+  $$CommentLikesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get commentId => $composableBuilder(
+    column: $table.commentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CommentLikesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CommentLikesTable> {
+  $$CommentLikesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get commentId =>
+      $composableBuilder(column: $table.commentId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$CommentLikesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CommentLikesTable,
+          CommentLikeRow,
+          $$CommentLikesTableFilterComposer,
+          $$CommentLikesTableOrderingComposer,
+          $$CommentLikesTableAnnotationComposer,
+          $$CommentLikesTableCreateCompanionBuilder,
+          $$CommentLikesTableUpdateCompanionBuilder,
+          (
+            CommentLikeRow,
+            BaseReferences<_$AppDatabase, $CommentLikesTable, CommentLikeRow>,
+          ),
+          CommentLikeRow,
+          PrefetchHooks Function()
+        > {
+  $$CommentLikesTableTableManager(_$AppDatabase db, $CommentLikesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CommentLikesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CommentLikesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CommentLikesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> commentId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CommentLikesCompanion(
+                commentId: commentId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String commentId,
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CommentLikesCompanion.insert(
+                commentId: commentId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CommentLikesTable, CommentLikeRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CommentLikesTable,
+                    CommentLikeRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CommentLikesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CommentLikesTable,
+      CommentLikeRow,
+      $$CommentLikesTableFilterComposer,
+      $$CommentLikesTableOrderingComposer,
+      $$CommentLikesTableAnnotationComposer,
+      $$CommentLikesTableCreateCompanionBuilder,
+      $$CommentLikesTableUpdateCompanionBuilder,
+      (
+        CommentLikeRow,
+        BaseReferences<_$AppDatabase, $CommentLikesTable, CommentLikeRow>,
+      ),
+      CommentLikeRow,
+      PrefetchHooks Function()
+    >;
+typedef $$TopicsTableCreateCompanionBuilder = TopicsCompanion Function({
+  required String id,
+  required String name,
+  Value<String> description,
+  Value<int> heat,
+  Value<bool> isBuiltIn,
+  required int createdAt,
+  Value<int?> deletedAt,
+  Value<String> scope,
+  Value<int> rowid,
+});
+typedef $$TopicsTableUpdateCompanionBuilder = TopicsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> description,
+  Value<int> heat,
+  Value<bool> isBuiltIn,
+  Value<int> createdAt,
+  Value<int?> deletedAt,
+  Value<String> scope,
+  Value<int> rowid,
+});
+
+class $$TopicsTableFilterComposer
+    extends Composer<_$AppDatabase, $TopicsTable> {
+  $$TopicsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get heat => $composableBuilder(
+    column: $table.heat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isBuiltIn => $composableBuilder(
+    column: $table.isBuiltIn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TopicsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TopicsTable> {
+  $$TopicsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get heat => $composableBuilder(
+    column: $table.heat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isBuiltIn => $composableBuilder(
+    column: $table.isBuiltIn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TopicsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TopicsTable> {
+  $$TopicsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get heat =>
+      $composableBuilder(column: $table.heat, builder: (column) => column);
+
+  GeneratedColumn<bool> get isBuiltIn =>
+      $composableBuilder(column: $table.isBuiltIn, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$TopicsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TopicsTable,
+          TopicRow,
+          $$TopicsTableFilterComposer,
+          $$TopicsTableOrderingComposer,
+          $$TopicsTableAnnotationComposer,
+          $$TopicsTableCreateCompanionBuilder,
+          $$TopicsTableUpdateCompanionBuilder,
+          (TopicRow, BaseReferences<_$AppDatabase, $TopicsTable, TopicRow>),
+          TopicRow,
+          PrefetchHooks Function()
+        > {
+  $$TopicsTableTableManager(_$AppDatabase db, $TopicsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TopicsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TopicsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TopicsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<int> heat = const Value.absent(),
+                Value<bool> isBuiltIn = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TopicsCompanion(
+                id: id,
+                name: name,
+                description: description,
+                heat: heat,
+                isBuiltIn: isBuiltIn,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> description = const Value.absent(),
+                Value<int> heat = const Value.absent(),
+                Value<bool> isBuiltIn = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TopicsCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                heat: heat,
+                isBuiltIn: isBuiltIn,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TopicsTable, TopicRow>(table),
+                  BaseReferences<_$AppDatabase, $TopicsTable, TopicRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TopicsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TopicsTable,
+      TopicRow,
+      $$TopicsTableFilterComposer,
+      $$TopicsTableOrderingComposer,
+      $$TopicsTableAnnotationComposer,
+      $$TopicsTableCreateCompanionBuilder,
+      $$TopicsTableUpdateCompanionBuilder,
+      (TopicRow, BaseReferences<_$AppDatabase, $TopicsTable, TopicRow>),
+      TopicRow,
+      PrefetchHooks Function()
     >;
 typedef $$AnalysisResultsTableCreateCompanionBuilder =
     AnalysisResultsCompanion Function({
@@ -14540,6 +20179,7 @@ typedef $$ModelConfigsTableCreateCompanionBuilder =
       required String label,
       required String baseUrl,
       required String model,
+      Value<String> kind,
       Value<bool> enabled,
       required int createdAt,
       required int updatedAt,
@@ -14552,6 +20192,7 @@ typedef $$ModelConfigsTableUpdateCompanionBuilder =
       Value<String> label,
       Value<String> baseUrl,
       Value<String> model,
+      Value<String> kind,
       Value<bool> enabled,
       Value<int> createdAt,
       Value<int> updatedAt,
@@ -14589,6 +20230,11 @@ class $$ModelConfigsTableFilterComposer
 
   ColumnFilters<String> get model => $composableBuilder(
     column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14642,6 +20288,11 @@ class $$ModelConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -14681,6 +20332,9 @@ class $$ModelConfigsTableAnnotationComposer
 
   GeneratedColumn<String> get model =>
       $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
@@ -14728,6 +20382,7 @@ class $$ModelConfigsTableTableManager
                 Value<String> label = const Value.absent(),
                 Value<String> baseUrl = const Value.absent(),
                 Value<String> model = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -14738,6 +20393,7 @@ class $$ModelConfigsTableTableManager
                 label: label,
                 baseUrl: baseUrl,
                 model: model,
+                kind: kind,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -14750,6 +20406,7 @@ class $$ModelConfigsTableTableManager
                 required String label,
                 required String baseUrl,
                 required String model,
+                Value<String> kind = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -14760,6 +20417,7 @@ class $$ModelConfigsTableTableManager
                 label: label,
                 baseUrl: baseUrl,
                 model: model,
+                kind: kind,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -15511,12 +21169,24 @@ class $AppDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$UserProfileTableTableManager get userProfile =>
       $$UserProfileTableTableManager(_db, _db.userProfile);
-  $$PostsTableTableManager get posts =>
-      $$PostsTableTableManager(_db, _db.posts);
   $$AiPersonasTableTableManager get aiPersonas =>
       $$AiPersonasTableTableManager(_db, _db.aiPersonas);
+  $$PostsTableTableManager get posts =>
+      $$PostsTableTableManager(_db, _db.posts);
   $$AiInteractionsTableTableManager get aiInteractions =>
       $$AiInteractionsTableTableManager(_db, _db.aiInteractions);
+  $$AiRelationshipsTableTableManager get aiRelationships =>
+      $$AiRelationshipsTableTableManager(_db, _db.aiRelationships);
+  $$PersonaRoutinesTableTableManager get personaRoutines =>
+      $$PersonaRoutinesTableTableManager(_db, _db.personaRoutines);
+  $$PrivateMessagesTableTableManager get privateMessages =>
+      $$PrivateMessagesTableTableManager(_db, _db.privateMessages);
+  $$UserCommentsTableTableManager get userComments =>
+      $$UserCommentsTableTableManager(_db, _db.userComments);
+  $$CommentLikesTableTableManager get commentLikes =>
+      $$CommentLikesTableTableManager(_db, _db.commentLikes);
+  $$TopicsTableTableManager get topics =>
+      $$TopicsTableTableManager(_db, _db.topics);
   $$AnalysisResultsTableTableManager get analysisResults =>
       $$AnalysisResultsTableTableManager(_db, _db.analysisResults);
   $$ModeSwitchLogsTableTableManager get modeSwitchLogs =>

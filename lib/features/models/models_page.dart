@@ -104,6 +104,20 @@ class _ConfigTile extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          // 用途标出来：列表里混着对话配置和文生图配置，
+          // 不标的话"哪条在用"会看串
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: EchoColors.textFaint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              config.kind.label,
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 10),
+            ),
+          ),
           if (config.enabled)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),

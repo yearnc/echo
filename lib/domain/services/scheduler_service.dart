@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/analysis_repository.dart';
@@ -9,8 +10,10 @@ import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/plan_event_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../models/ai_persona.dart';
 import '../models/echo_settings.dart';
 import '../models/plan_script.dart';
+import 'content_generator.dart';
 import 'interaction_planner.dart';
 import 'safety_controller.dart';
 
@@ -35,6 +38,7 @@ class SchedulerService {
     required this.notifications,
     required this.personas,
     required this.analyses,
+    required this.generator,
     this.readCoolDown,
     InteractionPlanner? planner,
   }) : _planner = planner ?? InteractionPlanner();
@@ -45,6 +49,9 @@ class SchedulerService {
   final NotificationRepository notifications;
   final PersonaRepository personas;
   final AnalysisRepository analyses;
+
+  /// 住民说什么话由它出：配了模型就是模型写的，没配就是预置台词。
+  final ContentGenerator generator;
 
   /// 冷静模式是否开启。用回调注入而不是直接读设置，
   /// 是为了让调度器仍然可以被单独测试（传 null 就是"从不冷静"）。
@@ -76,6 +83,41 @@ class SchedulerService {
     );
     await interactions.insertPlanned(postId, planned);
     return planned.length;
+  }
+
+  /// 发帖之后调：把还没兑现的评论交给模型重写一遍。
+  ///
+  /// 排期那一步已经用预置台词填过内容了，所以这一步**不是必需的**——
+  /// 模型写得慢、写挂了、或者用户压根没配模型，排期照常走，社区照样有人说话。
+  /// 它做的只是"把台词换成真的"。
+  ///
+  /// 调用方**不该 await** 它：写五六条评论要好几秒，用户没道理站在发布页等。
+  Future<void> upgradeCommentsWithModel(String postId) async {
+    try {
+      final personaIds = await interactions.pendingCommentPersonaIds(postId);
+      if (personaIds.isEmpty) return;
+
+      final post = await posts.findById(postId);
+      if (post == null) return;
+
+      final pool = await personas.loadAll();
+      final byId = {for (final persona in pool) persona.id: persona};
+      final targets = personaIds
+          .map((id) => byId[id])
+          .whereType<AiPersona>()
+          .toList(growable: false);
+      if (targets.isEmpty) return;
+
+      final generated = await generator.comments(
+        personas: targets,
+        post: post,
+      );
+      await interactions.updatePendingComments(postId, generated);
+    } catch (error) {
+      // 这一步失败无所谓——库里已经有台词了。留个痕是为了排查
+      // "为什么住民说的话一直是那几句"。
+      debugPrint('[内容生成] 评论没能换成模型写的：$error');
+    }
   }
 
   /// 策划模式发帖时调用：按脚本把事件排成**秒级**队列。
@@ -114,13 +156,21 @@ class SchedulerService {
     final pool = await personas.loadAll();
     final nameById = {for (final p in pool) p.id: p.name};
 
+    // 这些帖子里哪些是住民自己发的。住民动态下面也会来人——那是社区
+    // 自己的动静，不是"有人回应了你"，所以照样记数、不通知用户。
+    final peersPosts = await posts.residentAuthorsOf(
+      due.map((item) => item.postId).toSet(),
+    );
+
     for (final item in due) {
       await interactions.markExecuted(item.id);
 
       final name = nameById[item.personaId] ?? '社区住民';
+      final isMyPost = !peersPosts.containsKey(item.postId);
 
       if (item.isLike) {
         await posts.addCounters(item.postId, likes: item.likeBatch);
+        if (!isMyPost) continue;
         await notifications.insert(
           id: 'n_${item.id}',
           postId: item.postId,
@@ -132,6 +182,7 @@ class SchedulerService {
         );
       } else if (item.isComment) {
         await posts.addCounters(item.postId, comments: 1);
+        if (!isMyPost) continue;
         await notifications.insert(
           id: 'n_${item.id}',
           postId: item.postId,
@@ -231,6 +282,7 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     notifications: ref.watch(notificationRepositoryProvider),
     personas: ref.watch(personaRepositoryProvider),
     analyses: ref.watch(analysisRepositoryProvider),
+    generator: ref.watch(contentSourceProvider),
     readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );

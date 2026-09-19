@@ -12,6 +12,7 @@ import 'data/bootstrap_provider.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/scheduler_service.dart';
+import 'domain/services/world_service.dart';
 
 /// 应用根组件。
 ///
@@ -60,6 +61,9 @@ class _EchoAppState extends ConsumerState<EchoApp> {
         if (_ticks >= _idleFlushEveryTicks) {
           _ticks = 0;
           await scheduler.flushDue();
+          // "社区该不该有新内容"也在这一档检查：它的门槛是两小时，
+          // 三十秒的粒度完全够，没必要每一拍都去问一次
+          await ref.read(worldServiceProvider).tick();
         }
       } catch (_) {
         // 静默：补发失败不该弹窗打断用户

@@ -11,6 +11,7 @@ import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
+import '../shared_widgets/like_button.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -125,11 +126,23 @@ class _PostCard extends ConsumerWidget {
     final likerIds =
         (ref.watch(commentsProvider(post.id)).value ?? const <PostComment>[])
             .take(3)
+            // 我自己说的话没有住民身份，堆叠头像里也没有它的位置
             .map((comment) => comment.personaId)
+            .whereType<String>()
             .toList(growable: false);
-    // 发帖人就是本机用户，昵称头像跟着资料页走
+    // 谁发的：住民的动态显示住民本人，用户自己发的才显示"我"。
+    // 住民动态和用户帖子躺在同一张表里（阶段 B 计划书决策 3），
+    // 差别只有 authorPersonaId 这一列。
+    final author = post.authorPersonaId == null
+        ? null
+        : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final myName = me?.displayName ?? AppTexts.defaultNickname;
+    final name = author?.name ?? me?.displayName ?? AppTexts.defaultNickname;
+    final avatarRef = author?.avatar ?? me?.avatarOrNull;
+    // 住民的头像和名字可以点开——那是"这个账号背后有个人"的入口
+    final openAuthor = author == null
+        ? null
+        : () => context.push(RoutePaths.resident(author.id));
 
     return GestureDetector(
       onTap: () => context.push(RoutePaths.post(post.id)),
@@ -145,31 +158,39 @@ class _PostCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                UserAvatar(
-                  name: myName,
-                  avatarRef: me?.avatarOrNull,
-                  size: 38,
-                  showRing: true,
+                GestureDetector(
+                  onTap: openAuthor,
+                  child: UserAvatar(
+                    name: name,
+                    avatarRef: avatarRef,
+                    size: 38,
+                    showRing: true,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        myName,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: EchoColors.text,
-                          fontWeight: FontWeight.w600,
+                  child: GestureDetector(
+                    onTap: openAuthor,
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: EchoColors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${post.topicName ?? '日常'} · ${RelativeTime.short(post.createdAt)}',
-                        style: Theme.of(context).textTheme.labelSmall
-                            ?.copyWith(color: EchoColors.textFaint),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '${post.topicName ?? '日常'} · ${RelativeTime.short(post.createdAt)}',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: EchoColors.textFaint),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (post.isHot) const _HotBadge(),
@@ -263,11 +284,7 @@ class _PostFooter extends ConsumerWidget {
           ),
           const SizedBox(width: 8),
         ],
-        _IconStat(
-          icon: Icons.favorite_border,
-          label: '${post.likeCount}',
-          color: EchoColors.like,
-        ),
+        LikeButton(post: post),
         const SizedBox(width: 14),
         _IconStat(
           icon: Icons.mode_comment_outlined,

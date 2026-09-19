@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_texts.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import 'user_avatar.dart';
+
+/// 评论底下那颗心。
+///
+/// 评论的赞跟帖子的赞分开记：帖子一条一颗心，评论有很多条，
+/// 而且这里点的可能是住民的评论、也可能是我自己写的。
+class _CommentLikeButton extends ConsumerWidget {
+  const _CommentLikeButton({required this.commentId, required this.likeCount});
+
+  final String commentId;
+  final int likeCount;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liked =
+        ref.watch(likedCommentIdsProvider).value?.contains(commentId) ?? false;
+    final color = liked ? EchoColors.like : EchoColors.textFaint;
+
+    return GestureDetector(
+      onTap: () => ref
+          .read(interactionRepositoryProvider)
+          .toggleCommentLike(commentId),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Icon(
+            liked ? Icons.favorite : Icons.favorite_border,
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${liked ? likeCount + 1 : likeCount}',
+            style: TextStyle(color: color, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// 一条 AI 评论。帖子详情与演示模式共用同一个组件——
 /// 演示模式要让画面和真实评论区长得**一模一样**，共用是最不容易走样的做法。
@@ -15,9 +59,13 @@ class CommentTile extends ConsumerWidget {
     required this.comment,
     this.createdAtOverride,
     this.highlighted = false,
+    this.onReply,
   });
 
   final PostComment comment;
+
+  /// 点"回复"时回调。为空时那个按钮不响应（演示模式用不上）。
+  final VoidCallback? onReply;
 
   /// 演示模式里评论的"到达时间"是刚发生的，而不是脚本里写死的时间。
   final DateTime? createdAtOverride;
@@ -27,9 +75,24 @@ class CommentTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final persona = ref.watch(personaByIdProvider(comment.personaId));
-    final name = persona?.name ?? '社区住民';
+    // personaId 为空表示这条是我自己说的
+    final personaId = comment.personaId;
+    final persona = personaId == null
+        ? null
+        : ref.watch(personaByIdProvider(personaId));
+    final me = ref.watch(userProfileProvider).value;
+    final name = persona?.name ??
+        (personaId == null
+            ? (me?.displayName ?? AppTexts.defaultNickname)
+            : '社区住民');
     final createdAt = createdAtOverride ?? comment.createdAt;
+
+    // 点开一个人，看他是谁、平常在哪儿、发过什么——
+    // 评论区的"活人感"就落在这一步上（自己那句当然点不开）
+    void openAuthor() {
+      if (personaId == null) return;
+      context.push(RoutePaths.resident(personaId));
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -47,7 +110,14 @@ class CommentTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            UserAvatar(name: name, avatarRef: persona?.avatar, size: 34),
+            GestureDetector(
+              onTap: openAuthor,
+              child: UserAvatar(
+                name: name,
+                avatarRef: persona?.avatar,
+                size: 34,
+              ),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -55,11 +125,15 @@ class CommentTile extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        name,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: EchoColors.text,
-                          fontWeight: FontWeight.w600,
+                      GestureDetector(
+                        onTap: openAuthor,
+                        child: Text(
+                          name,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: EchoColors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ),
                       if (persona != null) ...[
@@ -91,6 +165,16 @@ class CommentTile extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 5),
+                  if ((comment.replyToName ?? '').isNotEmpty) ...[
+                    Text(
+                      '回复 ${comment.replyToName}',
+                      style: TextStyle(
+                        color: EchoColors.primary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
                   if (comment.isVoice)
                     VoiceBubble(comment: comment)
                   else
@@ -102,25 +186,22 @@ class CommentTile extends ConsumerWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(
-                        Icons.favorite_border,
-                        size: 13,
-                        color: EchoColors.textFaint,
+                      _CommentLikeButton(
+                        commentId: comment.id,
+                        likeCount: comment.likeCount,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${comment.likeCount}',
-                        style: TextStyle(
-                          color: EchoColors.textFaint,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Text(
-                        '回复',
-                        style: TextStyle(
-                          color: EchoColors.textFaint,
-                          fontSize: 11,
+                      const SizedBox(width: 16),
+                      GestureDetector(
+                        // 演示模式里没有真实的回复动作，但按钮照样在——
+                        // 那个模式要的就是"画面和真实评论区一模一样"
+                        onTap: onReply,
+                        behavior: HitTestBehavior.opaque,
+                        child: Text(
+                          '回复',
+                          style: TextStyle(
+                            color: EchoColors.textFaint,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ],

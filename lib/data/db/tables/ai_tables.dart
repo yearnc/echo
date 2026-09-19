@@ -26,6 +26,11 @@ class AiPersonas extends Table {
   IntColumn get followers => integer().withDefault(const Constant(0))();
   IntColumn get following => integer().withDefault(const Constant(0))();
   TextColumn get personalityType => text().withDefault(const Constant(''))();
+
+  /// 圈层：信息流按圈子分发时的归属（同校圈 / 树洞 / 学习 / 运动 / 摄影…）。
+  /// 空字符串表示"哪个圈子都沾一点"，分发时按同校圈算。
+  TextColumn get circle => text().withDefault(const Constant(''))();
+
   BoolColumn get memoryEnabled => boolean().withDefault(const Constant(true))();
   IntColumn get relationshipLevel => integer().withDefault(const Constant(0))();
   IntColumn get deletedAt => integer().nullable()();

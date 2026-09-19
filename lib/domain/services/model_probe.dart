@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'model_call_common.dart';
+
 /// 一次连通性测试的结果。
 class ProbeResult {
   const ProbeResult({
@@ -30,7 +32,7 @@ class ModelProbe {
     required String apiKey,
     required String model,
   }) async {
-    final url = '${_normalize(baseUrl)}/chat/completions';
+    final url = '${normalizeBaseUrl(baseUrl)}/chat/completions';
     final started = DateTime.now();
 
     try {
@@ -56,7 +58,7 @@ class ModelProbe {
       );
 
       final elapsed = DateTime.now().difference(started).inMilliseconds;
-      final reply = _extractReply(response.data);
+      final reply = extractAssistantContent(response.data);
 
       return ProbeResult(
         ok: true,
@@ -67,7 +69,7 @@ class ModelProbe {
     } on DioException catch (error) {
       return ProbeResult(
         ok: false,
-        message: _describe(error),
+        message: describeModelError(error),
         elapsedMs: DateTime.now().difference(started).inMilliseconds,
       );
     } catch (error) {
@@ -75,45 +77,6 @@ class ModelProbe {
     }
   }
 
-  static String _normalize(String baseUrl) {
-    final trimmed = baseUrl.trim();
-    return trimmed.endsWith('/')
-        ? trimmed.substring(0, trimmed.length - 1)
-        : trimmed;
-  }
-
-  static String? _extractReply(Map<String, dynamic>? data) {
-    final choices = data?['choices'];
-    if (choices is! List || choices.isEmpty) return null;
-    final first = choices.first;
-    if (first is! Map) return null;
-    final message = first['message'];
-    if (message is Map) {
-      final content = message['content'];
-      if (content is String && content.trim().isNotEmpty) return content.trim();
-    }
-    return null;
-  }
-
-  static String _describe(DioException error) {
-    final status = error.response?.statusCode;
-    if (status == 401 || status == 403) {
-      return '密钥被拒绝了（HTTP $status），检查一下 API Key';
-    }
-    if (status == 404) return '地址不对（HTTP 404），检查 base url 和模型名';
-    if (status == 429) return '请求太频繁，或者额度用完了（HTTP 429）';
-    if (status != null) {
-      final data = error.response?.data;
-      final detail = data is Map ? data['error'] : null;
-      return 'HTTP $status：${detail ?? error.message ?? ''}';
-    }
-    return switch (error.type) {
-      DioExceptionType.connectionTimeout => '连接超时，检查网络或代理',
-      DioExceptionType.receiveTimeout => '对方太久没回，可能太慢',
-      DioExceptionType.connectionError => '连不上这个地址，检查网络',
-      _ => error.message ?? '请求失败',
-    };
-  }
 }
 
 final modelProbeProvider = Provider<ModelProbe>((ref) => ModelProbe());

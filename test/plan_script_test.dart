@@ -13,6 +13,7 @@ import 'package:echo/data/repositories/plan_script_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/seed/builtin_plan_scripts.dart';
 import 'package:echo/domain/models/plan_script.dart';
+import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -262,6 +263,7 @@ void main() {
         notifications: NotificationRepository(db),
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
+        generator: SampleContentGenerator(),
       );
 
       await db
