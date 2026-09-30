@@ -235,6 +235,28 @@ void main() {
       expect(parsed, isEmpty);
     });
 
+    test('同一个编号出现两次时，最后一个写得出内容的胜出', () {
+      // 这是重构之前就有的行为，守着它：模型这种输出全是噪音，
+      // 怎么解都只是尽量少丢一条，不值得为它换一套规矩
+      final personas = [_persona('persona_001')];
+
+      expect(
+        ModelContentGenerator.parseComments(
+          '[{"index":1,"content":"A"},{"index":1,"content":"B"}]',
+          personas,
+        )['persona_001'],
+        'B',
+      );
+      expect(
+        ModelContentGenerator.parseComments(
+          '[{"index":1,"content":"A"},{"index":1,"content":5}]',
+          personas,
+        )['persona_001'],
+        'A',
+        reason: '后一条写坏了，前一条该留着',
+      );
+    });
+
     test('认不出来的一律返回空，不炸', () {
       final personas = [_persona('persona_001')];
       expect(ModelContentGenerator.parseComments('我觉得可以', personas), isEmpty);
@@ -243,6 +265,77 @@ void main() {
         isEmpty,
       );
       expect(ModelContentGenerator.parseComments('', personas), isEmpty);
+    });
+  });
+
+  group('顺手换的签名（B3.5）', () {
+    ResidentMoment moment(AiPersona persona) =>
+        ResidentMoment(persona: persona, at: DateTime(2026, 9, 30, 21));
+
+    test('样本动态每条都带一句签名——给不给是内容层的事，换不换由规则定', () async {
+      final drafts = await SampleContentGenerator(random: Random(1)).residentPosts(
+        moments: [moment(_persona('persona_001'))],
+      );
+
+      expect(drafts.single.newBio, isNotEmpty);
+      expect(
+        SampleContentGenerator.genericSignatures,
+        contains(drafts.single.newBio),
+      );
+    });
+
+    test('有圈层的住民，签名从自己那一档里出', () async {
+      final drafts = await SampleContentGenerator(random: Random(1)).residentPosts(
+        moments: [
+          moment(
+            const AiPersona(id: 'p', name: '编译不过', circle: '学习'),
+          ),
+        ],
+      );
+
+      expect(
+        SampleContentGenerator.signatureTemplates['学习'],
+        contains(drafts.single.newBio),
+      );
+    });
+
+    test('动态的提示词里要说明签名怎么写', () {
+      final prompt = ModelContentGenerator.residentSystemPrompt([
+        moment(_persona('p')),
+      ]);
+
+      expect(prompt, contains('签名'));
+      expect(prompt, contains('"bio"'));
+    });
+
+    test('解析：带签名的动态', () {
+      final parsed = ModelContentGenerator.parseIndexedPosts(
+        '[{"index":1,"content":"今天风好大","bio":"风大，但还行"},'
+        '{"index":2,"content":"第二句"}]',
+        2,
+      );
+
+      expect(parsed[1]!.content, '今天风好大');
+      expect(parsed[1]!.bio, '风大，但还行');
+      expect(parsed[2]!.bio, isNull, reason: '没写就是这次不换');
+    });
+
+    test('解析：bio 写成空串等于没换，不该留个空签名', () {
+      final parsed = ModelContentGenerator.parseIndexedPosts(
+        '[{"index":1,"content":"正文","bio":"   "}]',
+        1,
+      );
+
+      expect(parsed[1]!.bio, isNull);
+    });
+
+    test('解析：编号越界和空内容照旧丢掉', () {
+      final parsed = ModelContentGenerator.parseIndexedPosts(
+        '[{"index":3,"content":"越界"},{"index":1,"content":""}]',
+        1,
+      );
+
+      expect(parsed, isEmpty);
     });
   });
 

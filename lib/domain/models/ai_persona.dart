@@ -84,10 +84,50 @@ class AiPersona {
   /// 作息与去处。住民自己发动态时的素材（B3）。
   final List<PersonaRoutine> routines;
 
+  /// 盖住出厂值用（B3.5）。
+  ///
+  /// 只开放"住民自己会改"的那几项：签名、头像、昵称。身份、语气、作息这些
+  /// 是出厂设定，住民改不到——真让它改，人设会一点点走形，最后没人认得出。
+  AiPersona copyWith({String? name, String? avatar, String? bio}) => AiPersona(
+    id: id,
+    name: name ?? this.name,
+    avatar: avatar ?? this.avatar,
+    bio: bio ?? this.bio,
+    languageStyle: languageStyle,
+    personalityType: personalityType,
+    circle: circle,
+    tone: tone,
+    activeHours: activeHours,
+    relationship: relationship,
+    likeProbability: likeProbability,
+    commentProbability: commentProbability,
+    replyLength: replyLength,
+    voiceModel: voiceModel,
+    level: level,
+    badges: badges,
+    followers: followers,
+    following: following,
+    memoryEnabled: memoryEnabled,
+    relationshipLevel: relationshipLevel,
+    commentSamples: commentSamples,
+    routines: routines,
+  );
+
   /// 当前时刻是否属于该住民的活跃时段（含前后各 1 小时的宽容区间）。
   bool isActiveAt(DateTime time) {
     if (activeHours.isEmpty) return true;
     return activeHours.any((hour) => (hour - time.hour).abs() <= 1);
+  }
+
+  /// 这个钟点他大概在哪儿、在干什么；没有对得上的作息就返回 null。
+  ///
+  /// 前后各留一小时——作息本来就是模糊的。三处都在问同一个问题
+  /// （生成动态、拼提示词、判断值不值得拍），所以这个问题归住民自己答。
+  PersonaRoutine? routineAt(int hour, {int tolerance = 1}) {
+    for (final routine in routines) {
+      if ((routine.hour - hour).abs() <= tolerance) return routine;
+    }
+    return null;
   }
 
   factory AiPersona.fromJson(Map<String, dynamic> json) {

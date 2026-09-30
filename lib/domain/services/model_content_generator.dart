@@ -59,16 +59,17 @@ class ModelContentGenerator {
       timeout: const Duration(seconds: 25),
     );
 
-    final contents = parseIndexedContents(raw, moments.length);
+    final parsed = parseIndexedPosts(raw, moments.length);
     final drafts = <ResidentPostDraft>[];
     for (var i = 0; i < moments.length; i++) {
-      final content = contents[i + 1];
-      if (content == null) continue;
+      final item = parsed[i + 1];
+      if (item == null) continue;
       drafts.add(
         ResidentPostDraft(
           personaId: moments[i].persona.id,
-          content: content,
+          content: item.content,
           topicName: _topicOf(moments[i].persona),
+          newBio: item.bio,
         ),
       );
     }
@@ -118,6 +119,8 @@ class ModelContentGenerator {
       ..writeln('- 内容要和发布时刻相符：清晨、中午、深夜发的东西不一样')
       ..writeln('- 不要提到自己是 AI，不要解释自己在做什么')
       ..writeln('- 几条之间不要雷同')
+      ..writeln('- 只有真的心情有明显变化的人，才顺带给自己换一句新签名（14 字以内，'
+          '像 QQ 签名那样的一句话，不是回来描述刚才发的动态）；其余人 bio 留空')
       ..writeln()
       ..writeln('这次要发动态的人：');
 
@@ -140,7 +143,9 @@ class ModelContentGenerator {
     buffer
       ..writeln()
       ..writeln('只输出一个 JSON 数组，不要代码块、不要任何解释：')
-      ..writeln('[{"index": 1, "content": "动态内容"}, ...]');
+      ..writeln(
+        '[{"index": 1, "content": "动态内容", "bio": "新签名，不换就留空"}, ...]',
+      );
 
     return buffer.toString();
   }
@@ -166,12 +171,10 @@ class ModelContentGenerator {
 
   /// 这个点他大概在哪、在干嘛；没有作息就返回一句空的占位。
   static String _routineHint(AiPersona persona, DateTime at) {
-    for (final routine in persona.routines) {
-      if ((routine.hour - at.hour).abs() > 1) continue;
-      if (routine.place.isEmpty) return routine.activity;
-      return '${routine.place}，${routine.activity}';
-    }
-    return '没什么固定安排';
+    final routine = persona.routineAt(at.hour);
+    if (routine == null) return '没什么固定安排';
+    if (routine.place.isEmpty) return routine.activity;
+    return '${routine.place}，${routine.activity}';
   }
 
   static String? _topicOf(AiPersona persona) =>
@@ -211,33 +214,77 @@ class ModelContentGenerator {
   /// 认不出来的条目一律**丢掉**（调用方会用样本补上），绝不猜——
   /// 把 A 的话挂在 B 名下，比这条没生成出来糟糕得多。
   static Map<int, String> parseIndexedContents(String raw, int count) {
+    final byIndex = <int, String>{};
+    for (final item in _parseItems(raw, count)) {
+      final content = _stringField(item.data, 'content');
+      if (content == null) continue;
+      byIndex[item.index] = content;
+    }
+    return byIndex;
+  }
+
+  /// 住民动态：编号 → 内容 + 顺手换的新签名（没有就是 null）。
+  ///
+  /// 签名跟着动态一起解析，因为它们是**同一次**生成的产物（B3.5）——
+  /// 分成两次调用，就成了为一句十四个字再花一次钱。
+  static Map<int, ({String content, String? bio})> parseIndexedPosts(
+    String raw,
+    int count,
+  ) {
+    final byIndex = <int, ({String content, String? bio})>{};
+    for (final item in _parseItems(raw, count)) {
+      final content = _stringField(item.data, 'content');
+      if (content == null) continue;
+      byIndex[item.index] = (
+        content: content,
+        bio: _stringField(item.data, 'bio'),
+      );
+    }
+    return byIndex;
+  }
+
+  /// 通用的一段：把数组里**编号合法**的条目按原顺序取出来，编号越界、类型不对
+  /// 的一律不要。
+  ///
+  /// 刻意保留"同一个编号出现多次"这种情形交给调用方处置（它们按顺序赋值，
+  /// 于是最后一个写得出内容的胜出）——这是重构之前就有的行为，别顺手改掉：
+  /// 模型的这种输出全是噪音，怎么解都只是尽量少丢一条，不值得为它换一套规矩。
+  ///
+  /// 用 `is` 判断而不是 `as`：模型偶尔把编号写成字符串、把内容写成数字，
+  /// 一次类型转换失败会端掉整批（异常落到外层 catch），而这里只想跳过这一条。
+  static List<({int index, Map<String, dynamic> data})> _parseItems(
+    String raw,
+    int count,
+  ) {
     final start = raw.indexOf('[');
     final end = raw.lastIndexOf(']');
-    if (start < 0 || end <= start) return const {};
+    if (start < 0 || end <= start) return const [];
 
     try {
       final decoded = jsonDecode(raw.substring(start, end + 1));
-      if (decoded is! List) return const {};
+      if (decoded is! List) return const [];
 
-      final byIndex = <int, String>{};
+      final items = <({int index, Map<String, dynamic> data})>[];
       for (final item in decoded) {
         if (item is! Map) continue;
-
-        // 用 is 判断而不是 as：模型偶尔把编号写成字符串、把内容写成数字，
-        // 一次类型转换失败会端掉整批（异常落到外层 catch），而这里只想跳过这一条
         final indexRaw = item['index'];
-        final contentRaw = item['content'];
         final index = indexRaw is num ? indexRaw.toInt() : null;
-        final content = contentRaw is String ? contentRaw.trim() : null;
-        if (index == null || content == null || content.isEmpty) continue;
+        if (index == null) continue;
         // 模型可能自己加几个人，或者把编号写飞；越界的一律不要
         if (index < 1 || index > count) continue;
-
-        byIndex[index] = content;
+        items.add((index: index, data: Map<String, dynamic>.from(item)));
       }
-      return byIndex;
+      return items;
     } catch (_) {
-      return const {};
+      return const [];
     }
+  }
+
+  /// 取一个字符串字段；空串当作没有。
+  static String? _stringField(Map<String, dynamic> item, String key) {
+    final raw = item[key];
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

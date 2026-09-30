@@ -151,11 +151,46 @@ class SampleContentGenerator implements ContentGenerator {
     '路上看到点小事，记一下。',
   ];
 
+  /// 换签名的样本，也按圈层分（B3.5）。
+  ///
+  /// 跟动态模板的分工：动态是"我今天干了什么"，签名是"我现在是个什么状态"。
+  /// 所以这里不写事情，只写状态——写成"今天去了图书馆"就不像签名了。
+  static const Map<String, List<String>> signatureTemplates = {
+    '学习': ['在图书馆，勿扰。', '先把这一章看完再说。', '今天也背了单词。'],
+    '吐槽': ['今日怨气已售罄。', '别问，问就是很好。'],
+    '同校圈': ['风挺大的，但还行。', '最近在学着早睡。'],
+    '树洞': ['有些话咽下去也不亏。', '想安静一阵子。'],
+    '深夜': ['还没睡的人，都是同一种人。', '凌晨的脑子最诚实。'],
+    '运动': ['跑起来就不用想事。', '明天继续。'],
+    '摄影': ['等一个好天气。', '按快门那一下最舒服。'],
+    '二手': ['清仓中，带价来。', '书架空了一半，挺好。'],
+    '失物招领': ['捡到的东西都在后勤楼。', '认领请留言。'],
+    '表白墙': ['匿名是底线。', '今天的投稿有点多。'],
+    '社团招新': ['招新中，来摊位看看。', '今年想多招点人。'],
+    '兴趣小组': ['追剧中，勿扰。', '手指又起茧了。'],
+  };
+
+  static const List<String> genericSignatures = [
+    '最近还行，就是有点困。',
+    '没什么大事，记一下。',
+    '换个签名，换换心情。',
+  ];
+
+  /// 这个住民会换成一句什么签名。
+  ///
+  /// 只负责给下一句——"他现在的签名是什么"由调用方落库，
+  /// 下一轮读的时候从库里拿。
+  String signatureFor(AiPersona persona) {
+    final templates =
+        signatureTemplates[persona.circle] ?? genericSignatures;
+    return templates[_random.nextInt(templates.length)];
+  }
+
   /// 住民这个点大概会发什么。
   ///
   /// 公开出来是为了可测：**"他们有没有话说"这件事不该只能靠在信息流里刷**。
   String residentLine(AiPersona persona, DateTime at) {
-    final routine = _routineAt(persona, at.hour);
+    final routine = persona.routineAt(at.hour);
     if (routine != null && routine.activity.isNotEmpty) {
       return routine.place.isEmpty
           ? '${routine.activity}。'
@@ -166,14 +201,10 @@ class SampleContentGenerator implements ContentGenerator {
     return templates[_random.nextInt(templates.length)];
   }
 
-  /// 找这个点附近的去处。前后各留一小时——作息本来就是模糊的。
-  PersonaRoutine? _routineAt(AiPersona persona, int hour) {
-    for (final routine in persona.routines) {
-      if ((routine.hour - hour).abs() <= 1) return routine;
-    }
-    return null;
-  }
-
+  /// 离线样本照样给一句签名（B3.5）。
+  ///
+  /// 给了不等于换——"今天想不想换签名"由 [[ResidentSignature.pick]] 按冷却与
+  /// 概率定。样本层负责"写成什么"，规则层负责"轮到谁"，两边不掺和。
   @override
   Future<List<ResidentPostDraft>> residentPosts({
     required List<ResidentMoment> moments,
@@ -183,6 +214,7 @@ class SampleContentGenerator implements ContentGenerator {
         personaId: moment.persona.id,
         content: residentLine(moment.persona, moment.at),
         topicName: moment.persona.circle.isEmpty ? null : moment.persona.circle,
+        newBio: signatureFor(moment.persona),
       ),
   ];
 }
@@ -285,6 +317,7 @@ class ContentSource implements ContentGenerator {
     personaId: moment.persona.id,
     content: sample.residentLine(moment.persona, moment.at),
     topicName: moment.persona.circle.isEmpty ? null : moment.persona.circle,
+    newBio: sample.signatureFor(moment.persona),
   );
 
   /// 模型写的那几条盖在样本上，并且在盖之前过一遍本地词表。

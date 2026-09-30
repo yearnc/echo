@@ -20,9 +20,17 @@ class ResidentPostDraft {
     required this.personaId,
     required this.content,
     this.topicName,
+    this.newBio,
   });
 
   final String personaId;
   final String content;
   final String? topicName;
+
+  /// 顺手换的新签名（B3.5），没有就是 null。
+  ///
+  /// 跟着动态一起生成，是因为"改签名"这件事在真人身上本来就跟着某个由头
+  /// ——今天这条动态就是他心情的由头。这样也不需要为一句十几个字
+  /// 单独发一次模型请求。
+  final String? newBio;
 }

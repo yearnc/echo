@@ -138,6 +138,21 @@ class PostRepository {
     return id;
   }
 
+  /// 事后给一条帖子配上图（住民图文帖）。
+  ///
+  /// 图是**后补**的，不跟着发帖一起等：出图要几十秒，而发帖那条路在
+  /// 冷启动里跑着，用它去等一张图，用户开机就得先看几十秒空白。
+  /// 所以顺序反过来——文字先发出去，图生成好了再挂上来；
+  /// 生成失败就停在纯文字，那条动态本身照样成立。
+  ///
+  /// 返回受影响的行数。帖子不在了（0 行）调用方得知道——那时候图已经生成、
+  /// 也已经落盘了，不声不响地丢掉会留下一个谁也不引用的文件。
+  Future<int> attachImages(String postId, List<String> images) {
+    return (_db.update(_db.posts)..where((t) => t.id.equals(postId))).write(
+      PostsCompanion(images: Value(jsonEncode(images))),
+    );
+  }
+
   /// 点赞 / 取消点赞。返回点完之后"我赞了没有"。
   ///
   /// 自己发的帖子也能点：这颗心本来就是给自己看的一个标记，

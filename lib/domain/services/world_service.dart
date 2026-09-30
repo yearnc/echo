@@ -1,6 +1,9 @@
 import 'dart:math';
 
+import 'dart:async';
+
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/app_database.dart';
@@ -12,7 +15,10 @@ import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
 import '../models/resident_post.dart';
 import 'content_generator.dart';
+import 'content_moderator.dart';
 import 'interaction_planner.dart';
+import 'resident_photo.dart';
+import 'resident_signature.dart';
 
 /// 世界 tick：让社区在用户不在的时候也继续发生事情。
 ///
@@ -27,20 +33,33 @@ class WorldService {
     required this.db,
     required this.posts,
     required this.personas,
+    required this.residents,
+    required this.photo,
     required this.interactions,
     required this.generator,
     required this.sample,
+    this.onResidentsChanged,
     Random? random,
   }) : _random = random ?? Random();
 
   final AppDatabase db;
   final PostRepository posts;
   final PersonaRepository personas;
+
+  /// 住民当前的样子（B3.5）：换签名写的就是这一层。
+  final PersonaStateRepository residents;
+
+  /// 住民自己发图文帖（B3.5）。
+  final ResidentPhotoService photo;
+
   final InteractionRepository interactions;
   final ContentGenerator generator;
 
   /// 住民动态底下的回应从这儿出（见 [_schedulePeers] 里为什么不走模型）。
   final SampleContentGenerator sample;
+
+  /// 有人换了签名之后通知界面重读——住民资料是全局缓存的那一份。
+  final void Function()? onResidentsChanged;
 
   final Random _random;
 
@@ -57,6 +76,9 @@ class WorldService {
   static const int maxPerTick = 4;
 
   static const String lastTickKey = 'world.lastTickAt';
+
+  /// 签名水位的键前缀：`resident.bio.lastAt.<住民 id>`。
+  static const String bioWatermarkPrefix = 'resident.bio.lastAt.';
 
   /// 检查并补齐。返回这次发了几条动态。
   Future<int> tick() async {
@@ -92,6 +114,7 @@ class WorldService {
 
     final byPersona = {for (final draft in drafts) draft.personaId: draft};
     var written = 0;
+    final postIds = <String, String>{};
     for (final moment in moments) {
       final draft = byPersona[moment.persona.id];
       if (draft == null) continue;
@@ -103,6 +126,7 @@ class WorldService {
         createdAt: moment.at,
         topicName: draft.topicName,
       );
+      postIds[draft.personaId] = postId;
       await _schedulePeers(
         postId: postId,
         authorId: draft.personaId,
@@ -112,8 +136,99 @@ class WorldService {
       written++;
     }
 
+    // 图文帖：**不等它**。出图要几十秒，而这条路在冷启动里跑着，
+    // await 一下，用户开机就得先看几十秒空白。文字先发出去，图生成好了
+    // 再挂到那条动态上；黄了就当这次是纯文字。
+    unawaited(_attachPhoto(postIds: postIds, moments: moments, at: now));
+
+    // 换签名是锦上添花：它写库失败不该把这次补的动态一起赔进去，
+    // 更不该让水位停在原地——那下一次 tick 会把同一段时间窗再补一遍。
+    try {
+      await _maybeChangeBio(drafts: drafts, at: now);
+    } catch (error) {
+      debugPrint('[世界] 这次没能换成签名，跳过：$error');
+    }
+
     await _saveLastTickAt(now);
     return written;
+  }
+
+  /// 给这次的某条动态配一张图（B3.5）。跑在 tick 之外，谁也不等它。
+  Future<void> _attachPhoto({
+    required Map<String, String> postIds,
+    required List<ResidentMoment> moments,
+    required DateTime at,
+  }) async {
+    try {
+      await photo.attach(postIds: postIds, moments: moments, at: at);
+    } catch (error) {
+      // 这里必须兜到底：它跑在后台，抛出去就成了没人接的异常，
+      // 而它坏掉的后果仅仅是"这条动态没有配图"。
+      debugPrint('[世界] 这次没能配上图：$error');
+    }
+  }
+
+  /// 顺手让一个住民换签名（B3.5）。
+  ///
+  /// 挂在这里而不是另开一个定时任务：改签名的由头就是他刚发的那条动态，
+  /// 而这条动态正是这一次 tick 生出来的。分成两处，就会出现"这个人刚发了
+  /// 一条情绪很重的动态，隔了两天才换签名"这种对不上的时序。
+  ///
+  /// 内容换成长句、没过本地词表的，一律当"这次不换"——签名是一句话，
+  /// 而它是会挂在主页最显眼的地方的。
+  Future<String?> _maybeChangeBio({
+    required List<ResidentPostDraft> drafts,
+    required DateTime at,
+  }) async {
+    final picked = ResidentSignature.pick(
+      drafts: drafts,
+      at: at,
+      lastChangedAt: await _bioWatermarks(),
+      random: _random,
+    );
+    if (picked == null) return null;
+
+    final bio = picked.newBio!.trim();
+    if (ContentModerator.checkLocally(bio) != null) return null;
+
+    final updated = await residents.updateBio(
+      personaId: picked.personaId,
+      bio: bio,
+    );
+    if (updated == 0) return null;
+
+    await _saveBioWatermark(picked.personaId, at);
+    onResidentsChanged?.call();
+    return picked.personaId;
+  }
+
+  /// 每个人上次换签名的时刻。读的是 app_settings——它是调度水位，
+  /// 和 `world.lastTickAt` 一个性质，不必为它在住民表上加一列。
+  Future<Map<String, DateTime>> _bioWatermarks() async {
+    final query = db.select(db.appSettings)
+      ..where((t) => t.key.like('$bioWatermarkPrefix%'));
+    final rows = await query.get();
+
+    final result = <String, DateTime>{};
+    for (final row in rows) {
+      final raw = int.tryParse(row.value);
+      if (raw == null) continue;
+      result[row.key.substring(bioWatermarkPrefix.length)] =
+          DateTime.fromMillisecondsSinceEpoch(raw);
+    }
+    return result;
+  }
+
+  Future<void> _saveBioWatermark(String personaId, DateTime at) async {
+    await db
+        .into(db.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+            key: '$bioWatermarkPrefix$personaId',
+            value: '${at.millisecondsSinceEpoch}',
+            scope: const Value('echo'),
+          ),
+        );
   }
 
   /// 给一条住民动态排几位邻居的回应。
@@ -228,8 +343,12 @@ final worldServiceProvider = Provider<WorldService>(
     db: ref.watch(databaseProvider),
     posts: ref.watch(postRepositoryProvider),
     personas: ref.watch(personaRepositoryProvider),
+    residents: ref.watch(personaStateRepositoryProvider),
+    photo: ref.watch(residentPhotoServiceProvider),
     interactions: ref.watch(interactionRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
     sample: ref.watch(sampleContentGeneratorProvider),
+    // 住民资料是全局缓存的那一份，改完得让它重读
+    onResidentsChanged: () => ref.invalidate(personasProvider),
   ),
 );

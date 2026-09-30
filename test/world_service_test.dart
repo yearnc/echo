@@ -1,12 +1,19 @@
 import 'dart:math';
 
+// like 是 drift 的扩展方法，没法单独 show；isNotNull 与 matcher 重名，藏掉 drift 那份
+import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
+import 'package:echo/data/media/media_service.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
+import 'package:echo/data/repositories/model_config_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/services/content_generator.dart';
+import 'package:echo/domain/services/model_gateway.dart';
+import 'package:echo/domain/services/resident_photo.dart';
+import 'package:echo/domain/services/resident_signature.dart';
 import 'package:echo/domain/services/world_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +27,30 @@ class _FixedPersonas implements PersonaRepository {
   @override
   Future<List<AiPersona>> loadAll() async => pool;
 }
+
+class _MemoryKeyStore implements KeyStore {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+}
+
+/// 住民图文帖：这些用例都不谈出图，配一个"没配文生图"的服务。
+///
+/// 它走的是真实代码路径（真去查有没有图片配置），只是每次都走到
+/// "没配就只发文字"那一支——这比塞一个假对象更接近线上的样子。
+ResidentPhotoService _noPhotoService(AppDatabase db) => ResidentPhotoService(
+  db: db,
+  posts: PostRepository(db),
+  media: const MediaService(),
+  gateway: ModelGateway(ModelConfigRepository(db, keyStore: _MemoryKeyStore())),
+);
 
 List<AiPersona> _pool(int count) => List.generate(
   count,
@@ -60,6 +91,8 @@ void main() {
         db: db,
         posts: PostRepository(db),
         personas: _FixedPersonas(pool),
+        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
+        photo: _noPhotoService(db),
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(1)),
         sample: SampleContentGenerator(random: Random(1)),
@@ -143,6 +176,8 @@ void main() {
         db: db,
         posts: PostRepository(db),
         personas: _FixedPersonas(pool),
+        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
+        photo: _noPhotoService(db),
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(2)),
         sample: SampleContentGenerator(random: Random(2)),
@@ -266,6 +301,114 @@ void main() {
         );
         expect(reply.content, isNotEmpty, reason: '不能有空白评论');
       }
+    });
+
+    Future<int> changedBios() async {
+      final rows = await db.select(db.aiPersonas).get();
+      return rows.where((row) => row.bio.isNotEmpty).length;
+    }
+
+    test('住民会顺手换个签名，一次 tick 只换一个', () async {
+      var before = 0;
+      var total = 0;
+
+      // 多跑几轮：改签名有概率打折，一轮可能一个都不改
+      for (var round = 0; round < 20; round++) {
+        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
+        await world.tick();
+
+        final after = await changedBios();
+        expect(
+          after - before,
+          lessThanOrEqualTo(ResidentSignature.maxPerTick),
+          reason: '一轮下来冒出好几个人同时换签名，就是程序在动了',
+        );
+        before = after;
+        total = after;
+      }
+
+      expect(total, greaterThan(0), reason: '二十轮下来总该有人换过一次');
+
+      final rows = await db.select(db.aiPersonas).get();
+      for (final row in rows.where((r) => r.bio.isNotEmpty)) {
+        expect(row.bio.length, lessThanOrEqualTo(ResidentSignature.maxLength));
+      }
+    });
+
+    test('水位记在换过的那个人头上，签名才有冷却可言', () async {
+      for (var round = 0; round < 20; round++) {
+        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
+        await world.tick();
+      }
+
+      final changed = (await db.select(db.aiPersonas).get())
+          .where((row) => row.bio.isNotEmpty)
+          .toList();
+      final marks = await (db.select(db.appSettings)
+            ..where((t) => t.key.like('${WorldService.bioWatermarkPrefix}%')))
+          .get();
+
+      expect(
+        marks.map((m) => m.key).toSet(),
+        changed.map((r) => '${WorldService.bioWatermarkPrefix}${r.id}').toSet(),
+      );
+    });
+
+    test('同一个住民短期内不会被换第二次', () async {
+      // 池子里只留一个人：候选永远是他，冷却一旦生效就再没人可换
+      final solo = _pool(1);
+      final world = WorldService(
+        db: db,
+        posts: PostRepository(db),
+        personas: _FixedPersonas(solo),
+        residents: PersonaStateRepository(db, _FixedPersonas(solo)),
+        photo: _noPhotoService(db),
+        interactions: InteractionRepository(db),
+        generator: SampleContentGenerator(random: Random(3)),
+        sample: SampleContentGenerator(random: Random(3)),
+        random: Random(3),
+      );
+      final key = '${WorldService.bioWatermarkPrefix}${solo.single.id}';
+
+      Future<String?> mark() async {
+        final query = db.select(db.appSettings)
+          ..where((t) => t.key.equals(key));
+        return (await query.getSingleOrNull())?.value;
+      }
+
+      final seen = <String>{};
+      for (var round = 0; round < 20; round++) {
+        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
+        await world.tick();
+        final value = await mark();
+        if (value != null) seen.add(value);
+      }
+
+      expect(seen.length, 1, reason: '水位更新过一次之后就该待在冷却里');
+    });
+
+    test('换完签名会叫界面重读一次', () async {
+      var notified = 0;
+      final pool = _pool(6);
+      final world = WorldService(
+        db: db,
+        posts: PostRepository(db),
+        personas: _FixedPersonas(pool),
+        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
+        photo: _noPhotoService(db),
+        interactions: InteractionRepository(db),
+        generator: SampleContentGenerator(random: Random(2)),
+        sample: SampleContentGenerator(random: Random(2)),
+        random: Random(2),
+        onResidentsChanged: () => notified++,
+      );
+
+      for (var round = 0; round < 20 && notified == 0; round++) {
+        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
+        await world.tick();
+      }
+
+      expect(notified, 1, reason: '没人换签名就不必让界面白重读');
     });
 
     test('residentAuthorsOf 只认住民发的帖子', () async {
