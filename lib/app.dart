@@ -10,6 +10,7 @@ import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
 import 'domain/services/appearance_controller.dart';
+import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/scheduler_service.dart';
 import 'domain/services/world_service.dart';
@@ -64,6 +65,9 @@ class _EchoAppState extends ConsumerState<EchoApp> {
           // "社区该不该有新内容"也在这一档检查：它的门槛是两小时，
           // 三十秒的粒度完全够，没必要每一拍都去问一次
           await ref.read(worldServiceProvider).tick();
+          // 私信：一是接住你刚说的那句，二是关系够近的人来敲门。
+          // 它自己带门槛（二十小时一次主动开口），这一档频率够用
+          await ref.read(directMessageServiceProvider).tick();
         }
       } catch (_) {
         // 静默：补发失败不该弹窗打断用户

@@ -54,7 +54,7 @@ class AppTexts {
   /// 默认昵称。
   ///
   /// 开源仓库里刻意不放任何真实姓名；真实昵称由用户在自己的资料页填写。
-  static const String defaultNickname = '同学';
+  static const String defaultNickname = '路人';
 
   // ── 空态 / 通用 ─────────────────────────────────────────────
 

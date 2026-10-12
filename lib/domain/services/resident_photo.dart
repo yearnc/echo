@@ -19,29 +19,29 @@ import 'model_gateway.dart';
 /// 分工跟签名一样：这里管"这次该不该拍、拍的是哪儿"，成不成图是文生图
 /// 那条通道的事。所以它是纯逻辑，能单独测。
 class ResidentPhoto {
-  /// 明确不值得掏手机的地方：宿舍是睡觉的地方、广播站是值班、后勤楼是办事窗口。
+  /// 明确不值得掏手机的地方：家是躺着的地方、工位是干活的地方。
   ///
-  /// 用精确匹配而不是包含——`宿舍楼下` 是另一回事（外卖、等人、傍晚的灯），
-  /// 不该被 `宿舍` 两个字一起扫掉。
-  static const Set<String> notWorthShooting = {'宿舍', '广播站', '后勤楼'};
+  /// 用精确匹配而不是包含——`家门` 是另一回事（下楼取外卖、等人、傍晚的灯），
+  /// 不该被 `家` 这个字一起扫掉。
+  static const Set<String> notWorthShooting = {'家', '床上', '被窝里', '沙发', '工位', '会议室'};
 
   /// 作息对不上的时候，按圈层给一个画面。
   ///
-  /// 没有作息不等于没什么可拍的——住民照样在校园里过日子，只是没登记
-  /// 几点在哪。圈层给了最低限度的一点方向感，省得所有图都长成同一个样子。
+  /// 没有作息不等于没什么可拍的——住民照样在过日子，只是没登记几点在哪。
+  /// 圈层给了最低限度的一点方向感，省得所有图都长成同一个样子。
   static const Map<String, String> circleScenes = {
-    '学习': '图书馆的桌面和窗边',
-    '运动': '操场的跑道',
-    '摄影': '傍晚的天空',
+    '日常': '窗外的街道',
+    '吐槽': '队伍前面的背影',
+    '职场': '工位旁边那扇窗',
+    '深夜': '夜里还亮着的那扇窗',
     '树洞': '夜里的窗台',
-    '深夜': '宿舍楼下的路灯',
-    '吐槽': '食堂的餐盘',
-    '同校圈': '校园的主干道',
-    '二手': '堆着书的桌面',
-    '失物招领': '后勤楼的窗口',
-    '表白墙': '校园里的一面海报墙',
-    '社团招新': '活动中心的门口',
-    '兴趣小组': '宿舍的书桌',
+    '运动': '跑道和跑道边的树',
+    '摄影': '傍晚的天空',
+    '美食': '刚做好的一顿饭',
+    '读书': '摊开的书页',
+    '音乐': '绕在桌上的耳机线',
+    '宠物': '趴在窗台上的猫',
+    '出行': '路上看到的一段风景',
   };
 
   /// 两次发图之间至少隔这么久。
@@ -67,7 +67,7 @@ class ResidentPhoto {
   static String sceneFor(AiPersona persona, DateTime at) {
     final place = persona.routineAt(at.hour)?.place.trim() ?? '';
     if (place.isNotEmpty) return place;
-    return circleScenes[persona.circle] ?? '校园里的一个角落';
+    return circleScenes[persona.circle] ?? '生活里的一个角落';
   }
 
   /// 挑这次配图的那条动态。返回 null 就是这次一张都不发。
@@ -102,7 +102,7 @@ class ResidentPhoto {
     final activity = persona.routineAt(at.hour)?.activity ?? '';
 
     final buffer = StringBuffer()
-      ..writeln('一张用手机随手拍下的校园照片，画面是「$scene」的场景。')
+      ..writeln('一张用手机随手拍下的日常照片，画面是「$scene」的场景。')
       ..writeln('拍摄时间：${ModelContentGenerator.momentLabel(at)}。');
     if (activity.isNotEmpty) {
       buffer.writeln('拍的时候他正在$activity，照片是顺手按下的那一张，不是特地摆拍的。');

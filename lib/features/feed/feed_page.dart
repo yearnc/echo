@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/interaction_repository.dart';
+import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
@@ -19,12 +20,32 @@ import '../shared_widgets/user_avatar.dart';
 ///
 /// 视觉上刻意做成"热闹"的：等级、经验条、勋章、热度标签、点赞头像堆叠——
 /// 这些元素本身就是要让用户感到被看见。它们不是装饰，是这个产品的主题。
+/// 信息流的两栏（B6）。
+///
+/// 只有两栏：**推荐**是全部，**关注**是你关注的那些人。
+/// 热榜和话题不是"栏"——它们是另外两个去处（点标题旁边那两个图标），
+/// 把不同性质的东西塞进同一排标签里，用户会以为它们是同一类筛选。
+enum FeedTab { recommend, following }
+
+class FeedTabController extends Notifier<FeedTab> {
+  @override
+  FeedTab build() => FeedTab.recommend;
+
+  void select(FeedTab tab) => state = tab;
+}
+
+final feedTabProvider = NotifierProvider<FeedTabController, FeedTab>(
+  FeedTabController.new,
+);
+
 class FeedPage extends ConsumerWidget {
   const FeedPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final posts = ref.watch(feedPostsProvider('echo'));
+    final tab = ref.watch(feedTabProvider);
+    final following = ref.watch(followingProvider);
 
     return Container(
       color: EchoColors.bg,
@@ -41,27 +62,50 @@ class FeedPage extends ConsumerWidget {
             ),
           ),
         ),
-        data: (list) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            const _PlazaHeader(),
-            const SizedBox(height: 16),
-            if (list.isEmpty)
-              const _EmptyFeed()
-            else
-              for (final post in list) ...[
-                _PostCard(post: post),
-                const SizedBox(height: 14),
-              ],
-          ],
-        ),
+        data: (list) {
+          // 关注那一栏：只看你关注的人（自己的帖子也在，不然刚发完切过来
+          // 会觉得"我发的东西呢"）
+          final visible = switch (tab) {
+            FeedTab.recommend => list,
+            FeedTab.following => [
+              for (final post in list)
+                if (post.authorPersonaId == null ||
+                    following.contains(post.authorPersonaId))
+                  post,
+            ],
+          };
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              const _PlazaHeader(),
+              const SizedBox(height: 12),
+              const _FeedTabs(),
+              const SizedBox(height: 14),
+              if (visible.isEmpty)
+                _EmptyFeed(
+                  message: tab == FeedTab.following
+                      ? '你关注的人还没发什么。去别人的主页点个关注试试。'
+                      : null,
+                )
+              else
+                for (final post in visible) ...[
+                  _PostCard(post: post),
+                  const SizedBox(height: 14),
+                ],
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 class _EmptyFeed extends StatelessWidget {
-  const _EmptyFeed();
+  const _EmptyFeed({this.message});
+
+  /// 关注栏空着时的说法和"社区还空着"不是一回事，所以让调用方给。
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +120,7 @@ class _EmptyFeed extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            AppTexts.emptyFeed,
+            message ?? AppTexts.emptyFeed,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: EchoColors.textMuted,
@@ -96,21 +140,121 @@ class _PlazaHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '回响广场',
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(color: EchoColors.text, fontSize: 26),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '回响广场',
+                style: Theme.of(context).textTheme.headlineMedium
+                    ?.copyWith(color: EchoColors.text, fontSize: 26),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '说点什么，会有人回应你的。',
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(color: EchoColors.textMuted),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          '说点什么，会有人回应你的。',
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: EchoColors.textMuted),
+        // 搜索（B6 收尾）：找一个人、一句话
+        IconButton(
+          onPressed: () => context.push(RoutePaths.search),
+          tooltip: '搜索',
+          icon: Icon(
+            Icons.search,
+            color: EchoColors.textMuted,
+            size: 21,
+          ),
+        ),
+        // 话题入口（B6 收尾）：社区里正在聊什么
+        IconButton(
+          onPressed: () => context.push(RoutePaths.topics),
+          tooltip: '话题',
+          icon: Icon(
+            Icons.tag,
+            color: EchoColors.textMuted,
+            size: 21,
+          ),
+        ),
+        // 热榜入口（B6）：今天大家都在看什么
+        IconButton(
+          onPressed: () => context.push(RoutePaths.trending),
+          tooltip: '今天的热榜',
+          icon: Icon(
+            Icons.local_fire_department_outlined,
+            color: EchoColors.hot,
+            size: 23,
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// 推荐 / 关注两栏。
+class _FeedTabs extends ConsumerWidget {
+  const _FeedTabs();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(feedTabProvider);
+
+    return Row(
+      children: [
+        for (final tab in FeedTab.values) ...[
+          _FeedTabChip(
+            label: tab == FeedTab.recommend ? '推荐' : '关注',
+            selected: tab == current,
+            onTap: () => ref.read(feedTabProvider.notifier).select(tab),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _FeedTabChip extends StatelessWidget {
+  const _FeedTabChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? EchoColors.primary.withValues(alpha: 0.14)
+              : EchoColors.surface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: selected ? EchoColors.primaryDim : EchoColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? EchoColors.primary : EchoColors.textMuted,
+            fontSize: 12.5,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
     );
   }
 }

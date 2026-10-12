@@ -1,13 +1,16 @@
 import 'dart:math';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/pending_interaction.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/interaction_planner.dart';
+import '../../domain/services/relationship_rules.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
+import 'relationship_repository.dart';
 
 /// AI 互动的读取。
 ///
@@ -16,9 +19,15 @@ import '../db/database_provider.dart';
 /// - `status = done` 的才进评论区
 /// 所以页面永远只读 done，不会提前剧透。
 class InteractionRepository {
-  const InteractionRepository(this._db);
+  const InteractionRepository(this._db, {this.relationships});
 
   final AppDatabase _db;
+
+  /// 你和住民的关系（B4）。
+  ///
+  /// 可空是为了让这一层还能被单独测：关系记不记，不影响"我说了句话"
+  /// 这件事本身该不该落库。
+  final RelationshipRepository? relationships;
 
   static const String typeComment = 'comment';
   static const String typeLike = 'like';
@@ -121,6 +130,34 @@ ORDER BY at ASC
           ),
         );
     await _bumpCommentCount(postId);
+    await _recordWithPostAuthor(postId);
+  }
+
+  /// 你主动接了住民的话，这是"你和他变熟"的另一半（B4）。
+  ///
+  /// 另一半在调度器那边：住民来评论你的时候记。两边都记，关系才是双向的——
+  /// 光等着别人来找你，熟不起来。
+  ///
+  /// 整段包起来：关系是我们自己的一本账，它写不进去不该让你刚打的那句话
+  /// 发不出去。评论的是自己的帖子时，authorPersonaId 是空，直接跳过。
+  Future<void> _recordWithPostAuthor(String postId) async {
+    final repo = relationships;
+    if (repo == null) return;
+
+    try {
+      final post =
+          await (_db.select(_db.posts)..where((t) => t.id.equals(postId)))
+              .getSingleOrNull();
+      final authorId = post?.authorPersonaId ?? '';
+      if (authorId.isEmpty) return;
+
+      await repo.record(
+        personaId: authorId,
+        event: RelationshipEvent.comment,
+      );
+    } catch (error) {
+      debugPrint('[关系] 这次没能记上：$error');
+    }
   }
 
   /// 评论数 +1——帖子卡片上那个数字要跟着动。
@@ -169,6 +206,35 @@ ORDER BY at ASC
     }
 
     await _db.batch((batch) => batch.insertAll(_db.aiInteractions, rows));
+  }
+
+  /// 排一条追问（B7）：住民接住某一条评论再说一句。
+  ///
+  /// 与发帖那次的批量排期分开，是因为**id 的来路不同**：批量排期用
+  /// `sched_<帖子>_<序号>`，同一条帖子再排一次就会撞上；追问是零散追加的，
+  /// 用随机后缀，爱追加几次追加几次。
+  Future<void> insertFollowUp({
+    required String postId,
+    required String personaId,
+    required String content,
+    required String parentId,
+    required DateTime scheduledAt,
+  }) async {
+    await _db
+        .into(_db.aiInteractions)
+        .insert(
+          AiInteractionsCompanion.insert(
+            id: _newId('fu'),
+            postId: postId,
+            personaId: personaId,
+            type: typeComment,
+            mediaType: const Value('text'),
+            content: Value(content),
+            parentId: Value(parentId),
+            scheduledAt: scheduledAt.millisecondsSinceEpoch,
+            status: const Value('pending'),
+          ),
+        );
   }
 
   /// 策划事件兑现的评论：它在脚本时间轴上是"已经发生"的，
@@ -338,7 +404,10 @@ ORDER BY at ASC
 }
 
 final interactionRepositoryProvider = Provider<InteractionRepository>(
-  (ref) => InteractionRepository(ref.watch(databaseProvider)),
+  (ref) => InteractionRepository(
+    ref.watch(databaseProvider),
+    relationships: ref.watch(relationshipRepositoryProvider),
+  ),
 );
 
 final commentsProvider = StreamProvider.autoDispose

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/services/direct_message_service.dart';
 import '../domain/services/scheduler_service.dart';
 import '../domain/services/world_service.dart';
 import 'db/database_provider.dart';
@@ -16,4 +17,7 @@ final appBootstrapProvider = FutureProvider<void>((ref) async {
   await ref.watch(seedServiceProvider).seedIfNeeded();
   await ref.watch(schedulerServiceProvider).flushDue();
   await ref.watch(worldServiceProvider).tick();
+  // 私信排在最后：它要读刚更新的关系（谁到了互关、谁该来敲你的门），
+  // 也要看有没有你说了话、他还欠着一句的会话
+  await ref.watch(directMessageServiceProvider).tick();
 });

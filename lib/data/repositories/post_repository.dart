@@ -57,6 +57,29 @@ class PostRepository {
     return query.watch().map((rows) => rows.map(_toDomain).toList());
   }
 
+  /// 你最近发过的几条（B4：住民靠它记住你）。
+  ///
+  /// 两重限定，缺一不可：
+  /// - 只要**你自己**发的——住民那些动态是他们自己的事，
+  ///   拿来当"对你的记忆"是两回事；
+  /// - 只要 [scope] 里的（默认 echo）——**清醒模式的记录是只写给自己看的**，
+  ///   把它们送进模型、再显示在住民主页上，是这个项目最不能碰的那条线。
+  ///   默认值就是这件事最不容易出错的地方：忘了传，也不会泄漏。
+  Future<List<Post>> recentMine({int limit = 5, String scope = 'echo'}) async {
+    final query = _db.select(_db.posts)
+      ..where(
+        (t) =>
+            t.authorPersonaId.isNull() &
+            t.deletedAt.isNull() &
+            t.scope.equals(scope),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(limit);
+
+    final rows = await query.get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
   Stream<Post?> watchById(String id) {
     final query = _db.select(_db.posts)
       ..where((t) => t.id.equals(id) & t.deletedAt.isNull());

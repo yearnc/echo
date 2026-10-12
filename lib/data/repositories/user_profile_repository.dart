@@ -8,7 +8,7 @@ import '../db/database_provider.dart';
 /// 用户资料的读写（`user_profile` 单行）。
 ///
 /// 这张表从阶段 A 建库那天就在，但一直没接进界面：所有页面都直接读常量
-/// 「同学」，表里的昵称字段是空的。所以"改不了名字"不是没排期，
+/// 「路人」，表里的昵称字段是空的。所以"改不了名字"不是没排期，
 /// 是两头没接上——现在接上。
 class UserProfileRepository {
   const UserProfileRepository(this._db);

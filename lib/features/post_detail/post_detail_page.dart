@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,8 @@ import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/addiction_guard.dart';
+import '../../domain/services/comment_reply_service.dart';
+import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/like_button.dart';
@@ -37,6 +41,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   /// 正在回谁；两个都为空就是普通发言。
   String? _replyToId;
   String? _replyToName;
+
+  /// 正在回的那条评论本身。住民要靠它接住你那句话（B7）——
+  /// 光有 id 不够，他还得知道你回的是哪一句。
+  PostComment? _replyTarget;
 
   @override
   void initState() {
@@ -66,6 +74,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final personaId = comment.personaId;
     setState(() {
       _replyToId = comment.id;
+      _replyTarget = comment;
       _replyToName = personaId == null
           ? (ref.read(userProfileProvider).value?.displayName ??
                 AppTexts.defaultNickname)
@@ -78,6 +87,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     setState(() {
       _replyToId = null;
       _replyToName = null;
+      _replyTarget = null;
     });
   }
 
@@ -130,10 +140,13 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           else if (comments.isEmpty)
                             const _NoCommentsYet()
                           else
-                            for (final comment in comments)
+                            // 平铺的评论先组装成能读的对话：回复跟在自己回的那条
+                            // 下面、缩进一层（B7）。数据库里它们本来就是平的。
+                            for (final item in CommentThreads.build(comments))
                               CommentTile(
-                                comment: comment,
-                                onReply: () => _startReply(comment),
+                                comment: item.comment,
+                                isReply: item.isReply,
+                                onReply: () => _startReply(item.comment),
                               ),
                         ],
                       ),
@@ -145,6 +158,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         postId: post.id,
                         replyToId: _replyToId,
                         replyToName: _replyToName,
+                        replyTarget: _replyTarget,
                         onDone: _clearReply,
                       ),
                   ],
@@ -164,6 +178,7 @@ class _CommentComposer extends ConsumerStatefulWidget {
     required this.postId,
     this.replyToId,
     this.replyToName,
+    this.replyTarget,
     this.onDone,
   });
 
@@ -172,6 +187,9 @@ class _CommentComposer extends ConsumerStatefulWidget {
   /// 非空表示这条是回给某一条的。
   final String? replyToId;
   final String? replyToName;
+
+  /// 被回的那条评论本身。住民（B7）靠它接住你这句话。
+  final PostComment? replyTarget;
 
   /// 发完之后通知外面把"正在回复"清掉。
   final VoidCallback? onDone;
@@ -204,6 +222,21 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
             parentId: widget.replyToId,
             replyToName: widget.replyToName,
           );
+
+      // 接住你那句话（B7）：排一句追问，他过几分钟回来。
+      // 不 await——它是"他那边的事"，跟你这句话发出去没有关系。
+      final target = widget.replyTarget;
+      if (target != null) {
+        unawaited(
+          ref
+              .read(commentReplyServiceProvider)
+              .maybeFollowUp(
+                postId: widget.postId,
+                parent: target,
+                myReply: text,
+              ),
+        );
+      }
       if (!mounted) return;
       _ctrl.clear();
       widget.onDone?.call();

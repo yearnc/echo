@@ -4,7 +4,10 @@ import '../models/ai_persona.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
 import '../models/resident_post.dart';
+import 'community_calendar.dart';
+import 'content_generator.dart';
 import 'model_gateway.dart';
+import 'relationship_rules.dart';
 
 /// 用用户自己的模型写内容。
 ///
@@ -20,13 +23,17 @@ class ModelContentGenerator {
     required ModelConfig config,
     required List<AiPersona> personas,
     required Post post,
+    Map<String, RelationshipState> relations = const {},
   }) async {
     if (personas.isEmpty) return const {};
 
     final raw = await _gateway.complete(
       config: config,
       messages: [
-        {'role': 'system', 'content': systemPrompt(personas)},
+        {
+          'role': 'system',
+          'content': systemPrompt(personas, relations: relations),
+        },
         {'role': 'user', 'content': postPrompt(post)},
       ],
       // 这里要的是像人，不是稳定——同一句话被复读才是问题
@@ -76,17 +83,172 @@ class ModelContentGenerator {
     return drafts;
   }
 
+  /// 私信（B5）：一次请求写完整批。
+  Future<Map<String, String>> directMessages({
+    required ModelConfig config,
+    required List<DirectThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    if (threads.isEmpty) return const {};
+
+    final raw = await _gateway.complete(
+      config: config,
+      messages: [
+        {
+          'role': 'system',
+          'content': directPrompt(threads, relations: relations),
+        },
+        {'role': 'user', 'content': '请写出这 ${threads.length} 条消息。'},
+      ],
+      temperature: 0.9,
+      maxTokens: 500,
+      timeout: const Duration(seconds: 25),
+    );
+
+    final byIndex = parseIndexedContents(raw, threads.length);
+    return {
+      for (final entry in byIndex.entries)
+        threads[entry.key - 1].persona.id: entry.value,
+    };
+  }
+
+  /// 追问（B7）：一次请求写完整批。
+  Future<Map<String, String>> replies({
+    required ModelConfig config,
+    required List<ReplyThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    if (threads.isEmpty) return const {};
+
+    final raw = await _gateway.complete(
+      config: config,
+      messages: [
+        {'role': 'system', 'content': replyPrompt(threads, relations: relations)},
+        {'role': 'user', 'content': '请写出这 ${threads.length} 条回复。'},
+      ],
+      temperature: 0.9,
+      maxTokens: 400,
+      timeout: const Duration(seconds: 25),
+    );
+
+    final byIndex = parseIndexedContents(raw, threads.length);
+    return {
+      for (final entry in byIndex.entries)
+        threads[entry.key - 1].persona.id: entry.value,
+    };
+  }
+
+  /// 追问提示词。纯函数，单独测。
+  ///
+  /// 这里刻意把"你回了我什么"原样给出来：楼中楼最容易演砸的地方，
+  /// 是答非所问——上一句说得很具体，下一句却像在自言自语。
+  static String replyPrompt(
+    List<ReplyThread> threads, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('你是「回响」这个社区里的几个人。你在帖子下面留了句话，')
+      ..writeln('现在有人回了你，请你说下一句——就在同一层楼里接着聊。')
+      ..writeln()
+      ..writeln('要点：')
+      ..writeln('- 每条 10—40 字，像随手打出来的，别端着')
+      ..writeln('- **接住他说的那件事**，别换话题、别自说自话')
+      ..writeln('- 不用「加油哦」这类谁都能说的话，不要提到自己是 AI')
+      ..writeln('- 几条之间不要雷同')
+      ..writeln()
+      ..writeln('这次的来往：');
+
+    for (var i = 0; i < threads.length; i++) {
+      final thread = threads[i];
+      buffer
+        ..writeln('[${i + 1}] ${thread.persona.name}')
+        ..writeln('    说话方式：${thread.persona.languageStyle}');
+
+      final relation = _relationLine(
+        relations[thread.persona.id],
+        memoryEnabled: thread.persona.memoryEnabled,
+      );
+      if (relation != null) buffer.writeln('    $relation');
+
+      buffer
+        ..writeln('    你说过：${thread.mine}')
+        ..writeln('    他回你：${thread.yours}');
+    }
+
+    buffer
+      ..writeln()
+      ..writeln('只输出一个 JSON 数组，不要代码块、不要任何解释：')
+      ..writeln('[{"index": 1, "content": "你的下一句"}, ...]');
+
+    return buffer.toString();
+  }
+
+  /// 私信提示词。纯函数，单独测。
+  static String directPrompt(
+    List<DirectThread> threads, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('你是「回响」这个社区里的几个人。现在你们各自在跟同一个人私聊——')
+      ..writeln('不是在他的帖子下面聊天，是关起门来单独跟他说。')
+      ..writeln()
+      ..writeln('要点：')
+      ..writeln('- 每条 10—40 字，像微信上随手打的，别写成小作文')
+      ..writeln('- 给了上下文的要接住上文，别换个话题重开；没给上下文的，就是你先开口找他')
+      ..writeln('- 不用「加油哦」这类谁都能说的话，不要提到自己是 AI')
+      ..writeln('- 几条之间不要雷同')
+      ..writeln()
+      ..writeln('这次要发消息的人：');
+
+    for (var i = 0; i < threads.length; i++) {
+      final thread = threads[i];
+      final persona = thread.persona;
+      buffer
+        ..writeln('[${i + 1}] ${persona.name}')
+        ..writeln('    身份：${persona.personalityType}｜${persona.bio}')
+        ..writeln('    说话方式：${persona.languageStyle}');
+
+      final relation = _relationLine(
+        relations[persona.id],
+        memoryEnabled: persona.memoryEnabled,
+      );
+      if (relation != null) buffer.writeln('    $relation');
+
+      if (thread.isOpening) {
+        buffer.writeln('    你们还没聊过，这是你发给他的第一句');
+        continue;
+      }
+
+      buffer.writeln('    刚才你们说的：');
+      for (final turn in thread.recent) {
+        buffer.writeln('      ${turn.fromMe ? '我' : '他'}：${turn.text}');
+      }
+    }
+
+    buffer
+      ..writeln()
+      ..writeln('只输出一个 JSON 数组，不要代码块、不要任何解释：')
+      ..writeln('[{"index": 1, "content": "消息内容"}, ...]');
+
+    return buffer.toString();
+  }
+
   /// 系统提示词：把这批人是谁讲清楚，再说要什么形状的东西。
   ///
   /// 纯函数，单独测。提示词是这一层最容易悄悄退化的东西——
   /// 改一个词、少一行约束，产出的质量就掉一档，而界面上什么都看不出来。
-  static String systemPrompt(List<AiPersona> personas) {
+  static String systemPrompt(
+    List<AiPersona> personas, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
     final buffer = StringBuffer()
-      ..writeln('你是「回响大学」这个校园社区里的几名普通学生，现在要给同学的一条帖子写评论。')
+      ..writeln('你是「回响」这个社区里的几名普通人，现在要给一位邻居发的东西写评论。')
       ..writeln()
       ..writeln('要点：')
       ..writeln('- 每条 15—60 字，像真人随手打出来的，别端着')
       ..writeln('- 不复述帖子内容，不用「加油哦」「太棒了」这种谁都能说的话')
+      ..writeln('- 跟这个人还不熟的，别自来熟；已经聊过几次的，说话可以更随意一点')
+      ..writeln('- 下面写了「他记得」的，可以顺口提一句（像"你上次拍的那张"，但别每次都用）')
       ..writeln('- 不要提到自己是 AI，不要解释自己在做什么')
       ..writeln('- 同一批评论之间不要雷同，也不要点评彼此')
       ..writeln()
@@ -99,6 +261,12 @@ class ModelContentGenerator {
         ..writeln('    身份：${persona.personalityType}｜${persona.bio}')
         ..writeln('    说话方式：${persona.languageStyle}')
         ..writeln('    语气要求：${persona.tone}');
+
+      final relation = _relationLine(
+        relations[persona.id],
+        memoryEnabled: persona.memoryEnabled,
+      );
+      if (relation != null) buffer.writeln('    $relation');
     }
 
     buffer
@@ -109,16 +277,47 @@ class ModelContentGenerator {
     return buffer.toString();
   }
 
+  /// 「你和他的关系」那一行（B4）。
+  ///
+  /// 还没有来往的人不写这一行——"不熟"本来就是这个社区默认的样子，
+  /// 写出来只是多给模型一行分心的字。
+  static String? _relationLine(
+    RelationshipState? relation, {
+    required bool memoryEnabled,
+  }) {
+    if (relation == null) return null;
+
+    final memory = relation.memorySummary.trim();
+    final remembers =
+        memoryEnabled && relation.level >= 1 && memory.isNotEmpty;
+    if (relation.level <= 0 && !remembers) return null;
+
+    final buffer = StringBuffer('你和他的关系：${relation.tierLabel}');
+    if (remembers) {
+      buffer.write('｜他记得：$memory');
+    }
+    return buffer.toString();
+  }
+
   /// 住民自己发动态的提示词。
   static String residentSystemPrompt(List<ResidentMoment> moments) {
     final buffer = StringBuffer()
-      ..writeln('你是「回响大学」这个校园社区里的几名学生，现在要各自发一条自己的动态（不是评论别人）。')
+      ..writeln('你是「回响」这个社区里的几个人，现在要各自发一条自己的动态（不是评论别人）。')
       ..writeln()
       ..writeln('要点：')
       ..writeln('- 每条 15—60 字，像随手发的，别写成小作文')
       ..writeln('- 内容要和发布时刻相符：清晨、中午、深夜发的东西不一样')
       ..writeln('- 不要提到自己是 AI，不要解释自己在做什么')
-      ..writeln('- 几条之间不要雷同')
+      ..writeln('- 几条之间不要雷同');
+
+    if (moments.isNotEmpty) {
+      final hints = CommunityCalendar.hintsAt(moments.first.at);
+      if (hints.isNotEmpty) {
+        buffer.writeln('- 最近大家身边：${hints.join('；')}（想提就提一句，不必人人都提）');
+      }
+    }
+
+    buffer
       ..writeln('- 只有真的心情有明显变化的人，才顺带给自己换一句新签名（14 字以内，'
           '像 QQ 签名那样的一句话，不是回来描述刚才发的动态）；其余人 bio 留空')
       ..writeln()
@@ -130,7 +329,7 @@ class ModelContentGenerator {
       buffer
         ..writeln(
           '[${i + 1}] ${persona.name}'
-          '（${persona.circle.isEmpty ? '同校圈' : persona.circle}）',
+          '（${persona.circle.isEmpty ? '日常' : persona.circle}）',
         )
         ..writeln('    身份：${persona.personalityType}｜${persona.bio}')
         ..writeln('    说话方式：${persona.languageStyle}');

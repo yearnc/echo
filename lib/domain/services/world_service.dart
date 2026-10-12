@@ -285,8 +285,19 @@ class WorldService {
     if (pool.isEmpty || count <= 0 || span <= Duration.zero) return const [];
 
     final shuffled = List<AiPersona>.of(pool)..shuffle(_random);
-    final picked = shuffled
-        .take(count.clamp(1, pool.length))
+
+    // 这个点本来就活跃的人先上：凌晨三点发"又要起床上班"的住民，
+    // 一眼就是排期器写的。分两组再拼起来，组内保持刚打乱的顺序——
+    // 于是"谁先谁后"仍然是随机的，只是活跃的人排在前面。
+    final active = <AiPersona>[];
+    final quiet = <AiPersona>[];
+    for (final persona in shuffled) {
+      (persona.isActiveAt(from) ? active : quiet).add(persona);
+    }
+    final ordered = [...active, ...quiet];
+
+    final picked = ordered
+        .take(count.clamp(1, ordered.length))
         .toList(growable: false);
 
     final moments = <ResidentMoment>[];

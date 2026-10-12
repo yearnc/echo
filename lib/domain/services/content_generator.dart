@@ -7,9 +7,11 @@ import '../models/ai_persona.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
 import '../models/resident_post.dart';
+import 'community_calendar.dart';
 import 'content_moderator.dart';
 import 'model_content_generator.dart';
 import 'model_gateway.dart';
+import 'relationship_rules.dart';
 
 /// 住民说的话，全都从这里出（阶段 B 计划书决策 1）。
 ///
@@ -22,9 +24,12 @@ abstract interface class ContentGenerator {
   /// **一个住民一条**。同一住民在同一条帖子下留两条语气不同的评论会立刻暴露
   /// AI 身份——这条规矩从阶段 A 就在，B7 的楼中楼之前一直有效，
   /// 所以这里按批生成，也守着它。
+  /// [relations] 是这批人和你的关系（B4）：说话的分寸、记不记得你以前发过
+  /// 什么，都从这里来。没打过交道的人不在里面，那就是陌生。
   Future<Map<String, String>> comments({
     required List<AiPersona> personas,
     required Post post,
+    Map<String, RelationshipState> relations = const {},
   });
 
   /// 给一批「住民 + 时刻」生成他们**自己发的动态**（B3）。
@@ -34,6 +39,63 @@ abstract interface class ContentGenerator {
   Future<List<ResidentPostDraft>> residentPosts({
     required List<ResidentMoment> moments,
   });
+
+  /// 私信里各自该说下一句什么（B5）。
+  ///
+  /// 又是另一种口吻：评论是当着一屋子人说的，私信是关起门来跟一个人说。
+  /// 所以这三件事各自一个方法，谁也不借谁的词。
+  Future<Map<String, String>> directMessages({
+    required List<DirectThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  });
+
+  /// 追问（B7）：他刚才说的那句话被你接了，现在他接着说什么。
+  ///
+  /// 又是另一种口吻：不是评论（当着一屋子人）、不是动态（自己起头）、
+  /// 也不是私信（关起门来）。它是**楼中楼里的一句**——上文只有短短两条，
+  /// 而且对方就站在那儿等着。
+  Future<Map<String, String>> replies({
+    required List<ReplyThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  });
+}
+
+/// 一段追问的上下文：他原本说了什么，以及你接的那一句。
+class ReplyThread {
+  const ReplyThread({
+    required this.persona,
+    required this.mine,
+    required this.yours,
+  });
+
+  final AiPersona persona;
+
+  /// 他自己原来那条评论。
+  final String mine;
+
+  /// 你回他的那句。
+  final String yours;
+}
+
+/// 一段私信的上下文：这个人，加上你们最近说的那几句。
+class DirectThread {
+  const DirectThread({required this.persona, this.recent = const []});
+
+  final AiPersona persona;
+
+  /// 最近的往来，按时间正序。**空表示他先开口**——那是另一套口吻。
+  final List<DirectTurn> recent;
+
+  bool get isOpening => recent.isEmpty;
+}
+
+/// 私信里的那一句是谁说的。
+class DirectTurn {
+  const DirectTurn({required this.fromMe, required this.text});
+
+  /// true = 我（住民）说的，false = 他（用户）说的。
+  final bool fromMe;
+  final String text;
 }
 
 /// 离线样本：从住民自己的预置台词里挑一条。
@@ -59,23 +121,39 @@ class SampleContentGenerator implements ContentGenerator {
 
   /// 给一个住民挑一条台词。**永远有话说**——返回空字符串会在评论区
   /// 渲染成一条空评论，而缺一条评论比出现一条空白要好得多。
-  String forPersona(AiPersona persona) {
+  ///
+  /// [relation] 是这个人跟你熟到什么程度（B4）。样本层没法像模型那样自然地
+  /// "提起你上次那张天空照"，能做的是另一件事：**熟人话多一点**。同一个人
+  /// 写了好几句台词时，关系近的从长的那些里挑。
+  String forPersona(AiPersona persona, {RelationshipState? relation}) {
     final samples = persona.commentSamples;
     if (samples.isEmpty) {
       return fallbackLines[_random.nextInt(fallbackLines.length)];
     }
+    if ((relation?.level ?? 0) >= 2 && samples.length > 1) {
+      final byLength = [...samples]..sort((a, b) => b.length.compareTo(a.length));
+      final longer = byLength.take((byLength.length / 2).ceil()).toList();
+      return longer[_random.nextInt(longer.length)];
+    }
     return samples[_random.nextInt(samples.length)];
   }
 
-  Map<String, String> commentsFor({required List<AiPersona> personas}) {
-    return {for (final persona in personas) persona.id: forPersona(persona)};
+  Map<String, String> commentsFor({
+    required List<AiPersona> personas,
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    return {
+      for (final persona in personas)
+        persona.id: forPersona(persona, relation: relations[persona.id]),
+    };
   }
 
   @override
   Future<Map<String, String>> comments({
     required List<AiPersona> personas,
     required Post post,
-  }) async => commentsFor(personas: personas);
+    Map<String, RelationshipState> relations = const {},
+  }) async => commentsFor(personas: personas, relations: relations);
 
   /// 分圈层的动态模板。
   ///
@@ -83,63 +161,65 @@ class SampleContentGenerator implements ContentGenerator {
   /// 而不像"欢迎使用本社区"。有 routines 的住民会先走"几点、在哪、干什么"
   /// 那条路，落到具体场景里；模板是它没覆盖到的时候用的。
   static const Map<String, List<String>> circleTemplates = {
-    '学习': [
-      '图书馆四楼靠窗的位置今天居然空着，运气不错。',
-      '背了一上午单词，脑子被掏空又灌满。',
-      '这门课的老师今天讲得意外地清楚，记了三页笔记。',
-      '自习室里安静得能听见翻页声，挺好。',
+    '日常': [
+      '今天出门忘了带伞，回来的时候雨停了。',
+      '楼下那家店换了招牌，看着有点陌生。',
+      '收拾了一下午屋子，扔了三袋没用的东西，心情挺好。',
+      '下午的阳光刚好照到桌上，坐着发了会儿呆。',
+      '一天没出门，晚上才发现冰箱空了。',
     ],
     '吐槽': [
-      '早八的教室空调开得像冰窖，穿了外套还冷。',
-      '食堂的番茄炒蛋里，番茄和蛋好像在闹别扭。',
-      '选课系统又崩了，所有人都在和时间赛跑。',
-      '打印店的机器又坏了，我的论文还在它肚子里。',
+      '排了二十分钟队，前面那位结账结了十分钟。',
+      '说好六点到的，现在八点半了，还没影。',
+      '快递显示已签收，可我没收到，谁替我签的。',
+      '楼下装修，从早上八点开始，一刻没停。',
     ],
-    '同校圈': [
-      '路过操场的时候晚霞是橘红色的，站着看了一会儿。',
-      '快递站队伍排到门口了，双十一还没到呢。',
-      '校门口那家便利店换招牌了，有点不习惯。',
-      '今天校园里好多人，大概又是什么活动。',
+    '职场': [
+      '今天开了三个会，一件事都没推进。',
+      '需求改到第五版，跟第一版几乎一样。',
+      '下班前十分钟收到一句「明早要」。',
+      '周报写到一半，发现这周好像什么都没干。',
+    ],
+    '深夜': [
+      '凌晨一点，楼下还有人在遛狗。',
+      '起来喝了杯水，屋里安静得能听见冰箱的声音。',
+      '这个点的风是凉的，站在阳台上吹了一会儿。',
     ],
     '树洞': [
       '有些话说出来就轻了，哪怕只是写在这里。',
       '今天没什么特别的，只是想记一下。',
-      '睡不着的时候，总想写点什么。',
-    ],
-    '深夜': [
-      '凌晨一点，宿舍楼还有几盏灯亮着。',
-      '起来喝了杯水，窗外特别安静。',
-      '这个点的风是凉的，站着吹了一会儿。',
+      '想找个地方说一句，说完就走。',
     ],
     '运动': [
-      '操场上跑了五圈，风有点大，但很痛快。',
-      '篮球场打到天黑，出了一身汗。',
-      '今天终于把体测的引体向上练到及格线了。',
+      '跑了五公里，风有点大，但很痛快。',
+      '骑车绕了一大圈，回来腿都不是自己的了。',
+      '今天终于把俯卧撑练到第二十组。',
     ],
     '摄影': [
-      '今天光线特别好，随手拍了几张，改天挑一张发出来。',
-      '傍晚的云像被人抹了一笔。',
+      '今天光线特别好，随手拍了几张。',
+      '傍晚的云像被谁抹了一笔。',
     ],
-    '二手': [
-      '清书架，出了几本专业课的书，需要的同学可以看看。',
-      '整理出一堆用不上的东西，改天拍照上架。',
+    '美食': [
+      '今天这锅汤炖了两个小时，值。',
+      '路过菜场看到新鲜的，就买多了。',
+      '早上第一杯咖啡，喝下去才算醒。',
     ],
-    '失物招领': [
-      '今天又收到三张校园卡，失主记得来后勤楼认领。',
-      '有人交上来一把雨伞，蓝色格子的，来我这儿看看。',
+    '读书': [
+      '读到一半被打断，回来忘了刚才看到哪。',
+      '书里有一句很好，抄下来贴在了冰箱上。',
     ],
-    '表白墙': [
-      '今天的投稿有点多，慢慢发，别急。',
-      '匿名是底线，大家放心投。',
+    '音乐': [
+      '循环了一整天同一首歌，还是不腻。',
+      '在阳台弹了会儿琴，手指又起茧了。',
+      '戴上耳机，世界立刻安静了。',
     ],
-    '社团招新': [
-      '招新摊位布置完了，明天下午见。',
-      '今天拉到了二十多个想来的同学，比预想的多。',
+    '宠物': [
+      '猫今天把我的笔从桌上推下去三次。',
+      '遛狗的时候，它认识的人比我还多。',
     ],
-    '兴趣小组': [
-      '在宿舍弹了会儿琴，手指又起茧了。',
-      '追的剧更新了，今天早点回去。',
-      '把攒了半个月的番补完了，眼睛有点酸。',
+    '出行': [
+      '周末一个人出门，走到哪儿算哪儿。',
+      '在河边坐了半小时，什么都没想。',
     ],
   };
 
@@ -154,20 +234,20 @@ class SampleContentGenerator implements ContentGenerator {
   /// 换签名的样本，也按圈层分（B3.5）。
   ///
   /// 跟动态模板的分工：动态是"我今天干了什么"，签名是"我现在是个什么状态"。
-  /// 所以这里不写事情，只写状态——写成"今天去了图书馆"就不像签名了。
+  /// 所以这里不写事情，只写状态——写成"今天去了超市"就不像签名了。
   static const Map<String, List<String>> signatureTemplates = {
-    '学习': ['在图书馆，勿扰。', '先把这一章看完再说。', '今天也背了单词。'],
+    '日常': ['今天也是普通的一天。', '慢慢来，不急。'],
     '吐槽': ['今日怨气已售罄。', '别问，问就是很好。'],
-    '同校圈': ['风挺大的，但还行。', '最近在学着早睡。'],
-    '树洞': ['有些话咽下去也不亏。', '想安静一阵子。'],
+    '职场': ['下班勿扰。', '周报还没写完。'],
     '深夜': ['还没睡的人，都是同一种人。', '凌晨的脑子最诚实。'],
+    '树洞': ['有些话咽下去也不亏。', '想安静一阵子。'],
     '运动': ['跑起来就不用想事。', '明天继续。'],
     '摄影': ['等一个好天气。', '按快门那一下最舒服。'],
-    '二手': ['清仓中，带价来。', '书架空了一半，挺好。'],
-    '失物招领': ['捡到的东西都在后勤楼。', '认领请留言。'],
-    '表白墙': ['匿名是底线。', '今天的投稿有点多。'],
-    '社团招新': ['招新中，来摊位看看。', '今年想多招点人。'],
-    '兴趣小组': ['追剧中，勿扰。', '手指又起茧了。'],
+    '美食': ['今天的饭很好吃。', '先吃饭，别的晚点说。'],
+    '读书': ['看到一半，别吵。', '书比人好相处。'],
+    '音乐': ['耳机里在放歌。', '单曲循环第八遍。'],
+    '宠物': ['猫在家等我。', '狗子今天很开心。'],
+    '出行': ['人已经在路上了。', '去哪儿都行，先出门。'],
   };
 
   static const List<String> genericSignatures = [
@@ -197,8 +277,77 @@ class SampleContentGenerator implements ContentGenerator {
           : '在${routine.place}，${routine.activity}。';
     }
 
+    // 大家身边正发生的事是最省事的共同话题：降温那天，半个社区都在喊冷。
+    // 只给四成机会——一屏全是"今天真冷"，那也不像活人。
+    final event = CommunityCalendar.strongestAt(at);
+    if (event != null &&
+        event.samples.isNotEmpty &&
+        _random.nextDouble() < 0.4) {
+      return event.samples[_random.nextInt(event.samples.length)];
+    }
+
     final templates = circleTemplates[persona.circle] ?? genericLines;
     return templates[_random.nextInt(templates.length)];
+  }
+
+  /// 私信的开场白（B5）。
+  ///
+  /// 刻意不复用评论台词：评论是"路过看一眼你发的"，私信是"专门来找你说句话"，
+  /// 语气差得远。而住民自己的 commentSamples 全是前者。
+  static const List<String> directOpeners = [
+    '在吗？上次你那事儿后来怎么样了。',
+    '刚下班回来，忽然想起你说的那句。',
+    '看你又发了条动态，最近是不是挺忙的。',
+    '今天路过你说的那家店，居然真的在排队。',
+    '我是上次在你帖子底下留言的那个，聊聊？',
+    '有件事想问问你，方便的时候回我一下。',
+  ];
+
+  /// 接着往下聊时的样本。真正的上下文靠模型，这里只保证"有话说"。
+  static const List<String> directReplies = [
+    '嗯，我大概懂你的意思。',
+    '这样啊……那你自己是怎么想的？',
+    '哈哈，那就好。',
+    '我记下了，回头再聊这个。',
+    '有道理，我倒是没这么想过。',
+  ];
+
+  /// 私信样本：先开口的和接话的，是两套词。
+  @override
+  Future<Map<String, String>> directMessages({
+    required List<DirectThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    return {
+      for (final thread in threads)
+        thread.persona.id: _directLine(thread.isOpening),
+    };
+  }
+
+  String _directLine(bool isOpening) {
+    final pool = isOpening ? directOpeners : directReplies;
+    return pool[_random.nextInt(pool.length)];
+  }
+
+  /// 楼中楼里的接话（B7）。上文越具体越难照抄，所以这里只求"像在接着聊"。
+  static const List<String> followUps = [
+    '我就随口一说，你倒是认真了。',
+    '嗯，你这么说也对。',
+    '那倒没有，就是有点感慨。',
+    '哈哈，行，听你的。',
+    '确实，不过我还是觉得有点难。',
+    '下次碰到再跟你说说。',
+  ];
+
+  @override
+  Future<Map<String, String>> replies({
+    required List<ReplyThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    return {
+      for (final thread in threads)
+        thread.persona.id: followUps[_random.nextInt(followUps.length)],
+    };
   }
 
   /// 离线样本照样给一句签名（B3.5）。
@@ -240,6 +389,7 @@ class ContentSource implements ContentGenerator {
   Future<Map<String, String>> comments({
     required List<AiPersona> personas,
     required Post post,
+    Map<String, RelationshipState> relations = const {},
   }) async {
     if (personas.isEmpty) return const {};
 
@@ -247,21 +397,26 @@ class ContentSource implements ContentGenerator {
     // 配置表读不了，都不该让说话这件事失败。
     try {
       final config = await activeConfig();
-      if (config == null) return sample.commentsFor(personas: personas);
+      if (config == null) {
+        return sample.commentsFor(personas: personas, relations: relations);
+      }
 
       final generated = await model.comments(
         config: config,
         personas: personas,
         post: post,
+        relations: relations,
       );
-      if (generated.isEmpty) return sample.commentsFor(personas: personas);
+      if (generated.isEmpty) {
+        return sample.commentsFor(personas: personas, relations: relations);
+      }
 
-      return _merge(generated, personas);
+      return _merge(generated, personas, relations: relations);
     } catch (error) {
       // 超时、限额、密钥失效——都不该让社区停下来。
       // 留个痕：失败连着发生的时候，从界面上是看不出来的（住民照样在说话）。
       debugPrint('[内容生成] 模型失败，退回样本：$error');
-      return sample.commentsFor(personas: personas);
+      return sample.commentsFor(personas: personas, relations: relations);
     }
   }
 
@@ -288,6 +443,107 @@ class ContentSource implements ContentGenerator {
       debugPrint('[内容生成] 模型失败，退回样本：$error');
       return sample.residentPosts(moments: moments);
     }
+  }
+
+  @override
+  Future<Map<String, String>> directMessages({
+    required List<DirectThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    if (threads.isEmpty) return const {};
+
+    try {
+      final config = await activeConfig();
+      if (config == null) {
+        return await sample.directMessages(
+          threads: threads,
+          relations: relations,
+        );
+      }
+
+      final generated = await model.directMessages(
+        config: config,
+        threads: threads,
+        relations: relations,
+      );
+      if (generated.isEmpty) {
+        return await sample.directMessages(
+          threads: threads,
+          relations: relations,
+        );
+      }
+
+      return await _mergeDirect(generated, threads, relations: relations);
+    } catch (error) {
+      debugPrint('[内容生成] 模型失败，退回样本：$error');
+      return await sample.directMessages(threads: threads, relations: relations);
+    }
+  }
+
+  @override
+  Future<Map<String, String>> replies({
+    required List<ReplyThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    if (threads.isEmpty) return const {};
+
+    try {
+      final config = await activeConfig();
+      if (config == null) {
+        return await sample.replies(threads: threads, relations: relations);
+      }
+
+      final generated = await model.replies(
+        config: config,
+        threads: threads,
+        relations: relations,
+      );
+      if (generated.isEmpty) {
+        return await sample.replies(threads: threads, relations: relations);
+      }
+
+      return await _mergeReplies(generated, threads, relations: relations);
+    } catch (error) {
+      debugPrint('[内容生成] 模型失败，退回样本：$error');
+      return await sample.replies(threads: threads, relations: relations);
+    }
+  }
+
+  /// 模型写的追问：没过本地词表的丢掉，换成样本台词。
+  Future<Map<String, String>> _mergeReplies(
+    Map<String, String> generated,
+    List<ReplyThread> threads, {
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    final result = await sample.replies(threads: threads, relations: relations);
+    for (final entry in generated.entries) {
+      if (ContentModerator.checkLocally(entry.value) != null) {
+        debugPrint('[内容生成] 这条追问没过本地词表，换成预置台词：${entry.key}');
+        continue;
+      }
+      result[entry.key] = entry.value;
+    }
+    return result;
+  }
+
+  /// 模型写的私信：没过本地词表的丢掉，换成样本台词。
+  Future<Map<String, String>> _mergeDirect(
+    Map<String, String> generated,
+    List<DirectThread> threads, {
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    final result = await sample.directMessages(
+      threads: threads,
+      relations: relations,
+    );
+    for (final entry in generated.entries) {
+      if (ContentModerator.checkLocally(entry.value) != null) {
+        debugPrint('[内容生成] 这条私信没过本地词表，换成预置台词：${entry.key}');
+        continue;
+      }
+      result[entry.key] = entry.value;
+    }
+    return result;
   }
 
   /// 模型写的动态：没过本地词表的丢掉，没写到的用样本补上。
@@ -326,9 +582,10 @@ class ContentSource implements ContentGenerator {
   /// 这里**不调模型审核**——那等于每条评论花两次钱，而且审核服务本身也可能失败。
   Map<String, String> _merge(
     Map<String, String> generated,
-    List<AiPersona> personas,
-  ) {
-    final result = sample.commentsFor(personas: personas);
+    List<AiPersona> personas, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    final result = sample.commentsFor(personas: personas, relations: relations);
     for (final entry in generated.entries) {
       if (ContentModerator.checkLocally(entry.value) != null) {
         debugPrint('[内容生成] 这条没通过本地词表，换成预置台词：${entry.key}');

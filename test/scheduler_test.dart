@@ -4,14 +4,19 @@ import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/analysis_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
+import 'package:echo/data/repositories/model_config_repository.dart';
 import 'package:echo/data/repositories/notification_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/echo_settings.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
+import 'package:echo/domain/services/memory_summarizer.dart';
+import 'package:echo/domain/services/model_gateway.dart';
+import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,6 +33,39 @@ List<AiPersona> buildPersonas({int count = 12}) => List.generate(
     commentSamples: const ['示例评论一号', '示例评论二号'],
   ),
 );
+
+/// 记忆服务要一个 KeyStore 才构造得出来；这些用例里它一次都不会被用到。
+class _NoKeys implements KeyStore {
+  @override
+  Future<String?> read(String key) async => null;
+
+  @override
+  Future<void> write(String key, String value) async {}
+
+  @override
+  Future<void> delete(String key) async {}
+}
+
+/// 一块坏掉的记忆：它必须坏得无声无息（B4 的后台路径就是这么要求它的）。
+class _BoomMemory extends MemorySummarizer {
+  _BoomMemory(AppDatabase db)
+    : super(
+        db: db,
+        posts: PostRepository(db),
+        relationships: RelationshipRepository(db),
+        gateway: ModelGateway(
+          ModelConfigRepository(db, keyStore: _NoKeys()),
+        ),
+      );
+
+  int calls = 0;
+
+  @override
+  Future<int> refresh({required List<AiPersona> personas}) async {
+    calls += 1;
+    throw StateError('记忆这块坏了');
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -152,6 +190,57 @@ void main() {
 
       expect(planned, isEmpty);
     });
+
+    test('关系越近，越可能真的开口', () {
+      final persona = buildPersonas(count: 1).first;
+
+      expect(
+        InteractionPlanner.commentChance(persona, 0),
+        persona.commentProbability,
+        reason: '陌生人不该有任何加成',
+      );
+      expect(
+        InteractionPlanner.commentChance(persona, 4),
+        greaterThan(persona.commentProbability),
+      );
+      expect(
+        InteractionPlanner.commentChance(persona, 99),
+        0.95,
+        reason: '再熟也有不想说话的时候',
+      );
+    });
+
+    test('熟人更容易出现在你的帖子里，但不会被钉在每一条上', () {
+      final personas = buildPersonas(count: 12);
+      final at = DateTime(2026, 10, 12, 20);
+
+      int attendances({required bool withRelation}) {
+        final planner = InteractionPlanner(random: Random(7));
+        final relations = withRelation
+            ? const {
+                'persona_0': RelationshipState(personaId: 'persona_0', level: 4),
+              }
+            : const <String, RelationshipState>{};
+
+        var times = 0;
+        for (var i = 0; i < 200; i++) {
+          final planned = planner.plan(
+            now: at,
+            personas: personas,
+            settings: EchoSettings.defaults,
+            relations: relations,
+          );
+          if (planned.any((item) => item.personaId == 'persona_0')) times++;
+        }
+        return times;
+      }
+
+      final withRelation = attendances(withRelation: true);
+      final without = attendances(withRelation: false);
+
+      expect(withRelation, greaterThan(without));
+      expect(withRelation, lessThan(200), reason: '好友也不是每条必到');
+    });
   });
 
   group('SchedulerService（冷启动补发）', () {
@@ -174,6 +263,7 @@ void main() {
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
         generator: SampleContentGenerator(),
+        relationships: RelationshipRepository(db),
         planner: InteractionPlanner(random: Random(9)),
       );
 
@@ -311,6 +401,121 @@ void main() {
       // 但计数照加：评论区要看得见有人来过
       final post = await posts.findById(postId);
       expect(post!.commentCount, 1);
+    });
+
+    test('兑现之后，住民和你的关系往前挪了一步', () async {
+      final postId = await posts.create(content: '我的帖子', scope: 'echo');
+      await scheduler.planForPost(
+        postId: postId,
+        settings: const EchoSettings(
+          density: ReplyDensity.high,
+          likeLevel: LikeLevel.high,
+        ),
+      );
+      await rewindPending();
+      await scheduler.flushDue();
+
+      final relations = await RelationshipRepository(db).loadAll();
+
+      expect(relations, isNotEmpty, reason: '有人来过，关系就该有记录');
+      expect(
+        relations.values.every((relation) => relation.interactionCount > 0),
+        isTrue,
+      );
+      expect(
+        relations.values.any((relation) => relation.intimacy > 0),
+        isTrue,
+        reason: '第一次互动总该长一点亲近度',
+      );
+    });
+
+    test('住民彼此之间的互动，不该让你和谁变熟', () async {
+      // 跟上面几条一样：这是别人和别人的事，跟你没关系。
+      final postId = await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '食堂今天有糖醋排骨。',
+      );
+      await interactions.insertPlanned(postId, [
+        PlannedInteraction(
+          personaId: 'persona_002',
+          type: 'comment',
+          content: '我也去了，没抢到',
+          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        ),
+      ]);
+
+      await scheduler.flushDue();
+
+      expect(await RelationshipRepository(db).loadAll(), isEmpty);
+    });
+
+    test('住民动态底下的评论，作者可能回一句（住民之间的楼中楼）', () async {
+      final postId = await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '今天在河边坐了一会儿。',
+      );
+
+      // 一大批邻居来评论：作者不会条条都回，但总得回几句
+      await interactions.insertPlanned(postId, [
+        for (var i = 2; i <= 21; i++)
+          PlannedInteraction(
+            personaId: 'persona_${i.toString().padLeft(3, '0')}',
+            type: 'comment',
+            content: '我上周也去了',
+            scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+          ),
+      ]);
+
+      await scheduler.flushDue();
+      await pumpEventQueue();
+
+      final followUps = (await db.select(db.aiInteractions).get())
+          .where((row) => row.parentId != null)
+          .toList();
+
+      expect(followUps, isNotEmpty, reason: '总该有人接一句');
+      expect(followUps.length, lessThan(20), reason: '但不是条条都回——那像客服');
+      expect(
+        followUps.every((row) => row.personaId == 'persona_001'),
+        isTrue,
+        reason: '接话的是动态的作者本人',
+      );
+    });
+
+    test('记忆那块坏掉了，兑现和通知照样走完', () async {
+      // 这条路径跑在 unawaited 里：它抛出去就是没人接的异常，
+      // 而这个测试会因为"未捕获的异步错误"直接失败——这就是它守的东西。
+      final boom = _BoomMemory(db);
+      final withMemory = SchedulerService(
+        interactions: interactions,
+        planEvents: PlanEventRepository(db),
+        posts: posts,
+        notifications: notifications,
+        personas: const PersonaRepository(),
+        analyses: AnalysisRepository(db),
+        generator: SampleContentGenerator(),
+        relationships: RelationshipRepository(db),
+        memory: boom,
+        planner: InteractionPlanner(random: Random(9)),
+      );
+
+      final postId = await posts.create(content: '帖子', scope: 'echo');
+      await withMemory.planForPost(
+        postId: postId,
+        settings: const EchoSettings(
+          density: ReplyDensity.high,
+          likeLevel: LikeLevel.high,
+        ),
+      );
+      await rewindPending();
+
+      final flushed = await withMemory.flushDue();
+      await pumpEventQueue();
+
+      expect(flushed, greaterThan(0), reason: '兑现照常');
+      expect(boom.calls, greaterThan(0), reason: '记忆确实被叫过，只是它坏了');
+      expect((await posts.findById(postId))!.likeCount, greaterThan(0));
+      expect(await notifications.watchRecent().first, isNotEmpty);
     });
   });
 }

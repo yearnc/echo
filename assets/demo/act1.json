@@ -7,7 +7,7 @@
   "durationHintMs": 76000,
   "post": {
     "id": "demo_post_sky",
-    "content": "今天下课后在操场边随手拍的天空，好像有点好看。",
+    "content": "今天下班路上随手拍的天空，好像有点好看。",
     "images": ["asset:assets/demo/sky_demo.jpg"],
     "topicName": "随手拍",
     "scope": "echo"
@@ -16,7 +16,7 @@
     { "atMs": 1200, "type": "stats", "likes": 3, "comments": 0 },
     { "atMs": 2600, "type": "notification", "title": "3 位社区住民赞了你的帖子", "body": "你有一条社区互动通知" },
     { "atMs": 4200, "type": "comment", "personaId": "persona_001", "mediaType": "text",
-      "content": "看到这条的时候刚好在图书馆靠窗的位置，阳光也是这样斜斜的，替你开心一下～" },
+      "content": "看到这条的时候刚好坐在窗边，阳光也是这样斜斜的，替你开心一下～" },
     { "atMs": 6800, "type": "stats", "likes": 14, "comments": 1 },
     { "atMs": 8200, "type": "comment", "personaId": "persona_011", "mediaType": "text",
       "content": "又是那种“随便拍拍”结果拍得比我认真准备一周还好的家伙，报警了。" },

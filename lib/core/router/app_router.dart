@@ -4,6 +4,9 @@ import '../../features/actions/actions_page.dart';
 import '../../features/analysis/analysis_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/feed/feed_page.dart';
+import '../../features/follows/follows_page.dart';
+import '../../features/messages/chat_page.dart';
+import '../../features/messages/messages_page.dart';
 import '../../features/models/model_edit_page.dart';
 import '../../features/models/models_page.dart';
 import '../../features/notifications/notifications_page.dart';
@@ -16,9 +19,12 @@ import '../../features/resident/resident_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
 import '../../features/scripts/scripts_page.dart';
+import '../../features/search/search_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/stickers/stickers_page.dart';
+import '../../features/topics/topics_page.dart';
+import '../../features/trending/trending_page.dart';
 import '../../features/values/values_page.dart';
 
 /// 路由路径常量。通知点击跳转、深链都从这里取，避免散落的字符串。
@@ -30,6 +36,24 @@ class RoutePaths {
   static const String records = '/records';
   static const String compose = '/compose';
   static const String notifications = '/notifications';
+
+  /// 私信会话列表（B5）。
+  static const String messages = '/messages';
+
+  /// 今天的热榜（B6）。
+  static const String trending = '/trending';
+
+  /// 关注与粉丝（B5）。
+  static const String follows = '/follows';
+
+  /// 话题列表（B6）。
+  static const String topics = '/topics';
+
+  /// 搜索（B6）。
+  static const String search = '/search';
+
+  /// 某个话题下的帖子。
+  static String topic(String name) => '/topics/${Uri.encodeComponent(name)}';
   static const String profile = '/profile';
   static const String analysis = '/analysis';
   static const String settings = '/settings';
@@ -68,6 +92,9 @@ class RoutePaths {
 
   /// AI 住民的个人主页。
   static String resident(String personaId) => '/resident/$personaId';
+
+  /// 和某一位住民的私信会话。
+  static String chat(String personaId) => '/chat/$personaId';
 }
 
 /// 路由表。
@@ -101,6 +128,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const NotificationsPage(),
         ),
         GoRoute(
+          path: RoutePaths.messages,
+          builder: (context, state) => const MessagesPage(),
+        ),
+        GoRoute(
           path: RoutePaths.profile,
           builder: (context, state) => const ProfilePage(),
         ),
@@ -123,6 +154,37 @@ final appRouter = GoRouter(
       path: '/resident/:id',
       builder: (context, state) =>
           ResidentPage(personaId: state.pathParameters['id'] ?? ''),
+    ),
+    // 私信会话是沉浸式的：进去之后只有你们两个人，不挂底部导航
+    GoRoute(
+      path: '/chat/:id',
+      builder: (context, state) =>
+          ChatPage(personaId: state.pathParameters['id'] ?? ''),
+    ),
+    GoRoute(
+      path: RoutePaths.follows,
+      builder: (context, state) => FollowsPage(
+        initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
+      ),
+    ),
+    GoRoute(
+      path: RoutePaths.search,
+      builder: (context, state) => const SearchPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.topics,
+      builder: (context, state) => const TopicsPage(),
+      routes: [
+        GoRoute(
+          path: ':name',
+          builder: (context, state) =>
+              TopicDetailPage(topic: state.pathParameters['name'] ?? ''),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: RoutePaths.trending,
+      builder: (context, state) => const TrendingPage(),
     ),
     GoRoute(
       path: RoutePaths.values,

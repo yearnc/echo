@@ -18,7 +18,7 @@ class AnalysisPage extends ConsumerWidget {
         '画面为中景天空，云层呈絮状分布，左侧偏暖色、右侧偏冷色；光来自画面右下方，属于逆光，主体无遮挡。画面内没有人物或建筑。',
     emotionAnalysis: '文案为平淡陈述，含不确定语气（"好像有点"），情绪强度低，偏中性；没有明显的求助或负面表达。',
     logicAnalysis: '陈述句 + 主观评价结构完整，未发现逻辑跳跃。',
-    factCheck: '"下课""操场边"为个人经历描述，无法也无需外部核查。',
+    factCheck: '"路上""天边"为个人经历描述，无法也无需外部核查。',
     suggestions: '如果想要更准确的记录，可以补上拍摄时间与地点；若希望练习表达，可尝试用三个具体名词替代表容词。',
   );
 
@@ -158,7 +158,7 @@ class _AnalyzedPostPreview extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '今天下课后在操场边随手拍的天空，好像有点好看。',
+            '今天下班路上随手拍的天空，好像有点好看。',
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: ClearColors.text),
           ),

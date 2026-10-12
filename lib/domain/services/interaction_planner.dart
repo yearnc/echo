@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../models/ai_persona.dart';
 import '../models/echo_settings.dart';
+import 'relationship_rules.dart';
 
 /// 一条排好期的互动（还没落到数据库）。
 class PlannedInteraction {
@@ -54,17 +55,20 @@ class InteractionPlanner {
   /// [delay] 会把所有排期整体往后推，用于冷静模式（规划书 §6.9）。
   /// 它作用在最终结果上而不是窗口起点，这样"摊开到 48 小时"的形态不变，
   /// 只是整体晚一点开始。
+  /// [relations] 是这些人和你的关系（B4）：熟的人更可能注意到你发了什么，
+  /// 也更可能真的开口。传空表就是"全是陌生"，行为与 B4 之前完全一样。
   List<PlannedInteraction> plan({
     required DateTime now,
     required List<AiPersona> personas,
     required EchoSettings settings,
+    Map<String, RelationshipState> relations = const {},
     Duration? window,
     Duration delay = Duration.zero,
   }) {
     if (personas.isEmpty) return const [];
 
     final effectiveWindow = window ?? defaultWindow;
-    final selected = _pickPersonas(personas, settings.density);
+    final selected = _pickPersonas(personas, settings.density, relations);
     if (selected.isEmpty) return const [];
 
     final planned = <PlannedInteraction>[];
@@ -134,7 +138,8 @@ class InteractionPlanner {
     var commentIndex = 0;
 
     for (final persona in selected) {
-      if (_random.nextDouble() > persona.commentProbability) continue;
+      final level = _levelOf(relations, persona.id);
+      if (_random.nextDouble() > commentChance(persona, level)) continue;
 
       final samples = persona.commentSamples;
       planned.add(
@@ -173,17 +178,47 @@ class InteractionPlanner {
         .toList(growable: false);
   }
 
-  /// 按频率档位挑住民，并优先挑"这个点本来就活跃"的人。
+  /// 按频率档位挑住民（B4 之后，关系近的人占一点便宜）。
+  ///
+  /// 做法是让他们**多拿几张签**，而不是"必定到场"：熟人每次都在，
+  /// 那是订阅了通知，不是朋友。关系没到互关的人，签数跟以前一样。
   List<AiPersona> _pickPersonas(
     List<AiPersona> personas,
     ReplyDensity density,
+    Map<String, RelationshipState> relations,
   ) {
     final (min, max) = density.personaRange;
     final count = min + _random.nextInt(max - min + 1);
 
-    final pool = List<AiPersona>.of(personas)..shuffle(_random);
-    return pool.take(count.clamp(0, pool.length)).toList(growable: false);
+    final tickets = <AiPersona>[];
+    for (final persona in personas) {
+      final level = _levelOf(relations, persona.id);
+      tickets.add(persona);
+      if (level >= 2) tickets.add(persona);
+      if (level >= 4) tickets.add(persona);
+    }
+    tickets.shuffle(_random);
+
+    final picked = <AiPersona>[];
+    final seen = <String>{};
+    for (final persona in tickets) {
+      if (picked.length >= count) break;
+      // 抽中同一人的第二张签，不该让他在名单里出现两次
+      if (!seen.add(persona.id)) continue;
+      picked.add(persona);
+    }
+    return picked;
   }
+
+  /// 关系越近，越可能真的开口（B4）。
+  ///
+  /// 陌生人点个赞就走了，熟人会多留一句——这是社区里最自然不过的事。
+  /// 每档多 5%，上限压在 0.95：再熟也有不想说话的时候。
+  static double commentChance(AiPersona persona, int level) =>
+      (persona.commentProbability + level * 0.05).clamp(0.0, 0.95);
+
+  static int _levelOf(Map<String, RelationshipState> relations, String id) =>
+      relations[id]?.level ?? 0;
 
   /// 用"沉默点赞型"住民代表匿名人群；没有就用第一个。
   AiPersona _pickCrowdBearer(List<AiPersona> personas) {

@@ -1,7 +1,7 @@
 /// 住民在某个钟点的去处（规划书 §3.2 生活轨迹）。
 ///
 /// 「几点、在哪、干什么」这三样就够撑起住民自己的动态了——
-/// 早八的人在食堂，夜里活跃的人在宿舍。空着也不影响，动态会退回通用模板。
+/// 上班的人在路上，夜里活跃的人还醒着。空着也不影响，动态会退回通用模板。
 class PersonaRoutine {
   const PersonaRoutine({
     required this.hour,
@@ -35,7 +35,7 @@ class AiPersona {
     this.circle = '',
     this.tone = '',
     this.activeHours = const [],
-    this.relationship = '同校网友',
+    this.relationship = '社区邻居',
     this.likeProbability = 0.5,
     this.commentProbability = 0.4,
     this.replyLength = 'medium',
@@ -59,8 +59,8 @@ class AiPersona {
   final String languageStyle;
   final String personalityType;
 
-  /// 圈层：信息流按圈子分发时的归属（同校圈 / 树洞 / 学习 / 运动 / 摄影…）。
-  /// 空字符串表示"哪个圈子都沾一点"，分发时按同校圈算。
+  /// 圈层：信息流按圈子分发时的归属（日常 / 吐槽 / 深夜 / 运动 / 摄影 / 美食…）。
+  /// 空字符串表示"哪个圈子都沾一点"，分发时按「日常」算。
   final String circle;
 
   /// 拼 system prompt 用的语气指令。
@@ -146,7 +146,7 @@ class AiPersona {
       circle: json['circle'] as String? ?? '',
       tone: json['tone'] as String? ?? '',
       activeHours: parseList('activeHours', (e) => (e as num).toInt()),
-      relationship: json['relationship'] as String? ?? '同校网友',
+      relationship: json['relationship'] as String? ?? '社区邻居',
       likeProbability: (json['likeProbability'] as num?)?.toDouble() ?? 0.5,
       commentProbability:
           (json['commentProbability'] as num?)?.toDouble() ?? 0.4,

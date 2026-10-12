@@ -59,10 +59,15 @@ class CommentTile extends ConsumerWidget {
     required this.comment,
     this.createdAtOverride,
     this.highlighted = false,
+    this.isReply = false,
     this.onReply,
   });
 
   final PostComment comment;
+
+  /// 这条是对楼上那条的回复（B7）：缩进一点、左边带一条细线，
+  /// 一眼看得出它接的是哪句话。楼层由 [[CommentThreads]] 算好。
+  final bool isReply;
 
   /// 点"回复"时回调。为空时那个按钮不响应（演示模式用不上）。
   final VoidCallback? onReply;
@@ -95,9 +100,18 @@ class CommentTile extends ConsumerWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: 16, left: isReply ? 14 : 0),
       child: Container(
-        padding: highlighted ? const EdgeInsets.all(12) : EdgeInsets.zero,
+        padding: EdgeInsets.only(left: isReply ? 10 : 0),
+        decoration: isReply
+            ? BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: EchoColors.divider, width: 2),
+                ),
+              )
+            : null,
+        child: Container(
+          padding: highlighted ? const EdgeInsets.all(12) : EdgeInsets.zero,
         decoration: highlighted
             ? BoxDecoration(
                 color: EchoColors.surface,
@@ -210,6 +224,7 @@ class CommentTile extends ConsumerWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

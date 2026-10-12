@@ -50,7 +50,7 @@ class AiRelationships extends Table {
 /// 住民的生活轨迹（规划书 §3.2）。
 ///
 /// 一行 = 某个住民在某个钟点、在某个地方、做某件事。
-/// 住民自己的动态（B3）就是从这里长出来的：早八的人发早八的牢骚，
+/// 住民自己的动态（B3）就是从这里长出来的：通勤的人发通勤的牢骚，
 /// 夜里活跃的人发夜里的东西。空着也不影响——动态生成会退回通用模板。
 @DataClassName('PersonaRoutineRow')
 @TableIndex(name: 'persona_routines_persona', columns: {#personaId})

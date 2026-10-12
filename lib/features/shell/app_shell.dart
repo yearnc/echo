@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_controller.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
@@ -19,10 +20,13 @@ class AppShell extends ConsumerWidget {
 
   final Widget child;
 
-  /// 回响模式导航（阶段 A）：消息/私信属于阶段 B，先不放进来。
+  /// 回响模式导航：首页 / 发布 / 消息 / 通知 / 我的（规划书 §5.1）。
+  ///
+  /// 「消息」是 B5 加进来的——住民真的会私信你了，它才有存在的理由。
   static const List<_NavItem> _echoTabs = [
     _NavItem('/feed', Icons.auto_awesome_outlined, Icons.auto_awesome, '首页'),
     _NavItem('/compose', Icons.add_box_outlined, Icons.add_box, '发布'),
+    _NavItem('/messages', Icons.chat_bubble_outline, Icons.chat_bubble, '消息'),
     _NavItem(
       '/notifications',
       Icons.notifications_none,
@@ -45,8 +49,11 @@ class AppShell extends ConsumerWidget {
     final mode = ref.watch(modeControllerProvider);
     final tabs = mode.isEcho ? _echoTabs : _clearTabs;
     final location = GoRouterState.of(context).uri.path;
-    // 红点数据直接来自未读通知条数，所以不会出现"数字和列表对不上"
+    // 红点数据直接来自未读条数，所以不会出现"数字和列表对不上"。
+    // 通知和私信各一个：前者是"有人回应了你的帖子"，后者是"有人跟你说话"，
+    // 混在一起会让人以为点进去是同一处。
     final unread = ref.watch(unreadNotificationCountProvider).value ?? 0;
+    final unreadMessages = ref.watch(privateUnreadCountProvider).value ?? 0;
 
     // 找不到匹配的 tab（例如从「我的」push 出来的设置页）时**谁都不选中**。
     // 之前这里回落到 0，结果站在设置页上底部却亮着"首页"，看着像坏了。
@@ -87,6 +94,7 @@ class AppShell extends ConsumerWidget {
         currentIndex: index,
         mode: mode,
         unreadCount: unread,
+        unreadMessages: unreadMessages,
         onTap: (path) => context.go(path),
       ),
     );
@@ -108,6 +116,7 @@ class _BottomBar extends StatelessWidget {
     required this.currentIndex,
     required this.mode,
     required this.unreadCount,
+    required this.unreadMessages,
     required this.onTap,
   });
 
@@ -115,7 +124,15 @@ class _BottomBar extends StatelessWidget {
   final int currentIndex;
   final AppMode mode;
   final int unreadCount;
+  final int unreadMessages;
   final ValueChanged<String> onTap;
+
+  /// 哪个 tab 该亮红点。私信和通知各算各的。
+  bool _showsBadge(String path) => switch (path) {
+    '/notifications' => unreadCount > 0,
+    '/messages' => unreadMessages > 0,
+    _ => false,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -143,8 +160,7 @@ class _BottomBar extends StatelessWidget {
                     selected: i == currentIndex,
                     active: active,
                     inactive: inactive,
-                    showBadge:
-                        tabs[i].path == '/notifications' && unreadCount > 0,
+                    showBadge: _showsBadge(tabs[i].path),
                     onTap: () => onTap(tabs[i].path),
                   ),
                 ),

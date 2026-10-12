@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -10,11 +11,15 @@ import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/plan_event_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/relationship_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/echo_settings.dart';
+import '../models/pending_interaction.dart';
 import '../models/plan_script.dart';
 import 'content_generator.dart';
 import 'interaction_planner.dart';
+import 'memory_summarizer.dart';
+import 'relationship_rules.dart';
 import 'safety_controller.dart';
 
 // 策划脚本只安排"这条帖子会收到什么回应"，所以这里没有"切模式""跳页面"的
@@ -39,9 +44,13 @@ class SchedulerService {
     required this.personas,
     required this.analyses,
     required this.generator,
+    required this.relationships,
+    this.memory,
     this.readCoolDown,
     InteractionPlanner? planner,
-  }) : _planner = planner ?? InteractionPlanner();
+    Random? random,
+  }) : _planner = planner ?? InteractionPlanner(),
+       _random = random ?? Random();
 
   final InteractionRepository interactions;
   final PlanEventRepository planEvents;
@@ -49,6 +58,12 @@ class SchedulerService {
   final NotificationRepository notifications;
   final PersonaRepository personas;
   final AnalysisRepository analyses;
+
+  /// 住民和你的关系（B4）。兑现一次互动就顺手推进一步。
+  final RelationshipRepository relationships;
+
+  /// 「我记得你…」（B4）。可空：没有它就只是不记，互动本身照常。
+  final MemorySummarizer? memory;
 
   /// 住民说什么话由它出：配了模型就是模型写的，没配就是预置台词。
   final ContentGenerator generator;
@@ -58,9 +73,15 @@ class SchedulerService {
   final bool Function()? readCoolDown;
 
   final InteractionPlanner _planner;
+  final Random _random;
 
   /// 冷静模式下，新帖的第一条反馈至少要等这么久（规划书 §6.9）。
   static const Duration coolDownDelay = Duration(minutes: 10);
+
+  /// 住民动态底下的评论，作者回嘴的概率（B7）。
+  ///
+  /// 刻意压得低：一屏评论下面条条都有来有回，那不像社区，像客服。
+  static const double residentFollowUpChance = 0.4;
 
   /// 发帖后调用：把这条帖子将来会收到的随机互动排进队列。
   ///
@@ -79,6 +100,7 @@ class SchedulerService {
       now: DateTime.now(),
       personas: pool,
       settings: settings,
+      relations: await _loadRelations(),
       delay: delay,
     );
     await interactions.insertPlanned(postId, planned);
@@ -111,6 +133,7 @@ class SchedulerService {
       final generated = await generator.comments(
         personas: targets,
         post: post,
+        relations: await _loadRelations(),
       );
       await interactions.updatePendingComments(postId, generated);
     } catch (error) {
@@ -162,6 +185,9 @@ class SchedulerService {
       due.map((item) => item.postId).toSet(),
     );
 
+    // 这次和你打过照面的人——关系要记，记忆也要跟着更新。
+    final touched = <String>{};
+
     for (final item in due) {
       await interactions.markExecuted(item.id);
 
@@ -182,7 +208,16 @@ class SchedulerService {
         );
       } else if (item.isComment) {
         await posts.addCounters(item.postId, comments: 1);
-        if (!isMyPost) continue;
+        if (!isMyPost) {
+          // 住民之间的追问（B7 的尾巴）：他的动态下面有人说了句什么，
+          // 他可能回一句。楼中楼里最常见的其实是这种对话，不是"用户和 AI"。
+          await _maybeResidentFollowUp(
+            item: item,
+            authorId: peersPosts[item.postId] ?? '',
+            pool: pool,
+          );
+          continue;
+        }
         await notifications.insert(
           id: 'n_${item.id}',
           postId: item.postId,
@@ -191,9 +226,123 @@ class SchedulerService {
           body: item.content ?? '',
         );
       }
+
+      // 住民对你做了什么，关系才知道（B4）。住民彼此之间的互动不记——
+      // 他们互相点赞、互相评论，跟你没有关系，也不该让你和谁变熟。
+      if (isMyPost) {
+        await _recordRelationship(item);
+        touched.add(item.personaId);
+      }
     }
 
+    // 记住你这件事跑在后台：它要读帖子、可能还要问一次模型，几十秒起步，
+    // 不该让冷启动停在这儿等。失败了也只是"这次没记住"。
+    unawaited(_refreshMemories(touched));
+
     return due.length;
+  }
+
+  /// 让刚和你打过照面的人记一记你（B4）。
+  ///
+  /// 整段兜到底：它跑在后台，抛出去就是没人接的异常，
+  /// 而它坏掉的后果仅仅是"记忆还是上一次那句"。
+  Future<void> _refreshMemories(Set<String> personaIds) async {
+    final summarizer = memory;
+    if (summarizer == null || personaIds.isEmpty) return;
+
+    try {
+      final pool = await personas.loadAll();
+      final targets = [
+        for (final persona in pool)
+          if (personaIds.contains(persona.id) && persona.memoryEnabled) persona,
+      ];
+      if (targets.isEmpty) return;
+
+      await summarizer.refresh(personas: targets);
+    } catch (error) {
+      debugPrint('[记忆] 这次没记住：$error');
+    }
+  }
+
+  /// 住民之间的追问：他回别人的评论（B7）。
+  ///
+  /// 规矩跟用户那条一模一样——**有上文才追**（parentId 指向那条评论）。
+  /// 差别只在频率：社区里绝大多数评论是没人接的，所以这里只让四成的人回嘴，
+  /// 而且不每轮都问模型。
+  Future<void> _maybeResidentFollowUp({
+    required PendingInteraction item,
+    required String authorId,
+    required List<AiPersona> pool,
+  }) async {
+    if (authorId.isEmpty || authorId == item.personaId) return;
+    if (_random.nextDouble() > residentFollowUpChance) return;
+
+    final content = (item.content ?? '').trim();
+    if (content.isEmpty) return;
+
+    try {
+      AiPersona? author;
+      for (final persona in pool) {
+        if (persona.id == authorId) author = persona;
+      }
+      if (author == null) return;
+
+      // 上文是"他原本说的那句话" + "别人回的那句"——楼上楼下就这两条
+      final post = await posts.findById(item.postId);
+      final mine = (post?.content ?? '').trim();
+      if (mine.isEmpty) return;
+
+      final lines = await generator.replies(
+        threads: [
+          ReplyThread(persona: author, mine: mine, yours: content),
+        ],
+        relations: await _loadRelations(),
+      );
+      final line = lines[authorId]?.trim() ?? '';
+      if (line.isEmpty) return;
+
+      await interactions.insertFollowUp(
+        postId: item.postId,
+        personaId: authorId,
+        content: line,
+        parentId: item.id,
+        scheduledAt: DateTime.now().add(
+          Duration(minutes: 10 + _random.nextInt(50)),
+        ),
+      );
+    } catch (error) {
+      // 排不上就排不上：社区少一次来回，不是塌天的事
+      debugPrint('[追问] 住民之间这次没排上：$error');
+    }
+  }
+
+  /// 读一次关系表，供拼提示词用（B4）。
+  ///
+  /// 读不出来就返回空表——那意味着"这批人跟你都还不熟"，评论照样有人写，
+  /// 只是少一点熟络。说话这件事不该被一本账卡住。
+  Future<Map<String, RelationshipState>> _loadRelations() async {
+    try {
+      return await relationships.loadAll();
+    } catch (error) {
+      debugPrint('[关系] 这次没读到关系：$error');
+      return const {};
+    }
+  }
+
+  /// 记一次「他和你之间发生了点什么」。
+  ///
+  /// 单独包起来：关系是我们自己的一本账，它写不进去不该把已经兑现的计数与
+  /// 通知一起赔进去——用户该看到的是"有人评论了你"，而不是因为关系没记上，
+  /// 连这条评论都消失。
+  Future<void> _recordRelationship(PendingInteraction item) async {
+    try {
+      await relationships.record(
+        personaId: item.personaId,
+        event: RelationshipRules.eventFrom(item.type),
+      );
+    } catch (error) {
+      debugPrint('[关系] 这次没能记上：$error');
+    }
   }
 
   /// 兑现到点的策划事件。
@@ -283,6 +432,8 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     personas: ref.watch(personaRepositoryProvider),
     analyses: ref.watch(analysisRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
+    relationships: ref.watch(relationshipRepositoryProvider),
+    memory: ref.watch(memorySummarizerProvider),
     readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );

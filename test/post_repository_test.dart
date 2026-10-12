@@ -183,4 +183,44 @@ void main() {
       expect(await interactions.watchComments(postId).first, hasLength(1));
     });
   });
+
+  group('住民靠它记住你（B4）', () {
+    setUp(() async {
+      await db
+          .into(db.aiPersonas)
+          .insert(AiPersonasCompanion.insert(id: 'persona_001', name: '住民'));
+    });
+
+    test('只给回响模式里我自己发的', () async {
+      await posts.create(content: '回响里的帖子', scope: 'echo');
+      await posts.create(content: '清醒模式的记录', scope: 'clear');
+      await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '住民的动态',
+      );
+
+      final mine = await posts.recentMine();
+
+      expect(mine.map((post) => post.content), ['回响里的帖子']);
+    });
+
+    test('明确要清醒模式时也拿得到（参数真的起作用）', () async {
+      await posts.create(content: '回响里的帖子', scope: 'echo');
+      await posts.create(content: '清醒模式的记录', scope: 'clear');
+
+      final mine = await posts.recentMine(scope: 'clear');
+
+      expect(mine.map((post) => post.content), ['清醒模式的记录']);
+    });
+
+    test('最近几条，按时间倒着来', () async {
+      for (final text in ['第一条', '第二条', '第三条']) {
+        await posts.create(content: text, scope: 'echo');
+      }
+
+      final mine = await posts.recentMine(limit: 2);
+
+      expect(mine.map((post) => post.content), ['第三条', '第二条']);
+    });
+  });
 }

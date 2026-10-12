@@ -11,6 +11,7 @@ import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/plan_script_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/data/seed/builtin_plan_scripts.dart';
 import 'package:echo/domain/models/plan_script.dart';
 import 'package:echo/domain/services/content_generator.dart';
@@ -264,6 +265,7 @@ void main() {
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
         generator: SampleContentGenerator(),
+        relationships: RelationshipRepository(db),
       );
 
       await db

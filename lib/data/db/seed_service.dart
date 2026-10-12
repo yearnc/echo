@@ -92,6 +92,9 @@ class SeedService {
   /// 老库永远拿不到新的那批——它卡在 `count > 0` 那道判断外面。改成按 id
   /// 补齐之后，每次启动都会把缺的补上，而已经存在的那些**不动**：
   /// 住民在 B3 之后会挂上关系与记忆，覆盖会把它们一并抹掉。
+  /// 已装上的内容资产版本（见 [_seedPersonas]）。
+  static const String contentVersionKey = 'personas.contentVersion';
+
   Future<void> _seedPersonas() async {
     final raw = await rootBundle.loadString('assets/personas/personas.json');
     final decoded = jsonDecode(raw) as Map<String, dynamic>;
@@ -102,6 +105,102 @@ class SeedService {
 
     await _insertMissingPersonas(personas);
     await _insertMissingRoutines(personas);
+
+    // 住民是**内容资产**，会随内容一起改（整套人设换过一次）。
+    // 而"只补不覆盖"意味着老库永远拿不到新内容，所以这里按内容版本号判断：
+    // 版本变了就把内容字段整批刷新一遍。老库第一次升上来（没有版本号）
+    // 也会走这一趟——那正好是它最需要拿到新内容的时候。
+    final version = '${decoded['_schemaVersion'] ?? 0}';
+    if (await _readSetting(contentVersionKey) == version) return;
+
+    await _refreshPersonaContent(personas);
+    await _renameLegacyTopics();
+    await _saveSetting(contentVersionKey, version);
+  }
+
+  /// 上一版的世界观标签 → 这一版（一次性的）。
+  ///
+  /// 帖子本身是历史，一个字都不动；但它的**话题标签**是分发用的分类，
+  /// 留着"同校圈"这种词，老帖子会在新社区里一直出戏。
+  static const Map<String, String> legacyTopics = {
+    '同校圈': '日常',
+    '学习': '读书',
+    '失物招领': '日常',
+    '表白墙': '树洞',
+    '社团招新': '日常',
+    '兴趣小组': '日常',
+    '二手': '日常',
+  };
+
+  Future<void> _renameLegacyTopics() async {
+    await _db.batch((batch) {
+      for (final entry in legacyTopics.entries) {
+        batch.update(
+          _db.posts,
+          PostsCompanion(topicName: Value(entry.value)),
+          where: (t) => t.topicName.equals(entry.key),
+        );
+      }
+    });
+  }
+
+  /// 把内容字段整批重写成 assets 里那一份。
+  ///
+  /// 只碰**内容**：名字、人设、语气、圈子、作息。运行期的那本账
+  /// （和你的关系、私信、互动、帖子、他有没有被删过）一个字都不动——
+  /// 那些是这个库的历史，不该随内容一起被换掉。
+  Future<void> _refreshPersonaContent(List<AiPersona> personas) async {
+    await _db.batch((batch) {
+      for (final persona in personas) {
+        batch.update(
+          _db.aiPersonas,
+          AiPersonasCompanion(
+            name: Value(persona.name),
+            avatar: Value(persona.avatar),
+            bio: Value(persona.bio),
+            languageStyle: Value(persona.languageStyle),
+            tone: Value(persona.tone),
+            activeHours: Value(jsonEncode(persona.activeHours)),
+            likeProbability: Value(persona.likeProbability),
+            commentProbability: Value(persona.commentProbability),
+            replyLength: Value(persona.replyLength),
+            voiceModel: Value(persona.voiceModel),
+            level: Value(persona.level),
+            badges: Value(jsonEncode(persona.badges)),
+            followers: Value(persona.followers),
+            following: Value(persona.following),
+            personalityType: Value(persona.personalityType),
+            circle: Value(persona.circle),
+            memoryEnabled: Value(persona.memoryEnabled),
+          ),
+          where: (t) => t.id.equals(persona.id),
+        );
+      }
+    });
+
+    // 作息整批重来：它是内容的一部分，"几点在哪"改了就整条换掉，
+    // 而不是新加几条、旧的还留着
+    await _db.delete(_db.personaRoutines).go();
+    await _insertMissingRoutines(personas);
+  }
+
+  Future<String?> _readSetting(String key) async {
+    final row =
+        await (_db.select(_db.appSettings)..where((t) => t.key.equals(key)))
+            .getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> _saveSetting(String key, String value) async {
+    await _db
+        .into(_db.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+            key: key,
+            value: value,
+            scope: const Value('shared'),
+          ),
+        );
   }
 
   Future<void> _insertMissingPersonas(List<AiPersona> personas) async {

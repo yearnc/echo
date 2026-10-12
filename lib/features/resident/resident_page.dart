@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/relationship_repository.dart';
 import '../../domain/models/ai_persona.dart';
 import '../../domain/models/post.dart';
+import '../../domain/services/relationship_rules.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -71,6 +75,8 @@ class _Profile extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
         _ProfileCard(persona: persona),
+        const SizedBox(height: 16),
+        _RelationshipCard(personaId: persona.id),
         if (persona.routines.isNotEmpty) ...[
           const SizedBox(height: 16),
           _SectionTitle('他平常这个点'),
@@ -183,10 +189,158 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
+/// 「你和他到哪一步了」（B4）。
+///
+/// 关系推进和记忆摘要本来都发生在后台，这一块是它们唯一看得见的地方——
+/// 没有它，用户只会觉得"他说话好像熟了一点"，却说不清为什么。
+class _RelationshipCard extends ConsumerWidget {
+  const _RelationshipCard({required this.personaId});
+
+  final String personaId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final relation =
+        ref.watch(relationshipProvider(personaId)).value ??
+        RelationshipState.stranger(personaId);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: EchoColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '你和他的关系',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              _Tag(text: relation.tierLabel),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (relation.interactionCount == 0)
+            Text(
+              '还没打过照面。',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 12.5),
+            )
+          else ...[
+            Text(
+              '互动过 ${relation.interactionCount} 次',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 12.5),
+            ),
+            if (relation.memorySummary.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                '他记得：${relation.memorySummary}',
+                style: TextStyle(
+                  color: EchoColors.text,
+                  fontSize: 13,
+                  height: 1.6,
+                ),
+              ),
+            ],
+          ],
+          const SizedBox(height: 12),
+          // 关注与私信（B5）：聊得下去的人，从这里往前走一步
+          Row(
+            children: [
+              Expanded(
+                child: _FollowButton(
+                  personaId: personaId,
+                  followState: relation.followState,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push(RoutePaths.chat(personaId)),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 15),
+                  label: const Text('发消息', style: TextStyle(fontSize: 13)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: EchoColors.primary,
+                    side: BorderSide(color: EchoColors.primaryDim),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 关注按钮（B5）。
+///
+/// 四个状态各有各的说法：还没关注是「关注」，他先关注了你就是「回关」，
+/// 两边都关注了才是「互相关注」——这一格文字本身就在讲你们的关系走到哪了。
+class _FollowButton extends ConsumerWidget {
+  const _FollowButton({required this.personaId, required this.followState});
+
+  final String personaId;
+  final String followState;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (label, following) = switch (followState) {
+      'following' => ('已关注', true),
+      'followed' => ('回关', false),
+      'mutual' => ('互相关注', true),
+      _ => ('关注', false),
+    };
+
+    void toggle() async {
+      await ref.read(relationshipRepositoryProvider).toggleFollow(personaId);
+    }
+
+    if (following) {
+      return OutlinedButton.icon(
+        onPressed: toggle,
+        icon: const Icon(Icons.check, size: 15),
+        label: Text(label, style: const TextStyle(fontSize: 13)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: EchoColors.textMuted,
+          side: BorderSide(color: EchoColors.divider),
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+
+    return FilledButton.icon(
+      onPressed: toggle,
+      icon: const Icon(Icons.person_add_alt, size: 15),
+      label: Text(label, style: const TextStyle(fontSize: 13)),
+      style: FilledButton.styleFrom(
+        backgroundColor: EchoColors.primary,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
+
 /// 作息：几点、在哪、干什么。
 ///
 /// 这是最能把"一个账号"变成"一个人"的东西——粉丝数谁都能编，
-/// 但"晚上七点在操场弹琴"这种细节编不出来。
+/// 但"晚上七点在阳台弹琴"这种细节编不出来。
 class _RoutineCard extends StatelessWidget {
   const _RoutineCard({required this.routines});
 

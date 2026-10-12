@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -201,6 +202,33 @@ void main() {
       final mine = (await interactions.watchComments(postId).first).single;
       expect(mine.parentId, isNull);
       expect(mine.replyToName, isNull);
+    });
+  });
+
+  group('主动接住民的话，关系也跟着走（B4）', () {
+    test('评论住民的动态，你和他会近一点', () async {
+      final relations = RelationshipRepository(db);
+      final repo = InteractionRepository(db, relationships: relations);
+
+      final postId = await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '在图书馆，今天位子很好。',
+      );
+      await repo.addMyComment(postId: postId, content: '我也去过那儿');
+
+      final state = await relations.load('persona_001');
+      expect(state.interactionCount, 1);
+      expect(state.intimacy, greaterThan(0));
+    });
+
+    test('评论自己的帖子，不会把谁推近', () async {
+      final relations = RelationshipRepository(db);
+      final repo = InteractionRepository(db, relationships: relations);
+
+      final postId = await posts.create(content: '我自己的帖子', scope: 'echo');
+      await repo.addMyComment(postId: postId, content: '补一句');
+
+      expect(await relations.loadAll(), isEmpty);
     });
   });
 }

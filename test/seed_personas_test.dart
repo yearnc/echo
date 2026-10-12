@@ -1,7 +1,9 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/db/seed_service.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
+import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -77,14 +79,14 @@ void main() {
       expect(second.map((row) => row.id).toSet().length, second.length);
     });
 
-    test('老库缺的住民会被补上，已有的不动', () async {
-      // 模拟"库里已经有一个住民、但名字被改过"的情形
+    test('老库缺的住民会被补上', () async {
+      // 模拟"库里已经有一个住民、但内容还是上一版的"情形
       await db
           .into(db.aiPersonas)
           .insert(
             AiPersonasCompanion.insert(
               id: 'persona_001',
-              name: '我自己改过的名字',
+              name: '上一版的名字',
             ),
           );
 
@@ -94,14 +96,75 @@ void main() {
       final fromAssets = await const PersonaRepository().loadAll();
 
       expect(rows.length, fromAssets.length, reason: '缺的应该补齐');
-      expect(
-        rows.firstWhere((row) => row.id == 'persona_001').name,
-        '我自己改过的名字',
-        reason: '已有的住民不该被 assets 覆盖——B3 之后他们身上会挂关系与记忆',
-      );
     });
 
-    test('作息也是只补不覆盖', () async {
+    test('内容版本变了，老住民的内容会被刷新成新的', () async {
+      // 上一版的住民：名字、圈子、bio 都是旧的
+      await db
+          .into(db.aiPersonas)
+          .insert(
+            AiPersonasCompanion.insert(
+              id: 'persona_001',
+              name: '上一版的名字',
+              bio: const Value('上一版的签名'),
+              circle: const Value('同校圈'),
+            ),
+          );
+
+      await SeedService(db).seedIfNeeded();
+
+      final row = (await db.select(db.aiPersonas).get())
+          .firstWhere((item) => item.id == 'persona_001');
+      final fromAssets = (await const PersonaRepository().loadAll())
+          .firstWhere((item) => item.id == 'persona_001');
+
+      expect(row.name, fromAssets.name, reason: '内容资产换代，老库要拿到新的');
+      expect(row.circle, fromAssets.circle);
+      expect(row.bio, fromAssets.bio);
+    });
+
+    test('刷新内容时，运行期的那本账一个字都不动', () async {
+      // 有过来往、而且被删掉的住民
+      await db
+          .into(db.aiPersonas)
+          .insert(
+            AiPersonasCompanion.insert(
+              id: 'persona_001',
+              name: '上一版的名字',
+            ),
+          );
+      await db
+          .into(db.aiRelationships)
+          .insertOnConflictUpdate(
+            AiRelationshipsCompanion.insert(
+              personaId: 'persona_001',
+              relationshipLevel: const Value(2),
+              intimacy: const Value(12),
+              updatedAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+
+      await SeedService(db).seedIfNeeded();
+
+      final relation = (await db.select(db.aiRelationships).get()).single;
+      expect(relation.relationshipLevel, 2, reason: '你们的关系是历史，不是内容');
+      expect(relation.intimacy, 12);
+    });
+
+    test('老帖子的旧圈子标签会换成新的，但帖子本身不动', () async {
+      final postId = await PostRepository(db).create(
+        content: '当时发的帖子',
+        topicName: '同校圈',
+      );
+
+      await SeedService(db).seedIfNeeded();
+
+      final post = await PostRepository(db).findById(postId);
+      expect(post!.topicName, '日常', reason: '标签是分类，得跟着世界观换代');
+      expect(post.content, '当时发的帖子', reason: '帖子本身是历史，一个字都不动');
+    });
+
+    test('重复播种不会把作息插两遍', () async {
       final seed = SeedService(db);
       await seed.seedIfNeeded();
 
@@ -110,6 +173,11 @@ void main() {
       final after = await db.select(db.personaRoutines).get();
 
       expect(after.length, before.length);
+      expect(
+        after.map((row) => '${row.personaId}@${row.hour}').toSet().length,
+        after.length,
+        reason: '同一个人同一钟点只该有一条',
+      );
     });
 
     test('住民带上圈层', () async {

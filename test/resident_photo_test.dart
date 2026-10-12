@@ -135,9 +135,9 @@ void main() {
   final at = DateTime(2026, 9, 30, 17);
 
   group('值不值得拍', () {
-    test('宿舍是睡觉的地方，不值', () {
+    test('家是躺着的地方，不值', () {
       final persona = _persona(
-        routines: const [PersonaRoutine(hour: 17, place: '宿舍', activity: '睡午觉')],
+        routines: const [PersonaRoutine(hour: 17, place: '家', activity: '睡午觉')],
       );
 
       expect(ResidentPhoto.isWorthShooting(persona, at), isFalse);
@@ -156,10 +156,10 @@ void main() {
       }
     });
 
-    test('宿舍楼下别被宿舍两个字一起扫掉', () {
+    test('楼下别被家这个字一起扫掉', () {
       final persona = _persona(
         routines: const [
-          PersonaRoutine(hour: 17, place: '宿舍楼下', activity: '拿外卖'),
+          PersonaRoutine(hour: 17, place: '楼下', activity: '拿外卖'),
         ],
       );
 
@@ -181,8 +181,8 @@ void main() {
     });
 
     test('没有作息就按圈层给一个', () {
-      expect(ResidentPhoto.sceneFor(_persona(circle: '运动'), at), '操场的跑道');
-      expect(ResidentPhoto.sceneFor(_persona(circle: ''), at), '校园里的一个角落');
+      expect(ResidentPhoto.sceneFor(_persona(circle: '运动'), at), '跑道和跑道边的树');
+      expect(ResidentPhoto.sceneFor(_persona(circle: ''), at), '生活里的一个角落');
     });
   });
 
@@ -216,10 +216,10 @@ void main() {
       );
     });
 
-    test('这批人全在宿舍里，就一张都不拍', () {
+    test('这批人全在家里待着，就一张都不拍', () {
       final sleepy = _persona(
         id: 'p2',
-        routines: const [PersonaRoutine(hour: 17, place: '宿舍', activity: '补觉')],
+        routines: const [PersonaRoutine(hour: 17, place: '家', activity: '补觉')],
       );
 
       expect(

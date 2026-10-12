@@ -12,6 +12,7 @@ import 'package:echo/data/repositories/notification_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/post.dart';
@@ -19,6 +20,7 @@ import 'package:echo/domain/models/resident_post.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
 import 'package:echo/domain/services/model_content_generator.dart';
+import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:echo/domain/services/model_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,6 +88,7 @@ AiPersona _persona(
   String id, {
   String name = '',
   List<String> samples = const ['预置台词'],
+  bool memoryEnabled = true,
 }) => AiPersona(
   id: id,
   name: name.isEmpty ? '住民$id' : name,
@@ -93,6 +96,7 @@ AiPersona _persona(
   personalityType: '温和鼓励型',
   languageStyle: '温柔',
   tone: '先接情绪',
+  memoryEnabled: memoryEnabled,
   commentSamples: samples,
 );
 
@@ -109,6 +113,7 @@ class _FakeGenerator implements ContentGenerator {
   Future<Map<String, String>> comments({
     required List<AiPersona> personas,
     required Post post,
+    Map<String, RelationshipState> relations = const {},
   }) async {
     calls++;
     final failure = error;
@@ -121,6 +126,22 @@ class _FakeGenerator implements ContentGenerator {
   Future<List<ResidentPostDraft>> residentPosts({
     required List<ResidentMoment> moments,
   }) async => const [];
+
+  @override
+  Future<Map<String, String>> directMessages({
+    required List<DirectThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async => {
+    for (final thread in threads) thread.persona.id: '模型写的私信',
+  };
+
+  @override
+  Future<Map<String, String>> replies({
+    required List<ReplyThread> threads,
+    Map<String, RelationshipState> relations = const {},
+  }) async => {
+    for (final thread in threads) thread.persona.id: '模型写的追问',
+  };
 }
 
 void main() {
@@ -143,6 +164,20 @@ void main() {
       );
       expect(line, isNotEmpty);
       expect(SampleContentGenerator.fallbackLines, contains(line));
+    });
+
+    test('熟人话多一点：关系近的从长台词里挑', () {
+      final persona = _persona(
+        'persona_001',
+        samples: const ['嗯。', '这条我看了好久，最近也在想同一件事'],
+      );
+
+      final picked = SampleContentGenerator(random: Random(1)).forPersona(
+        persona,
+        relation: const RelationshipState(personaId: 'persona_001', level: 2),
+      );
+
+      expect(picked, '这条我看了好久，最近也在想同一件事');
     });
 
     test('批量给结果时人人都有内容', () {
@@ -195,6 +230,49 @@ void main() {
       );
       expect(rich, contains('#随手拍'));
       expect(rich, contains('2 张图'));
+    });
+
+    test('还没来往的人，提示词里不写关系那一行', () {
+      final prompt = ModelContentGenerator.systemPrompt(
+        [_persona('persona_001')],
+        relations: {
+          'persona_001': const RelationshipState(personaId: 'persona_001'),
+        },
+      );
+
+      expect(prompt, isNot(contains('你和他的关系')));
+    });
+
+    test('熟了之后带上档位，还有他记得的事', () {
+      final prompt = ModelContentGenerator.systemPrompt(
+        [_persona('persona_001')],
+        relations: {
+          'persona_001': const RelationshipState(
+            personaId: 'persona_001',
+            level: 2,
+            memorySummary: '他上次拍过一张天空照',
+          ),
+        },
+      );
+
+      expect(prompt, contains('你和他的关系：互关'));
+      expect(prompt, contains('他记得：他上次拍过一张天空照'));
+    });
+
+    test('记忆关掉的人不带记忆，但关系那行还在', () {
+      final prompt = ModelContentGenerator.systemPrompt(
+        [_persona('persona_001', memoryEnabled: false)],
+        relations: {
+          'persona_001': const RelationshipState(
+            personaId: 'persona_001',
+            level: 3,
+            memorySummary: '他上次拍过一张天空照',
+          ),
+        },
+      );
+
+      expect(prompt, contains('你和他的关系：熟人'));
+      expect(prompt, isNot(contains('他记得：')));
     });
   });
 
@@ -288,13 +366,13 @@ void main() {
       final drafts = await SampleContentGenerator(random: Random(1)).residentPosts(
         moments: [
           moment(
-            const AiPersona(id: 'p', name: '编译不过', circle: '学习'),
+            const AiPersona(id: 'p', name: '耳机线打成结', circle: '音乐'),
           ),
         ],
       );
 
       expect(
-        SampleContentGenerator.signatureTemplates['学习'],
+        SampleContentGenerator.signatureTemplates['音乐'],
         contains(drafts.single.newBio),
       );
     });
@@ -558,6 +636,7 @@ void main() {
         personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
         generator: generator,
+        relationships: RelationshipRepository(db),
       );
 
       postId = await posts.create(content: '帖子', scope: 'echo');
