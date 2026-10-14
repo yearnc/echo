@@ -208,9 +208,12 @@ class _WeeklyCard extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          const _MoodStrip(),
           const SizedBox(height: 12),
           Text(
-            '这份周报不统计点赞和评论，只统计你真实做过的事。',
+            '这份周报不统计点赞和评论，只统计你真实做过的事——'
+            '包括你顺手记下的心情。',
             style: TextStyle(
               color: ClearColors.textMuted,
               fontSize: 12,
@@ -219,6 +222,68 @@ class _WeeklyCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 周报里的情绪维度（B11）。
+///
+/// 一条按比例分的横条 + 一行数字：一眼能看出这周大致是什么滋味。
+/// 没记过心情时不说"暂无数据"——那句话像在催人填表；
+/// 这里只是告诉用户那个选项在哪。
+class _MoodStrip extends ConsumerWidget {
+  const _MoodStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final moods =
+        ref.watch(weeklyMoodsProvider).value ?? const <RealActionMood>[];
+    final tally = tallyMoods(moods);
+
+    if (tally.isEmpty) {
+      return Text(
+        '记一件事的时候顺手选个心情，这里就能看出这周大概是什么滋味。',
+        style: TextStyle(
+          color: ClearColors.textFaint,
+          fontSize: 12,
+          height: 1.6,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '这周记得最多的是「${tally.first.$1.label}」',
+          style: TextStyle(color: ClearColors.text, fontSize: 12.5),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Row(
+            children: [
+              for (var i = 0; i < tally.length; i++)
+                Expanded(
+                  flex: tally[i].$2,
+                  child: Container(
+                    height: 8,
+                    color: ClearColors.primary.withValues(
+                      alpha: (0.9 - i * 0.16).clamp(0.25, 0.9),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          [
+            for (final (mood, count) in tally) '${mood.label} $count',
+          ].join(' · '),
+          style: TextStyle(color: ClearColors.textMuted, fontSize: 11.5),
+        ),
+      ],
     );
   }
 }

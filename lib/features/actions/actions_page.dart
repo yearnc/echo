@@ -96,6 +96,7 @@ class ActionsPage extends ConsumerWidget {
           title: draft.title,
           description: draft.description,
           category: draft.category,
+          mood: draft.mood,
         );
   }
 
@@ -282,11 +283,15 @@ class _ActionDraft {
     required this.title,
     required this.description,
     required this.category,
+    this.mood,
   });
 
   final String title;
   final String description;
   final RealActionCategory category;
+
+  /// 做这件事时的心情；null = 没记（B11）。
+  final RealActionMood? mood;
 }
 
 /// 新增表单：分类 + 做了什么 + 可选补充。
@@ -301,6 +306,7 @@ class _ActionSheetState extends State<_ActionSheet> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
   RealActionCategory _category = RealActionCategory.sport;
+  RealActionMood? _mood;
 
   @override
   void dispose() {
@@ -352,6 +358,30 @@ class _ActionSheetState extends State<_ActionSheet> {
             ],
           ),
           const SizedBox(height: 14),
+          // 心情是**选填**的，而且可以点掉：再点一次同一个就等于"不记了"。
+          // 一旦变成必填，它很快就会成为一件差事。
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final mood in RealActionMood.values)
+                ChoiceChip(
+                  label: Text(mood.label),
+                  selected: _mood == mood,
+                  onSelected: (selected) =>
+                      setState(() => _mood = selected ? mood : null),
+                  labelStyle: TextStyle(
+                    fontSize: 12.5,
+                    color: _mood == mood
+                        ? Colors.white
+                        : ClearColors.textMuted,
+                  ),
+                  selectedColor: ClearColors.primary,
+                  backgroundColor: ClearColors.surfaceHigh,
+                  side: BorderSide(color: ClearColors.divider),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _titleController,
             autofocus: true,
@@ -393,6 +423,7 @@ class _ActionSheetState extends State<_ActionSheet> {
                     title: title,
                     description: _descController.text.trim(),
                     category: _category,
+                    mood: _mood,
                   ),
                 );
               },

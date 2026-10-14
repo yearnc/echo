@@ -37,6 +37,9 @@ class RealActions extends Table {
   /// sport / reading / social / creation / other，见 `RealActionCategory`。
   TextColumn get category => text()();
 
+  /// 做这件事时的心情（B11），见 `RealActionMood`。空 = 没记。
+  TextColumn get mood => text().withDefault(const Constant(''))();
+
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();
   TextColumn get scope => text().withDefault(const Constant('clear'))();

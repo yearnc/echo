@@ -9,6 +9,7 @@ class SafetySettings {
     this.addictionGuard = true,
     this.coolDownMode = false,
     this.feedbackViewThreshold = 8,
+    this.minorProtection = false,
   });
 
   /// 防沉迷提醒总开关（规划书 §13「防沉迷默认开启」）。
@@ -20,13 +21,22 @@ class SafetySettings {
   /// 连续查看反馈多少次后弹一次提醒。
   final int feedbackViewThreshold;
 
+  /// 未成年人保护（规划书 §6.10 / §13）。
+  ///
+  /// 它不是"切模式时那个勾选"的重复：那个是一次性的自我声明，
+  /// 这个是**长期锁**——打开之后，回响模式的任何入口都不通；
+  /// 而勾选那一步每次都要重来，正好留给"临时借用手机"这类场景。
+  final bool minorProtection;
+
   SafetySettings copyWith({
     bool? addictionGuard,
     bool? coolDownMode,
     int? feedbackViewThreshold,
+    bool? minorProtection,
   }) => SafetySettings(
     addictionGuard: addictionGuard ?? this.addictionGuard,
     coolDownMode: coolDownMode ?? this.coolDownMode,
     feedbackViewThreshold: feedbackViewThreshold ?? this.feedbackViewThreshold,
+    minorProtection: minorProtection ?? this.minorProtection,
   );
 }

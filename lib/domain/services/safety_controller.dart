@@ -13,6 +13,10 @@ class SafetyController extends Notifier<SafetySettings> {
   static const String coolDownKey = 'safety.coolDownMode';
   static const String thresholdKey = 'safety.feedbackViewThreshold';
 
+  /// 未成年人保护（规划书 §6.10）。默认关——开它的动作该由人来做，
+  /// 而不是替所有人默认打开。
+  static const String minorKey = 'safety.minorProtection';
+
   /// 阈值的合理区间：1 次太烦，50 次等于没有。
   static const int minThreshold = 3;
   static const int maxThreshold = 30;
@@ -27,7 +31,8 @@ class SafetyController extends Notifier<SafetySettings> {
     final db = ref.read(databaseProvider);
     final rows = await (db.select(db.appSettings)
           ..where(
-            (t) => t.key.isIn([guardKey, coolDownKey, thresholdKey]),
+            (t) =>
+                t.key.isIn([guardKey, coolDownKey, thresholdKey, minorKey]),
           ))
         .get();
     final map = {for (final row in rows) row.key: row.value};
@@ -38,6 +43,7 @@ class SafetyController extends Notifier<SafetySettings> {
       feedbackViewThreshold:
           int.tryParse(map[thresholdKey] ?? '') ??
           const SafetySettings().feedbackViewThreshold,
+      minorProtection: _readBool(map[minorKey], fallback: false),
     );
   }
 
@@ -49,6 +55,11 @@ class SafetyController extends Notifier<SafetySettings> {
   Future<void> setCoolDownMode(bool enabled) async {
     state = state.copyWith(coolDownMode: enabled);
     await _write(coolDownKey, enabled ? 'true' : 'false');
+  }
+
+  Future<void> setMinorProtection(bool enabled) async {
+    state = state.copyWith(minorProtection: enabled);
+    await _write(minorKey, enabled ? 'true' : 'false');
   }
 
   Future<void> setFeedbackViewThreshold(int value) async {

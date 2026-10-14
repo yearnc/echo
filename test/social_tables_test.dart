@@ -65,6 +65,18 @@ CREATE TABLE posts (
   like_count INTEGER NOT NULL DEFAULT 0,
   comment_count INTEGER NOT NULL DEFAULT 0
 );
+
+-- v7 建的真实行动表。这里必须带上它：v13 要往这张表加 mood 列，
+-- 模拟库里少一张表，迁移语句就会撞上 "no such table"。
+CREATE TABLE real_actions (
+  id TEXT NOT NULL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  deleted_at INTEGER,
+  scope TEXT NOT NULL DEFAULT 'clear'
+);
 ''';
 
 void main() {
@@ -320,6 +332,22 @@ void main() {
       final config = await db.select(db.modelConfigs).getSingle();
       expect(config.label, '老配置');
       expect(config.kind, 'chat');
+
+      // v13：真实行动能顺手记心情了。老记录一律是空 = 没记——
+      // 不替用户补一个心情，编出来的心情比没有更糟。
+      await db
+          .into(db.realActions)
+          .insert(
+            RealActionsCompanion.insert(
+              id: 'a1',
+              title: '跑了 3 公里',
+              category: 'sport',
+              createdAt: 1,
+            ),
+          );
+      final action = await db.select(db.realActions).getSingle();
+      expect(action.mood, '');
+      expect(action.title, '跑了 3 公里');
     });
   });
 }

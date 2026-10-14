@@ -119,6 +119,7 @@ class ClearJournalRepository {
     required String title,
     String description = '',
     RealActionCategory category = RealActionCategory.other,
+    RealActionMood? mood,
   }) async {
     final id = newId('action');
     await _db
@@ -129,6 +130,7 @@ class ClearJournalRepository {
             title: title.trim(),
             description: Value(description.trim()),
             category: category.id,
+            mood: Value(mood?.id ?? ''),
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );
@@ -148,6 +150,7 @@ class ClearJournalRepository {
     title: row.title,
     description: row.description,
     category: RealActionCategory.fromId(row.category),
+    mood: RealActionMood.fromId(row.mood),
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
   );
 
@@ -191,4 +194,20 @@ final weeklyRecordCountProvider = FutureProvider.autoDispose<int>((ref) async {
     buildTimeline(posts: posts, actions: actions),
     since,
   );
+});
+
+/// 最近 7 天顺手记下的心情（B11：周报的情绪维度）。
+///
+/// 只收**记过心情的**那些：没记不等于"心情是空"，它只是这次没写。
+/// 把没记的也算进来，会把分布往"没记"那边拉，
+/// 而这份周报想说的是"你这周过得怎么样"，不是"你填得勤不勤"。
+final weeklyMoodsProvider = FutureProvider.autoDispose<List<RealActionMood>>((
+  ref,
+) async {
+  final actions = await ref.watch(realActionsProvider.future);
+  final since = DateTime.now().subtract(const Duration(days: 7));
+  return [
+    for (final action in actions)
+      if (action.mood != null && action.createdAt.isAfter(since)) action.mood!,
+  ];
 });

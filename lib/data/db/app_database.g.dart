@@ -1376,8 +1376,8 @@ class AiPersonaRow extends DataClass implements Insertable<AiPersonaRow> {
   final int following;
   final String personalityType;
 
-  /// 圈层：信息流按圈子分发时的归属（同校圈 / 树洞 / 学习 / 运动 / 摄影…）。
-  /// 空字符串表示"哪个圈子都沾一点"，分发时按同校圈算。
+  /// 圈层：信息流按圈子分发时的归属（日常 / 吐槽 / 深夜 / 运动 / 摄影 / 美食…）。
+  /// 空字符串表示"哪个圈子都沾一点"，分发时按「日常」算。
   final String circle;
   final bool memoryEnabled;
   final int relationshipLevel;
@@ -11932,6 +11932,16 @@ class $RealActionsTable extends RealActions
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _moodMeta = const VerificationMeta('mood');
+  @override
+  late final GeneratedColumn<String> mood = GeneratedColumn<String>(
+    'mood',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -11970,6 +11980,7 @@ class $RealActionsTable extends RealActions
     title,
     description,
     category,
+    mood,
     createdAt,
     deletedAt,
     scope,
@@ -12016,6 +12027,12 @@ class $RealActionsTable extends RealActions
     } else if (isInserting) {
       context.missing(_categoryMeta);
     }
+    if (data.containsKey('mood')) {
+      context.handle(
+        _moodMeta,
+        mood.isAcceptableOrUnknown(data['mood']!, _moodMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -12061,6 +12078,10 @@ class $RealActionsTable extends RealActions
         DriftSqlType.string,
         data['${effectivePrefix}category'],
       )!,
+      mood: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mood'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -12089,6 +12110,9 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
 
   /// sport / reading / social / creation / other，见 `RealActionCategory`。
   final String category;
+
+  /// 做这件事时的心情（B11），见 `RealActionMood`。空 = 没记。
+  final String mood;
   final int createdAt;
   final int? deletedAt;
   final String scope;
@@ -12097,6 +12121,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
     required this.title,
     required this.description,
     required this.category,
+    required this.mood,
     required this.createdAt,
     this.deletedAt,
     required this.scope,
@@ -12108,6 +12133,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
     map['title'] = Variable<String>(title);
     map['description'] = Variable<String>(description);
     map['category'] = Variable<String>(category);
+    map['mood'] = Variable<String>(mood);
     map['created_at'] = Variable<int>(createdAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<int>(deletedAt);
@@ -12122,6 +12148,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
       title: Value(title),
       description: Value(description),
       category: Value(category),
+      mood: Value(mood),
       createdAt: Value(createdAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -12140,6 +12167,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String>(json['description']),
       category: serializer.fromJson<String>(json['category']),
+      mood: serializer.fromJson<String>(json['mood']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
       scope: serializer.fromJson<String>(json['scope']),
@@ -12153,6 +12181,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String>(description),
       'category': serializer.toJson<String>(category),
+      'mood': serializer.toJson<String>(mood),
       'createdAt': serializer.toJson<int>(createdAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
       'scope': serializer.toJson<String>(scope),
@@ -12164,6 +12193,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
     String? title,
     String? description,
     String? category,
+    String? mood,
     int? createdAt,
     Value<int?> deletedAt = const Value.absent(),
     String? scope,
@@ -12172,6 +12202,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
     title: title ?? this.title,
     description: description ?? this.description,
     category: category ?? this.category,
+    mood: mood ?? this.mood,
     createdAt: createdAt ?? this.createdAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     scope: scope ?? this.scope,
@@ -12184,6 +12215,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
           ? data.description.value
           : this.description,
       category: data.category.present ? data.category.value : this.category,
+      mood: data.mood.present ? data.mood.value : this.mood,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       scope: data.scope.present ? data.scope.value : this.scope,
@@ -12197,6 +12229,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
           ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('category: $category, ')
+          ..write('mood: $mood, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('scope: $scope')
@@ -12210,6 +12243,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
     title,
     description,
     category,
+    mood,
     createdAt,
     deletedAt,
     scope,
@@ -12222,6 +12256,7 @@ class RealActionRow extends DataClass implements Insertable<RealActionRow> {
           other.title == this.title &&
           other.description == this.description &&
           other.category == this.category &&
+          other.mood == this.mood &&
           other.createdAt == this.createdAt &&
           other.deletedAt == this.deletedAt &&
           other.scope == this.scope);
@@ -12232,6 +12267,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
   final Value<String> title;
   final Value<String> description;
   final Value<String> category;
+  final Value<String> mood;
   final Value<int> createdAt;
   final Value<int?> deletedAt;
   final Value<String> scope;
@@ -12241,6 +12277,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
     this.title = const Value.absent(),
     this.description = const Value.absent(),
     this.category = const Value.absent(),
+    this.mood = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.scope = const Value.absent(),
@@ -12251,6 +12288,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
     required String title,
     this.description = const Value.absent(),
     required String category,
+    this.mood = const Value.absent(),
     required int createdAt,
     this.deletedAt = const Value.absent(),
     this.scope = const Value.absent(),
@@ -12264,6 +12302,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
     Expression<String>? title,
     Expression<String>? description,
     Expression<String>? category,
+    Expression<String>? mood,
     Expression<int>? createdAt,
     Expression<int>? deletedAt,
     Expression<String>? scope,
@@ -12274,6 +12313,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (category != null) 'category': category,
+      if (mood != null) 'mood': mood,
       if (createdAt != null) 'created_at': createdAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (scope != null) 'scope': scope,
@@ -12286,6 +12326,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
     Value<String>? title,
     Value<String>? description,
     Value<String>? category,
+    Value<String>? mood,
     Value<int>? createdAt,
     Value<int?>? deletedAt,
     Value<String>? scope,
@@ -12296,6 +12337,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
       title: title ?? this.title,
       description: description ?? this.description,
       category: category ?? this.category,
+      mood: mood ?? this.mood,
       createdAt: createdAt ?? this.createdAt,
       deletedAt: deletedAt ?? this.deletedAt,
       scope: scope ?? this.scope,
@@ -12317,6 +12359,9 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
+    }
+    if (mood.present) {
+      map['mood'] = Variable<String>(mood.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
@@ -12340,6 +12385,7 @@ class RealActionsCompanion extends UpdateCompanion<RealActionRow> {
           ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('category: $category, ')
+          ..write('mood: $mood, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('scope: $scope, ')
@@ -20709,6 +20755,7 @@ typedef $$RealActionsTableCreateCompanionBuilder =
       required String title,
       Value<String> description,
       required String category,
+      Value<String> mood,
       required int createdAt,
       Value<int?> deletedAt,
       Value<String> scope,
@@ -20720,6 +20767,7 @@ typedef $$RealActionsTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String> description,
       Value<String> category,
+      Value<String> mood,
       Value<int> createdAt,
       Value<int?> deletedAt,
       Value<String> scope,
@@ -20752,6 +20800,11 @@ class $$RealActionsTableFilterComposer
 
   ColumnFilters<String> get category => $composableBuilder(
     column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mood => $composableBuilder(
+    column: $table.mood,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -20800,6 +20853,11 @@ class $$RealActionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mood => $composableBuilder(
+    column: $table.mood,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -20838,6 +20896,9 @@ class $$RealActionsTableAnnotationComposer
 
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get mood =>
+      $composableBuilder(column: $table.mood, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -20884,6 +20945,7 @@ class $$RealActionsTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<String> category = const Value.absent(),
+                Value<String> mood = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> scope = const Value.absent(),
@@ -20893,6 +20955,7 @@ class $$RealActionsTableTableManager
                 title: title,
                 description: description,
                 category: category,
+                mood: mood,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 scope: scope,
@@ -20904,6 +20967,7 @@ class $$RealActionsTableTableManager
                 required String title,
                 Value<String> description = const Value.absent(),
                 required String category,
+                Value<String> mood = const Value.absent(),
                 required int createdAt,
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> scope = const Value.absent(),
@@ -20913,6 +20977,7 @@ class $$RealActionsTableTableManager
                 title: title,
                 description: description,
                 category: category,
+                mood: mood,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 scope: scope,

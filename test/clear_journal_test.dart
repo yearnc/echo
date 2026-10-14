@@ -18,6 +18,57 @@ void main() {
     await db.close();
   });
 
+  group('心情（B11 的周报情绪维度）', () {
+    test('记了心情就读得回来，没记就是没记', () async {
+      await journal.addAction(title: '跑了 3 公里', mood: RealActionMood.steady);
+      await journal.addAction(title: '看完了半本书');
+
+      final actions = await journal.watchActions().first;
+      final byTitle = {for (final a in actions) a.title: a};
+
+      expect(byTitle['跑了 3 公里']!.mood, RealActionMood.steady);
+      // 没选心情**不是**"心情为空"：它就是一个可以空着的东西。
+      expect(byTitle['看完了半本书']!.mood, isNull);
+    });
+
+    test('数心情：多的在前，一样多的按固定顺序', () {
+      final tally = tallyMoods([
+        RealActionMood.calm,
+        RealActionMood.steady,
+        RealActionMood.steady,
+        RealActionMood.happy,
+        RealActionMood.calm,
+      ]);
+
+      expect(tally.first.$1, RealActionMood.steady);
+      expect(tally.first.$2, 2);
+      expect(tally.map((e) => e.$1), [
+        RealActionMood.steady,
+        RealActionMood.calm,
+        RealActionMood.happy,
+      ]);
+      // 一条都没有时不该凭空冒出一个"没有心情"
+      expect(tallyMoods(const []), isEmpty);
+    });
+
+    test('老库里的行读出来是"没记"，不是某个默认心情', () async {
+      // 直接写库模拟迁移后的老行（mood 为空字符串）
+      await db
+          .into(db.realActions)
+          .insert(
+            RealActionsCompanion.insert(
+              id: 'a_old',
+              title: '很多年前的一件事',
+              category: 'other',
+              createdAt: 1,
+            ),
+          );
+
+      final action = (await journal.watchActions().first).single;
+      expect(action.mood, isNull);
+    });
+  });
+
   group('价值澄清', () {
     test('新增的条目按写入顺序读出', () async {
       await journal.addValue('家人的健康');

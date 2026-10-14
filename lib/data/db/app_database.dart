@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -154,6 +154,12 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(userComments, userComments.parentId);
           await m.addColumn(userComments, userComments.replyToName);
         }
+      }
+      if (from < 13) {
+        // v13：真实行动可以顺手记一下当时的心情（B11 的周报情绪维度）。
+        // 老记录一律是空字符串 = 没记，不补、不猜——替用户编心情，
+        // 那这张周报就没有一句是真的了。
+        await m.addColumn(realActions, realActions.mood);
       }
     },
   );

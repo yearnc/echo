@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_switch_service.dart';
+import '../../domain/services/safety_controller.dart';
 
 /// 走完"检查冷却期 → 二次确认 / 年龄门 → 执行切换"的完整流程。
 ///
@@ -18,6 +19,16 @@ Future<bool> runModeSwitch(
   AppMode target,
 ) async {
   final service = ref.read(modeSwitchServiceProvider);
+
+  // 未成年人保护开着的时候，回响模式的入口一律拦下（规划书 §6.10）。
+  // 这道门在**所有**切换入口之前，包括脚本演示和演示模式——
+  // 那些入口也走这个函数，所以没有漏网的。
+  if (!target.isClear &&
+      ref.read(safetyControllerProvider).minorProtection) {
+    if (!context.mounted) return false;
+    await _showMinorLock(context);
+    return false;
+  }
 
   if (!context.mounted) return false;
   final confirmed = target.isClear
@@ -40,6 +51,34 @@ Future<bool> runModeSwitch(
     ),
   );
   return true;
+}
+
+/// 这道门锁着的时候，只说明情况，不给"仍然继续"的出口。
+Future<void> _showMinorLock(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: EchoColors.surface,
+      title: Text(
+        '回响模式已锁定',
+        style: TextStyle(color: EchoColors.text, fontSize: 16),
+      ),
+      content: Text(
+        AppTexts.minorLockedBody,
+        style: TextStyle(
+          color: EchoColors.textMuted,
+          fontSize: 13,
+          height: 1.7,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('知道了', style: TextStyle(color: EchoColors.primary)),
+        ),
+      ],
+    ),
+  );
 }
 
 /// 回响 → 清醒：说清楚会失去什么，再让用户按确认。
