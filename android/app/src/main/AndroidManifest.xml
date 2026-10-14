@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 语音输入：录一段话转成文字（B8）。录音只留在本机，识别也在本机做。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 系统通知（B10）：Android 13 起要运行时授权，用户拒绝了也不影响 APP 运行 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="echo"
         android:name="${applicationName}"

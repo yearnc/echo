@@ -16,7 +16,23 @@ import 'package:echo/data/seed/builtin_plan_scripts.dart';
 import 'package:echo/domain/models/plan_script.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
+import 'package:echo/domain/services/tts_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// 假的合成服务：不碰模型、不写文件，只回答"合成成不成功"。
+class _ScriptTts extends TtsService {
+  @override
+  Future<VoiceClip?> speak({
+    required String text,
+    required String personaId,
+    String voiceModel = '',
+  }) async => VoiceClip(
+    ref: 'file:fake/script_voice.wav',
+    transcript: text,
+    durationMs: 2400,
+    waveform: const [1.0],
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -349,7 +365,7 @@ void main() {
       expect(notices.every((n) => n.postId == postId), isTrue);
     });
 
-    test('语音评论兑现后带上时长', () async {
+    test('脚本里那段演示音频不在包里时退回文字（没有合成服务）', () async {
       final postId = await posts.create(content: '天空照', scope: 'echo');
       const script = PlanScript(
         id: 's_voice',
@@ -371,9 +387,53 @@ void main() {
       await rewindSchedule();
       await scheduler.flushPlanEvents();
 
+      // 演示音频由素材方另行提供，仓库里没有这个文件。合成服务也没接时，
+      // 宁可让这句以文字出现，也不要挂一个点不响的播放键。
       final rows = await db.select(db.aiInteractions).get();
-      expect(rows.single.voiceDurationMs, 6400);
+      expect(rows.single.mediaType, 'text');
+      expect(rows.single.voicePath, isNull);
+      expect(rows.single.voiceDurationMs, isNull);
+      expect(rows.single.transcript, isNull);
+    });
+
+    test('脚本写明语音、但那段音频不在时，现合成一条', () async {
+      final local = SchedulerService(
+        interactions: InteractionRepository(db),
+        planEvents: PlanEventRepository(db),
+        posts: posts,
+        notifications: NotificationRepository(db),
+        personas: const PersonaRepository(),
+        analyses: AnalysisRepository(db),
+        generator: SampleContentGenerator(),
+        relationships: RelationshipRepository(db),
+        voice: _ScriptTts(),
+      );
+
+      final postId = await posts.create(content: '天空照', scope: 'echo');
+      const script = PlanScript(
+        id: 's_voice2',
+        name: '语音',
+        steps: [
+          PlanStep(
+            at: '5',
+            type: PlanStepType.comment,
+            personaId: 'persona_0',
+            mediaType: 'voice',
+            voiceAsset: 'asset:assets/audio/根本不在.mp3',
+            content: '好听',
+            transcript: '好听',
+          ),
+        ],
+      );
+
+      await local.planFromScript(postId: postId, script: script);
+      await rewindSchedule();
+      await local.flushPlanEvents();
+
+      final rows = await db.select(db.aiInteractions).get();
       expect(rows.single.mediaType, 'voice');
+      expect(rows.single.voicePath, 'file:fake/script_voice.wav');
+      expect(rows.single.voiceDurationMs, 2400);
     });
 
     test('设定数据事件直接把计数设成脚本里的值', () async {

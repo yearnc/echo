@@ -377,6 +377,45 @@ ORDER BY at ASC
     );
   }
 
+  /// 把一条已经兑现的评论升级成语音（B8）。
+  ///
+  /// 合成要一两秒，所以语音评论是**先以文字露面、再变成语音条**的：
+  /// 一上来就把 media_type 写成 voice 的话，没有音频的那几秒里
+  /// 用户会看到一个点不响的播放键——那比"文字变成语音"更假。
+  /// （住民图文帖的图也是这么后补上去的，同一套路子。）
+  Future<int> attachVoice({
+    required String id,
+    required String voicePath,
+    required String transcript,
+    required int durationMs,
+  }) async {
+    return (_db.update(_db.aiInteractions)..where((t) => t.id.equals(id)))
+        .write(
+          AiInteractionsCompanion(
+            mediaType: const Value('voice'),
+            voicePath: Value(voicePath),
+            transcript: Value(transcript),
+            voiceDurationMs: Value(durationMs),
+          ),
+        );
+  }
+
+  /// 这条帖子里已有几条语音评论（B8）。
+  ///
+  /// 用来给语音条数封顶：评论区里一半人都在发语音，那不是社区，是语音信箱。
+  Future<int> countVoicesForPost(String postId) async {
+    final count = _db.aiInteractions.id.count();
+    final query = _db.selectOnly(_db.aiInteractions)
+      ..addColumns([count])
+      ..where(
+        _db.aiInteractions.postId.equals(postId) &
+            _db.aiInteractions.mediaType.equals('voice') &
+            _db.aiInteractions.status.equals(statusDone),
+      );
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
+
   PostComment _toComment(QueryRow row) {
     return PostComment(
       id: row.read<String>('id'),

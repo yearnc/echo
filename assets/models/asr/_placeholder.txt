@@ -1,0 +1,16 @@
+语音识别模型（不放仓库，需要时按下面步骤自己放进来）
+====================================================
+
+用来把用户录的一段话转成文字（发帖/评论时的"按住说话"）。
+Paraformer 中文离线模型，int8 量化版，许可证 Apache-2.0。
+
+下载：
+
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-small-2024-03-09.tar.bz2
+
+解压后把下面这些文件放到本目录：
+
+    model.int8.onnx    识别模型本体（约 78 MB）
+    tokens.txt         字表
+
+缺文件不会让应用崩：语音输入那个入口直接不出现，键盘打字照常。

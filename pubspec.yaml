@@ -46,6 +46,9 @@ dependencies:
   just_audio: ^0.10.6
   intl: ^0.20.3
   path: ^1.9.1
+  sherpa_onnx: ^1.13.8
+  record: ^7.1.2
+  workmanager: ^0.10.10
 
 dev_dependencies:
   flutter_test:
@@ -117,6 +120,10 @@ flutter:
     - assets/avatars/           # 住民头像（文件名与 personas.json 的 id 对应）
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
+    # 离线语音模型（B8）：不带进 git 仓库，克隆后照目录里 _placeholder.txt
+    # 的说明下载放好，Flutter 打包时会一起打进 APK。
+    - assets/models/tts/
+    - assets/models/asr/
     - assets/stickers/happy/
     - assets/stickers/comfort/
     - assets/stickers/roast/

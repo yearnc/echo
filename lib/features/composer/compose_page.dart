@@ -13,10 +13,12 @@ import '../../data/repositories/post_repository.dart';
 import '../../domain/models/echo_settings.dart';
 import '../../domain/models/moderation_result.dart';
 import '../../domain/models/plan_script.dart';
+import '../../domain/services/asr_service.dart';
 import '../../domain/services/content_moderator.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/scheduler_service.dart';
+import '../../domain/services/voice_recorder.dart';
 
 /// 发布页（规划书 §6.1）。
 ///
@@ -54,7 +56,71 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   /// 已附图（`file:` 引用，已复制进 APP 私有目录）
   final List<String> _imageRefs = [];
 
+  /// 正在按住录音。
+  bool _recording = false;
+
+  /// 录音已经结束、正在转文字。
+  bool _transcribing = false;
+
   static const List<String> _topics = ['日常', '随手拍', '学习', '运动', '深夜', '吐槽'];
+
+  /// 按住说话：开始录音（B8）。
+  Future<void> _startVoice() async {
+    if (_transcribing) return;
+    final started = await ref.read(voiceRecorderProvider).start();
+    if (!mounted) return;
+    if (!started) {
+      _hint('没拿到麦克风权限，或者这台设备没有可用的麦克风');
+      return;
+    }
+    setState(() => _recording = true);
+  }
+
+  /// 松手：停下来，把这段话转成文字（B8）。
+  ///
+  /// 识别在本机做，录音不离开这台设备。
+  Future<void> _stopVoice() async {
+    if (!_recording) return;
+    setState(() {
+      _recording = false;
+      _transcribing = true;
+    });
+
+    try {
+      final path = await ref.read(voiceRecorderProvider).stop();
+      if (path == null) return;
+
+      final text = await ref.read(asrServiceProvider).transcribe(path);
+      if (!mounted) return;
+
+      if (text == null) {
+        _hint('语音输入用不了：识别模型没装，或者引擎起不来');
+        return;
+      }
+      if (text.isEmpty) {
+        _hint('没听清，再说一次？');
+        return;
+      }
+
+      // 接着说：已经有字就接在后面，不覆盖用户自己敲的内容。
+      final existing = _controller.text.trim();
+      _controller.text = existing.isEmpty ? text : '$existing $text';
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+    } catch (error) {
+      debugPrint('[语音] 这次输入没成：$error');
+      if (mounted) _hint('语音输入这次没成，再试一次');
+    } finally {
+      if (mounted) setState(() => _transcribing = false);
+    }
+  }
+
+  void _hint(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   void dispose() {
@@ -111,6 +177,14 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             isEcho: isEcho,
             onPick: _pickImage,
             onRemove: _removeImage,
+          ),
+          const SizedBox(height: 10),
+          _VoiceInputBar(
+            isEcho: isEcho,
+            recording: _recording,
+            transcribing: _transcribing,
+            onStart: _startVoice,
+            onEnd: _stopVoice,
           ),
           const SizedBox(height: 18),
           if (isEcho) ...[
@@ -500,6 +574,82 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 按住说话：录一段话，松手转成文字（B8）。
+///
+/// 识别用的是随包发布的离线模型，**录音不离开这台设备**——
+/// 这一点值得在按钮下面写出来：用户对着麦克风说的话，
+/// 凭什么要经过别人的服务器。
+class _VoiceInputBar extends StatelessWidget {
+  const _VoiceInputBar({
+    required this.isEcho,
+    required this.recording,
+    required this.transcribing,
+    required this.onStart,
+    required this.onEnd,
+  });
+
+  final bool isEcho;
+  final bool recording;
+  final bool transcribing;
+  final VoidCallback onStart;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isEcho ? EchoColors.accent : ClearColors.accent;
+    final surface = isEcho ? EchoColors.surface : ClearColors.surface;
+    final divider = isEcho ? EchoColors.divider : ClearColors.divider;
+    final muted = isEcho ? EchoColors.textMuted : ClearColors.textMuted;
+
+    final label = switch ((recording, transcribing)) {
+      (true, _) => '松开就转成文字',
+      (_, true) => '正在听…',
+      _ => '按住说话',
+    };
+
+    return GestureDetector(
+      // 长按才算"按住说话"：普通点击不会误触发，
+      // 手指划出去（想滚动页面）也会取消。
+      onLongPressStart: (_) => onStart(),
+      onLongPressEnd: (_) => onEnd(),
+      onLongPressCancel: onEnd,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: recording ? accent.withValues(alpha: 0.16) : surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: recording ? accent : divider),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              recording ? Icons.mic : Icons.mic_none,
+              size: 18,
+              color: recording ? accent : muted,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: recording ? accent : muted,
+                fontSize: 12.5,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '在本机转文字',
+              style: TextStyle(
+                color: isEcho ? EchoColors.textFaint : ClearColors.textFaint,
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

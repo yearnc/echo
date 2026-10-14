@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/analysis_repository.dart';
@@ -19,8 +20,10 @@ import '../models/plan_script.dart';
 import 'content_generator.dart';
 import 'interaction_planner.dart';
 import 'memory_summarizer.dart';
+import 'notification_service.dart';
 import 'relationship_rules.dart';
 import 'safety_controller.dart';
+import 'tts_service.dart';
 
 // 策划脚本只安排"这条帖子会收到什么回应"，所以这里没有"切模式""跳页面"的
 // 入口：那些动作在拍摄时由人手动完成，不由脚本代劳。
@@ -46,6 +49,8 @@ class SchedulerService {
     required this.generator,
     required this.relationships,
     this.memory,
+    this.voice,
+    this.notify,
     this.readCoolDown,
     InteractionPlanner? planner,
     Random? random,
@@ -64,6 +69,14 @@ class SchedulerService {
 
   /// 「我记得你…」（B4）。可空：没有它就只是不记，互动本身照常。
   final MemorySummarizer? memory;
+
+  /// 住民说话的嗓子（B8）。可空：没有它就全发文字，社区照常运转。
+  final TtsService? voice;
+
+  /// 往系统通知栏推一条（B10）。可空，而且**前台不接**：
+  /// 用户正开着 APP 时，应用内的红点与列表已经够了，
+  /// 再弹一条系统通知是重复打扰。只有后台补发那条路才接它。
+  final void Function(String key, String title, String body)? notify;
 
   /// 住民说什么话由它出：配了模型就是模型写的，没配就是预置台词。
   final ContentGenerator generator;
@@ -178,6 +191,7 @@ class SchedulerService {
 
     final pool = await personas.loadAll();
     final nameById = {for (final p in pool) p.id: p.name};
+    final byId = {for (final p in pool) p.id: p};
 
     // 这些帖子里哪些是住民自己发的。住民动态下面也会来人——那是社区
     // 自己的动静，不是"有人回应了你"，所以照样记数、不通知用户。
@@ -197,15 +211,18 @@ class SchedulerService {
       if (item.isLike) {
         await posts.addCounters(item.postId, likes: item.likeBatch);
         if (!isMyPost) continue;
+        final likeTitle = item.likeBatch > 1
+            ? '$name 等 ${item.likeBatch} 人赞了你的帖子'
+            : '$name 赞了你的帖子';
         await notifications.insert(
           id: 'n_${item.id}',
           postId: item.postId,
           type: 'like',
-          title: item.likeBatch > 1
-              ? '$name 等 ${item.likeBatch} 人赞了你的帖子'
-              : '$name 赞了你的帖子',
+          title: likeTitle,
           body: '你有一条社区互动通知',
         );
+        // 锁屏上不会露内容（渠道设了 secret），所以正文写具体点没关系。
+        notify?.call('n_${item.id}', likeTitle, '你有一条社区互动通知');
       } else if (item.isComment) {
         await posts.addCounters(item.postId, comments: 1);
         if (!isMyPost) {
@@ -224,6 +241,17 @@ class SchedulerService {
           type: 'comment',
           title: '$name 评论了你的帖子',
           body: item.content ?? '',
+        );
+        notify?.call('n_${item.id}', '$name 评论了你的帖子', item.content ?? '');
+
+        // 合成语音（B8）。这一步跑在后台：语音要多等一两秒才出得来，
+        // 冷启动没道理停在这儿等一段音频——评论先以文字露面，
+        // 音频好了再换成语音条。
+        unawaited(
+          _maybeAttachVoice(
+            item: item,
+            persona: byId[item.personaId],
+          ),
         );
       }
 
@@ -261,6 +289,59 @@ class SchedulerService {
       await summarizer.refresh(personas: targets);
     } catch (error) {
       debugPrint('[记忆] 这次没记住：$error');
+    }
+  }
+
+  /// 脚本里写的这段语音素材在不在包里（B8）。
+  ///
+  /// 只认 `asset:` 一种：`file:` 与网络地址的可用性得问播放器，
+  /// 而这里想回答的只是"仓库里到底有没有这段演示音频"。
+  Future<bool> _voiceAssetAvailable(String? ref) async {
+    if (ref == null || ref.isEmpty) return false;
+    if (!ref.startsWith('asset:')) return true;
+    try {
+      await rootBundle.load(ref.substring('asset:'.length));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 把刚兑现的一条评论变成语音（B8）。
+  ///
+  /// 整段兜到底：它跑在后台，抛出去就是没人接的异常。而它可能失败的
+  /// 理由有一堆——没放模型、引擎起不来、磁盘写不动——那些情况下
+  /// 评论区保持纯文字就好，这不是塌天的事。
+  Future<void> _maybeAttachVoice({
+    required PendingInteraction item,
+    required AiPersona? persona,
+  }) async {
+    final speech = voice;
+    if (speech == null || persona == null) return;
+
+    final content = (item.content ?? '').trim();
+    if (content.isEmpty) return;
+    if (_random.nextDouble() > InteractionPlanner.voiceChance(persona)) return;
+
+    try {
+      final existing = await interactions.countVoicesForPost(item.postId);
+      if (existing >= InteractionPlanner.maxVoicesPerPost) return;
+
+      final clip = await speech.speak(
+        text: content,
+        personaId: persona.id,
+        voiceModel: persona.voiceModel,
+      );
+      if (clip == null) return;
+
+      await interactions.attachVoice(
+        id: item.id,
+        voicePath: clip.ref,
+        transcript: clip.transcript,
+        durationMs: clip.durationMs,
+      );
+    } catch (error) {
+      debugPrint('[语音] 这条评论没能变成语音：$error');
     }
   }
 
@@ -355,6 +436,7 @@ class SchedulerService {
 
     final pool = await personas.loadAll();
     final nameById = {for (final p in pool) p.id: p.name};
+    final byId = {for (final p in pool) p.id: p};
 
     for (final event in due) {
       await planEvents.markExecuted(event.id);
@@ -363,15 +445,47 @@ class SchedulerService {
         case PlanStepType.comment:
           final personaId = event.personaId;
           if (personaId == null) break;
+
+          // 脚本里写死的语音素材不一定在仓库里（演示音频常由素材方另行提供）。
+          // 找不到那段音频就**现合成一条**：声音还是这位住民的固定音色，
+          // 内容就是脚本给的台词——总比镜头里挂着一个点不响的播放键强。
+          //
+          // 这一条刻意用 await（不像随机排期那样后补）：策划模式是要被拍进
+          // 片子的，画面里不能出现"文字先出来、两秒后变成语音条"的跳动。
+          var mediaType = event.mediaType;
+          var voicePath = event.voiceAsset;
+          var transcript = event.transcript;
+          var durationMs = event.voiceDurationMs;
+
+          if (mediaType == 'voice' && !await _voiceAssetAvailable(voicePath)) {
+            final clip = await voice?.speak(
+              text: event.content ?? '',
+              personaId: personaId,
+              voiceModel: byId[personaId]?.voiceModel ?? '',
+            );
+            if (clip == null) {
+              // 合成不出来就退回文字：脚本安排的是"收到一句回应"，
+              // 那个回应本身比它用什么形式送到更重要。
+              mediaType = 'text';
+              voicePath = null;
+              transcript = null;
+              durationMs = null;
+            } else {
+              voicePath = clip.ref;
+              transcript = clip.transcript;
+              durationMs = clip.durationMs;
+            }
+          }
+
           await interactions.insertExecutedComment(
             id: 'evt_${event.id}',
             postId: event.postId,
             personaId: personaId,
-            mediaType: event.mediaType,
+            mediaType: mediaType,
             content: event.content,
-            voicePath: event.voiceAsset,
-            transcript: event.transcript,
-            voiceDurationMs: event.voiceDurationMs,
+            voicePath: voicePath,
+            transcript: transcript,
+            voiceDurationMs: durationMs,
           );
           await posts.addCounters(event.postId, comments: 1);
           await notifications.insert(
@@ -434,6 +548,13 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     generator: ref.watch(contentSourceProvider),
     relationships: ref.watch(relationshipRepositoryProvider),
     memory: ref.watch(memorySummarizerProvider),
+    voice: ref.watch(ttsServiceProvider),
+    // 只有后台补发才推通知栏（B10）：前台那条路上，应用内的红点已经够了。
+    notify: ref.watch(inBackgroundTaskProvider)
+        ? (key, title, body) => ref
+              .read(systemNotificationProvider)
+              .show(key: key, title: title, body: body)
+        : null,
     readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );

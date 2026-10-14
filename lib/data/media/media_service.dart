@@ -64,6 +64,18 @@ class MediaService {
     return '.png';
   }
 
+  /// 语音条的落盘位置（B8）。
+  ///
+  /// 合成引擎要的是一个"写到哪儿"，所以这里给位置而不是收数据。
+  /// 目录与图片共用一处：对上层来说两者都只是 `file:` 引用，
+  /// 哪天要清理本地素材，扫一个目录就够了。
+  Future<File> newVoiceFile() async {
+    final mediaDir = await _mediaDir();
+    return File(
+      p.join(mediaDir.path, 'voice_${DateTime.now().microsecondsSinceEpoch}.wav'),
+    );
+  }
+
   Future<Directory> _mediaDir() async {
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory(p.join(docs.path, mediaDirName));

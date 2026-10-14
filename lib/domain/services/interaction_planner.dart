@@ -153,8 +153,9 @@ class InteractionPlanner {
           content: samples.isEmpty
               ? null
               : samples[_random.nextInt(samples.length)],
-          // 语音评论要等 TTS 音色接进来（阶段 B）。在那之前统一按文本排期，
-          // 免得评论区出现"有波形、没声音"的假语音条。
+          // 排期这一层只写文字。语音是**兑现之后**才合成、才升级的（B8）：
+          // 合成要一两秒，提前把 media_type 标成 voice 只会让评论区
+          // 先出现一排点不响的播放键。
           mediaType: 'text',
         ),
       );
@@ -216,6 +217,23 @@ class InteractionPlanner {
   /// 每档多 5%，上限压在 0.95：再熟也有不想说话的时候。
   static double commentChance(AiPersona persona, int level) =>
       (persona.commentProbability + level * 0.05).clamp(0.0, 0.95);
+
+  /// 这个人会**用语音**说话吗（B8）。
+  ///
+  /// 语音不是"更高级的评论"，社区里的人各有理由用它：打字嫌麻烦的、
+  /// 话懒得说全的、夜里只想留一句的。所以概率跟着语气标签走，
+  /// 而不是跟着"活跃度"——话多的人反而更常打字。
+  static double voiceChance(AiPersona persona) {
+    final model = persona.voiceModel;
+    if (model.contains('lazy') || model.contains('quiet')) return 0.34;
+    if (model.contains('warm') || model.contains('soft')) return 0.22;
+    return 0.16;
+  }
+
+  /// 一条帖子下面最多留几条语音。
+  ///
+  /// 评论区里一半人都在发语音，那不是社区，是语音信箱。
+  static const int maxVoicesPerPost = 2;
 
   static int _levelOf(Map<String, RelationshipState> relations, String id) =>
       relations[id]?.level ?? 0;

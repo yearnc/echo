@@ -18,6 +18,9 @@
 	<string>echo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- 语音输入要录音：声音只在本机转成文字，不上传 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>录一段话转成文字，录音不会离开这台设备。</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>

@@ -6,10 +6,13 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/media/voice_wave_store.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
+import '../../domain/services/voice_playback.dart';
+import '../../domain/services/voice_waveform.dart';
 import 'user_avatar.dart';
 
 /// 评论底下那颗心。
@@ -232,14 +235,55 @@ class CommentTile extends ConsumerWidget {
 }
 
 /// 语音评论：波形 + 时长 + 转写稿（规划书 §6.6）。
-/// 阶段 A 播放预置音频；真实 TTS 在阶段 B。
-class VoiceBubble extends StatelessWidget {
+///
+/// 阶段 A 那排竖条是画上去的；现在波形、时长都来自真正合成出来的音频，
+/// 点一下就能播（B8）。音频已经落在本机，飞行模式下照样能听。
+class VoiceBubble extends ConsumerStatefulWidget {
   const VoiceBubble({super.key, required this.comment});
 
   final PostComment comment;
 
   @override
+  ConsumerState<VoiceBubble> createState() => _VoiceBubbleState();
+}
+
+class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
+  /// 读不出来时的等高柱子：气泡还在，只是看不出起伏。
+  static const double _flatBar = 0.3;
+
+  late Future<List<double>> _bars;
+
+  @override
+  void initState() {
+    super.initState();
+    _bars = _loadBars();
+  }
+
+  @override
+  void didUpdateWidget(covariant VoiceBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.comment.voiceAsset != widget.comment.voiceAsset) {
+      _bars = _loadBars();
+    }
+  }
+
+  Future<List<double>> _loadBars() {
+    final voiceRef = widget.comment.voiceAsset;
+    if (voiceRef == null || voiceRef.isEmpty) {
+      return Future.value(
+        List<double>.filled(VoiceWaveform.defaultBars, _flatBar),
+      );
+    }
+    return ref.read(voiceWaveStoreProvider).load(voiceRef);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final comment = widget.comment;
+    final voiceRef = comment.voiceAsset;
+    final playback = ref.watch(voicePlaybackProvider);
+    final playing = voiceRef != null && playback.isPlaying(voiceRef);
+    final broken = voiceRef != null && playback.hasFailed(voiceRef);
     final seconds = ((comment.voiceDurationMs ?? 0) / 1000).round();
 
     return Container(
@@ -252,37 +296,63 @@ class VoiceBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.play_arrow_rounded,
-                size: 20,
-                color: EchoColors.accent,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Row(
-                  children: [
-                    for (var i = 0; i < 22; i++)
-                      Container(
-                        width: 2.5,
-                        height: 6 + (i % 5) * 3.0,
-                        margin: const EdgeInsets.only(right: 2.5),
-                        decoration: BoxDecoration(
-                          color: EchoColors.accent.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                  ],
+          GestureDetector(
+            onTap: voiceRef == null
+                ? null
+                : () =>
+                      ref.read(voicePlaybackProvider.notifier).toggle(voiceRef),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Icon(
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 20,
+                  color: EchoColors.accent,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$seconds"',
-                style: TextStyle(color: EchoColors.textMuted, fontSize: 11),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FutureBuilder<List<double>>(
+                    future: _bars,
+                    builder: (context, snapshot) {
+                      final bars = snapshot.data ??
+                          List<double>.filled(
+                            VoiceWaveform.defaultBars,
+                            _flatBar,
+                          );
+                      return Row(
+                        children: [
+                          for (final value in bars)
+                            Container(
+                              width: 2.5,
+                              height: 5 + value * 13,
+                              margin: const EdgeInsets.only(right: 2.5),
+                              decoration: BoxDecoration(
+                                color: playing
+                                    ? EchoColors.accent
+                                    : EchoColors.accent.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$seconds"',
+                  style: TextStyle(color: EchoColors.textMuted, fontSize: 11),
+                ),
+              ],
+            ),
           ),
+          if (broken) ...[
+            const SizedBox(height: 6),
+            Text(
+              '这段语音没能读出来',
+              style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
+            ),
+          ],
           if (comment.transcript != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -296,7 +366,8 @@ class VoiceBubble extends StatelessWidget {
           ],
           const SizedBox(height: 6),
           Text(
-            'AI 生成语音',
+            // 合规文案不允许在业务代码里随手写，统一从常量取（规划书 §6.6）。
+            AppTexts.aiVoiceNotice,
             style: TextStyle(color: EchoColors.textFaint, fontSize: 10),
           ),
         ],

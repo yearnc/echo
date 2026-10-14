@@ -1,0 +1,25 @@
+语音合成模型（不放仓库，需要时按下面步骤自己放进来）
+====================================================
+
+这套模型给社区住民提供"会说话"的能力：一个模型里带 174 个说话人，
+每位住民固定在其中一个编号上（见 lib/domain/models/resident_voice.dart）。
+许可证是 Apache-2.0，可以随应用分发。
+
+下载：
+
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2
+
+解压后把下面这些文件放到本目录：
+
+    model.onnx       合成模型本体（约 30 MB）
+    lexicon.txt      汉字 → 拼音
+    tokens.txt       音素表
+    speakers.txt     说话人清单（sid 就是行号）
+    date.fst         文本正则化：日期
+    number.fst       文本正则化：数字
+    phone.fst        文本正则化：电话号码这类
+
+（压缩包里还有 rule.far / new_heteronym.fst，那是给 Python 版用的，
+这里用不上，不用复制。）
+
+缺文件不会让应用崩：语音功能整体退回纯文字，评论区照常运转。

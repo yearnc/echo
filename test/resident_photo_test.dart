@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -76,6 +77,9 @@ class _FakeMedia implements MediaService {
   Future<void> deleteByRef(String ref) async {
     deleted.add(ref);
   }
+
+  @override
+  Future<File> newVoiceFile() async => File('fake/voice.wav');
 }
 
 class _FakeAdapter implements HttpClientAdapter {
