@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/actions/actions_page.dart';
 import '../../features/analysis/analysis_page.dart';
 import '../../features/composer/compose_page.dart';
+import '../../features/dashboard/dashboard_page.dart';
 import '../../features/feed/feed_page.dart';
 import '../../features/follows/follows_page.dart';
 import '../../features/messages/chat_page.dart';
@@ -16,6 +17,7 @@ import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
 import '../../features/resident/resident_page.dart';
+import '../../features/safety/minor_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
 import '../../features/scripts/scripts_page.dart';
@@ -65,6 +67,9 @@ class RoutePaths {
   static const String models = '/models';
 
   /// 价值澄清（清醒模式）。
+  /// 数据看板（B9）。两种模式共用这一个入口，页面内容按模式分开。
+  static const String dashboard = '/dashboard';
+
   static const String values = '/values';
 
   /// 真实行动记录（清醒模式）。
@@ -72,6 +77,9 @@ class RoutePaths {
 
   /// 心理安全（冷静模式 / 援助入口）。
   static const String safety = '/settings/safety';
+
+  /// 未成年人保护（B11）：一道独立于模式切换的长期锁。
+  static const String minorProtection = '/settings/minor';
 
   /// 头像与表情包管理。
   static const String stickers = '/settings/stickers';
@@ -187,6 +195,10 @@ final appRouter = GoRouter(
       builder: (context, state) => const TrendingPage(),
     ),
     GoRoute(
+      path: RoutePaths.dashboard,
+      builder: (context, state) => const DashboardPage(),
+    ),
+    GoRoute(
       path: RoutePaths.values,
       builder: (context, state) => const ValuesPage(),
     ),
@@ -197,6 +209,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.safety,
       builder: (context, state) => const SafetyPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.minorProtection,
+      builder: (context, state) => const MinorProtectionPage(),
     ),
     GoRoute(
       path: RoutePaths.stickers,

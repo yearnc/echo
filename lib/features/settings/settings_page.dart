@@ -143,6 +143,16 @@ class SettingsPage extends ConsumerWidget {
               ),
               _Row(
                 isEcho: isEcho,
+                icon: Icons.insights_outlined,
+                title: '数据看板',
+                // 两种模式都能进，但看到的是两套东西（规划书 §3.10 / §4）。
+                subtitle: isEcho
+                    ? 'AI 制造的动静，和你自己'
+                    : '只统计你真实记录的内容',
+                onTap: () => context.push(RoutePaths.dashboard),
+              ),
+              _Row(
+                isEcho: isEcho,
                 icon: Icons.info_outline,
                 title: '永久提示',
                 value: '已固定',
@@ -165,8 +175,8 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.escalator_warning_outlined,
                 title: '未成年人保护',
-                subtitle: '默认禁止回响模式',
-                onTap: () => _soon(context, '未成年人保护'),
+                subtitle: '锁定回响模式，需要时再解开',
+                onTap: () => context.push(RoutePaths.minorProtection),
               ),
               _Row(
                 isEcho: isEcho,

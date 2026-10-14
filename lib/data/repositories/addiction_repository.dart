@@ -17,6 +17,12 @@ abstract final class AddictionEventType {
 
   /// 单次使用时长过长。
   static const String sessionLong = 'session_long';
+
+  /// 亮屏等待：打开帖子、盯了一会儿，什么都没等到（B9）。
+  ///
+  /// 这是"反复回来看有没有人理我"最直白的那个动作——微电影第二幕里
+  /// 主角盯着屏幕的那几秒，指的就是它。
+  static const String screenWait = 'screen_wait';
 }
 
 /// 查看反馈与防沉迷事件的记录（规划书 §6.9 / §13）。

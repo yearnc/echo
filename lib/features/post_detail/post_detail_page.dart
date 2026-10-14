@@ -8,6 +8,7 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/addiction_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
@@ -46,11 +47,45 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   /// 光有 id 不够，他还得知道你回的是哪一句。
   PostComment? _replyTarget;
 
+  /// 进来时评论区有几条。用它判断这期间"等到没有"。
+  int? _commentsOnEntry;
+
+  Timer? _waitTimer;
+
+  /// 盯多久算"等了一会儿"。八秒是个大概：短于它，多半只是在读帖子。
+  static const Duration _waitThreshold = Duration(seconds: 8);
+
   @override
   void initState() {
     super.initState();
     // 首帧之后再记：showSnackBar 需要一个已经挂到树上的 context
     WidgetsBinding.instance.addPostFrameCallback((_) => _recordView());
+    _waitTimer = Timer(_waitThreshold, _noteWaitIfNothingCame);
+  }
+
+  @override
+  void dispose() {
+    _waitTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 亮屏等待：点进来、盯了一会儿，评论区一条新的都没有（B9）。
+  ///
+  /// 防沉迷看的"查看反馈次数"是**动作**，这个是**动作的结果**——
+  /// 微电影第二幕里主角盯着屏幕那几秒，指的就是它。
+  ///
+  /// 只记一次，不弹窗、不打断：这件事的价值在于用户以后能在看板上
+  /// 自己看见它，而不是在被记录的那一刻被说教。
+  void _noteWaitIfNothingCame() {
+    if (!mounted || _commentsOnEntry == null) return;
+    if (!ref.read(modeControllerProvider).isEcho) return;
+
+    final current = ref.read(commentsProvider(widget.postId)).value?.length;
+    if (current == null || current > _commentsOnEntry!) return;
+
+    ref
+        .read(addictionRepositoryProvider)
+        .logEvent(AddictionEventType.screenWait);
   }
 
   /// 打开详情页 = 查看了一次反馈。这是防沉迷提醒的判定依据（规划书 §6.9）：
@@ -98,6 +133,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final comments =
         ref.watch(commentsProvider(widget.postId)).value ??
         const <PostComment>[];
+    // 第一次拿到评论数就是"进门时的样子"，之后来的都算新到的。
+    _commentsOnEntry ??= comments.length;
 
     // 必须是 Scaffold：这个页面不在底部导航骨架里（独立路由），
     // 没有 Material 祖先的话，页面里所有文字都会继承 Flutter 兜底文本样式
