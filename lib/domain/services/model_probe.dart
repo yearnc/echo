@@ -77,6 +77,54 @@ class ModelProbe {
     }
   }
 
+  /// 测一次文生图。
+  ///
+  /// 对话模型靠一句"你好"就能验，图片模型不行——得真让它画点什么。
+  /// 提示词给最小的一条，只看它回不回得来图，画得好不好看不管。
+  ///
+  /// 走的是和正经出图同一个接口（`/images/generations`），
+  /// 所以它能通，住民发图文帖那条路就能通。
+  Future<ProbeResult> testImage({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+  }) async {
+    final url = '${normalizeBaseUrl(baseUrl)}/images/generations';
+    final started = DateTime.now();
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        url,
+        data: {'model': model, 'prompt': '一只趴在窗台上的猫'},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          // 出图比回一句话慢得多，超时给得宽一些
+          sendTimeout: const Duration(seconds: 90),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
+      );
+
+      final elapsed = DateTime.now().difference(started).inMilliseconds;
+      final entry = firstImageEntry(response.data);
+
+      return ProbeResult(
+        ok: entry != null,
+        message: entry != null ? '连接成功，能出图' : '连上了，但返回里没读到图片',
+        elapsedMs: elapsed,
+      );
+    } on DioException catch (error) {
+      return ProbeResult(
+        ok: false,
+        message: describeModelError(error),
+        elapsedMs: DateTime.now().difference(started).inMilliseconds,
+      );
+    } catch (error) {
+      return ProbeResult(ok: false, message: '出错了：$error');
+    }
+  }
 }
 
 final modelProbeProvider = Provider<ModelProbe>((ref) => ModelProbe());

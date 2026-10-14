@@ -53,6 +53,24 @@ String describeModelError(DioException error) {
   };
 }
 
+/// 从文生图的返回里挑出第一张图。
+///
+/// 各家形状不一：`data` / `images` 两个壳都见过，里面可能是对象
+/// （带 `url` 或 `b64_json`），也可能干脆就是一串 URL。认形状是我们这边的事，
+/// 所以探测与正经出图共用这一个函数。
+Map<String, dynamic>? firstImageEntry(Map<String, dynamic>? body) {
+  for (final key in const ['data', 'images']) {
+    final list = body?[key];
+    if (list is! List || list.isEmpty) continue;
+
+    final first = list.first;
+    if (first is Map) return Map<String, dynamic>.from(first);
+    // 有的服务端直接给一串 URL 字符串
+    if (first is String && first.isNotEmpty) return {'url': first};
+  }
+  return null;
+}
+
 /// 从 OpenAI 兼容的响应里取出助手的第一条回复文本。
 ///
 /// 各家的返回大同小异，但"choices 为空""content 不是字符串"（比如被内容过滤

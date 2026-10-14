@@ -173,24 +173,6 @@ class ModelGateway {
     }
   }
 
-  /// 从响应里取出第一个图片条目。
-  ///
-  /// 形状不止一种，这不是能挑食的地方：OpenAI 系（含火山方舟、智谱）
-  /// 给 `data[0].url` / `data[0].b64_json`，硅基流动给 `images[0].url`。
-  /// 认不出来返回 null，由调用方报错。
-  static Map<String, dynamic>? firstImageEntry(Map<String, dynamic>? body) {
-    for (final key in const ['data', 'images']) {
-      final list = body?[key];
-      if (list is! List || list.isEmpty) continue;
-
-      final first = list.first;
-      if (first is Map) return Map<String, dynamic>.from(first);
-      // 有的服务端直接给一串 URL 字符串
-      if (first is String && first.isNotEmpty) return {'url': first};
-    }
-    return null;
-  }
-
   /// 有些服务端给的是图片链接（有效期常常只有几十分钟），那就再取一次。
   Future<Uint8List> _downloadImage(
     String url, {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -157,14 +158,38 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _probe = null;
     });
 
-    final result = await ref
-        .read(modelProbeProvider)
-        .test(baseUrl: baseUrl, apiKey: key, model: model);
+    // 两条用途走的接口不一样：对话打 /chat/completions，出图打 /images/generations。
+    // 拿对话那条去验图片模型，只会拿到一句"地址不对"，那比不测更糟。
+    final probe = ref.read(modelProbeProvider);
+    final result = _kind == ModelKind.image
+        ? await probe.testImage(baseUrl: baseUrl, apiKey: key, model: model)
+        : await probe.test(baseUrl: baseUrl, apiKey: key, model: model);
 
     if (!mounted) return;
     setState(() {
       _testing = false;
       _probe = result;
+    });
+  }
+
+  /// 从剪贴板把密钥贴进来。
+  ///
+  /// 手机上「长按粘贴」在密码框里常常用不了：不少 ROM 会给密码输入框
+  /// 拉起自家的安全键盘，而安全键盘不给粘贴。所以这里直接读剪贴板写进框里，
+  /// 绕开输入法，也就不受它的限制。
+  Future<void> _pasteKey() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = (data?.text ?? '').trim();
+    if (text.isEmpty) {
+      _snack('剪贴板里没有文字');
+      return;
+    }
+
+    setState(() {
+      _keyCtrl.text = text;
+      // 贴完顺手露出来，让用户能核对一眼再保存
+      _obscureKey = false;
+      _probe = null;
     });
   }
 
@@ -467,13 +492,27 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               style: TextStyle(color: EchoColors.text, fontSize: 14),
               decoration: InputDecoration(
                 hintText: _hasSavedKey ? '••••••••' : '服务商控制台里申请的那串密钥',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureKey ? Icons.visibility_off : Icons.visibility,
-                    size: 18,
-                    color: EchoColors.textFaint,
-                  ),
-                  onPressed: () => setState(() => _obscureKey = !_obscureKey),
+                // 两个按钮：左边从剪贴板贴，右边显示/隐藏。
+                // 「贴」那个是为手机准备的——密码框会拉起厂商的安全键盘，
+                // 安全键盘不给粘贴，手打一串密钥太容易错一个字符。
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.content_paste, size: 18),
+                      color: EchoColors.textFaint,
+                      tooltip: '从剪贴板粘贴',
+                      onPressed: _pasteKey,
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _obscureKey ? Icons.visibility_off : Icons.visibility,
+                        size: 18,
+                        color: EchoColors.textFaint,
+                      ),
+                      onPressed: () => setState(() => _obscureKey = !_obscureKey),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -487,24 +526,27 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 测试走的是对话接口，文生图那条路没法用它验——藏起来，
-            // 好过让用户点了之后拿到一句"地址不对"
-            if (_kind == ModelKind.chat) ...[
-              OutlinedButton.icon(
-                onPressed: _testing ? null : _test,
-                icon: _testing
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.bolt, size: 16),
-                label: Text(_testing ? '正在测…' : '测试连接'),
+            // 两种用途都能测，只是打的是各自的接口：对话发一句"你好"，
+            // 出图真让它画一张。之前只给对话做，是因为拿对话接口去验图片模型
+            // 只会得到一句"地址不对"——那比不测更糟。
+            OutlinedButton.icon(
+              onPressed: _testing ? null : _test,
+              icon: _testing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.bolt, size: 16),
+              label: Text(
+                _testing
+                    ? '正在测…'
+                    : (_kind == ModelKind.image ? '测试出图' : '测试连接'),
               ),
-              if (_probe != null) ...[
-                const SizedBox(height: 12),
-                _ProbeCard(result: _probe!),
-              ],
+            ),
+            if (_probe != null) ...[
+              const SizedBox(height: 12),
+              _ProbeCard(result: _probe!),
             ],
             const SizedBox(height: 20),
             // 同发布页的策划模式卡片：ListTile 的水波纹画在最近的 Material 上，
