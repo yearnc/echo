@@ -9,15 +9,14 @@ import 'package:path_provider/path_provider.dart';
 ///
 /// 推理引擎要的是**文件路径**，而打进 APK 的模型住在 assets 里，
 /// 只能先复制出来一次。所以这里做的是"首次运行时把大文件搬运到磁盘"，
-/// 之后每次启动只核对一遍大小就放行——搬 110MB 不该是每次开屏的代价。
+/// 之后每次启动只核对一遍大小就放行——搬几十兆不该是每次开屏的代价。
 ///
-/// 模型不进 git 仓库（见 `.gitignore`）：一百多兆的二进制会毁掉克隆体验，
+/// 模型不进 git 仓库（见 `.gitignore`）：几十兆的二进制会毁掉克隆体验，
 /// 仓库里给的是下载说明，`assets/models/` 里的文件由开发者自己放。
 class SpeechModelStore {
   SpeechModelStore();
 
   static const String _ttsAssetDir = 'assets/models/tts';
-  static const String _asrAssetDir = 'assets/models/asr';
 
   /// 合成语音要的文件。
   ///
@@ -33,20 +32,11 @@ class SpeechModelStore {
     'phone.fst',
   ];
 
-  /// 识别语音要的文件（int8 量化版，体积只有 fp32 的一半）。
-  static const List<String> _asrFiles = ['model.int8.onnx', 'tokens.txt'];
-
   ReleasedModels? _tts;
-  ReleasedModels? _asr;
 
   /// 合成模型的目录。已经释放过就直接返回。
   Future<ReleasedModels> prepareTts() async {
     return _tts ??= await _release('tts', _ttsAssetDir, _ttsFiles);
-  }
-
-  /// 识别模型的目录。
-  Future<ReleasedModels> prepareAsr() async {
-    return _asr ??= await _release('asr', _asrAssetDir, _asrFiles);
   }
 
   Future<ReleasedModels> _release(
@@ -82,7 +72,7 @@ class SpeechModelStore {
   }
 }
 
-/// 模型释放的共享实例：合成和识别都从它拿路径，免得同一批文件被搬运两遍。
+/// 模型释放的共享实例：多处取路径都从它拿，免得同一批文件被搬运两遍。
 final speechModelStoreProvider = Provider<SpeechModelStore>(
   (ref) => SpeechModelStore(),
 );

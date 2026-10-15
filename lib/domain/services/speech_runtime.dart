@@ -5,7 +5,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 /// 离线语音运行时（B8）。
 ///
-/// 合成与识别共用同一个原生库，进程里初始化一次就够——
+/// 语音合成用的原生库，进程里初始化一次就够——
 /// 每建一个引擎就重复初始化，DLL 会被加载好几遍。
 class SpeechRuntime {
   SpeechRuntime._();

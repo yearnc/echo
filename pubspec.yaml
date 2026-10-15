@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ^3.13.3
@@ -47,7 +47,6 @@ dependencies:
   intl: ^0.20.3
   path: ^1.9.1
   sherpa_onnx: ^1.13.8
-  record: ^7.1.2
   workmanager: ^0.10.10
 
 dev_dependencies:
@@ -123,7 +122,6 @@ flutter:
     # 离线语音模型（B8）：不带进 git 仓库，克隆后照目录里 _placeholder.txt
     # 的说明下载放好，Flutter 打包时会一起打进 APK。
     - assets/models/tts/
-    - assets/models/asr/
     - assets/stickers/happy/
     - assets/stickers/comfort/
     - assets/stickers/roast/

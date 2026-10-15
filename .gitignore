@@ -74,12 +74,10 @@ key.properties
 google-services.json
 GoogleService-Info.plist
 
-# 离线语音模型（B8）：一百多兆的二进制，不进仓库——克隆下来的人照
-# assets/models/*/_placeholder.txt 里的说明自己放，放进去之后会被打进 APK。
+# 离线语音模型（B8）：几十兆的二进制，不进仓库——克隆下来的人照
+# assets/models/tts/_placeholder.txt 里的说明自己放，放进去之后会被打进 APK。
 /assets/models/tts/*
 !/assets/models/tts/_placeholder.txt
-/assets/models/asr/*
-!/assets/models/asr/_placeholder.txt
 
 # 临时放模型压缩包、验证脚本的地方（不属于项目内容）
 /.models-tmp/
