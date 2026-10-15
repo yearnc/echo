@@ -1,7 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 语音输入：录一段话转成文字（B8）。录音只留在本机，识别也在本机做。 -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 联网：AI 生成内容、文生图、模型探测全靠它。
+         这一条**必须写在 main 里**——Flutter 只在 debug / profile 的 manifest
+         里自动加 INTERNET（那是给热重载用的），release 包不会带上。
+         少这一行的表现极具迷惑性：桌面预览和 debug 装都好好的，
+         只有 release 包一装，所有请求当场就死（2026-10-15 真机实测：
+         12 毫秒就报"连不上"，因为请求根本没出得去）。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 系统通知（B10）：Android 13 起要运行时授权，用户拒绝了也不影响 APP 运行 -->
+    <!-- 麦克风权限随"按住说话"一起去掉了：APP 现在只合成语音、不录音 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="echo"
