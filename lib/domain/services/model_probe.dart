@@ -32,6 +32,11 @@ class ModelProbe {
     required String apiKey,
     required String model,
   }) async {
+    // 地址本身就不对的话不必真发出去：那一定只剩"连不上这个地址"，
+    // 而这句话会把用户引到网络上去——手机端"连不上"有一半是地址没写全
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) return ProbeResult(ok: false, message: problem);
+
     final url = '${normalizeBaseUrl(baseUrl)}/chat/completions';
     final started = DateTime.now();
 
@@ -69,7 +74,7 @@ class ModelProbe {
     } on DioException catch (error) {
       return ProbeResult(
         ok: false,
-        message: describeModelError(error),
+        message: describeModelError(error, baseUrl: baseUrl),
         elapsedMs: DateTime.now().difference(started).inMilliseconds,
       );
     } catch (error) {
@@ -89,6 +94,9 @@ class ModelProbe {
     required String apiKey,
     required String model,
   }) async {
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) return ProbeResult(ok: false, message: problem);
+
     final url = '${normalizeBaseUrl(baseUrl)}/images/generations';
     final started = DateTime.now();
 

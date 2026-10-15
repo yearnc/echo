@@ -32,8 +32,33 @@ bool isSecureBaseUrl(String baseUrl) {
   return false;
 }
 
+/// 地址本身有没有毛病——返回 `null` 表示没问题。
+///
+/// 分两种说：**没写协议头**（从文档里复制一段域名粘进来，最常见）和
+/// **写了明文 http**。这两种在 dio 那里都会撞成同一个 `connectionError`，
+/// 翻译出来是"连不上这个地址，检查网络"——用户于是跑去查网络，
+/// 而问题其实一直在地址栏里。所以测试连接和正经调用都先过一道这里。
+String? describeBaseUrlProblem(String baseUrl) {
+  final trimmed = baseUrl.trim();
+  if (trimmed.isEmpty) return '还没填地址';
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return '地址要带协议头：写成 https://… 的样子';
+  }
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null || uri.host.isEmpty) {
+    return '这个地址看着不像网址，检查一下有没有多余的空格';
+  }
+  if (!isSecureBaseUrl(trimmed)) {
+    return '这个地址是明文 http，密钥会在网络上裸奔。换成 https 地址再试。';
+  }
+  return null;
+}
+
 /// 把 dio 的错误翻译成用户看得懂的中文。
-String describeModelError(DioException error) {
+///
+/// 给了 [baseUrl] 就在"连不上"那句里把它带出来——地址差一个字符和真的断网，
+/// 在这句话之前长得一模一样。
+String describeModelError(DioException error, {String? baseUrl}) {
   final status = error.response?.statusCode;
   if (status == 401 || status == 403) {
     return '密钥被拒绝了（HTTP $status），检查一下 API Key';
@@ -48,7 +73,9 @@ String describeModelError(DioException error) {
   return switch (error.type) {
     DioExceptionType.connectionTimeout => '连接超时，检查网络或代理',
     DioExceptionType.receiveTimeout => '对方太久没回，可能太慢',
-    DioExceptionType.connectionError => '连不上这个地址，检查网络',
+    DioExceptionType.connectionError => baseUrl == null
+        ? '连不上这个地址，检查网络'
+        : '连不上 $baseUrl —— 检查网络，也看一遍地址有没有写全（要带 https://）',
     _ => error.message ?? '请求失败',
   };
 }

@@ -242,12 +242,18 @@ class PostRepository {
   }
 
   /// 「我的」页的统计。真实查出来的，不是写死的数字。
+  ///
+  /// 两个数字都只算**主人自己发的帖子**（`authorPersonaId` 为空）：
+  /// 住民的动态躺在同一张表里，那是"社区里别人发的"，
+  /// 不加这一条，个人主页上就变成了"我发了三百条、获赞两千"。
   Stream<ProfileStats> watchStats() {
     final count = _db.posts.id.count();
     final likes = _db.posts.likeCount.sum();
+    final mine = _db.posts.deletedAt.isNull() &
+        _db.posts.authorPersonaId.isNull();
     final query = _db.selectOnly(_db.posts)
       ..addColumns([count, likes])
-      ..where(_db.posts.deletedAt.isNull());
+      ..where(mine);
 
     return query.watchSingle().map(
       (row) => ProfileStats(

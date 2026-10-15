@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_info.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
@@ -202,7 +203,7 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.code,
                 title: '版本',
-                value: '0.1.0 (阶段 A 完成)',
+                value: '$appVersion ($appStageLabel)',
               ),
             ],
           ),

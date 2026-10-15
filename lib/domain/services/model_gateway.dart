@@ -66,11 +66,8 @@ class ModelGateway {
     }
 
     final baseUrl = normalizeBaseUrl(config.baseUrl);
-    if (!isSecureBaseUrl(baseUrl)) {
-      throw const ModelCallException(
-        '这个地址是明文 http，密钥会在网络上裸奔。换成 https 地址再试。',
-      );
-    }
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) throw ModelCallException(problem);
 
     final body = <String, dynamic>{
       'model': config.model,
@@ -99,7 +96,7 @@ class ModelGateway {
       }
       return content;
     } on DioException catch (error) {
-      throw ModelCallException(describeModelError(error));
+      throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
     }
   }
 
@@ -120,11 +117,8 @@ class ModelGateway {
     }
 
     final baseUrl = normalizeBaseUrl(config.baseUrl);
-    if (!isSecureBaseUrl(baseUrl)) {
-      throw const ModelCallException(
-        '这个地址是明文 http，密钥会在网络上裸奔。换成 https 地址再试。',
-      );
-    }
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) throw ModelCallException(problem);
 
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -169,7 +163,7 @@ class ModelGateway {
 
       throw const ModelCallException('返回里既没有图片数据也没有链接');
     } on DioException catch (error) {
-      throw ModelCallException(describeModelError(error));
+      throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
     }
   }
 

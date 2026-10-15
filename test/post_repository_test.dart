@@ -223,4 +223,54 @@ void main() {
       expect(mine.map((post) => post.content), ['第三条', '第二条']);
     });
   });
+
+  group('「我的」页的统计', () {
+    setUp(() async {
+      await db
+          .into(db.aiPersonas)
+          .insert(AiPersonasCompanion.insert(id: 'persona_001', name: '住民'));
+    });
+
+    test('帖子只算自己发的，住民的动态不算', () async {
+      await posts.create(content: '回响里发的', scope: 'echo');
+      await posts.create(content: '清醒里记的', scope: 'clear');
+      await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '住民的动态',
+      );
+
+      final stats = await posts.watchStats().first;
+
+      expect(
+        stats.postCount,
+        2,
+        reason: '住民的动态躺在同一张表里，但不是"我发的帖子"',
+      );
+    });
+
+    test('获赞只算自己帖子上的', () async {
+      final mineId = await posts.create(content: '我的帖子', scope: 'echo');
+      final residentId = await posts.createResidentPost(
+        personaId: 'persona_001',
+        content: '住民的动态',
+      );
+
+      await posts.addCounters(mineId, likes: 3);
+      await posts.addCounters(residentId, likes: 999);
+
+      final stats = await posts.watchStats().first;
+
+      expect(stats.likeCount, 3, reason: '被赞的是住民的动态，不该记在我头上');
+    });
+
+    test('软删除的帖子不计数', () async {
+      final deletedId = await posts.create(content: '要删的');
+      await posts.create(content: '留着的');
+      await posts.softDelete(deletedId);
+
+      final stats = await posts.watchStats().first;
+
+      expect(stats.postCount, 1);
+    });
+  });
 }

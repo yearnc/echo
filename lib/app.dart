@@ -91,7 +91,12 @@ class _EchoAppState extends ConsumerState<EchoApp> {
       return const _Splash();
     }
     if (bootstrap.hasError) {
-      return _StartupError(message: '${bootstrap.error}');
+      // 失败多半是暂时的（文件被占用、存储没准备好），所以给一次重试：
+      // 上一版只能重装 APP，而重装会把本地数据一起带走
+      return _StartupError(
+        message: '${bootstrap.error}',
+        onRetry: () => ref.invalidate(appBootstrapProvider),
+      );
     }
 
     // 明暗由外观设置决定（auto 时跟模式走）。
@@ -177,11 +182,12 @@ class _Splash extends StatelessWidget {
   }
 }
 
-/// 启动失败：本地数据库起不来时要把原因说清楚，而不是白屏。
+/// 启动失败：把**断在哪一步**说清楚，而不是白屏。
 class _StartupError extends StatelessWidget {
-  const _StartupError({required this.message});
+  const _StartupError({required this.message, required this.onRetry});
 
   final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +204,7 @@ class _StartupError extends StatelessWidget {
                 Icon(Icons.error_outline, color: EchoColors.like, size: 32),
                 const SizedBox(height: 14),
                 Text(
-                  '本地数据库启动失败',
+                  '启动没成功',
                   style: TextStyle(color: EchoColors.text, fontSize: 16),
                 ),
                 const SizedBox(height: 10),
@@ -207,6 +213,8 @@ class _StartupError extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: EchoColors.textMuted, fontSize: 12),
                 ),
+                const SizedBox(height: 18),
+                FilledButton(onPressed: onRetry, child: const Text('再试一次')),
               ],
             ),
           ),

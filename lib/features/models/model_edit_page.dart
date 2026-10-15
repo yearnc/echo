@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/model_config_repository.dart';
 import '../../domain/models/model_config.dart';
+import '../../domain/services/model_call_common.dart';
 import '../../domain/services/model_probe.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 
@@ -198,6 +199,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     final model = _modelCtrl.text.trim();
     if (baseUrl.isEmpty || model.isEmpty) {
       _snack('地址和模型名不能空着');
+      return;
+    }
+    // 存之前先挡下地址本身的问题：漏掉 https:// 这种错，要等到调用时才
+    // 变成一句"连不上这个地址"，用户会跑去查网络——而错在地址栏里
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) {
+      _snack(problem);
       return;
     }
 

@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/model_config_repository.dart';
 import 'package:echo/domain/models/model_config.dart';
+import 'package:echo/domain/services/model_call_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 测试用的密钥存储：真实实现要走平台通道，单元测试里调不起来。
@@ -19,6 +20,37 @@ class _MemoryKeyStore implements KeyStore {
 }
 
 void main() {
+  group('地址校验（把问题说在地址上，而不是笼统说"连不上"）', () {
+    test('没写协议头：直接点名', () {
+      final problem = describeBaseUrlProblem(
+        'dashscope.aliyuncs.com/compatible-mode/v1',
+      );
+
+      expect(problem, contains('https://'), reason: '手机上手打地址最容易漏这一段');
+    });
+
+    test('明文 http：拒绝，并说明密钥会裸奔', () {
+      expect(describeBaseUrlProblem('http://api.example.com/v1'), contains('密钥'));
+    });
+
+    test('本机与内网放行（那是自己跑的服务）', () {
+      expect(describeBaseUrlProblem('http://localhost:8000/v1'), isNull);
+      expect(describeBaseUrlProblem('http://192.168.1.10/v1'), isNull);
+    });
+
+    test('正常的 https 地址没问题', () {
+      expect(describeBaseUrlProblem('https://api.deepseek.com'), isNull);
+    });
+
+    test('空地址也要说清楚', () {
+      expect(describeBaseUrlProblem('   '), isNotNull);
+    });
+
+    test('地址里的多余空格会被吃掉', () {
+      expect(describeBaseUrlProblem('  https://api.deepseek.com  '), isNull);
+    });
+  });
+
   group('ModelConfig', () {
     test('预设能找到对应服务商，找不到时退回自定义', () {
       expect(ModelConfig.presetOf('deepseek').label, 'DeepSeek');
