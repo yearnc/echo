@@ -53,9 +53,7 @@ class _BoomMemory extends MemorySummarizer {
         db: db,
         posts: PostRepository(db),
         relationships: RelationshipRepository(db),
-        gateway: ModelGateway(
-          ModelConfigRepository(db, keyStore: _NoKeys()),
-        ),
+        gateway: ModelGateway(ModelConfigRepository(db, keyStore: _NoKeys())),
       );
 
   int calls = 0;
@@ -218,7 +216,10 @@ void main() {
         final planner = InteractionPlanner(random: Random(7));
         final relations = withRelation
             ? const {
-                'persona_0': RelationshipState(personaId: 'persona_0', level: 4),
+                'persona_0': RelationshipState(
+                  personaId: 'persona_0',
+                  level: 4,
+                ),
               }
             : const <String, RelationshipState>{};
 
@@ -333,6 +334,58 @@ void main() {
 
       final list = await notifications.watchRecent().first;
       expect(list, isNotEmpty, reason: '每兑现一条互动都该留下通知');
+    });
+
+    test('补发的通知记在本该发生的时间上，不是补发那一刻', () async {
+      final postId = await posts.create(content: '两天前发的帖子', scope: 'echo');
+      await scheduler.planForPost(
+        postId: postId,
+        settings: EchoSettings.defaults,
+      );
+      await rewindPending();
+
+      await scheduler.flushDue();
+
+      final rows = await db.select(db.notificationLogs).get();
+      expect(rows, isNotEmpty);
+      for (final row in rows) {
+        expect(row.deliveredAt, row.scheduledAt, reason: '离线积压的互动不该全挤在"刚刚"');
+      }
+    });
+
+    test('排期时把将来的评论交给系统闹钟，兑现时撤掉预约', () async {
+      final scheduled = <String, DateTime>{};
+      final cancelled = <String>[];
+      final withAlarms = SchedulerService(
+        interactions: interactions,
+        planEvents: PlanEventRepository(db),
+        posts: posts,
+        notifications: notifications,
+        personas: const PersonaRepository(),
+        analyses: AnalysisRepository(db),
+        generator: SampleContentGenerator(),
+        relationships: RelationshipRepository(db),
+        planner: InteractionPlanner(random: Random(9)),
+        scheduleNotification: (key, at, title, body) => scheduled[key] = at,
+        cancelScheduledNotification: cancelled.add,
+      );
+
+      final postId = await posts.create(content: '帖子', scope: 'echo');
+      await withAlarms.planForPost(
+        postId: postId,
+        settings: EchoSettings.defaults,
+      );
+
+      expect(scheduled, isNotEmpty, reason: '评论要在 APP 关着时也能提醒');
+
+      await rewindPending();
+      await withAlarms.flushDue();
+
+      expect(
+        cancelled,
+        containsAll(scheduled.keys),
+        reason: '已经兑现的预约不撤掉，过一会儿会重复弹',
+      );
     });
 
     test('重复补发不会重复计数（幂等）', () async {

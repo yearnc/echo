@@ -12,6 +12,7 @@ import 'data/bootstrap_provider.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
+import 'domain/services/notification_service.dart';
 import 'domain/services/scheduler_service.dart';
 import 'domain/services/world_service.dart';
 
@@ -37,7 +38,7 @@ class EchoApp extends ConsumerStatefulWidget {
   ConsumerState<EchoApp> createState() => _EchoAppState();
 }
 
-class _EchoAppState extends ConsumerState<EchoApp> {
+class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   static const Duration _tick = Duration(seconds: 1);
 
   /// 随机排期每多少拍扫一次（1 拍 = 1 秒）。
@@ -49,6 +50,18 @@ class _EchoAppState extends ConsumerState<EchoApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 通知权限必须在前台要。之前只在后台补发时调用 ensureReady()，
+    // 而 Android 13+ 的运行时授权弹窗在后台 isolate 里根本弹不出来——
+    // 结果就是"永远没授权、永远没有系统通知"。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifications = ref.read(systemNotificationProvider);
+      unawaited(notifications.ensureReady());
+      // 上次后台留下的预约先撤掉：现在人在 APP 里，不该再被系统通知打扰。
+      // 切回后台时 SchedulerService 会按库里剩下的队列重排。
+      unawaited(notifications.cancelAllScheduled());
+    });
     _heartbeat = Timer.periodic(_tick, (_) async {
       // 出错也不能让心跳断掉：这一拍没补上，下一拍还会再试
       try {
@@ -77,8 +90,23 @@ class _EchoAppState extends ConsumerState<EchoApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _heartbeat?.cancel();
     super.dispose();
+  }
+
+  /// 前台不弹系统通知，后台才交给系统闹钟。
+  ///
+  /// 预约是"排好就不管"的：在 APP 里看着屏幕时到点也会亮一下，那是打扰。
+  /// 所以一回到前台就把预约全撤掉（通知列表里照样有），切到后台再从
+  /// 库里剩下的队列重排一遍。**开着不弹、关着能收到**，两边都成立。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(systemNotificationProvider).cancelAllScheduled());
+    } else if (state == AppLifecycleState.paused) {
+      unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
+    }
   }
 
   @override

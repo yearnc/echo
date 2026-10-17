@@ -284,6 +284,18 @@ ORDER BY at ASC
     return rows.map(_toPending).toList(growable: false);
   }
 
+  /// 所有还没到点的评论排期（不管是不是已经过了时间）。
+  ///
+  /// 给"把 APP 切到后台时重新预约系统通知"用：它要的是**将来**那批，
+  /// 用 `duePending` 会把已经到点、正等着补发的也算进来。
+  Future<List<PendingInteraction>> pendingComments() async {
+    final query = _db.select(_db.aiInteractions)
+      ..where((t) => t.status.equals('pending') & t.type.equals(typeComment))
+      ..orderBy([(t) => OrderingTerm.asc(t.scheduledAt)]);
+    final rows = await query.get();
+    return rows.map(_toPending).toList(growable: false);
+  }
+
   /// 还没兑现的评论排期，返回对应的住民 id。
   ///
   /// 模型写评论时需要知道"这是给谁写的"——同一条帖子下几个人的语气完全不同，
@@ -344,6 +356,7 @@ ORDER BY at ASC
     postId: row.postId,
     personaId: row.personaId,
     type: row.type,
+    scheduledAt: DateTime.fromMillisecondsSinceEpoch(row.scheduledAt),
     content: row.content,
     mediaType: row.mediaType,
     voiceDurationMs: row.voiceDurationMs,

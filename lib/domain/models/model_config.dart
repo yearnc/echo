@@ -5,15 +5,18 @@
 /// 所以分开配，也允许只配其中之一。
 enum ModelKind {
   chat('chat', '对话'),
-  image('image', '文生图');
+  image('image', '文生图'),
+  tts('tts', '语音合成');
 
   const ModelKind(this.id, this.label);
 
   final String id;
   final String label;
 
-  static ModelKind fromId(String? raw) =>
-      raw == image.id ? image : chat;
+  static ModelKind fromId(String? raw) => values.firstWhere(
+    (kind) => kind.id == raw,
+    orElse: () => chat,
+  );
 }
 
 /// 模型接入配置（规划书 §6.9 / M5）。
@@ -199,9 +202,34 @@ class ModelConfig {
     ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
   ];
 
+  /// 语音合成预设（2026-10-17）。
+  ///
+  /// 只列**确认兼容 OpenAI /audio/speech 接口**的：请求 `{model, input, voice}`，
+  /// 响应直接是音频字节。其他家的 TTS 协议差得远，放进来只会让人
+  /// 配完之后拿到一句看不懂的报错。
+  static const List<ModelPreset> ttsPresets = [
+    ModelPreset(
+      id: 'siliconflow-tts',
+      label: '硅基流动',
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      model: 'FunAudioLLM/CosyVoice2-0.5B',
+    ),
+    ModelPreset(
+      id: 'openai-tts',
+      label: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o-mini-tts',
+      altModels: ['tts-1', 'tts-1-hd'],
+    ),
+    ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
+  ];
+
   /// 某个用途下有哪些预设。
-  static List<ModelPreset> presetsOf(ModelKind kind) =>
-      kind == ModelKind.image ? imagePresets : presets;
+  static List<ModelPreset> presetsOf(ModelKind kind) => switch (kind) {
+    ModelKind.image => imagePresets,
+    ModelKind.tts => ttsPresets,
+    ModelKind.chat => presets,
+  };
 
   static ModelPreset presetOf(
     String providerId, {

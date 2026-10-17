@@ -80,6 +80,23 @@ void main() {
       }
     });
 
+    test('语音合成是独立用途，预设在语音分组里', () {
+      expect(ModelKind.fromId('tts'), ModelKind.tts);
+      expect(ModelKind.fromId('不认识'), ModelKind.chat);
+
+      final presets = ModelConfig.presetsOf(ModelKind.tts);
+      expect(presets.any((p) => p.id == 'siliconflow-tts'), isTrue);
+      expect(
+        ModelConfig.presetOf('openai-tts', kind: ModelKind.tts).baseUrl,
+        'https://api.openai.com/v1',
+      );
+      for (final preset in presets) {
+        if (preset.id == 'custom') continue;
+        expect(preset.model, isNotEmpty, reason: '${preset.label} 缺默认模型');
+        expect(preset.baseUrl, startsWith('https://'));
+      }
+    });
+
     test('地址和模型名都填了才算完整', () {
       const empty = ModelConfig(
         id: 'a',

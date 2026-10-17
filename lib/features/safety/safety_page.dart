@@ -52,8 +52,6 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          const _Intro(),
-          const SizedBox(height: 18),
           _Group(
             title: '使用情况',
             children: [
@@ -62,7 +60,7 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
                 icon: Icons.refresh,
                 title: '最近 30 分钟查看反馈',
                 value: recentViews == null ? '—' : '$recentViews 次',
-                subtitle: '下拉刷新信息流、反复打开同一条帖子，都算一次。',
+                subtitle: '刷新与重复打开都算。',
               ),
             ],
           ),
@@ -79,7 +77,7 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
               _SwitchRow(
                 icon: Icons.notifications_paused_outlined,
                 title: '防沉迷提醒',
-                subtitle: '查看反馈次数超过阈值时，温和提醒一次。',
+                subtitle: '超过阈值提醒一次。',
                 value: safety.addictionGuard,
                 onChanged: (on) =>
                     ref.read(safetyControllerProvider.notifier).setAddictionGuard(on),
@@ -154,31 +152,6 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
   }
 }
 
-class _Intro extends StatelessWidget {
-  const _Intro();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: ClearColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ClearColors.divider),
-      ),
-      child: Text(
-        '这一页只做两件事：让你看见自己的使用情况，给你一个随时退出的出口。\n'
-        '它不会限制你、不会弹窗拦住你，也不会替你决定该用多久。',
-        style: TextStyle(
-          color: ClearColors.textMuted,
-          fontSize: 13,
-          height: 1.8,
-        ),
-      ),
-    );
-  }
-}
-
 /// 本次已使用时长。每 30 秒自己刷新一次——用户盯着这一页看的时候，
 /// 数字不动会显得像坏了。
 class _SessionRow extends StatefulWidget {
@@ -215,9 +188,7 @@ class _SessionRowState extends State<_SessionRow> {
       icon: Icons.schedule,
       title: '本次已使用',
       value: minutes < 1 ? '不到 1 分钟' : '$minutes 分钟',
-      subtitle: isLong
-          ? '已经坐了一段时间了，起来动一动吧。'
-          : '这个数字只是给你看的。',
+      subtitle: isLong ? '起来动一动吧。' : null,
       emphasize: isLong,
     );
   }
@@ -437,7 +408,7 @@ class _ThresholdRow extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 2),
             child: Text(
-              '30 分钟内查看反馈达到这个次数，就提醒一次。',
+              '30 分钟内达到这个次数就提醒。',
               style: TextStyle(color: ClearColors.textFaint, fontSize: 11.5),
             ),
           ),
@@ -532,7 +503,7 @@ class _ClearShortcut extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '停掉所有虚拟反馈，并归档已有的评论与点赞。',
+                      '停掉虚拟反馈。',
                       style: TextStyle(
                         color: ClearColors.textFaint,
                         fontSize: 11.5,

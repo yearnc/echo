@@ -133,6 +133,9 @@ class WorldService {
         pool: pool,
         at: moment.at,
       );
+      // 用预置台词先把排期占住（评论区不会空着），再让模型把内容换成
+      // "真的看过这条动态"的话。不 await：写评论要几秒，而社区该动就动。
+      unawaited(_upgradePeerComments(postId: postId, pool: pool));
       written++;
     }
 
@@ -233,9 +236,9 @@ class WorldService {
 
   /// 给一条住民动态排几位邻居的回应。
   ///
-  /// 刻意排得少（0—2 条）：社区里绝大多数帖子只有零星回应，每条都热闹反而假。
-  /// 回应用的是预置台词、**不走模型**——住民动态本身已经是一次模型调用了，
-  /// 评论是配角，不值得为它再花一次。
+  /// 先按 1—3 条排期、用预置台词占住位置（不这么做的话，模型慢几秒，
+  /// 用户刷新时就只能看到一条空评论区）。内容随后由
+  /// [_upgradePeerComments] 换成模型写的。
   ///
   /// 这些互动进了同一条队列（`ai_interactions`），所以兑现、补发、
   /// 切清醒模式时取消，全都跟用户帖子下面的那些一个待遇。
@@ -247,8 +250,10 @@ class WorldService {
   }) async {
     final others = pool.where((p) => p.id != authorId).toList()
       ..shuffle(_random);
-    final count = _random.nextInt(3);
-    if (count == 0 || others.isEmpty) return;
+    // 1—3 条：以前有 1/3 的概率一条都没有，一屏翻下去全是零评论，
+    // 社区像刚上线，而不像有人在住。
+    final count = 1 + _random.nextInt(3);
+    if (others.isEmpty) return;
 
     final planned = <PlannedInteraction>[];
     for (var i = 0; i < count && i < others.length; i++) {
@@ -265,6 +270,41 @@ class WorldService {
     }
 
     await interactions.insertPlanned(postId, planned);
+  }
+
+  /// 把住民动态底下还没到点的评论，换成模型读着这条动态写的话。
+  ///
+  /// 这是"评论和帖子无关"的根：以前这里直接用 `sample.forPersona()`，
+  /// 那是住民随身的一句台词，跟帖子内容没有任何关系。于是就会出现
+  /// "在吧台做咖啡"底下有人聊"河边坐了半小时"——而且楼主接着那句
+  /// 聊得还挺像回事（楼中楼走了模型），对比之下特别刺眼。
+  ///
+  /// 排期早就落库了，所以这一步失败也无所谓：预置台词还在，社区照常运转，
+  /// 只是这条评论又变成"随口一句"。
+  Future<void> _upgradePeerComments({
+    required String postId,
+    required List<AiPersona> pool,
+  }) async {
+    try {
+      final personaIds = await interactions.pendingCommentPersonaIds(postId);
+      if (personaIds.isEmpty) return;
+
+      final byId = {for (final persona in pool) persona.id: persona};
+      final targets = personaIds
+          .map((id) => byId[id])
+          .whereType<AiPersona>()
+          .toList(growable: false);
+      if (targets.isEmpty) return;
+
+      final post = await posts.findById(postId);
+      if (post == null) return;
+
+      final generated = await generator.comments(personas: targets, post: post);
+      if (generated.isEmpty) return;
+      await interactions.updatePendingComments(postId, generated);
+    } catch (error) {
+      debugPrint('[世界] 住民动态的评论没能换成模型写的：$error');
+    }
   }
 
   /// 这次该补几条。纯逻辑。

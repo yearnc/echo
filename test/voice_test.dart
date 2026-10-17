@@ -14,6 +14,7 @@ import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/resident_voice.dart';
+import 'package:echo/domain/models/voice_settings.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
@@ -189,7 +190,10 @@ void main() {
     tearDown(() => db.close());
 
     /// 排一条"早就该兑现"的评论，然后扫一次队列。
-    Future<void> flushOneComment({required TtsService? voice}) async {
+    Future<void> flushOneComment({
+      required TtsService? voice,
+      VoiceSettings Function()? readVoiceSettings,
+    }) async {
       final postId = await posts.create(content: '今天楼下桂花开了', scope: 'echo');
       await interactions.insertPlanned(postId, [
         PlannedInteraction(
@@ -211,6 +215,7 @@ void main() {
         generator: SampleContentGenerator(),
         relationships: RelationshipRepository(db),
         voice: voice,
+        readVoiceSettings: readVoiceSettings,
         // 概率那一关直接放行：这条用例要验的是接线，不是随机。
         random: _AlwaysLowRandom(),
       );
@@ -241,6 +246,19 @@ void main() {
       expect(row.voicePath, isNull);
       // 评论本身还在——语音只是表现形式，不该连累内容。
       expect(row.status, 'done');
+    });
+
+    test('语音开关关掉时不再生成新的语音条', () async {
+      final fake = _FakeTts();
+      await flushOneComment(
+        voice: fake,
+        readVoiceSettings: () => const VoiceSettings(enabled: false),
+      );
+
+      final row = (await db.select(db.aiInteractions).get()).single;
+      expect(fake.calls, 0, reason: '开关关了就不该再合成');
+      expect(row.mediaType, 'text');
+      expect(row.status, 'done', reason: '评论本身照常送到');
     });
 
     test('没有语音服务时行为和 B8 之前完全一致', () async {

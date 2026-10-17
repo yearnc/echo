@@ -22,7 +22,7 @@ class ModelsPage extends ConsumerWidget {
         backgroundColor: EchoColors.surface,
         iconTheme: IconThemeData(color: EchoColors.text),
         title: Text(
-          '模型配置中心',
+          '模型配置',
           style: TextStyle(color: EchoColors.text, fontSize: 16),
         ),
         actions: [
@@ -52,12 +52,11 @@ class ModelsPage extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
                     child: Text(
-                      '密钥存在系统钥匙串里（Windows 用 DPAPI、安卓用 Keystore），'
-                      '不会写进数据库，也不会传到别处——只有这个 APP 调模型时才用得到。',
+                      '密钥保存在本机钥匙串，不写入数据库。',
                       style: TextStyle(
                         color: EchoColors.textFaint,
                         fontSize: 11.5,
-                        height: 1.7,
+                        height: 1.5,
                       ),
                     ),
                   ),
@@ -167,7 +166,7 @@ class _Empty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '还没有配置任何模型\n配好之后，客观分析可以走你自己的模型。',
+            '还没有配置模型',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: EchoColors.textMuted,

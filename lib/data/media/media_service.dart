@@ -69,10 +69,11 @@ class MediaService {
   /// 合成引擎要的是一个"写到哪儿"，所以这里给位置而不是收数据。
   /// 目录与图片共用一处：对上层来说两者都只是 `file:` 引用，
   /// 哪天要清理本地素材，扫一个目录就够了。
-  Future<File> newVoiceFile() async {
+  Future<File> newVoiceFile({String extension = '.wav'}) async {
     final mediaDir = await _mediaDir();
+    final ext = extension.startsWith('.') ? extension : '.$extension';
     return File(
-      p.join(mediaDir.path, 'voice_${DateTime.now().microsecondsSinceEpoch}.wav'),
+      p.join(mediaDir.path, 'voice_${DateTime.now().microsecondsSinceEpoch}$ext'),
     );
   }
 

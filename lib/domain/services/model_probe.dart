@@ -82,6 +82,62 @@ class ModelProbe {
     }
   }
 
+  /// 测一次语音合成。
+  ///
+  /// 和出图同理：光发一句"你好"去对话接口验不出 TTS。这里真让
+  /// `/audio/speech` 合成一小段，回来的字节非空才算通。
+  Future<ProbeResult> testTts({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+  }) async {
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) return ProbeResult(ok: false, message: problem);
+
+    final url = '${normalizeBaseUrl(baseUrl)}/audio/speech';
+    final started = DateTime.now();
+
+    try {
+      final response = await _dio.post<List<int>>(
+        url,
+        data: {
+          'model': model,
+          'input': '你好',
+          // 不同服务商的音色名不一样：硅基流动用 anna，OpenAI 用 alloy。
+          // 自定义端点按 OpenAI 的默认值试。
+          'voice': baseUrl.contains('siliconflow') ? 'anna' : 'alloy',
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          responseType: ResponseType.bytes,
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      final bytes = response.data ?? const <int>[];
+      final elapsed = DateTime.now().difference(started).inMilliseconds;
+      final ok = bytes.length > 100;
+
+      return ProbeResult(
+        ok: ok,
+        message: ok ? '连接成功，能合成语音' : '连上了，但没收到音频',
+        elapsedMs: elapsed,
+      );
+    } on DioException catch (error) {
+      return ProbeResult(
+        ok: false,
+        message: describeModelError(error),
+        elapsedMs: DateTime.now().difference(started).inMilliseconds,
+      );
+    } catch (error) {
+      return ProbeResult(ok: false, message: '出错了：$error');
+    }
+  }
+
   /// 测一次文生图。
   ///
   /// 对话模型靠一句"你好"就能验，图片模型不行——得真让它画点什么。

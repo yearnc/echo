@@ -95,6 +95,37 @@ class ResidentVoice {
     return pool[hash % pool.length];
   }
 
+  /// 这个住民用的是不是女声。云端 TTS 服务商的音色名分男女，
+  /// 靠它挑一个不别扭的。
+  static bool isFemale(String personaId, {String voiceModel = ''}) {
+    final sid = sidFor(personaId, voiceModel: voiceModel);
+    return _femalePool.contains(sid);
+  }
+
+  /// 云端 TTS 的音色名。
+  ///
+  /// 各家音色表不一样，这里只认两家确认过的：
+  /// 硅基流动（CosyVoice）和 OpenAI。自定义端点按 OpenAI 的名字试，
+  /// 不对就让用户自己换服务商——总比随机猜一个不存在的音色强。
+  static String cloudVoiceFor(
+    String personaId, {
+    String voiceModel = '',
+    required String baseUrl,
+  }) {
+    final female = isFemale(personaId, voiceModel: voiceModel);
+    final even = personaId.codeUnits.fold<int>(0, (a, b) => a + b).isEven;
+
+    if (baseUrl.contains('siliconflow')) {
+      if (female) return even ? 'anna' : 'bella';
+      return even ? 'alex' : 'benjamin';
+    }
+    if (baseUrl.contains('openai')) {
+      if (female) return even ? 'nova' : 'shimmer';
+      return even ? 'onyx' : 'echo';
+    }
+    return female ? 'nova' : 'onyx';
+  }
+
   /// 住民说话的语速。
   ///
   /// 语气标签里带 "lazy"、"quiet" 的人说得慢一点，"loud"、"bright" 的快一点；

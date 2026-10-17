@@ -100,6 +100,63 @@ class ModelGateway {
     }
   }
 
+  /// 云端语音合成，返回音频字节（OpenAI 兼容的 `/audio/speech`）。
+  ///
+  /// 和对话、出图一样，这里只负责"发出去、把东西拿回来"；
+  /// 选哪条配置、失败后要不要退回本机，都是调用方的事。
+  Future<Uint8List> speech({
+    required ModelConfig config,
+    required String text,
+    String voice = 'alloy',
+    Duration timeout = const Duration(seconds: 40),
+  }) async {
+    final apiKey = (await _configs.readKey(config.id))?.trim() ?? '';
+    if (apiKey.isEmpty) {
+      throw const ModelCallException('这条配置还没有填 API Key');
+    }
+
+    final baseUrl = normalizeBaseUrl(config.baseUrl);
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) throw ModelCallException(problem);
+
+    try {
+      final response = await _dio.post<List<int>>(
+        '$baseUrl/audio/speech',
+        data: {'model': config.model, 'input': text, 'voice': voice},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          // 要的是二进制音频，不是 JSON
+          responseType: ResponseType.bytes,
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const ModelCallException('语音服务没有返回音频');
+      }
+
+      // 有的兼容端点在出错时仍然回 200 + JSON。这里认一下：
+      // 音频字节不会以 `{` 开头，也不该是 text/json。
+      final contentType =
+          response.headers.value(Headers.contentTypeHeader) ?? '';
+      final looksLikeJson =
+          contentType.contains('json') || (bytes.length < 1024 && bytes[0] == 0x7B);
+      if (looksLikeJson) {
+        final raw = String.fromCharCodes(bytes.take(120));
+        throw ModelCallException('语音服务返回了错误：$raw');
+      }
+
+      return Uint8List.fromList(bytes);
+    } on DioException catch (error) {
+      throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
+    }
+  }
+
   /// 生成一张图，返回图片数据本身。
   ///
   /// OpenAI 兼容的图片接口是 `/images/generations`，跟对话不是同一条路径；
@@ -195,3 +252,12 @@ class ModelGateway {
 final modelGatewayProvider = Provider<ModelGateway>(
   (ref) => ModelGateway(ref.watch(modelConfigRepositoryProvider)),
 );
+
+/// 当前真正可用的云端 TTS 配置；没配就是 null。
+///
+/// 设置页拿它回答"能不能选云端"，TtsService 拿它决定走哪条路。
+/// 订阅配置列表是为了：用户在模型页配好一条之后，回来就能立刻选云端。
+final cloudTtsConfigProvider = FutureProvider<ModelConfig?>((ref) async {
+  ref.watch(modelConfigsProvider);
+  return ref.watch(modelGatewayProvider).activeConfig(kind: ModelKind.tts);
+});

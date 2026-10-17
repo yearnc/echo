@@ -38,8 +38,10 @@ class ModelContentGenerator {
       ],
       // 这里要的是像人，不是稳定——同一句话被复读才是问题
       temperature: 0.9,
-      maxTokens: 800,
-      timeout: const Duration(seconds: 25),
+      // 一档最多可能写十来条评论，800 token 会在中段把 JSON 截断，
+      // 解析失败后整批退回预置台词——那就是"接上 API 还是答非所问"。
+      maxTokens: 1600,
+      timeout: const Duration(seconds: 30),
     );
 
     return parseComments(raw, personas);

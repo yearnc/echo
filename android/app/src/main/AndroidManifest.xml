@@ -9,6 +9,8 @@
     <!-- 系统通知（B10）：Android 13 起要运行时授权，用户拒绝了也不影响 APP 运行 -->
     <!-- 麦克风权限随"按住说话"一起去掉了：APP 现在只合成语音、不录音 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 预约通知要在重启后还能响：不加这一条，手机重启会把排好的通知全丢掉 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="echo"
         android:name="${applicationName}"
@@ -40,6 +42,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 预约通知的投递器与开机重排（flutter_local_notifications 要求） -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

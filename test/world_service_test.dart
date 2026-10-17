@@ -10,7 +10,9 @@ import 'package:echo/data/repositories/model_config_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
+import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/services/content_generator.dart';
+import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/model_gateway.dart';
 import 'package:echo/domain/services/resident_photo.dart';
 import 'package:echo/domain/services/resident_signature.dart';
@@ -26,6 +28,26 @@ class _FixedPersonas implements PersonaRepository {
 
   @override
   Future<List<AiPersona>> loadAll() async => pool;
+}
+
+/// 一个"真的读了帖子"的生成器：评论内容里带上帖子正文，
+/// 用来验证住民动态底下的评论确实交给了模型，而不是随机台词。
+class _ReadingGenerator extends SampleContentGenerator {
+  _ReadingGenerator() : super(random: Random(2));
+
+  int commentCalls = 0;
+
+  @override
+  Future<Map<String, String>> comments({
+    required List<AiPersona> personas,
+    required Post post,
+    Map<String, RelationshipState> relations = const {},
+  }) async {
+    commentCalls++;
+    return {
+      for (final persona in personas) persona.id: '看过你这条：${post.content}',
+    };
+  }
 }
 
 class _MemoryKeyStore implements KeyStore {
@@ -169,7 +191,9 @@ void main() {
       for (final persona in pool) {
         await db
             .into(db.aiPersonas)
-            .insert(AiPersonasCompanion.insert(id: persona.id, name: persona.name));
+            .insert(
+              AiPersonasCompanion.insert(id: persona.id, name: persona.name),
+            );
       }
 
       world = WorldService(
@@ -239,9 +263,7 @@ void main() {
         expect(
           row.createdAt,
           greaterThanOrEqualTo(
-            now
-                .subtract(const Duration(hours: 8))
-                .millisecondsSinceEpoch,
+            now.subtract(const Duration(hours: 8)).millisecondsSinceEpoch,
           ),
         );
       }
@@ -276,6 +298,40 @@ void main() {
       final feed = await PostRepository(db).watchFeed(scope: 'echo').first;
       expect(feed, isNotEmpty);
       expect(feed.first.isByResident, isTrue);
+    });
+
+    test('住民动态的评论会交给模型重写，接住帖子内容', () async {
+      final generator = _ReadingGenerator();
+      final readingWorld = WorldService(
+        db: db,
+        posts: PostRepository(db),
+        personas: _FixedPersonas(_pool(6)),
+        residents: PersonaStateRepository(db, _FixedPersonas(_pool(6))),
+        photo: _noPhotoService(db),
+        interactions: InteractionRepository(db),
+        generator: generator,
+        sample: SampleContentGenerator(random: Random(2)),
+        random: Random(2),
+      );
+
+      await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
+      await readingWorld.tick();
+      // 评论是"先排期、后换内容"的，等后台那条异步写完
+      await pumpEventQueue();
+
+      expect(generator.commentCalls, greaterThan(0), reason: '评论该走模型');
+
+      final comments = (await db.select(db.aiInteractions).get())
+          .where((row) => row.type == 'comment')
+          .toList();
+      expect(comments, isNotEmpty, reason: '一条动态至少该有人来串门');
+      for (final comment in comments) {
+        expect(
+          comment.content,
+          startsWith('看过你这条：'),
+          reason: '评论要接住帖子，不能还是住民的随身台词',
+        );
+      }
     });
 
     test('住民动态下面会有人来串门，而且不是帖主自己', () async {
@@ -344,9 +400,9 @@ void main() {
       final changed = (await db.select(db.aiPersonas).get())
           .where((row) => row.bio.isNotEmpty)
           .toList();
-      final marks = await (db.select(db.appSettings)
-            ..where((t) => t.key.like('${WorldService.bioWatermarkPrefix}%')))
-          .get();
+      final marks = await (db.select(
+        db.appSettings,
+      )..where((t) => t.key.like('${WorldService.bioWatermarkPrefix}%'))).get();
 
       expect(
         marks.map((m) => m.key).toSet(),

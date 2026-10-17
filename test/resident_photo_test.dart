@@ -79,7 +79,8 @@ class _FakeMedia implements MediaService {
   }
 
   @override
-  Future<File> newVoiceFile() async => File('fake/voice.wav');
+  Future<File> newVoiceFile({String extension = '.wav'}) async =>
+      File('fake/voice$extension');
 }
 
 class _FakeAdapter implements HttpClientAdapter {

@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/repositories/model_config_repository.dart';
 import '../../domain/models/model_config.dart';
 import '../../domain/services/model_call_common.dart';
+import '../../domain/services/model_gateway.dart';
 import '../../domain/services/model_probe.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 
@@ -115,14 +116,14 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _provider = preset.id;
       _labelCtrl.text = preset.label;
       _baseUrlCtrl.text = preset.baseUrl;
-      // 文生图的型号跟对话完全是两回事，套用预设里那个对话型号只会误导人。
-      // 地址可以留着——同一家服务商的图片接口通常就在同一个域下。
-      _modelCtrl.text = _kind == ModelKind.image ? '' : preset.model;
+      // 预设已经按用途分过组了（对话 / 文生图 / 语音合成），
+      // 点哪一条就填哪一条的型号，不用用户再记名字。
+      _modelCtrl.text = preset.model;
       _probe = null;
     });
   }
 
-  /// 换用途。型号要一起清掉：对话的型号放到文生图上一定跑不通，反之亦然。
+  /// 换用途。型号要一起清掉：对话的型号放到文生图或语音合成上一定跑不通。
   void _switchKind(ModelKind kind) {
     if (_kind == kind) return;
     setState(() {
@@ -159,12 +160,26 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _probe = null;
     });
 
-    // 两条用途走的接口不一样：对话打 /chat/completions，出图打 /images/generations。
-    // 拿对话那条去验图片模型，只会拿到一句"地址不对"，那比不测更糟。
+    // 三种用途各打各的接口：对话 /chat/completions、出图 /images/generations、
+    // 语音 /audio/speech。拿对话接口去验后两者，只会得到一句误导人的"地址不对"。
     final probe = ref.read(modelProbeProvider);
-    final result = _kind == ModelKind.image
-        ? await probe.testImage(baseUrl: baseUrl, apiKey: key, model: model)
-        : await probe.test(baseUrl: baseUrl, apiKey: key, model: model);
+    final result = switch (_kind) {
+      ModelKind.image => await probe.testImage(
+        baseUrl: baseUrl,
+        apiKey: key,
+        model: model,
+      ),
+      ModelKind.tts => await probe.testTts(
+        baseUrl: baseUrl,
+        apiKey: key,
+        model: model,
+      ),
+      ModelKind.chat => await probe.test(
+        baseUrl: baseUrl,
+        apiKey: key,
+        model: model,
+      ),
+    };
 
     if (!mounted) return;
     setState(() {
@@ -253,6 +268,8 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _initialSnapshot = _snapshot;
     });
     ref.invalidate(modelHasKeyProvider(saved.id));
+    // 设置页的"云端语音可用吗"也跟着这条配置走，保存完让它重查一次
+    ref.invalidate(cloudTtsConfigProvider);
     _snack('已保存');
     _leave();
   }
@@ -355,6 +372,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
 
     if (confirmed != true) return;
     await ref.read(modelConfigRepositoryProvider).delete(config.id);
+    ref.invalidate(cloudTtsConfigProvider);
     if (!mounted) return;
     context.pop();
   }
@@ -410,25 +428,16 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                   ),
               ],
             ),
-            if (_kind == ModelKind.image) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: EchoColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: EchoColors.divider),
-                ),
-                child: Text(
-                  '文生图走 OpenAI 兼容的 /images/generations 接口。'
-                  '下面这几家的地址和型号是照官方文档核过的。\n'
-                  '通义万相和 MiniMax 海螺用的是各自的协议（要先建任务再轮询、'
-                  '返回结构也不同），暂时接不了。',
-                  style: TextStyle(
-                    color: EchoColors.textFaint,
-                    fontSize: 11.5,
-                    height: 1.7,
-                  ),
+            if (_kind != ModelKind.chat) ...[
+              const SizedBox(height: 8),
+              Text(
+                _kind == ModelKind.image
+                    ? '兼容 OpenAI 的 /images/generations 接口。'
+                    : '兼容 OpenAI 的 /audio/speech 接口，音色由服务商提供。',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  height: 1.5,
                 ),
               ),
             ],
@@ -468,7 +477,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               controller: _modelCtrl,
               onChanged: (_) => setState(() {}),
               style: TextStyle(color: EchoColors.text, fontSize: 14),
-              decoration: const InputDecoration(hintText: 'deepseek-flash'),
+              decoration: InputDecoration(
+                hintText: switch (_kind) {
+                  ModelKind.image => 'gpt-image-1.5',
+                  ModelKind.tts => 'FunAudioLLM/CosyVoice2-0.5B',
+                  ModelKind.chat => 'deepseek-flash',
+                },
+              ),
             ),
             if (ModelConfig.presetOf(_provider, kind: _kind)
                 .altModels
@@ -526,11 +541,11 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              '密钥存在系统钥匙串里，不写进数据库，也不会上传到别处。',
+              '密钥只保存在本机钥匙串。',
               style: TextStyle(
                 color: EchoColors.textFaint,
                 fontSize: 11.5,
-                height: 1.6,
+                height: 1.5,
               ),
             ),
             const SizedBox(height: 20),
@@ -549,7 +564,11 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
               label: Text(
                 _testing
                     ? '正在测…'
-                    : (_kind == ModelKind.image ? '测试出图' : '测试连接'),
+                    : switch (_kind) {
+                        ModelKind.image => '测试出图',
+                        ModelKind.tts => '测试合成',
+                        ModelKind.chat => '测试连接',
+                      },
               ),
             ),
             if (_probe != null) ...[

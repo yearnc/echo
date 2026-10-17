@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import '../../data/media/media_service.dart';
+import '../models/model_config.dart';
 import '../models/resident_voice.dart';
+import '../models/voice_settings.dart';
+import 'model_gateway.dart';
 import 'speech_models.dart';
 import 'speech_runtime.dart';
+import 'voice_settings_controller.dart';
 import 'voice_waveform.dart';
 
 /// 合成好的一条语音。
@@ -38,11 +42,21 @@ class VoiceClip {
 /// 拿不到模型（比如开发者没按说明放模型文件）时一律返回 null，
 /// 调用方保持纯文本，不报错、不阻塞——社区的正常运转不该被一个语音功能拖住。
 class TtsService {
-  TtsService({SpeechModelStore? store, this.media = const MediaService()})
-    : _store = store ?? SpeechModelStore();
+  TtsService({
+    SpeechModelStore? store,
+    this.media = const MediaService(),
+    this.gateway,
+    this.readSource,
+  }) : _store = store ?? SpeechModelStore();
 
   final SpeechModelStore _store;
   final MediaService media;
+
+  /// 云端 TTS 的通道。为空（或没配 TTS 配置）就只走本机。
+  final ModelGateway? gateway;
+
+  /// 用户选的是哪条路。每次合成现读，改完设置不用重启 APP。
+  final VoiceSource Function()? readSource;
 
   sherpa.OfflineTts? _engine;
   bool _unavailable = false;
@@ -97,6 +111,99 @@ class TtsService {
     // 念出来很奇怪；能读出人话才合成，读不出来就退回文字。
     if (!_worthSpeaking(transcript)) return null;
 
+    final preferCloud = readSource?.call() == VoiceSource.cloud;
+    final cloudConfig = await _cloudConfig();
+
+    // 用户选了云端、而且确实有一条能用的 TTS 配置：先走云端。
+    // 云端失败（断网、额度、服务商抽风）就继续往下走本机，
+    // 评论区不该因为一次网络抖动就少一条语音。
+    if (preferCloud && cloudConfig != null) {
+      final clip = await _speakCloud(
+        config: cloudConfig,
+        transcript: transcript,
+        personaId: personaId,
+        voiceModel: voiceModel,
+      );
+      if (clip != null) return clip;
+      debugPrint('[语音] 云端没合成出来，退回本机');
+    }
+
+    final local = await _speakLocal(
+      transcript: transcript,
+      personaId: personaId,
+      voiceModel: voiceModel,
+    );
+    if (local != null) return local;
+
+    // 用户选的是本机，但本机模型没放、引擎起不来；这时有云端配置就补上。
+    if (!preferCloud && cloudConfig != null) {
+      return _speakCloud(
+        config: cloudConfig,
+        transcript: transcript,
+        personaId: personaId,
+        voiceModel: voiceModel,
+      );
+    }
+    return null;
+  }
+
+  /// 当前能用的云端 TTS 配置。读不出来就当没配。
+  Future<ModelConfig?> _cloudConfig() async {
+    final client = gateway;
+    if (client == null) return null;
+    try {
+      return await client.activeConfig(kind: ModelKind.tts);
+    } catch (error) {
+      debugPrint('[语音] 读云端语音配置失败：$error');
+      return null;
+    }
+  }
+
+  /// 走云端合成：音频字节直接落盘，播放那一层不需要知道它是谁生成的。
+  Future<VoiceClip?> _speakCloud({
+    required ModelConfig config,
+    required String transcript,
+    required String personaId,
+    required String voiceModel,
+  }) async {
+    final client = gateway;
+    if (client == null) return null;
+
+    try {
+      final bytes = await client.speech(
+        config: config,
+        text: transcript,
+        voice: ResidentVoice.cloudVoiceFor(
+          personaId,
+          voiceModel: voiceModel,
+          baseUrl: config.baseUrl,
+        ),
+      );
+      if (bytes.isEmpty) return null;
+
+      final file = await media.newVoiceFile(extension: '.mp3');
+      await file.writeAsBytes(bytes, flush: true);
+
+      return VoiceClip(
+        ref: 'file:${file.path}',
+        transcript: transcript,
+        // mp3 拿不到采样点；按字数估一个时长给气泡上的秒数用。
+        durationMs: _estimateDurationMs(transcript),
+        // 波形由播放层按文件读；读不出 mp3 会退成等高柱子。
+        waveform: const [],
+      );
+    } catch (error) {
+      debugPrint('[语音] 云端这句没合成出来：$error');
+      return null;
+    }
+  }
+
+  /// 本机离线合成。
+  Future<VoiceClip?> _speakLocal({
+    required String transcript,
+    required String personaId,
+    required String voiceModel,
+  }) async {
     final engine = await _ensureEngine();
     if (engine == null) return null;
 
@@ -126,10 +233,14 @@ class TtsService {
         waveform: VoiceWaveform.bars(audio.samples),
       );
     } catch (error) {
-      debugPrint('[语音] 这句没合成出来，退回文字：$error');
+      debugPrint('[语音] 本机这句没合成出来：$error');
       return null;
     }
   }
+
+  /// 中文大约每秒四五个字。只用于气泡上的秒数，不参与任何调度。
+  static int _estimateDurationMs(String text) =>
+      (text.runes.length * 240).clamp(900, 20000);
 
   /// 合成前的清理：一行、不带话题标签、不超过长度上限。
   static String _clean(String text) {
@@ -157,5 +268,9 @@ class TtsService {
 }
 
 final ttsServiceProvider = Provider<TtsService>(
-  (ref) => TtsService(store: ref.watch(speechModelStoreProvider)),
+  (ref) => TtsService(
+    store: ref.watch(speechModelStoreProvider),
+    gateway: ref.watch(modelGatewayProvider),
+    readSource: () => ref.read(voiceSettingsControllerProvider).source,
+  ),
 );

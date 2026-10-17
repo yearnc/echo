@@ -18,6 +18,7 @@ import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/like_button.dart';
 import '../shared_widgets/post_image.dart';
@@ -66,6 +67,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   @override
   void dispose() {
     _waitTimer?.cancel();
+    // 播放器是全应用单例，页面走了它不会自己停——退出帖子页还响着，
+    // 就是这里少了一句话。没播过就别把它建出来（AudioPlayer 也有开销）。
+    if (ref.exists(voicePlaybackProvider)) {
+      unawaited(ref.read(voicePlaybackProvider.notifier).stop());
+    }
     super.dispose();
   }
 

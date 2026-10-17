@@ -17,6 +17,7 @@ import '../models/ai_persona.dart';
 import '../models/echo_settings.dart';
 import '../models/pending_interaction.dart';
 import '../models/plan_script.dart';
+import '../models/voice_settings.dart';
 import 'content_generator.dart';
 import 'interaction_planner.dart';
 import 'memory_summarizer.dart';
@@ -24,6 +25,7 @@ import 'notification_service.dart';
 import 'relationship_rules.dart';
 import 'safety_controller.dart';
 import 'tts_service.dart';
+import 'voice_settings_controller.dart';
 
 // 策划脚本只安排"这条帖子会收到什么回应"，所以这里没有"切模式""跳页面"的
 // 入口：那些动作在拍摄时由人手动完成，不由脚本代劳。
@@ -50,7 +52,10 @@ class SchedulerService {
     required this.relationships,
     this.memory,
     this.voice,
+    this.readVoiceSettings,
     this.notify,
+    this.scheduleNotification,
+    this.cancelScheduledNotification,
     this.readCoolDown,
     InteractionPlanner? planner,
     Random? random,
@@ -73,10 +78,24 @@ class SchedulerService {
   /// 住民说话的嗓子（B8）。可空：没有它就全发文字，社区照常运转。
   final TtsService? voice;
 
+  /// 语音开关。关掉之后不再生成新的语音评论，历史语音照常能播。
+  final VoiceSettings Function()? readVoiceSettings;
+
   /// 往系统通知栏推一条（B10）。可空，而且**前台不接**：
   /// 用户正开着 APP 时，应用内的红点与列表已经够了，
   /// 再弹一条系统通知是重复打扰。只有后台补发那条路才接它。
   final void Function(String key, String title, String body)? notify;
+
+  /// 把一条**将来**的互动交给系统闹钟（B10 修订）。
+  ///
+  /// 与 [notify] 的分工：那个是"现在就弹"，这个是"到点替我弹"。
+  /// 后者才是 APP 关着时唯一靠得住的路——WorkManager 在国产 ROM 上
+  /// 随时会被省电策略掐掉，而排期本来就在磁盘上，没有理由不交给系统。
+  final void Function(String key, DateTime at, String title, String body)?
+  scheduleNotification;
+
+  /// 互动提前被兑现时，把对应的预约撤掉，避免同一条提醒弹两次。
+  final void Function(String key)? cancelScheduledNotification;
 
   /// 住民说什么话由它出：配了模型就是模型写的，没配就是预置台词。
   final ContentGenerator generator;
@@ -117,6 +136,27 @@ class SchedulerService {
       delay: delay,
     );
     await interactions.insertPlanned(postId, planned);
+
+    // 把将来的评论交给系统闹钟。只预约评论：点赞零零碎碎，几十个赞弹几十条
+    // 通知就是骚扰；应用内那张列表照样一条不落。
+    //
+    // key 用 `n_sched_<帖子>_<序号>`，与 insertPlanned 的 id 规则一致——
+    // 兑现时才知道该撤掉哪一条。
+    final schedule = scheduleNotification;
+    if (schedule != null) {
+      final nameById = {for (final p in pool) p.id: p.name};
+      for (var i = 0; i < planned.length; i++) {
+        final item = planned[i];
+        if (!item.isComment) continue;
+        final name = nameById[item.personaId] ?? '社区住民';
+        schedule(
+          'n_sched_${postId}_$i',
+          item.scheduledAt,
+          '$name 评论了你的帖子',
+          '你有一条社区互动通知',
+        );
+      }
+    }
     return planned.length;
   }
 
@@ -153,6 +193,43 @@ class SchedulerService {
       // 这一步失败无所谓——库里已经有台词了。留个痕是为了排查
       // "为什么住民说的话一直是那几句"。
       debugPrint('[内容生成] 评论没能换成模型写的：$error');
+    }
+  }
+
+  /// APP 切到后台时调用：把还没到点的评论重新交给系统闹钟。
+  ///
+  /// 为什么不在前台一直挂着预约：APP 开着的时候，通知该走应用内那张列表，
+  /// 系统通知是打扰；所以回到前台会把预约全撤掉，切到后台再按库里
+  /// 剩下的队列重新排一遍。这样"开着不弹、关着能收到"两边都成立。
+  Future<void> rescheduleNotifications() async {
+    final schedule = scheduleNotification;
+    if (schedule == null) return;
+
+    try {
+      final pending = await interactions.pendingComments();
+      if (pending.isEmpty) return;
+
+      // 住民自己动态底下的评论不是"回应你"，不该叫醒你的手机
+      final peers = await posts.residentAuthorsOf(
+        pending.map((item) => item.postId).toSet(),
+      );
+      final pool = await personas.loadAll();
+      final nameById = {for (final p in pool) p.id: p.name};
+      final now = DateTime.now();
+
+      for (final item in pending) {
+        if (peers.containsKey(item.postId)) continue;
+        if (!item.scheduledAt.isAfter(now)) continue;
+        schedule(
+          'n_${item.id}',
+          item.scheduledAt,
+          '${nameById[item.personaId] ?? '社区住民'} 评论了你的帖子',
+          '你有一条社区互动通知',
+        );
+      }
+    } catch (error) {
+      // 预约失败不影响 APP 本身，冷启动补发那条老路还在
+      debugPrint('[通知] 这次没排上预约：$error');
     }
   }
 
@@ -204,6 +281,8 @@ class SchedulerService {
 
     for (final item in due) {
       await interactions.markExecuted(item.id);
+      // 已经由前台兑现了，把系统里那条预约撤掉，别过一会儿又弹一次。
+      cancelScheduledNotification?.call('n_${item.id}');
 
       final name = nameById[item.personaId] ?? '社区住民';
       final isMyPost = !peersPosts.containsKey(item.postId);
@@ -220,6 +299,7 @@ class SchedulerService {
           type: 'like',
           title: likeTitle,
           body: '你有一条社区互动通知',
+          at: item.scheduledAt,
         );
         // 锁屏上不会露内容（渠道设了 secret），所以正文写具体点没关系。
         notify?.call('n_${item.id}', likeTitle, '你有一条社区互动通知');
@@ -241,6 +321,7 @@ class SchedulerService {
           type: 'comment',
           title: '$name 评论了你的帖子',
           body: item.content ?? '',
+          at: item.scheduledAt,
         );
         notify?.call('n_${item.id}', '$name 评论了你的帖子', item.content ?? '');
 
@@ -318,6 +399,7 @@ class SchedulerService {
   }) async {
     final speech = voice;
     if (speech == null || persona == null) return;
+    if (!(readVoiceSettings?.call().enabled ?? true)) return;
 
     final content = (item.content ?? '').trim();
     if (content.isEmpty) return;
@@ -457,7 +539,16 @@ class SchedulerService {
           var transcript = event.transcript;
           var durationMs = event.voiceDurationMs;
 
-          if (mediaType == 'voice' && !await _voiceAssetAvailable(voicePath)) {
+          // 语音开关关掉时，脚本里的语音也退回文字。已经生成的语音条
+          // 照常能播，这里管的只是"别再产生新语音"。
+          final voiceEnabled = readVoiceSettings?.call().enabled ?? true;
+          if (mediaType == 'voice' && !voiceEnabled) {
+            mediaType = 'text';
+            voicePath = null;
+            transcript = null;
+            durationMs = null;
+          } else if (mediaType == 'voice' &&
+              !await _voiceAssetAvailable(voicePath)) {
             final clip = await voice?.speak(
               text: event.content ?? '',
               personaId: personaId,
@@ -549,12 +640,18 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     relationships: ref.watch(relationshipRepositoryProvider),
     memory: ref.watch(memorySummarizerProvider),
     voice: ref.watch(ttsServiceProvider),
+    readVoiceSettings: () => ref.read(voiceSettingsControllerProvider),
     // 只有后台补发才推通知栏（B10）：前台那条路上，应用内的红点已经够了。
     notify: ref.watch(inBackgroundTaskProvider)
         ? (key, title, body) => ref
               .read(systemNotificationProvider)
               .show(key: key, title: title, body: body)
         : null,
+    scheduleNotification: (key, at, title, body) => ref
+        .read(systemNotificationProvider)
+        .schedule(key: key, at: at, title: title, body: body),
+    cancelScheduledNotification: (key) =>
+        ref.read(systemNotificationProvider).cancelScheduled(key),
     readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );

@@ -37,6 +37,10 @@ class NotificationRepository {
   /// [id] 可由调用方指定，用来从来源派生通知 id（调度器传互动 id）。
   /// 一次补发可能在**同一微秒**内写入几十条通知，用时间戳当 id 会撞主键；
   /// 按来源派生则天然幂等——同一条互动不会产生第二条通知。
+  /// [at] 是这条互动**本该发生**的时刻。
+  ///
+  /// 补发时传排期时间而不是 `now`：离线期间积压的互动本来就有先后，
+  /// 全写成"现在"会让通知列表变成同一条时间线上一坨分不开的记录。
   Future<void> insert({
     String? id,
     required String type,
@@ -44,8 +48,9 @@ class NotificationRepository {
     String body = '',
     String? postId,
     String scope = 'echo',
+    DateTime? at,
   }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final moment = (at ?? DateTime.now()).millisecondsSinceEpoch;
     await _db
         .into(_db.notificationLogs)
         .insert(
@@ -55,8 +60,8 @@ class NotificationRepository {
             title: Value(title),
             body: Value(body),
             postId: Value(postId),
-            scheduledAt: Value(now),
-            deliveredAt: Value(now),
+            scheduledAt: Value(moment),
+            deliveredAt: Value(moment),
             scope: Value(scope),
           ),
         );

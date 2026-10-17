@@ -20,10 +20,10 @@ import '../../domain/services/scheduler_service.dart';
 
 /// 发布页（规划书 §6.1）。
 ///
-/// 阶段 A 只做发布本身：文字、图片、话题，以及回响模式下那组
-/// "你能决定别人怎么回应你"的旋钮（回复频率 / 点赞量 / 拟人程度）。
-/// 这组旋钮放在发布页而不是深层设置里，是刻意的——它让"我在安排反馈"这件事
-/// 在每一次发帖时都被看见一次。
+/// 页面主体只留"我要说什么"：文字、图片、话题。
+/// 策划模式与回复频率 / 点赞量 / 拟人程度收进右上角的小按钮——
+/// 它们偏技术，一直摆在正文旁边会把人从表达里拽出来；
+/// 但排期仍然是发帖这一刻决定的，只是不必一直看得见。
 class ComposePage extends ConsumerStatefulWidget {
   const ComposePage({super.key});
 
@@ -34,8 +34,8 @@ class ComposePage extends ConsumerStatefulWidget {
 class _ComposePageState extends ConsumerState<ComposePage> {
   final TextEditingController _controller = TextEditingController();
   String _topic = '日常';
-  String _density = '中';
-  String _likeLevel = '中';
+  String _density = '自动';
+  String _likeLevel = '自动';
   int _humanLevel = 3;
 
   /// 非 null 就是在忙，内容是按钮上显示的字。
@@ -76,20 +76,40 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          Text(
-            isEcho ? '发布' : '记录',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: isEcho ? EchoColors.text : ClearColors.text,
-              fontSize: 24,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isEcho ? '说点什么，会有人回应你的。' : '写下一件今天真实发生的事。',
-            style: TextStyle(
-              color: isEcho ? EchoColors.textMuted : ClearColors.textMuted,
-              fontSize: 12.5,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isEcho ? '发布' : '记录',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: isEcho ? EchoColors.text : ClearColors.text,
+                            fontSize: 24,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isEcho ? '说点什么，会有人回应你的。' : '写下一件今天真实发生的事。',
+                      style: TextStyle(
+                        color: isEcho
+                            ? EchoColors.textMuted
+                            : ClearColors.textMuted,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isEcho)
+                _TuningButton(
+                  planning: _planMode,
+                  onTap: () => _openTuning(scripts),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           TextField(
@@ -114,54 +134,6 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           ),
           const SizedBox(height: 18),
           if (isEcho) ...[
-            const _SectionLabel('策划模式'),
-            _PlanModeCard(
-              enabled: _planMode,
-              script: _script,
-              onToggle: (value) => _togglePlanMode(value, scripts),
-              onPick: () => _pickScript(scripts),
-              onManage: () => context.push(RoutePaths.scripts),
-            ),
-            const SizedBox(height: 20),
-            if (!_planMode) ...[
-              const _SectionLabel('你希望它被怎么对待'),
-              _SettingRow(
-                label: '回复频率',
-                value: _density,
-                options: const ['低', '中', '高', '自动'],
-                onChanged: (v) => setState(() => _density = v),
-              ),
-              _SettingRow(
-                label: '点赞量',
-                value: _likeLevel,
-                options: const ['低', '中', '高', '自动'],
-                onChanged: (v) => setState(() => _likeLevel = v),
-              ),
-              _SettingRow(
-                label: '拟人程度',
-                value: '$_humanLevel 档',
-                options: const ['1', '2', '3', '4', '5'],
-                onChanged: (v) => setState(() => _humanLevel = int.parse(v)),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: EchoColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: EchoColors.divider),
-                ),
-                child: Text(
-                  '这些设置只影响 AI 生成内容的表现形式。反馈会在 0—48 小时内随机出现。',
-                  style: TextStyle(
-                    color: EchoColors.textFaint,
-                    fontSize: 11.5,
-                    height: 1.6,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 18),
             const _SectionLabel('话题'),
             Wrap(
               spacing: 8,
@@ -210,6 +182,112 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   Future<void> _removeImage(String imageRef) async {
     setState(() => _imageRefs.remove(imageRef));
     await ref.read(mediaServiceProvider).deleteByRef(imageRef);
+  }
+
+  /// 发布选项：策划模式 + 三个旋钮。
+  ///
+  /// 它们都偏"技术"，摆在正文旁边会一直把人从"我要说什么"里拽出来。
+  /// 所以收进右上角一个小按钮，默认值给"自动"，不打扰。
+  Future<void> _openTuning(List<PlanScript> scripts) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: EchoColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetBodyContext, setSheetState) {
+          // 值存在页面 state 里，弹层也要跟着重建一次
+          void sync(VoidCallback change) {
+            setSheetState(change);
+            setState(change);
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                6,
+                16,
+                16 + MediaQuery.of(sheetBodyContext).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '发布选项',
+                        style: TextStyle(
+                          color: EchoColors.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('完成'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  _PlanModeCard(
+                    enabled: _planMode,
+                    script: _script,
+                    onToggle: (value) async {
+                      await _togglePlanMode(value, scripts);
+                      if (sheetBodyContext.mounted) setSheetState(() {});
+                    },
+                    onPick: () async {
+                      await _pickScript(scripts);
+                      if (sheetBodyContext.mounted) setSheetState(() {});
+                    },
+                    onManage: () {
+                      Navigator.of(sheetContext).pop();
+                      context.push(RoutePaths.scripts);
+                    },
+                  ),
+                  if (!_planMode) ...[
+                    const SizedBox(height: 18),
+                    _SettingRow(
+                      label: '回复频率',
+                      value: _density,
+                      options: const ['低', '中', '高', '自动'],
+                      onChanged: (v) => sync(() => _density = v),
+                    ),
+                    _SettingRow(
+                      label: '点赞量',
+                      value: _likeLevel,
+                      options: const ['低', '中', '高', '自动'],
+                      onChanged: (v) => sync(() => _likeLevel = v),
+                    ),
+                    _SettingRow(
+                      label: '拟人程度',
+                      value: '$_humanLevel 档',
+                      options: const ['1', '2', '3', '4', '5'],
+                      onChanged: (v) =>
+                          sync(() => _humanLevel = int.parse(v)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '只影响 AI 内容的表现形式。',
+                      style: TextStyle(
+                        color: EchoColors.textFaint,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _togglePlanMode(bool value, List<PlanScript> scripts) async {
@@ -455,9 +533,8 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   Future<bool?> _askModelSetup() => _ask(
     title: '还没有配置 AI 服务',
     body:
-        '这条帖子照常发布，回应会由内置的示例内容生成。\n\n'
-        '填上你自己的模型之后，评论和动态才会真的由 AI 生成。'
-        'API Key 只存在这台设备上，不会传到别处。',
+        '这条帖子照常发布，回应会由内置示例生成。\n\n'
+        '填上模型之后，评论和动态才会真的由 AI 生成。API Key 只存在本机。',
     confirmLabel: '去配置',
     cancelLabel: '先这样发布',
   );
@@ -771,6 +848,63 @@ class _ClearModeNote extends StatelessWidget {
           color: ClearColors.textMuted,
           fontSize: 12,
           height: 1.6,
+        ),
+      ),
+    );
+  }
+}
+
+/// 右上角那个小按钮：把技术选项收起来，不抢正文的注意力。
+class _TuningButton extends StatelessWidget {
+  const _TuningButton({required this.planning, required this.onTap});
+
+  final bool planning;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '发布选项',
+      child: Material(
+        color: EchoColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: planning
+                ? EchoColors.primary.withValues(alpha: 0.45)
+                : EchoColors.divider,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.tune,
+                  size: 18,
+                  color: planning ? EchoColors.primary : EchoColors.textMuted,
+                ),
+                if (planning)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: EchoColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

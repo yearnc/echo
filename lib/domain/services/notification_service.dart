@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 /// 系统通知（B10）。
 ///
@@ -79,9 +80,69 @@ class SystemNotificationService {
     }
   }
 
+  /// 预约一条**将来**的通知。
+  ///
+  /// 这是"APP 关着也能收到"的正路：排期本来就写在数据库里，我们在排期时
+  /// 顺手把它交给系统的 AlarmManager，时间到了由系统亮屏提醒，
+  /// 不依赖 WorkManager（后者在国产 ROM 上随时会被掐掉）。
+  ///
+  /// 用 `inexactAllowWhileIdle`：不需要"精确闹钟"权限，允许系统把时间
+  /// 挪几分钟——社区互动的提醒不需要秒级精确，能到就行。
+  Future<void> schedule({
+    required String key,
+    required DateTime at,
+    required String title,
+    String body = '',
+  }) async {
+    // 已经过去的时间点没有预约的意义，交给 flushDue 当场兑现。
+    if (!at.isAfter(DateTime.now())) return;
+
+    await ensureReady();
+    try {
+      await _plugin.zonedSchedule(
+        id: _scheduledIdOf(key),
+        // 用 UTC 表示绝对时刻：不依赖设备时区名，也不用额外装时区插件
+        scheduledDate: tz.TZDateTime.from(at.toUtc(), tz.UTC),
+        notificationDetails: _details(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        title: title,
+        body: body,
+        payload: key,
+      );
+    } catch (error) {
+      debugPrint('[通知] 这条没预约上：$error');
+    }
+  }
+
+  /// 取消一条还没到点的预约（互动提前被兑现、或切到清醒模式时）。
+  Future<void> cancelScheduled(String key) async {
+    try {
+      await _plugin.cancel(id: _scheduledIdOf(key));
+    } catch (error) {
+      debugPrint('[通知] 这条预约没取消掉：$error');
+    }
+  }
+
+  /// 取消所有已预约、还没弹出的通知。
+  ///
+  /// 只动"排着的"，已经弹出来的历史通知不动——切模式不该顺手把
+  /// 通知栏清空，那是另一件事。
+  Future<void> cancelAllScheduled() async {
+    try {
+      await _plugin.cancelAllPendingNotifications();
+    } catch (error) {
+      debugPrint('[通知] 预约没清干净：$error');
+    }
+  }
+
   /// 同一条互动重复弹会覆盖上一条（id 由来源派生），
   /// 不会出现"补发一次刷屏十条"。
   static int _idOf(String key) => key.hashCode & 0x7fffffff;
+
+  /// 预约用的 id 单独一档：和"已经弹出来的那条"分开，
+  /// 这样兑现时取消预约不会把通知栏里刚出现的那条一起抹掉。
+  static int _scheduledIdOf(String key) =>
+      'scheduled:$key'.hashCode & 0x7fffffff;
 
   NotificationDetails _details() => const NotificationDetails(
     android: AndroidNotificationDetails(

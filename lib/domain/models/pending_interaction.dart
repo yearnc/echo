@@ -8,6 +8,7 @@ class PendingInteraction {
     required this.postId,
     required this.personaId,
     required this.type,
+    required this.scheduledAt,
     this.content,
     this.mediaType,
     this.voiceDurationMs,
@@ -17,6 +18,12 @@ class PendingInteraction {
   final String id;
   final String postId;
   final String personaId;
+
+  /// 它**本该**发生的时刻。
+  ///
+  /// 冷启动补发时，通知要按这个时间记账，而不是按"现在"——
+  /// 否则离线两天回来，十几次互动会在同一秒里变成一排"刚刚"。
+  final DateTime scheduledAt;
 
   /// like / comment
   final String type;

@@ -6,14 +6,17 @@ import '../../core/constants/app_info.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../domain/models/voice_settings.dart';
 import '../../domain/services/appearance_controller.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/model_gateway.dart';
+import '../../domain/services/voice_settings_controller.dart';
 import '../shared_widgets/mode_switch_flow.dart';
 
 /// 设置页（规划书 §2.3 的目录结构）。
 ///
-/// 阶段 A 先把结构立起来：模式管理可用，其余入口按规划书的层级摆好，
-/// 点进去是"即将实现"的说明——让结构先成型，比把功能散着做更可控。
+/// 只留真实可用的入口，说明压到一行以内：设置页是拿来改东西的，
+/// 不是拿来解释产品的。心理援助这类必须被看见的提示不在压缩范围内。
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -21,6 +24,8 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(modeControllerProvider);
     final appearance = ref.watch(appearanceControllerProvider);
+    final voice = ref.watch(voiceSettingsControllerProvider);
+    final cloudTts = ref.watch(cloudTtsConfigProvider).value;
     final isEcho = mode.isEcho;
 
     // 从「我的」push 进来时（有上级页面）才需要返回键与标题栏；
@@ -58,7 +63,6 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.brightness_6_outlined,
                 title: '明暗',
-                subtitle: '默认跟随模式：回响深色、清醒暖白',
                 value: appearance.label,
                 onTap: () => _pickAppearance(context, ref),
               ),
@@ -80,27 +84,20 @@ class SettingsPage extends ConsumerWidget {
                     ? Icons.nightlight_outlined
                     : Icons.wb_sunny_outlined,
                 title: mode.isEcho ? '切到清醒模式' : '切到回响模式',
-                subtitle: mode.isEcho ? '停止虚拟互动，归档 AI 内容' : '需二次确认与年龄确认',
+                subtitle: mode.isEcho ? '停止虚拟互动' : '需要二次确认',
                 onTap: () => _toggleMode(context, ref),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.inventory_2_outlined,
-                title: '虚拟反馈数据',
-                value: '归档',
-                onTap: () => _soon(context, '数据归档与永久删除'),
               ),
             ],
           ),
           _Group(
-            title: '模型配置',
+            title: '模型与密钥',
             isEcho: isEcho,
             children: [
               _Row(
                 isEcho: isEcho,
                 icon: Icons.hub_outlined,
-                title: '模型配置中心',
-                subtitle: '地址、模型名与密钥，支持测试连接',
+                title: '模型配置',
+                subtitle: '对话 / 文生图 / 语音合成',
                 onTap: () => context.push(RoutePaths.models),
               ),
             ],
@@ -111,23 +108,39 @@ class SettingsPage extends ConsumerWidget {
             children: [
               _Row(
                 isEcho: isEcho,
-                icon: Icons.people_alt_outlined,
-                title: 'AI 人格管理',
-                value: '24 位',
-                onTap: () => _soon(context, '人格管理'),
-              ),
-              _Row(
-                isEcho: isEcho,
                 icon: Icons.emoji_emotions_outlined,
                 title: '头像与表情包',
-                subtitle: '支持导入自己的图片',
                 onTap: () => context.push(RoutePaths.stickers),
+              ),
+            ],
+          ),
+          _Group(
+            title: '语音',
+            isEcho: isEcho,
+            children: [
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.volume_up_outlined,
+                title: '住民语音',
+                subtitle: '评论可以带语音条',
+                value: voice.enabled,
+                onChanged: (on) => ref
+                    .read(voiceSettingsControllerProvider.notifier)
+                    .setEnabled(on),
               ),
               _Row(
                 isEcho: isEcho,
-                icon: Icons.volume_up_outlined,
-                title: '语音与音色',
-                onTap: () => _soon(context, '语音设置'),
+                icon: Icons.graphic_eq,
+                title: '语音来源',
+                value: cloudTts == null ? '本机' : voice.source.label,
+                subtitle: voice.source == VoiceSource.cloud && cloudTts == null
+                    ? '云端未配置，暂用本机'
+                    : (cloudTts == null ? '配置后可选云端' : null),
+                onTap: () => _pickVoiceSource(
+                  context,
+                  ref,
+                  cloudAvailable: cloudTts != null,
+                ),
               ),
             ],
           ),
@@ -137,66 +150,49 @@ class SettingsPage extends ConsumerWidget {
             children: [
               _Row(
                 isEcho: isEcho,
-                icon: Icons.tune,
-                title: '客观分析维度',
-                value: '5 项',
-                onTap: () => _soon(context, '分析维度设置'),
-              ),
-              _Row(
-                isEcho: isEcho,
                 icon: Icons.insights_outlined,
                 title: '数据看板',
-                // 两种模式都能进，但看到的是两套东西（规划书 §3.10 / §4）。
-                subtitle: isEcho
-                    ? 'AI 制造的动静，和你自己'
-                    : '只统计你真实记录的内容',
+                subtitle: isEcho ? 'AI 制造的动静' : '只统计真实记录',
                 onTap: () => context.push(RoutePaths.dashboard),
               ),
               _Row(
                 isEcho: isEcho,
                 icon: Icons.info_outline,
-                title: '永久提示',
-                value: '已固定',
-                subtitle: AppTexts.permanentNotice,
+                title: '常驻提示',
+                // 把提示本身写出来：只写"已固定"，用户不知道固定的是什么。
+                subtitle: '清醒模式下始终显示：${AppTexts.permanentNotice}',
+                value: '不可关闭',
               ),
             ],
           ),
           _Group(
-            title: '安全与合规',
+            title: '安全',
             isEcho: isEcho,
             children: [
               _Row(
                 isEcho: isEcho,
                 icon: Icons.favorite_border,
                 title: '心理安全',
-                subtitle: '冷静模式 / 反馈查看阈值 / 心理援助',
+                subtitle: '冷静模式与求助',
                 onTap: () => context.push(RoutePaths.safety),
               ),
               _Row(
                 isEcho: isEcho,
                 icon: Icons.escalator_warning_outlined,
                 title: '未成年人保护',
-                subtitle: '锁定回响模式，需要时再解开',
+                subtitle: '锁定回响模式',
                 onTap: () => context.push(RoutePaths.minorProtection),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.privacy_tip_outlined,
-                title: '隐私与数据',
-                subtitle: '导出 / 一键清除本地数据',
-                onTap: () => _soon(context, '隐私与数据'),
               ),
             ],
           ),
           _Group(
-            title: '开发',
+            title: '其他',
             isEcho: isEcho,
             children: [
               _Row(
                 isEcho: isEcho,
                 icon: Icons.theater_comedy_outlined,
                 title: '策划脚本',
-                subtitle: '管理可保留的互动脚本',
                 onTap: () => context.push(RoutePaths.scripts),
               ),
               _Row(
@@ -273,9 +269,146 @@ class SettingsPage extends ConsumerWidget {
     await ref.read(appearanceControllerProvider.notifier).setMode(picked);
   }
 
-  void _soon(BuildContext context, String name) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$name：待实现')));
+  /// 选语音来源。云端没配置时只让选本机，并留一个去配置的入口。
+  Future<void> _pickVoiceSource(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool cloudAvailable,
+  }) async {
+    final current = ref.read(voiceSettingsControllerProvider).source;
+
+    final picked = await showModalBottomSheet<VoiceSource>(
+      context: context,
+      backgroundColor: currentPalette.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            _SourceOption(
+              title: '本机',
+              subtitle: '离线合成，随包模型',
+              selected: current == VoiceSource.local,
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(VoiceSource.local),
+            ),
+            _SourceOption(
+              title: '云端',
+              subtitle: cloudAvailable ? '使用已配置的 TTS 服务' : '还没有配置 TTS 服务',
+              selected: current == VoiceSource.cloud && cloudAvailable,
+              onTap: cloudAvailable
+                  ? () => Navigator.of(sheetContext).pop(VoiceSource.cloud)
+                  : null,
+              trailing: cloudAvailable
+                  ? null
+                  : TextButton(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        context.push(RoutePaths.models);
+                      },
+                      child: const Text('去配置', style: TextStyle(fontSize: 12)),
+                    ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null) return;
+    await ref
+        .read(voiceSettingsControllerProvider.notifier)
+        .setSource(picked);
+  }
+}
+
+class _SourceOption extends StatelessWidget {
+  const _SourceOption({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      enabled: onTap != null,
+      title: Text(
+        title,
+        style: TextStyle(color: currentPalette.text, fontSize: 14),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: currentPalette.textFaint, fontSize: 11.5),
+      ),
+      trailing: trailing ??
+          (selected
+              ? Icon(Icons.check, size: 18, color: currentPalette.primary)
+              : null),
+      onTap: onTap,
+    );
+  }
+}
+
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.isEcho,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool isEcho;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = isEcho ? EchoColors.text : ClearColors.text;
+    final muted = isEcho ? EchoColors.textMuted : ClearColors.textMuted;
+    final faint = isEcho ? EchoColors.textFaint : ClearColors.textFaint;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: muted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: text, fontSize: 14)),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: faint, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: isEcho ? EchoColors.primary : ClearColors.primary,
+          ),
+        ],
+      ),
+    );
   }
 }
 

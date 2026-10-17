@@ -15,12 +15,17 @@ enum ReplyDensity {
   final String label;
 
   /// 参与互动的人格数量区间。
+  ///
+  /// 每档都给得比以前多一点：这里抽 6 个人，按各自 0.5 左右的开口率，
+  /// 最后只落到 3 条评论——用户看到的"社区"就永远是两三条。数量先够，
+  /// 像不像人再交给提示词和人格去管。
   (int, int) get personaRange => switch (this) {
-    ReplyDensity.low => (1, 3),
-    ReplyDensity.medium => (3, 6),
-    ReplyDensity.high => (7, 10),
-    // 自动：交给内容判断，阶段 A 取中间偏上
-    ReplyDensity.auto => (4, 8),
+    ReplyDensity.low => (2, 4),
+    ReplyDensity.medium => (6, 10),
+    ReplyDensity.high => (12, 18),
+    // 自动：交给内容判断，阶段 A 取中间偏上。
+    // 上限压在 10：12 个人选 12 个，熟人就"每条必到"了，一眼假。
+    ReplyDensity.auto => (7, 10),
   };
 
   static ReplyDensity fromLabel(String? label) => values.firstWhere(
@@ -74,8 +79,8 @@ class HumanLevel {
 /// 一条帖子发布时的回响设置快照。
 class EchoSettings {
   const EchoSettings({
-    this.density = ReplyDensity.medium,
-    this.likeLevel = LikeLevel.medium,
+    this.density = ReplyDensity.auto,
+    this.likeLevel = LikeLevel.auto,
     this.humanLevel = const HumanLevel(3),
   });
 

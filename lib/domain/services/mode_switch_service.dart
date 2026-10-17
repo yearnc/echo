@@ -7,6 +7,7 @@ import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/plan_event_repository.dart';
 import '../models/app_mode.dart';
 import 'mode_controller.dart';
+import 'notification_service.dart';
 
 /// 模式切换规则（规划书 §2.4）。
 ///
@@ -23,6 +24,7 @@ class ModeSwitchService {
     required this.persistMode,
     required this.interactions,
     required this.planEvents,
+    this.cancelScheduledNotifications,
   });
 
   final AppDatabase db;
@@ -34,6 +36,12 @@ class ModeSwitchService {
 
   final InteractionRepository interactions;
   final PlanEventRepository planEvents;
+
+  /// 切到清醒模式时，把系统里排着的通知一起撤掉。
+  ///
+  /// 只清队列不清系统闹钟的话，用户明明关了虚拟反馈，半小时后
+  /// 还是会收到"某某评论了你的帖子"——那是这个模式最不该发生的事。
+  final Future<void> Function()? cancelScheduledNotifications;
 
   static const String rebuildGuideKey = 'clear.rebuildGuideShown';
 
@@ -48,6 +56,7 @@ class ModeSwitchService {
       // 停止待发队列 + 归档已有虚拟反馈（规划书 §2.4.1）
       await interactions.cancelAllPending();
       await planEvents.cancelAllPending();
+      await cancelScheduledNotifications?.call();
       final archived = await interactions.archiveExecuted();
       archiveAction = archived > 0 ? 'archived' : 'kept';
 
@@ -99,5 +108,7 @@ final modeSwitchServiceProvider = Provider<ModeSwitchService>(
         ref.read(modeControllerProvider.notifier).persist(target),
     interactions: ref.watch(interactionRepositoryProvider),
     planEvents: ref.watch(planEventRepositoryProvider),
+    cancelScheduledNotifications: () =>
+        ref.read(systemNotificationProvider).cancelAllScheduled(),
   ),
 );
