@@ -12,8 +12,10 @@ import '../../data/repositories/addiction_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
+import '../../domain/models/post_voice.dart';
 import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
@@ -53,6 +55,13 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Timer? _waitTimer;
 
+  /// 评论区先取最近 20 条，点“加载更多”每次多 20 条。
+  int _commentLimit = 20;
+
+  /// 页面销毁时不能再碰 ref（ConsumerState 已经被判为 unmounted），
+  /// 所以在 initState 里先把"停播放"这个动作存下来。
+  Future<void> Function()? _stopPlayback;
+
   /// 盯多久算"等了一会儿"。八秒是个大概：短于它，多半只是在读帖子。
   static const Duration _waitThreshold = Duration(seconds: 8);
 
@@ -62,6 +71,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     // 首帧之后再记：showSnackBar 需要一个已经挂到树上的 context
     WidgetsBinding.instance.addPostFrameCallback((_) => _recordView());
     _waitTimer = Timer(_waitThreshold, _noteWaitIfNothingCame);
+    if (ref.exists(voicePlaybackProvider)) {
+      _stopPlayback = ref.read(voicePlaybackProvider.notifier).stop;
+    }
   }
 
   @override
@@ -69,9 +81,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     _waitTimer?.cancel();
     // 播放器是全应用单例，页面走了它不会自己停——退出帖子页还响着，
     // 就是这里少了一句话。没播过就别把它建出来（AudioPlayer 也有开销）。
-    if (ref.exists(voicePlaybackProvider)) {
-      unawaited(ref.read(voicePlaybackProvider.notifier).stop());
-    }
+    final stop = _stopPlayback;
+    if (stop != null) unawaited(stop());
     super.dispose();
   }
 
@@ -113,13 +124,26 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   /// 开始回某一条。住民显示住民的名字，我自己的评论显示我的名字。
   void _startReply(PostComment comment) {
     final personaId = comment.personaId;
+    final voices =
+        ref.read(postVoicesProvider(widget.postId)).value ??
+        const <PostVoice>[];
+    String? voiceName;
+    if (personaId != null) {
+      for (final voice in voices) {
+        if (voice.id == personaId) {
+          voiceName = voice.name;
+          break;
+        }
+      }
+    }
+
     setState(() {
       _replyToId = comment.id;
       _replyTarget = comment;
       _replyToName = personaId == null
           ? (ref.read(userProfileProvider).value?.displayName ??
                 AppTexts.defaultNickname)
-          : ref.read(personaNameProvider(personaId));
+          : (voiceName ?? ref.read(personaNameProvider(personaId)));
     });
   }
 
@@ -137,8 +161,19 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final mode = ref.watch(modeControllerProvider);
     final postAsync = ref.watch(postByIdProvider(widget.postId));
     final comments =
-        ref.watch(commentsProvider(widget.postId)).value ??
+        ref
+            .watch(
+              pagedCommentsProvider((
+                postId: widget.postId,
+                limit: _commentLimit,
+              )),
+            )
+            .value ??
         const <PostComment>[];
+    final voiceList =
+        ref.watch(postVoicesProvider(widget.postId)).value ??
+        const <PostVoice>[];
+    final voiceById = {for (final voice in voiceList) voice.id: voice};
     // 第一次拿到评论数就是"进门时的样子"，之后来的都算新到的。
     _commentsOnEntry ??= comments.length;
 
@@ -185,11 +220,19 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           else
                             // 平铺的评论先组装成能读的对话：回复跟在自己回的那条
                             // 下面、缩进一层（B7）。数据库里它们本来就是平的。
-                            for (final item in CommentThreads.build(comments))
-                              CommentTile(
-                                comment: item.comment,
-                                isReply: item.isReply,
-                                onReply: () => _startReply(item.comment),
+                            _CommentThreadList(
+                              comments: comments,
+                              voiceById: voiceById,
+                              onReply: _startReply,
+                            ),
+                            if (comments.length >= _commentLimit)
+                              Center(
+                                child: TextButton(
+                                  onPressed: () => setState(
+                                    () => _commentLimit += 20,
+                                  ),
+                                  child: const Text('加载更多评论'),
+                                ),
                               ),
                         ],
                       ),
@@ -527,11 +570,217 @@ class _PostBody extends ConsumerWidget {
               '${post.commentCount}',
               style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
             ),
+            const SizedBox(width: 18),
+            _ViewersBadge(postId: post.id),
           ],
         ),
       ],
     );
   }
+}
+
+/// 帖子底下的“看过”：数字 + 点开名单。
+class _ViewersBadge extends ConsumerWidget {
+  const _ViewersBadge({required this.postId});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(postViewCountProvider(postId)).value ?? 0;
+    return GestureDetector(
+      onTap: count == 0 ? null : () => _showViewers(context, ref, postId),
+      child: Row(
+        children: [
+          Icon(
+            Icons.visibility_outlined,
+            size: 17,
+            color: EchoColors.textMuted,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showViewers(
+  BuildContext context,
+  WidgetRef ref,
+  String postId,
+) async {
+  final viewers = await ref.read(postVoiceRepositoryProvider).viewers(postId);
+  final interacted = await ref
+      .read(interactionRepositoryProvider)
+      .interactedPersonaIds(postId);
+  if (!context.mounted) return;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: EchoColors.surface,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (_) => SafeArea(
+      child: SizedBox(
+        height: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+              child: Text(
+                '看过这条帖子的人 · ${viewers.length}',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: EchoColors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+                itemCount: viewers.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 14),
+                itemBuilder: (context, index) {
+                  final viewer = viewers[index];
+                  final acted = interacted.contains(viewer.voice.id);
+                  return Row(
+                    children: [
+                      UserAvatar(
+                        name: viewer.voice.name,
+                        avatarRef: viewer.voice.avatarAsset,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              viewer.voice.name,
+                              style: TextStyle(
+                                color: EchoColors.text,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${RelativeTime.short(viewer.lastViewedAt)} · '
+                              '${acted ? '互动过' : '只看过'}',
+                              style: TextStyle(
+                                color: EchoColors.textFaint,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// 评论区：默认只露两条回复，多的折起来（C3 的“展开评论”）。
+class _CommentThreadList extends StatefulWidget {
+  const _CommentThreadList({
+    required this.comments,
+    required this.voiceById,
+    required this.onReply,
+  });
+
+  final List<PostComment> comments;
+  final Map<String, PostVoice> voiceById;
+  final void Function(PostComment) onReply;
+
+  @override
+  State<_CommentThreadList> createState() => _CommentThreadListState();
+}
+
+class _CommentThreadListState extends State<_CommentThreadList> {
+  static const int _visibleReplies = 2;
+  final Set<String> _expanded = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final items = CommentThreads.build(widget.comments);
+    final threads = <_CommentThread>[];
+    for (final item in items) {
+      if (!item.isReply || threads.isEmpty) {
+        threads.add(_CommentThread(root: item.comment));
+      } else {
+        threads.last.replies.add(item.comment);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final thread in threads) ...[
+          CommentTile(
+            comment: thread.root,
+            onReply: () => widget.onReply(thread.root),
+            voice: _voiceOf(thread.root),
+          ),
+          for (final reply in thread.replies.take(
+            _expanded.contains(thread.root.id)
+                ? thread.replies.length
+                : _visibleReplies,
+          ))
+            CommentTile(
+              comment: reply,
+              isReply: true,
+              onReply: () => widget.onReply(reply),
+              voice: _voiceOf(reply),
+            ),
+          if (thread.replies.length > _visibleReplies)
+            Padding(
+              padding: const EdgeInsets.only(left: 14, bottom: 12),
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  final id = thread.root.id;
+                  if (!_expanded.add(id)) _expanded.remove(id);
+                }),
+                child: Text(
+                  _expanded.contains(thread.root.id)
+                      ? '收起回复'
+                      : '展开 ${thread.replies.length - _visibleReplies} 条回复',
+                  style: TextStyle(
+                    color: EchoColors.primary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  PostVoice? _voiceOf(PostComment comment) {
+    final personaId = comment.personaId;
+    return personaId == null ? null : widget.voiceById[personaId];
+  }
+}
+
+class _CommentThread {
+  _CommentThread({required this.root});
+
+  final PostComment root;
+  final List<PostComment> replies = [];
 }
 
 class _CommentsHeader extends StatelessWidget {

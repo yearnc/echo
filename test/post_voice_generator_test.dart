@@ -1,0 +1,105 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:echo/domain/services/post_voice_generator.dart';
+
+void main() {
+  group('临时网民的解析与校验', () {
+    test('合法的都留下，名字、状态、动作、评论都在', () {
+      final drafts = ModelPostVoiceGenerator.parseDrafts(
+        '''
+        [
+          {"name":"大肥鱼","status":"刚下班","action":"comment","comment":"这颗钻石也太大了"},
+          {"name":"楼下吉他手","status":"在等车","action":"like","comment":""}
+        ]
+        ''',
+        max: 5,
+        allowLurk: true,
+      );
+
+      expect(drafts, hasLength(2));
+      expect(drafts[0].name, '大肥鱼');
+      expect(drafts[0].action, VoiceAction.comment);
+      expect(drafts[0].comment, '这颗钻石也太大了');
+      expect(drafts[1].action, VoiceAction.like);
+      expect(drafts[1].comment, isEmpty);
+    });
+
+    test('名字太短、太长、重名的都丢掉', () {
+      final drafts = ModelPostVoiceGenerator.parseDrafts(
+        '''
+        [
+          {"name":"鱼","action":"like"},
+          {"name":"一个长到不行的网名","action":"like"},
+          {"name":"大肥鱼","action":"like"},
+          {"name":"大肥鱼","action":"comment","comment":"又来一条"}
+        ]
+        ''',
+        max: 5,
+        allowLurk: true,
+      );
+
+      expect(drafts, hasLength(1));
+      expect(drafts.single.name, '大肥鱼');
+    });
+
+    test('不允许只读时，view 直接丢掉', () {
+      final drafts = ModelPostVoiceGenerator.parseDrafts(
+        '''
+        [
+          {"name":"只看不说话","action":"view"},
+          {"name":"点个赞","action":"like"}
+        ]
+        ''',
+        max: 5,
+        allowLurk: false,
+      );
+
+      expect(drafts.map((d) => d.name), ['点个赞']);
+    });
+
+    test('评论为空或超长时降级成只点赞，不拿别的句子顶', () {
+      final drafts = ModelPostVoiceGenerator.parseDrafts(
+        '''
+        [
+          {"name":"空评论","action":"comment","comment":""},
+          {"name":"太长","action":"like_comment","comment":"${List.filled(61, '很').join()}"}
+        ]
+        ''',
+        max: 5,
+        allowLurk: true,
+      );
+
+      expect(drafts, hasLength(2));
+      expect(drafts[0].action, VoiceAction.like);
+      expect(drafts[0].comment, isEmpty);
+      expect(drafts[1].action, VoiceAction.like);
+      expect(drafts[1].comment, isEmpty);
+    });
+
+    test('解析失败返回空，不抛异常', () {
+      expect(
+        ModelPostVoiceGenerator.parseDrafts(
+          '不是 JSON',
+          max: 5,
+          allowLurk: true,
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('提示词', () {
+    test('要求接住帖子的具体东西，并给了动作形状', () {
+      final prompt = ModelPostVoiceGenerator.systemPrompt(allowLurk: true);
+      expect(prompt, contains('必须接住帖子里的具体东西'));
+      expect(prompt, contains('view'));
+      expect(prompt, contains('like_comment'));
+      expect(prompt, contains('JSON'));
+    });
+
+    test('关闭只读时明确要求至少点赞或评论', () {
+      final prompt = ModelPostVoiceGenerator.systemPrompt(allowLurk: false);
+      expect(prompt, contains('不能只看不说话'));
+    });
+  });
+}

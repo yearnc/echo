@@ -37,15 +37,16 @@ class InteractionRepository {
   ///
   /// 两个来源分表存是有道理的——住民那些要排期、要兑现、切清醒模式时会被取消，
   /// 而"我刚回了句什么"没有这些事。合并放在读取这一层，排序交给数据库。
-  Stream<List<PostComment>> watchComments(String postId) {
+  Stream<List<PostComment>> watchComments(String postId, {int? limit}) {
     return _db
         .customSelect(
-          _commentsSql,
+          limit == null ? _commentsSql : '$_commentsSql\nLIMIT ?',
           variables: [
             Variable<String>(postId),
             Variable<String>(typeComment),
             Variable<String>(statusDone),
             Variable<String>(postId),
+            if (limit != null) Variable<int>(limit),
           ],
           readsFrom: {_db.aiInteractions, _db.userComments},
         )
@@ -54,13 +55,17 @@ class InteractionRepository {
   }
 
   /// 一条 UNION：上半是兑现了的住民评论，下半是我自己写的，合起来按时间排。
+  ///
+  /// 时间一律用 `scheduled_at`（这条互动**本该发生**的时刻）。补发时
+  /// `executed_at` 是"打开 APP 的这一刻"，拿它显示会让评论区出现"刚刚"、
+  /// 通知里却是"10 分钟前"——同一个事件两套时间。
   static const String _commentsSql = '''
 SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
        voice_duration_ms, parent_id, reply_to_name, like_count, at, is_ai
 FROM (
   SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
          voice_duration_ms, parent_id, NULL AS reply_to_name, like_count,
-         COALESCE(executed_at, scheduled_at) AS at, is_ai
+         scheduled_at AS at, is_ai
   FROM ai_interactions
   WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
   UNION ALL
@@ -79,14 +84,22 @@ ORDER BY at ASC
   /// 跟帖子的赞分开存：帖子是一条一颗心，评论有很多条。而且这里点的可能是
   /// 住民的评论、也可能是我自己的——两张不同的表，所以赞单独记账。
   Future<bool> toggleCommentLike(String commentId) async {
-    final existing =
-        await (_db.select(_db.commentLikes)
-              ..where((t) => t.commentId.equals(commentId)))
-            .getSingleOrNull();
+    final query = _db.select(_db.commentLikes)
+      ..where(
+        (t) =>
+            t.commentId.equals(commentId) &
+            t.actorKind.equals('user') &
+            t.actorId.equals(''),
+      );
+    final existing = await query.getSingleOrNull();
 
     if (existing != null) {
-      await (_db.delete(_db.commentLikes)
-            ..where((t) => t.commentId.equals(commentId)))
+      await (_db.delete(_db.commentLikes)..where(
+            (t) =>
+                t.commentId.equals(commentId) &
+                t.actorKind.equals('user') &
+                t.actorId.equals(''),
+          ))
           .go();
       return false;
     }
@@ -96,18 +109,80 @@ ORDER BY at ASC
         .insert(
           CommentLikesCompanion.insert(
             commentId: commentId,
+            actorKind: const Value('user'),
+            actorId: const Value(''),
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );
     return true;
   }
 
-  /// 我赞过的评论 id。评论列表靠着它点亮心形。
+  /// 我赞过的评论 id。只算“我自己”的，AI 点的不会把我的小心心点亮。
   Stream<Set<String>> watchLikedCommentIds() {
-    return _db
-        .select(_db.commentLikes)
+    return (_db.select(_db.commentLikes)
+          ..where(
+            (t) => t.actorKind.equals('user') & t.actorId.equals(''),
+          ))
         .watch()
         .map((rows) => rows.map((row) => row.commentId).toSet());
+  }
+
+  /// AI 给一条评论点个赞。
+  ///
+  /// 幂等：同一个网民对同一条评论只记一次；记上了才给评论的
+  /// `like_count` 加 1（评论的总赞数还是从那儿读）。
+  Future<bool> addAiCommentLike({
+    required String commentId,
+    required String voiceId,
+  }) async {
+    final existing =
+        await (_db.select(_db.commentLikes)..where(
+              (t) =>
+                  t.commentId.equals(commentId) &
+                  t.actorKind.equals('voice') &
+                  t.actorId.equals(voiceId),
+            ))
+            .getSingleOrNull();
+    if (existing != null) return false;
+
+    await _db
+        .into(_db.commentLikes)
+        .insert(
+          CommentLikesCompanion.insert(
+            commentId: commentId,
+            actorKind: const Value('voice'),
+            actorId: Value(voiceId),
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+
+    final row =
+        await (_db.select(_db.aiInteractions)
+              ..where((t) => t.id.equals(commentId)))
+            .getSingleOrNull();
+    if (row != null) {
+      await (_db.update(_db.aiInteractions)
+            ..where((t) => t.id.equals(commentId)))
+          .write(
+            AiInteractionsCompanion(
+              likeCount: Value(row.likeCount + 1),
+            ),
+          );
+    }
+    return true;
+  }
+
+  /// 一条评论已经被几个 AI 点过赞（用来卡每条的点赞上限）。
+  Future<int> countAiCommentLikes(String commentId) async {
+    final count = _db.commentLikes.commentId.count();
+    final query = _db.selectOnly(_db.commentLikes)
+      ..addColumns([count])
+      ..where(
+        _db.commentLikes.commentId.equals(commentId) &
+            _db.commentLikes.actorKind.equals('voice'),
+      );
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
   }
 
   /// 我自己发一条评论；[parentId] 非空表示这是在回某一条。
@@ -188,11 +263,14 @@ ORDER BY at ASC
     if (planned.isEmpty) return;
 
     final rows = <AiInteractionsCompanion>[];
+    // 带批次时间戳：一条帖子会分好几批来人，只用「帖子 + 序号」，
+    // 第二批会撞上第一批的主键。
+    final batch = DateTime.now().microsecondsSinceEpoch;
     for (var i = 0; i < planned.length; i++) {
       final item = planned[i];
       rows.add(
         AiInteractionsCompanion(
-          id: Value('sched_${postId}_$i'),
+          id: Value('sched_${postId}_${batch}_$i'),
           postId: Value(postId),
           personaId: Value(item.personaId),
           type: Value(item.type),
@@ -200,7 +278,9 @@ ORDER BY at ASC
           content: Value(item.content),
           scheduledAt: Value(item.scheduledAt.millisecondsSinceEpoch),
           status: const Value('pending'),
-          likeCount: Value(item.likeBatch),
+          // 只有点赞才占 like_count；评论的赞走评论自己的账，
+          // 不能拿 likeBatch 的默认值 1 给它凑一个“自带赞”。
+          likeCount: Value(item.isLike ? item.likeBatch : 0),
         ),
       );
     }
@@ -219,6 +299,7 @@ ORDER BY at ASC
     required String content,
     required String parentId,
     required DateTime scheduledAt,
+    String source = 'user_reply',
   }) async {
     await _db
         .into(_db.aiInteractions)
@@ -233,8 +314,42 @@ ORDER BY at ASC
             parentId: Value(parentId),
             scheduledAt: scheduledAt.millisecondsSinceEpoch,
             status: const Value('pending'),
+            source: Value(source),
           ),
         );
+  }
+
+  /// 这条帖子里 AI 接 AI 的次数（pending + done 都算，防止排超）。
+  Future<int> countPeerReplies(String postId) async {
+    final count = _db.aiInteractions.id.count();
+    final query = _db.selectOnly(_db.aiInteractions)
+      ..addColumns([count])
+      ..where(
+        _db.aiInteractions.postId.equals(postId) &
+            _db.aiInteractions.type.equals(typeComment) &
+            _db.aiInteractions.source.equals('peer_reply') &
+            (_db.aiInteractions.status.equals('pending') |
+                _db.aiInteractions.status.equals('done')),
+      );
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  /// 同一对账号在同一条评论下有没有接过来往。
+  Future<bool> hasPeerReply({
+    required String parentId,
+    required String personaId,
+  }) async {
+    final row =
+        await (_db.select(_db.aiInteractions)..where(
+              (t) =>
+                  t.parentId.equals(parentId) &
+                  t.personaId.equals(personaId) &
+                  t.source.equals('peer_reply') &
+                  (t.status.equals('pending') | t.status.equals('done')),
+            ))
+            .getSingleOrNull();
+    return row != null;
   }
 
   /// 策划事件兑现的评论：它在脚本时间轴上是"已经发生"的，
@@ -290,7 +405,17 @@ ORDER BY at ASC
   /// 用 `duePending` 会把已经到点、正等着补发的也算进来。
   Future<List<PendingInteraction>> pendingComments() async {
     final query = _db.select(_db.aiInteractions)
-      ..where((t) => t.status.equals('pending') & t.type.equals(typeComment))
+      ..where(
+        (t) =>
+            t.status.equals('pending') &
+            t.type.equals(typeComment) &
+            // 内容还没写出来的评论不预约通知：否则到点弹一条，
+            // 点进去却没有评论。它们会在模型失败后被取消。
+            t.content.isNotNull() &
+            t.content.equals('').not() &
+            // AI 接 AI 的话不叫醒手机，只在应用内列表里出现
+            t.source.equals('peer_reply').not(),
+      )
       ..orderBy([(t) => OrderingTerm.asc(t.scheduledAt)]);
     final rows = await query.get();
     return rows.map(_toPending).toList(growable: false);
@@ -341,6 +466,43 @@ ORDER BY at ASC
     return updated;
   }
 
+  /// 模型没写出来的评论：取消掉，不留空评论。
+  ///
+  /// v3.0 不再用预置台词兜底，所以“这条评论该由谁写”和“最后写没写出来”
+  /// 可能对不上。对不上的部分取消，兑现时就不会出现一条空评论。
+  Future<int> cancelPendingCommentsWithoutContent(String postId) async {
+    return (_db.update(_db.aiInteractions)..where(
+          (t) =>
+              t.postId.equals(postId) &
+              t.type.equals(typeComment) &
+              t.status.equals('pending') &
+              (t.content.isNull() | t.content.equals('')),
+        ))
+        .write(const AiInteractionsCompanion(status: Value('cancelled')));
+  }
+
+  /// 这条帖子里真正出过手的人（点过赞或留过言）。
+  ///
+  /// 浏览名单要靠它区分“只看过”和“互动过”。排期里还没兑现的不算——
+  /// 名单说的是发生过的事，不是将要发生的事。
+  Future<Set<String>> interactedPersonaIds(String postId) async {
+    final query = _db.selectOnly(_db.aiInteractions)
+      ..addColumns([_db.aiInteractions.personaId])
+      ..where(
+        _db.aiInteractions.postId.equals(postId) &
+            _db.aiInteractions.status.equals(statusDone) &
+            _db.aiInteractions.deletedAt.isNull() &
+            (_db.aiInteractions.type.equals(typeLike) |
+                _db.aiInteractions.type.equals(typeComment)),
+      );
+    final rows = await query.get();
+    return {
+      for (final row in rows)
+        if (row.read(_db.aiInteractions.personaId) != null)
+          row.read(_db.aiInteractions.personaId)!,
+    };
+  }
+
   /// 最近已经兑现的互动（信息流补发后给 UI 用）。
   Future<int> countPending() async {
     final count = _db.aiInteractions.id.count();
@@ -361,6 +523,8 @@ ORDER BY at ASC
     mediaType: row.mediaType,
     voiceDurationMs: row.voiceDurationMs,
     likeBatch: row.likeCount,
+    source: row.source,
+    parentId: row.parentId,
   );
 
   /// 取消所有还没兑现的排期。
@@ -466,6 +630,16 @@ final commentsProvider = StreamProvider.autoDispose
     .family<List<PostComment>, String>(
       (ref, postId) =>
           ref.watch(interactionRepositoryProvider).watchComments(postId),
+    );
+
+/// 详情页的分页评论：先 20 条，点“加载更早”每次多 20 条。
+typedef CommentPageKey = ({String postId, int limit});
+
+final pagedCommentsProvider = StreamProvider.autoDispose
+    .family<List<PostComment>, CommentPageKey>(
+      (ref, page) => ref
+          .watch(interactionRepositoryProvider)
+          .watchComments(page.postId, limit: page.limit),
     );
 
 /// 我赞过的评论 id（评论列表靠它点亮心形）。

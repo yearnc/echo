@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/ai_persona.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
+import '../models/post_understanding.dart';
 import '../models/resident_post.dart';
 import 'community_calendar.dart';
 import 'content_moderator.dart';
@@ -58,6 +59,30 @@ abstract interface class ContentGenerator {
     required List<ReplyThread> threads,
     Map<String, RelationshipState> relations = const {},
   });
+
+  /// AI 接 AI：评论区里看到楼上那句话，接一句。
+  ///
+  /// 与 `replies` 分开是因为口吻不同：那个是“回用户”，这个只是
+  /// 一屋子人里另一个人的随口接话。返回 null 表示这次不接。
+  Future<String?> peerReply({required PeerReplyThread thread});
+}
+
+/// AI 接 AI 的上文。
+class PeerReplyThread {
+  const PeerReplyThread({
+    required this.persona,
+    required this.post,
+    required this.targetName,
+    required this.targetContent,
+    this.understanding,
+  });
+
+  /// 接话的人。
+  final AiPersona persona;
+  final Post post;
+  final String targetName;
+  final String targetContent;
+  final PostUnderstanding? understanding;
 }
 
 /// 一段追问的上下文：他原本说了什么，以及你接的那一句。
@@ -154,6 +179,9 @@ class SampleContentGenerator implements ContentGenerator {
     required Post post,
     Map<String, RelationshipState> relations = const {},
   }) async => commentsFor(personas: personas, relations: relations);
+
+  @override
+  Future<String?> peerReply({required PeerReplyThread thread}) async => null;
 
   /// 分圈层的动态模板。
   ///
@@ -393,13 +421,12 @@ class ContentSource implements ContentGenerator {
   }) async {
     if (personas.isEmpty) return const {};
 
-    // 整个走法都包在 try 里，包括"去查有没有模型"这一步：密钥读不出来、
-    // 配置表读不了，都不该让说话这件事失败。
+    // 评论**不兜底预置台词**（v3.0）：一句和帖子无关的固定台词，比少一条
+    // 评论更伤沉浸感。没模型、超时、解析失败都返回空，调用方据此取消这批
+    // 评论、只保留点赞。
     try {
       final config = await activeConfig();
-      if (config == null) {
-        return sample.commentsFor(personas: personas, relations: relations);
-      }
+      if (config == null) return const {};
 
       final generated = await model.comments(
         config: config,
@@ -407,16 +434,10 @@ class ContentSource implements ContentGenerator {
         post: post,
         relations: relations,
       );
-      if (generated.isEmpty) {
-        return sample.commentsFor(personas: personas, relations: relations);
-      }
-
-      return _merge(generated, personas, relations: relations);
+      return _merge(generated, personas);
     } catch (error) {
-      // 超时、限额、密钥失效——都不该让社区停下来。
-      // 留个痕：失败连着发生的时候，从界面上是看不出来的（住民照样在说话）。
-      debugPrint('[内容生成] 模型失败，退回样本：$error');
-      return sample.commentsFor(personas: personas, relations: relations);
+      debugPrint('[内容生成] 这条帖子的评论没生成出来：$error');
+      return const {};
     }
   }
 
@@ -481,44 +502,49 @@ class ContentSource implements ContentGenerator {
   }
 
   @override
+  Future<String?> peerReply({required PeerReplyThread thread}) async {
+    // 不兜底：接不住就不接，不拿固定台词顶上。
+    try {
+      final config = await activeConfig();
+      if (config == null) return null;
+      return await model.peerReply(config: config, thread: thread);
+    } catch (error) {
+      debugPrint('[内容生成] 这次没接上 AI 的话：$error');
+      return null;
+    }
+  }
+
+  @override
   Future<Map<String, String>> replies({
     required List<ReplyThread> threads,
     Map<String, RelationshipState> relations = const {},
   }) async {
     if (threads.isEmpty) return const {};
 
+    // 追问也**不兜底台词**：接不住上一句的固定台词比不接更假。
+    // 返回空时 CommentReplyService 会直接放弃这次追问。
     try {
       final config = await activeConfig();
-      if (config == null) {
-        return await sample.replies(threads: threads, relations: relations);
-      }
+      if (config == null) return const {};
 
       final generated = await model.replies(
         config: config,
         threads: threads,
         relations: relations,
       );
-      if (generated.isEmpty) {
-        return await sample.replies(threads: threads, relations: relations);
-      }
-
-      return await _mergeReplies(generated, threads, relations: relations);
+      return _mergeReplies(generated);
     } catch (error) {
-      debugPrint('[内容生成] 模型失败，退回样本：$error');
-      return await sample.replies(threads: threads, relations: relations);
+      debugPrint('[内容生成] 这次追问没写出来：$error');
+      return const {};
     }
   }
 
-  /// 模型写的追问：没过本地词表的丢掉，换成样本台词。
-  Future<Map<String, String>> _mergeReplies(
-    Map<String, String> generated,
-    List<ReplyThread> threads, {
-    Map<String, RelationshipState> relations = const {},
-  }) async {
-    final result = await sample.replies(threads: threads, relations: relations);
+  /// 模型写的追问：没过本地词表的丢掉，不再换成样本台词。
+  Map<String, String> _mergeReplies(Map<String, String> generated) {
+    final result = <String, String>{};
     for (final entry in generated.entries) {
       if (ContentModerator.checkLocally(entry.value) != null) {
-        debugPrint('[内容生成] 这条追问没过本地词表，换成预置台词：${entry.key}');
+        debugPrint('[内容生成] 这条追问没过本地词表，丢弃：${entry.key}');
         continue;
       }
       result[entry.key] = entry.value;
@@ -576,19 +602,19 @@ class ContentSource implements ContentGenerator {
     newBio: sample.signatureFor(moment.persona),
   );
 
-  /// 模型写的那几条盖在样本上，并且在盖之前过一遍本地词表。
+  /// 过一遍本地词表，只留下能用的那几条。
   ///
-  /// 住民里有"毒舌调侃型"，让它自由发挥是有风险的；命中的那条丢给预置台词。
+  /// 住民里有"毒舌调侃型"，让它自由发挥是有风险的。命中的条目直接丢弃——
+  /// 不再换成预置台词（v3.0：不塞无关的话），调用方会把缺的评论取消。
   /// 这里**不调模型审核**——那等于每条评论花两次钱，而且审核服务本身也可能失败。
   Map<String, String> _merge(
     Map<String, String> generated,
-    List<AiPersona> personas, {
-    Map<String, RelationshipState> relations = const {},
-  }) {
-    final result = sample.commentsFor(personas: personas, relations: relations);
+    List<AiPersona> personas,
+  ) {
+    final result = <String, String>{};
     for (final entry in generated.entries) {
       if (ContentModerator.checkLocally(entry.value) != null) {
-        debugPrint('[内容生成] 这条没通过本地词表，换成预置台词：${entry.key}');
+        debugPrint('[内容生成] 这条没通过本地词表，丢弃：${entry.key}');
         continue;
       }
       result[entry.key] = entry.value;

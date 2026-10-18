@@ -12,7 +12,10 @@ import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
 import 'tables/model_tables.dart';
 import 'tables/plan_tables.dart';
+import 'tables/resident_tables.dart';
 import 'tables/social_tables.dart';
+import 'tables/understanding_tables.dart';
+import 'tables/voice_tables.dart';
 
 part 'app_database.g.dart';
 
@@ -45,6 +48,12 @@ part 'app_database.g.dart';
     ValueClarifications,
     RealActions,
     AddictionLogs,
+    PostVoices,
+    AiThreads,
+    PostViews,
+    PostUnderstandings,
+    CustomResidents,
+    ResidentMemories,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -54,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -160,6 +169,158 @@ class AppDatabase extends _$AppDatabase {
         // 老记录一律是空字符串 = 没记，不补、不猜——替用户编心情，
         // 那这张周报就没有一句是真的了。
         await m.addColumn(realActions, realActions.mood);
+      }
+      if (from < 14) {
+        // v14：v3.0 的网民身份与上下文层。
+        // 只新增，不动旧表：老的 ai_personas / ai_interactions 继续可读。
+        await m.createTable(postVoices);
+        await m.createTable(aiThreads);
+        await m.createTable(postViews);
+      }
+      if (from < 15) {
+        // v15：临时网民的 id 也要能写进 ai_interactions。
+        // 老表把 persona_id 外键到了 ai_personas，SQLite 不能直接删外键，
+        // 只能重建表再搬数据。列清单与 Drift 当前定义保持一致。
+        //
+        // 老到连 ai_interactions 都还没建出来的库（升级测试里有这种）
+        // 直接跳过：后面的 createTable 会按新定义把它建好。
+        final hasInteractions = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'ai_interactions'",
+        ).getSingleOrNull();
+        if (hasInteractions != null) {
+        await customStatement('''
+          CREATE TABLE ai_interactions_v15 (
+            id TEXT NOT NULL,
+            post_id TEXT NOT NULL REFERENCES posts (id),
+            persona_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            media_type TEXT NULL,
+            content TEXT NULL,
+            voice_path TEXT NULL,
+            transcript TEXT NULL,
+            voice_duration_ms INTEGER NULL,
+            scheduled_at INTEGER NOT NULL,
+            executed_at INTEGER NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            is_ai INTEGER NOT NULL DEFAULT 1 CHECK (is_ai IN (0, 1)),
+            scope TEXT NOT NULL DEFAULT 'echo',
+            parent_id TEXT NULL,
+            like_count INTEGER NOT NULL DEFAULT 0,
+            deleted_at INTEGER NULL,
+            PRIMARY KEY (id)
+          )
+        ''');
+        await customStatement('''
+          INSERT INTO ai_interactions_v15 (
+            id, post_id, persona_id, type, media_type, content, voice_path,
+            transcript, voice_duration_ms, scheduled_at, executed_at, status,
+            is_ai, scope, parent_id, like_count, deleted_at
+          )
+          SELECT
+            id, post_id, persona_id, type, media_type, content, voice_path,
+            transcript, voice_duration_ms, scheduled_at, executed_at, status,
+            is_ai, scope, parent_id, like_count, deleted_at
+          FROM ai_interactions
+        ''');
+        await customStatement('DROP TABLE ai_interactions');
+        await customStatement(
+          'ALTER TABLE ai_interactions_v15 RENAME TO ai_interactions',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS ai_interactions_lookup '
+          'ON ai_interactions (post_id, persona_id, status)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS ai_interactions_scheduled '
+          'ON ai_interactions (scheduled_at)',
+        );
+        }
+      }
+      if (from < 16) {
+        // v16：帖子解析层。先看懂，再让网民说话。
+        await m.createTable(postUnderstandings);
+      }
+      if (from < 17) {
+        // v17：互动来源。AI 之间的接话不该给用户弹通知，
+        // 光看 parent_id 分不出“接用户”还是“接 AI”。
+        // 和 v15 一样：老到还没建 ai_interactions 的库直接跳过。
+        final hasInteractions = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'ai_interactions'",
+        ).getSingleOrNull();
+        if (hasInteractions != null) {
+          await m.addColumn(aiInteractions, aiInteractions.source);
+        }
+      }
+      if (from < 18) {
+        // v18：评论曾经被排期时的 likeBatch 默认值凑了一个“自带赞”，
+        // 把旧行上的这个假数字清掉。评论真正的赞走 comment_likes。
+        final hasInteractions = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'ai_interactions'",
+        ).getSingleOrNull();
+        if (hasInteractions != null) {
+          await customStatement(
+            "UPDATE ai_interactions SET like_count = 0 WHERE type = 'comment'",
+          );
+        }
+      }
+      if (from < 19) {
+        // v19：评论的赞要分“谁点的”。原来主键只有 comment_id，
+        // 一个评论只能有一行，AI 和用户会互相顶掉。重建表加 actor。
+        final hasLikes = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'comment_likes'",
+        ).getSingleOrNull();
+        if (hasLikes != null) {
+          await customStatement('''
+            CREATE TABLE comment_likes_v19 (
+              comment_id TEXT NOT NULL,
+              actor_kind TEXT NOT NULL DEFAULT 'user',
+              actor_id TEXT NOT NULL DEFAULT '',
+              created_at INTEGER NOT NULL,
+              PRIMARY KEY (comment_id, actor_kind, actor_id)
+            )
+          ''');
+          await customStatement('''
+            INSERT INTO comment_likes_v19 (
+              comment_id, actor_kind, actor_id, created_at
+            )
+            SELECT comment_id, 'user', '', created_at FROM comment_likes
+          ''');
+          await customStatement('DROP TABLE comment_likes');
+          await customStatement(
+            'ALTER TABLE comment_likes_v19 RENAME TO comment_likes',
+          );
+        }
+      }
+      if (from < 20) {
+        // v20：固定住民与长期记忆的数据底座。
+        await m.createTable(customResidents);
+        await m.createTable(residentMemories);
+        // 从 v14 及更早升上来时，post_voices 是 v14 才建的：
+        // 那时用的已经是当前定义（带 resident_id），不能再加一次。
+        if (from >= 14) {
+          await m.addColumn(postVoices, postVoices.residentId);
+        }
+      }
+      if (from < 21) {
+        // v21：固定住民的设定按酒馆角色卡的结构拆开。
+        // 从 v20 及更早升上来时，表是 v20 才建的——那时用的已经是
+        // 当前定义（带这些列），不能再加一次。
+        if (from >= 20) {
+          await m.addColumn(customResidents, customResidents.description);
+          await m.addColumn(customResidents, customResidents.personality);
+          await m.addColumn(customResidents, customResidents.scenario);
+          await m.addColumn(customResidents, customResidents.firstMessage);
+          await m.addColumn(customResidents, customResidents.exampleDialogue);
+          await m.addColumn(
+            customResidents,
+            customResidents.extraInstructions,
+          );
+          await m.addColumn(customResidents, customResidents.tags);
+        }
       }
     },
   );

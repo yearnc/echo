@@ -13,6 +13,8 @@ class PendingInteraction {
     this.mediaType,
     this.voiceDurationMs,
     this.likeBatch = 1,
+    this.source = 'scheduled',
+    this.parentId,
   });
 
   final String id;
@@ -34,6 +36,13 @@ class PendingInteraction {
   /// 见 [PlannedInteraction.likeBatch]。
   final int likeBatch;
 
+  /// scheduled / user_reply / peer_reply / plan
+  final String source;
+
+  /// 非空表示这是楼中楼回复，指向被回复的那条评论。
+  final String? parentId;
+
+  bool get isPeerReply => source == 'peer_reply';
   bool get isLike => type == 'like';
   bool get isComment => type == 'comment';
 }

@@ -17,6 +17,8 @@ import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
 import '../../features/resident/resident_page.dart';
+import '../../features/residents/custom_resident_editor_page.dart';
+import '../../features/residents/custom_residents_page.dart';
 import '../../features/safety/minor_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
@@ -59,6 +61,10 @@ class RoutePaths {
   static const String profile = '/profile';
   static const String analysis = '/analysis';
   static const String settings = '/settings';
+
+  /// 用户自己配置的固定住民。
+  static const String customResidents = '/custom-residents';
+  static const String customResidentEdit = '/custom-residents/edit';
 
   /// 策划脚本管理。
   static const String scripts = '/scripts';
@@ -162,6 +168,16 @@ final appRouter = GoRouter(
       path: '/resident/:id',
       builder: (context, state) =>
           ResidentPage(personaId: state.pathParameters['id'] ?? ''),
+    ),
+    GoRoute(
+      path: RoutePaths.customResidents,
+      builder: (context, state) => const CustomResidentsPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.customResidentEdit,
+      builder: (context, state) => CustomResidentEditorPage(
+        residentId: state.uri.queryParameters['residentId'],
+      ),
     ),
     // 私信会话是沉浸式的：进去之后只有你们两个人，不挂底部导航
     GoRoute(

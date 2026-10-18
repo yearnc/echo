@@ -2,7 +2,7 @@
 
 一个**单 App 双模式**的社交媒体模拟器。同一块屏幕，两个世界：
 
-- **回响模式** —— 一个平行社区「回响广场」。你发帖，会有 AI 住民来点赞、评论、发语音、私信。**这里没有一个真实用户。**
+- **回响模式** —— 你发一条帖子，周围会临时聚起一群像真人的网民：有人只看、有人点赞、有人接梗。你也可以自己配置固定住民，让他们每帖都来、并记住你们聊过的事。**这里没有一个真实用户。**
 - **清醒模式** —— 关掉所有虚拟反馈，只留客观分析（图片描述 / 情绪 / 逻辑 / 事实核查 / 改进建议）与价值重建练习（价值澄清、真实行动记录）。
 
 做这个东西的动机很简单：**「被回应」的感觉是可以被制造的**，而人在多大程度上依赖它，往往要等到它消失时才看得清。这个 APP 想把这件事摆到台面上，让你亲手开关一次。
@@ -41,13 +41,31 @@
 而是便利店店员、夜班护士、面馆老板、跑团组织者这样的人——
 带学校背景会把他们的身份框死，而这个 App 想说的是"任何社区都可能这样"。
 
+**阶段 C · v3.0 重构（当前源码）**：定位从"模拟一个社区"转向
+"每条帖子周围临时聚起一群网民"。
+
+| 能力 | 说明 |
+|---|---|
+| 临时网民 | 发帖后由模型给这一帖起新网名、分头像、决定只读/点赞/评论；失败就少一批，不塞固定台词 |
+| 帖子解析 | 先判断语气（玩梗/感伤/分享…）、领域（游戏/行业…）、实体与笑点，再让所有网民共享这份理解 |
+| 浏览排队 | 发帖瞬间不会 +8；浏览、点赞、评论都按时间陆续出现 |
+| AI 互评 | 网友之间会接话、点赞；每帖默认 2 次，不通知手机、不写关系 |
+| 评论折叠 | 每条顶层评论默认露 2 条回复，多的折起来 |
+| 固定住民 | 用户自己配置，酒馆式人设字段、相册头像、每帖出现、长期记忆与按上限归档 |
+| 分页 | 首屏最近 10 条帖子、20 条评论，底部加载更多 |
+| 本地优先 | 帖子、记忆、关系、密钥全部本地；调用模型时才把必要上下文发给服务商 |
+
+数据层已到 schema **v21**；测试基线 **474**。v3.0 的 APK 仍使用 Flutter
+模板默认的调试签名，只用于侧载测试。
+
 ## 下载
 
-预编译的演示版 APK 见 [**Releases**](https://github.com/yearnc/echo/releases)。
+历史版本的预编译 APK 见 [**Releases**](https://github.com/yearnc/echo/releases)。
 
-- 这是**阶段 A 演示版**：三幕演示、策划模式、清醒模式全都能离线跑，不需要联网，也不需要任何 API Key
-- 用的是 Flutter 模板默认的 **debug 签名**，手机可能提示"未知来源"，允许安装即可（正式签名留到阶段 C）
-- 只想自己编译的话看下面的「快速开始」
+- **阶段 A / B 的包**可以离线跑三幕演示、策划模式、清醒模式，不需要 API Key；
+- **v3.0 的临时网民、帖子解析、固定住民记忆需要配置一个对话模型**（任意 OpenAI 兼容接口），没配模型时帖子照发，只是不会有人来；
+- 用的是 Flutter 模板默认的 **debug 签名**，手机可能提示"未知来源"，允许安装即可（正式签名留到后续）；
+- 只想自己编译的话看下面的「快速开始」。
 
 ## 快速开始
 
@@ -101,20 +119,20 @@ flutter build apk --release --split-per-abi
 ```
 
 不拆的话，一个包里会带上 x86_64 / arm64-v8a / armeabi-v7a 三份原生库
-（大头是 ONNX Runtime），整包 **235 MB**。拆开之后：
+（大头是 ONNX Runtime 与离线语音合成模型）。v3.0 的实测值：
 
 | APK | 体积 |
 |---|---|
-| `app-arm64-v8a-release.apk`（真机） | **146 MB** |
-| `app-armeabi-v7a-release.apk` | 136 MB |
-| `app-x86_64-release.apk`（模拟器） | 151 MB |
+| `app-arm64-v8a-release.apk`（真机） | **76.2 MB** |
+| `app-armeabi-v7a-release.apk` | 65.9 MB |
+| `app-x86_64-release.apk`（模拟器） | 81.3 MB |
 
 注意 `--target-platform android-arm64` **不够**：它只管住 Flutter 自己的库，
-插件带的 `.so` 照样三个 ABI 全进（实测只小到 194 MB）。
+插件带的 `.so` 照样三个 ABI 全进。给手机只用 `--split-per-abi` 产出的
+`app-arm64-v8a-release.apk`。
 
-上表是 B8 那版的实测值（当时含 78 MB 的离线识别模型）。移掉"按住说话"之后
-arm64 包应在 **68 MB 上下**（以实际构建为准）；剩下的大头是 30 MB 的语音
-合成模型和 ONNX Runtime——这两样是功能本身，拆不掉。
+体积的大头是随包发布的离线语音模型（约 30 MB）与 ONNX Runtime；
+这两样是语音功能本身，拆不掉。放不下模型时应用照样能跑，评论区只是纯文字。
 
 ### 测试
 
@@ -164,19 +182,24 @@ lib/
 ├─ app.dart            应用根组件 + 前台心跳
 ├─ core/               常量与合规文案、调色板与主题、路由、工具
 ├─ domain/
-│  ├─ models/          Post / AiPersona / PlanScript / ModelConfig / Sticker …
-│  └─ services/        模式状态机、调度器、策划排期、防沉迷判定、外观
+│  ├─ models/          Post / AiPersona / PostVoice / CustomResident /
+│  │                    ResidentMemory / PostUnderstanding / PlanScript …
+│  └─ services/        调度器、围观（AudienceService）、帖子解析、记忆、
+│                       模式状态机、策划排期、防沉迷判定、外观
 ├─ data/
-│  ├─ db/              Drift 表定义、迁移、播种（13 张表）
-│  ├─ repositories/    仓储实现
+│  ├─ db/              Drift 表定义、迁移、播种（28 张表，schema v21）
+│  ├─ repositories/    仓储实现（帖子 / 网民 / 记忆 / 固定住民 / 互动…）
 │  ├─ media/           图片挑选与私有目录落盘
 │  └─ seed/            内置脚本与素材清单的加载
-└─ features/           按页面分组：feed / composer / post_detail / records /
-                       analysis / values / actions / safety / stickers /
-                       scripts / models / settings / onboarding / notifications
+└─ features/           按页面分组：feed / composer / post_detail / residents /
+                       records / analysis / values / actions / safety /
+                       stickers / scripts / models / settings /
+                       onboarding / notifications
 ```
 
-数据库共 13 张表（见 `lib/data/db/tables/`）：帖子、住民、互动队列、策划脚本与事件、客观分析、通知、各类日志、素材、价值澄清、真实行动、模型配置。
+数据库共 28 张表（见 `lib/data/db/tables/`）：帖子、AI 住民、每帖网民快照、
+互动队列、浏览记录、帖子解析、固定住民与长期记忆、评论、点赞、私信、
+关系、通知、模型配置、策划脚本与事件、各类日志与真实行动记录。
 
 ## 合规与边界
 

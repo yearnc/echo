@@ -43,7 +43,9 @@ class FeedPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final posts = ref.watch(feedPostsProvider('echo'));
+    // 首屏只取最近 10 条，底部“加载更多”再加 10 条。
+    final limit = ref.watch(feedLimitProvider);
+    final posts = ref.watch(feedPagePostsProvider(limit));
     final tab = ref.watch(feedTabProvider);
     final following = ref.watch(followingProvider);
 
@@ -93,6 +95,14 @@ class FeedPage extends ConsumerWidget {
                   _PostCard(post: post),
                   const SizedBox(height: 14),
                 ],
+              if (list.length >= limit)
+                Center(
+                  child: TextButton(
+                    onPressed: () =>
+                        ref.read(feedLimitProvider.notifier).more(),
+                    child: const Text('加载更多'),
+                  ),
+                ),
             ],
           );
         },

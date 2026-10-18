@@ -18,7 +18,7 @@ class PostRepository {
   final AppDatabase _db;
 
   /// 信息流：按时间倒序，自动跟随数据库变化。
-  Stream<List<Post>> watchFeed({String? scope}) {
+  Stream<List<Post>> watchFeed({String? scope, int? limit}) {
     final query = _db.select(_db.posts)
       ..where((t) => t.deletedAt.isNull())
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
@@ -26,6 +26,7 @@ class PostRepository {
     if (scope != null) {
       query.where((t) => t.scope.equals(scope));
     }
+    if (limit != null) query.limit(limit);
 
     return query.watch().map((rows) => rows.map(_toDomain).toList());
   }
@@ -243,7 +244,7 @@ class PostRepository {
 
   /// 「我的」页的统计。真实查出来的，不是写死的数字。
   ///
-  /// 两个数字都只算**主人自己发的帖子**（`authorPersonaId` 为空）：
+  /// 两个数字都只算**用户自己发的帖子**（`authorPersonaId` 为空）：
   /// 住民的动态躺在同一张表里，那是"社区里别人发的"，
   /// 不加这一条，个人主页上就变成了"我发了三百条、获赞两千"。
   Stream<ProfileStats> watchStats() {
@@ -323,6 +324,26 @@ final postRepositoryProvider = Provider<PostRepository>(
 final feedPostsProvider = StreamProvider.autoDispose
     .family<List<Post>, String?>((ref, scope) {
       return ref.watch(postRepositoryProvider).watchFeed(scope: scope);
+    });
+
+/// 首页首屏只取最近 10 条，底部的“加载更多”把它加 10。
+class FeedLimitController extends Notifier<int> {
+  @override
+  int build() => 10;
+
+  void more() => state += 10;
+}
+
+final feedLimitProvider = NotifierProvider<FeedLimitController, int>(
+  FeedLimitController.new,
+);
+
+final feedPagePostsProvider = StreamProvider.autoDispose
+    .family<List<Post>, int>((ref, limit) {
+      return ref.watch(postRepositoryProvider).watchFeed(
+        scope: 'echo',
+        limit: limit,
+      );
     });
 
 final postByIdProvider = StreamProvider.autoDispose.family<Post?, String>(

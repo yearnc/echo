@@ -11,6 +11,7 @@ import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
+import '../../domain/models/post_voice.dart';
 import '../../domain/services/voice_playback.dart';
 import '../../domain/services/voice_waveform.dart';
 import 'user_avatar.dart';
@@ -64,9 +65,14 @@ class CommentTile extends ConsumerWidget {
     this.highlighted = false,
     this.isReply = false,
     this.onReply,
+    this.voice,
   });
 
   final PostComment comment;
+
+  /// 说话的人（v3.0）。临时网民不在固定住民表里，由详情页一次查好传进来；
+  /// 为空时退回 `personaByIdProvider`（老数据和固定住民）。
+  final PostVoice? voice;
 
   /// 这条是对楼上那条的回复（B7）：缩进一点、左边带一条细线，
   /// 一眼看得出它接的是哪句话。楼层由 [[CommentThreads]] 算好。
@@ -85,20 +91,23 @@ class CommentTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // personaId 为空表示这条是我自己说的
     final personaId = comment.personaId;
-    final persona = personaId == null
+    final persona = personaId == null || voice != null
         ? null
         : ref.watch(personaByIdProvider(personaId));
     final me = ref.watch(userProfileProvider).value;
-    final name = persona?.name ??
+    final name = voice?.name ??
+        persona?.name ??
         (personaId == null
             ? (me?.displayName ?? AppTexts.defaultNickname)
-            : '社区住民');
+            : '路过的网友');
+    final avatarRef = voice?.avatarAsset ?? persona?.avatar;
     final createdAt = createdAtOverride ?? comment.createdAt;
 
     // 点开一个人，看他是谁、平常在哪儿、发过什么——
-    // 评论区的"活人感"就落在这一步上（自己那句当然点不开）
+    // 评论区的"活人感"就落在这一步上（自己那句当然点不开）。
+    // 临时网民没有主页，点了不跳。
     void openAuthor() {
-      if (personaId == null) return;
+      if (personaId == null || voice != null) return;
       context.push(RoutePaths.resident(personaId));
     }
 
@@ -131,7 +140,7 @@ class CommentTile extends ConsumerWidget {
               onTap: openAuthor,
               child: UserAvatar(
                 name: name,
-                avatarRef: persona?.avatar,
+                avatarRef: avatarRef,
                 size: 34,
               ),
             ),
@@ -153,7 +162,7 @@ class CommentTile extends ConsumerWidget {
                               ),
                         ),
                       ),
-                      if (persona != null) ...[
+                      if (persona != null && voice == null) ...[
                         const SizedBox(width: 6),
                         Text(
                           'Lv.${persona.level}',

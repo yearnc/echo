@@ -57,22 +57,25 @@ class DashboardRepository {
   Future<List<InteractionPoint>> executedInteractions({
     required DateTime since,
   }) async {
+    // 时间用 scheduled_at：补发时 executed_at 是"打开 APP 的这一刻"，
+    // 积压几天的互动会全堆在同一分钟，图表就失真了。
     final query = _db.select(_db.aiInteractions)
       ..where(
         (t) =>
             t.status.equals(statusDone) &
-            t.executedAt.isBiggerOrEqualValue(since.millisecondsSinceEpoch),
+            t.scheduledAt.isBiggerOrEqualValue(since.millisecondsSinceEpoch) &
+            // 浏览只进“看过”名单，不算一次互动
+            (t.type.equals('like') | t.type.equals('comment')),
       );
     final rows = await query.get();
 
     return [
       for (final row in rows)
-        if (row.executedAt != null)
-          InteractionPoint(
-            at: DateTime.fromMillisecondsSinceEpoch(row.executedAt!),
-            type: row.type,
-            likeBatch: row.likeCount,
-          ),
+        InteractionPoint(
+          at: DateTime.fromMillisecondsSinceEpoch(row.scheduledAt),
+          type: row.type,
+          likeBatch: row.likeCount,
+        ),
     ];
   }
 

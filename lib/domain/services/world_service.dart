@@ -14,6 +14,7 @@ import '../../data/repositories/post_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
 import '../models/resident_post.dart';
+import 'community_settings_controller.dart';
 import 'content_generator.dart';
 import 'content_moderator.dart';
 import 'interaction_planner.dart';
@@ -39,6 +40,7 @@ class WorldService {
     required this.generator,
     required this.sample,
     this.onResidentsChanged,
+    this.readAllowResidentPosts,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -61,6 +63,9 @@ class WorldService {
   /// 有人换了签名之后通知界面重读——住民资料是全局缓存的那一份。
   final void Function()? onResidentsChanged;
 
+  /// AI 住民要不要自己发动态。默认 false，可空（测试里不传就是关）。
+  final bool Function()? readAllowResidentPosts;
+
   final Random _random;
 
   /// 两条动态之间至少隔这么久。
@@ -82,6 +87,10 @@ class WorldService {
 
   /// 检查并补齐。返回这次发了几条动态。
   Future<int> tick() async {
+    // 开关关着就什么都不做（默认关）：v3.0 先把注意力放回"用户发帖后的反馈"，
+    // 信息流不该自己一直长内容。
+    if (!(readAllowResidentPosts?.call() ?? false)) return 0;
+
     // 清醒模式里不该长出新的虚拟动态——那不是"安静下来"，那是又冒出一批假的
     if (!await _isEchoMode()) return 0;
 
@@ -401,5 +410,7 @@ final worldServiceProvider = Provider<WorldService>(
     sample: ref.watch(sampleContentGeneratorProvider),
     // 住民资料是全局缓存的那一份，改完得让它重读
     onResidentsChanged: () => ref.invalidate(personasProvider),
+    readAllowResidentPosts: () =>
+        ref.read(communitySettingsProvider).allowResidentPosts,
   ),
 );

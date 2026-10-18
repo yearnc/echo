@@ -126,10 +126,16 @@ class UserComments extends Table {
 @DataClassName('CommentLikeRow')
 class CommentLikes extends Table {
   TextColumn get commentId => text()();
+
+  /// user = 我自己点的；voice = 某个 AI 网民点的。
+  TextColumn get actorKind => text().withDefault(const Constant('user'))();
+
+  /// voice 时是 post_voices 的 id；user 时为空串。
+  TextColumn get actorId => text().withDefault(const Constant(''))();
   IntColumn get createdAt => integer()();
 
   @override
-  Set<Column> get primaryKey => {commentId};
+  Set<Column> get primaryKey => {commentId, actorKind, actorId};
 }
 
 /// 话题（规划书 §3.4）。

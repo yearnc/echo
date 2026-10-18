@@ -52,7 +52,11 @@ class AiPersonas extends Table {
 class AiInteractions extends Table {
   TextColumn get id => text()();
   TextColumn get postId => text().references(Posts, #id)();
-  TextColumn get personaId => text().references(AiPersonas, #id)();
+
+  /// 说话的人。v3.0 之后可能是 `post_voices` 里的临时网民，
+  /// 因此不再外键到 `ai_personas`（否则每个临时身份都要在固定住民表里
+  /// 插一条影子行，把住民主页和关注列表一起污染）。
+  TextColumn get personaId => text()();
 
   /// like / comment / follow / message / repost
   TextColumn get type => text()();
@@ -68,6 +72,10 @@ class AiInteractions extends Table {
 
   /// pending / done / cancelled
   TextColumn get status => text().withDefault(const Constant('pending'))();
+
+  /// 这条互动从哪来：scheduled（随机排期）/ user_reply（接用户的话）/
+  /// peer_reply（AI 接 AI）/ plan（策划脚本）。
+  TextColumn get source => text().withDefault(const Constant('scheduled'))();
   BoolColumn get isAi => boolean().withDefault(const Constant(true))();
   TextColumn get scope => text().withDefault(const Constant('echo'))();
   TextColumn get parentId => text().nullable()();

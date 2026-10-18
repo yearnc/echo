@@ -13,6 +13,8 @@ import '../../data/repositories/post_repository.dart';
 import '../../domain/models/echo_settings.dart';
 import '../../domain/models/moderation_result.dart';
 import '../../domain/models/plan_script.dart';
+import '../../domain/services/audience_service.dart';
+import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/content_moderator.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
@@ -425,25 +427,30 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             humanLevel: isEcho ? _humanLevel : null,
           );
 
-      // 回响模式：发帖的同时就把将来的互动排好队（离线也不会丢）
+      // 回响模式：帖子先落地，反馈在后台慢慢来。
       if (isEcho) {
         final scheduler = ref.read(schedulerServiceProvider);
         if (script != null) {
-          // 策划模式：按脚本的秒级时间点精确排期
+          // 策划模式：按脚本的秒级时间点精确排期。脚本是本地数据，很快。
           await scheduler.planFromScript(postId: postId, script: script);
         } else {
-          await scheduler.planForPost(
-            postId: postId,
-            settings: EchoSettings(
-              density: ReplyDensity.fromLabel(_density),
-              likeLevel: LikeLevel.fromLabel(_likeLevel),
-              humanLevel: HumanLevel.fromValue(_humanLevel),
-            ),
-          );
-          // 排期那一步已经用预置台词填好内容了。配了模型的话，让它在后台
-          // 把还没到点的评论换成人写的——**不 await**：写五六条要好几秒，
-          // 用户没道理站在发布页等，而排期本身早就落库了。
-          unawaited(scheduler.upgradeCommentsWithModel(postId));
+          // 随机发帖：解析 + 凑人可能要几秒到十几秒。用户没道理站在发布页等，
+          // 所以**不 await**——帖子已经发出去了，网民在后台陆续到。
+          // 提前把 provider 读出来：闭包执行时页面可能已经卸载。
+          final community = ref.read(communitySettingsProvider);
+          final audience = ref.read(audienceServiceProvider);
+          final density = ReplyDensity.fromLabel(_density);
+          unawaited(() async {
+            try {
+              await audience.prepare(
+                postId: postId,
+                density: density,
+                allowLurk: community.allowLurk,
+              );
+            } catch (error) {
+              debugPrint('[发布] 后台凑人失败：$error');
+            }
+          }());
         }
       }
 

@@ -1,11 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/ai_persona.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
 import '../models/resident_post.dart';
 import 'community_calendar.dart';
 import 'content_generator.dart';
+import 'content_moderator.dart';
 import 'model_gateway.dart';
 import 'relationship_rules.dart';
 
@@ -140,6 +143,60 @@ class ModelContentGenerator {
     };
   }
 
+  /// AI 接 AI：评论区里另一个人的随口接话。
+  Future<String?> peerReply({
+    required ModelConfig config,
+    required PeerReplyThread thread,
+  }) async {
+    if (thread.targetContent.trim().isEmpty) return null;
+    try {
+      final raw = await _gateway.complete(
+        config: config,
+        messages: [
+          {'role': 'system', 'content': peerReplyPrompt(thread)},
+          {'role': 'user', 'content': '接一句。'},
+        ],
+        temperature: 0.95,
+        maxTokens: 200,
+        timeout: const Duration(seconds: 20),
+      );
+      return parsePeerReply(raw);
+    } catch (error) {
+      debugPrint('[内容生成] 这次没接上 AI 的话：$error');
+      return null;
+    }
+  }
+
+  static String peerReplyPrompt(PeerReplyThread thread) {
+    final buffer = StringBuffer()
+      ..writeln('你是评论区里的一个网友。楼上「${thread.targetName}」说：')
+      ..writeln('「${thread.targetContent}」')
+      ..writeln()
+      ..writeln('你接一句：')
+      ..writeln('- 10—30 字，口语，像随手打的')
+      ..writeln('- 可以赞同、反驳、玩梗、补充、说自己也这样')
+      ..writeln('- 不总结、不说教、不用客服腔，不提到自己是 AI')
+      ..writeln('- 只输出这一句，不要引号、不要解释');
+
+    final understanding = thread.understanding;
+    if (understanding != null) {
+      buffer
+        ..writeln()
+        ..writeln(understanding.toPromptBlock());
+    }
+    return buffer.toString();
+  }
+
+  static String? parsePeerReply(String raw) {
+    var text = raw.trim();
+    if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
+      text = text.substring(1, text.length - 1).trim();
+    }
+    if (text.isEmpty || text.runes.length > 80) return null;
+    if (ContentModerator.checkLocally(text) != null) return null;
+    return text;
+  }
+
   /// 追问提示词。纯函数，单独测。
   ///
   /// 这里刻意把"你回了我什么"原样给出来：楼中楼最容易演砸的地方，
@@ -149,13 +206,15 @@ class ModelContentGenerator {
     Map<String, RelationshipState> relations = const {},
   }) {
     final buffer = StringBuffer()
-      ..writeln('你是「回响」这个社区里的几个人。你在帖子下面留了句话，')
-      ..writeln('现在有人回了你，请你说下一句——就在同一层楼里接着聊。')
+      ..writeln('你是「回响」里的一个普通人。你在这条帖子下留了句话，')
+      ..writeln('现在有人回了你，就在同一层楼里接着聊。')
       ..writeln()
       ..writeln('要点：')
-      ..writeln('- 每条 10—40 字，像随手打出来的，别端着')
-      ..writeln('- **接住他说的那件事**，别换话题、别自说自话')
-      ..writeln('- 不用「加油哦」这类谁都能说的话，不要提到自己是 AI')
+      ..writeln('- 每条 10—40 字，像微信上随手打的，别端着')
+      ..writeln('- **接住他这句话里的具体东西**，别换话题、别自说自话')
+      ..writeln('- 可以反问、调侃、敷衍、认错，或者顺着他说的自嘲一句；不用每次都共情')
+      ..writeln('- 不总结、不说教，不用「加油哦」这类谁都能说的话')
+      ..writeln('- 不解释自己在做什么，不要提到自己是 AI')
       ..writeln('- 几条之间不要雷同')
       ..writeln()
       ..writeln('这次的来往：');
@@ -244,14 +303,18 @@ class ModelContentGenerator {
     Map<String, RelationshipState> relations = const {},
   }) {
     final buffer = StringBuffer()
-      ..writeln('你是「回响」这个社区里的几名普通人，现在要给一位邻居发的东西写评论。')
+      ..writeln('你是「回响」里刷到这条帖子的几个普通人，不是社区工作人员，也不是来开导谁的。')
       ..writeln()
       ..writeln('要点：')
-      ..writeln('- 每条 15—60 字，像真人随手打出来的，别端着')
-      ..writeln('- 不复述帖子内容，不用「加油哦」「太棒了」这种谁都能说的话')
+      ..writeln('- 每条 10—40 字，像随手打出来的；句子可以短，可以没头没尾')
+      ..writeln('- **必须接住帖子里的具体东西**：物件、动作、情绪、梗，至少提到一个')
+      ..writeln('- 从这些角度里挑一种：共鸣 / 吐槽 / 好奇提问 / 玩梗 / 说自己也这样 / 一句短评')
+      ..writeln('- 不总结、不升华、不说教；不用「加油哦」「抱抱你」「一切都会好的」「希望你能」')
+      ..writeln('- 不写排比句，不要每条都积极，不要每条都带表情')
+      ..writeln('- 不复述帖子原文，不解释自己在做什么')
       ..writeln('- 跟这个人还不熟的，别自来熟；已经聊过几次的，说话可以更随意一点')
       ..writeln('- 下面写了「他记得」的，可以顺口提一句（像"你上次拍的那张"，但别每次都用）')
-      ..writeln('- 不要提到自己是 AI，不要解释自己在做什么')
+      ..writeln('- 不要提到自己是 AI')
       ..writeln('- 同一批评论之间不要雷同，也不要点评彼此')
       ..writeln()
       ..writeln('这次要评论的人：');
@@ -393,8 +456,12 @@ class ModelContentGenerator {
       buffer.writeln('（话题：#$topic）');
     }
     if (post.hasImages) {
-      buffer.writeln('（这条帖子还带了 ${post.images.length} 张图）');
+      buffer.writeln(
+        '（这条帖子还带了 ${post.images.length} 张图；你看不到图，'
+        '只能根据文字和话题猜）',
+      );
     }
+    buffer.writeln('（发帖人：这个社区里的一个普通用户）');
     return buffer.toString();
   }
 

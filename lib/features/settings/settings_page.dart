@@ -8,6 +8,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/models/voice_settings.dart';
 import '../../domain/services/appearance_controller.dart';
+import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/voice_settings_controller.dart';
@@ -24,6 +25,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(modeControllerProvider);
     final appearance = ref.watch(appearanceControllerProvider);
+    final community = ref.watch(communitySettingsProvider);
     final voice = ref.watch(voiceSettingsControllerProvider);
     final cloudTts = ref.watch(cloudTtsConfigProvider).value;
     final isEcho = mode.isEcho;
@@ -106,6 +108,43 @@ class SettingsPage extends ConsumerWidget {
             title: '回响模式',
             isEcho: isEcho,
             children: [
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.dynamic_feed_outlined,
+                title: '固定住民动态',
+                subtitle: '关闭后，固定住民不会自己发动态',
+                value: community.allowResidentPosts,
+                onChanged: (on) => ref
+                    .read(communitySettingsProvider.notifier)
+                    .setAllowResidentPosts(on),
+              ),
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.visibility_outlined,
+                title: '允许网友只读',
+                subtitle: '关闭后，每个来的网友都会点赞或评论',
+                value: community.allowLurk,
+                onChanged: (on) => ref
+                    .read(communitySettingsProvider.notifier)
+                    .setAllowLurk(on),
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.forum_outlined,
+                title: '网友互相接话',
+                subtitle: '每帖 AI 之间的来往上限',
+                value: community.aiPeerInteractionLimit == 0
+                    ? '关闭'
+                    : '${community.aiPeerInteractionLimit} 次',
+                onTap: () => _pickPeerLimit(context, ref),
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.people_outline,
+                title: '固定住民',
+                subtitle: '自己配置、每帖都会出现的人',
+                onTap: () => context.push(RoutePaths.customResidents),
+              ),
               _Row(
                 isEcho: isEcho,
                 icon: Icons.emoji_emotions_outlined,
@@ -267,6 +306,35 @@ class SettingsPage extends ConsumerWidget {
 
     if (picked == null) return;
     await ref.read(appearanceControllerProvider.notifier).setMode(picked);
+  }
+
+  Future<void> _pickPeerLimit(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(communitySettingsProvider).aiPeerInteractionLimit;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: currentPalette.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            for (final value in const [0, 1, 2, 3, 5])
+              _SourceOption(
+                title: value == 0 ? '关闭' : '$value 次',
+                subtitle: value == 0 ? '网友只跟帖主说话' : '每帖 AI 之间的来往上限',
+                selected: current == value,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null) return;
+    await ref
+        .read(communitySettingsProvider.notifier)
+        .setAiPeerInteractionLimit(picked);
   }
 
   /// 选语音来源。云端没配置时只让选本机，并留一个去配置的入口。

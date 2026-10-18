@@ -142,6 +142,9 @@ class _FakeGenerator implements ContentGenerator {
   }) async => {
     for (final thread in threads) thread.persona.id: '模型写的追问',
   };
+
+  @override
+  Future<String?> peerReply({required PeerReplyThread thread}) async => null;
 }
 
 void main() {
@@ -445,7 +448,7 @@ void main() {
       await repo.writeKey(_config.id, 'sk-test');
     }
 
-    test('没有模型时用样本，一次请求都不发', () async {
+    test('没有模型时不写评论，一次请求都不发', () async {
       final adapter = _FakeAdapter((_) async {
         fail('没有模型不该发请求');
       });
@@ -456,11 +459,11 @@ void main() {
         post: _post(),
       );
 
-      expect(result['persona_001'], '预置台词');
+      expect(result, isEmpty, reason: 'v3.0 不再用预置台词兜底');
       expect(adapter.calls, 0);
     });
 
-    test('有模型时模型说了算，它没写的用样本补上', () async {
+    test('有模型时只返回它写出来的，缺的不用样本补', () async {
       await enableModel();
       dio.httpClientAdapter = _FakeAdapter(
         (_) async =>
@@ -476,10 +479,14 @@ void main() {
       );
 
       expect(result['persona_001'], '模型写的这一条');
-      expect(result['persona_002'], '样本二', reason: '不能因为模型少写一条就留白');
+      expect(
+        result.containsKey('persona_002'),
+        isFalse,
+        reason: 'v3.0 不用样本补缺',
+      );
     });
 
-    test('模型报错时整批退回样本', () async {
+    test('模型报错时整批留空', () async {
       await enableModel();
       dio.httpClientAdapter = _FakeAdapter(
         (_) async => _json('{"error":"boom"}', status: 500),
@@ -490,10 +497,10 @@ void main() {
         post: _post(),
       );
 
-      expect(result['persona_001'], '样本一');
+      expect(result, isEmpty);
     });
 
-    test('模型返回空数组时也退回样本', () async {
+    test('模型返回空数组时整批留空', () async {
       await enableModel();
       dio.httpClientAdapter = _FakeAdapter(
         (_) async => _json(_chatReply('[]')),
@@ -504,7 +511,7 @@ void main() {
         post: _post(),
       );
 
-      expect(result['persona_001'], '样本一');
+      expect(result, isEmpty);
     });
 
     test('一个人都没有时不发请求', () async {
@@ -650,7 +657,8 @@ void main() {
           PlannedInteraction(
             personaId: entry.key,
             type: 'comment',
-            content: '预置台词',
+            // v3.0：排期不再预填台词，等模型按帖子写
+            content: null,
             scheduledAt: DateTime.now().add(
               entry.value
                   ? const Duration(seconds: -5)
@@ -679,10 +687,10 @@ void main() {
 
       final all = await db.select(db.aiInteractions).get();
       final executed = all.firstWhere((row) => row.personaId == 'persona_002');
-      expect(executed.content, '预置台词');
+      expect(executed.content, isNull, reason: '已经兑现的评论不该被改写');
     });
 
-    test('模型写挂了就保持预置台词，不往外抛', () async {
+    test('模型写挂了就取消这条评论，不往外抛', () async {
       generator.error = Exception('boom');
       await scheduleComments({'persona_001': false});
 
@@ -690,7 +698,8 @@ void main() {
       await scheduler.upgradeCommentsWithModel(postId);
 
       final row = await db.select(db.aiInteractions).getSingle();
-      expect(row.content, '预置台词');
+      expect(row.status, 'cancelled');
+      expect(row.content, isNull);
     });
 
     test('没有待兑现的评论就不发请求', () async {
@@ -705,6 +714,35 @@ void main() {
       await scheduler.upgradeCommentsWithModel('不存在的帖子');
 
       expect(generator.calls, 0);
+    });
+  });
+
+  group('AI 接 AI', () {
+    test('提示词带楼上那句话、发帖内容与口吻约束', () {
+      final prompt = ModelContentGenerator.peerReplyPrompt(
+        PeerReplyThread(
+          persona: _persona('p', name: '大肥鱼'),
+          post: _post(content: '今天抽卡又歪了'),
+          targetName: '三楼的灯',
+          targetContent: '我也是大保底',
+        ),
+      );
+
+      expect(prompt, contains('三楼的灯'));
+      expect(prompt, contains('我也是大保底'));
+      expect(prompt, contains('10—30 字'));
+      expect(prompt, contains('只输出这一句'));
+    });
+
+    test('去掉引号；空串和超长都不要', () {
+      expect(ModelContentGenerator.parsePeerReply('"接一句"'), '接一句');
+      expect(ModelContentGenerator.parsePeerReply('  '), isNull);
+      expect(
+        ModelContentGenerator.parsePeerReply(
+          List.filled(81, '啊').join(),
+        ),
+        isNull,
+      );
     });
   });
 }

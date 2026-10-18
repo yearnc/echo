@@ -141,7 +141,6 @@ class InteractionPlanner {
       final level = _levelOf(relations, persona.id);
       if (_random.nextDouble() > commentChance(persona, level)) continue;
 
-      final samples = persona.commentSamples;
       planned.add(
         PlannedInteraction(
           personaId: persona.id,
@@ -150,9 +149,10 @@ class InteractionPlanner {
             commentTimes[commentIndex % commentTimes.length],
             persona,
           ),
-          content: samples.isEmpty
-              ? null
-              : samples[_random.nextInt(samples.length)],
+          // 排期**不再预填台词**（v3.0）。内容由发帖后的模型请求按帖子写；
+          // 没模型或失败就取消这批评论，绝不拿固定台词顶上——那正是
+          // "钻石帖子下面说今天汤熬得好"的来源。
+          content: null,
           // 排期这一层只写文字。语音是**兑现之后**才合成、才升级的（B8）：
           // 合成要一两秒，提前把 media_type 标成 voice 只会让评论区
           // 先出现一排点不响的播放键。

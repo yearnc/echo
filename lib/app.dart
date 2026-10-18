@@ -10,6 +10,7 @@ import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
 import 'domain/services/appearance_controller.dart';
+import 'domain/services/audience_service.dart';
 import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
@@ -47,6 +48,9 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   Timer? _heartbeat;
   int _ticks = 0;
 
+  /// 一批人正在生成时不重叠：模型一次可能要十几秒，心跳是一秒一拍。
+  bool _audienceBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +85,16 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           // 私信：一是接住你刚说的那句，二是关系够近的人来敲门。
           // 它自己带门槛（二十小时一次主动开口），这一档频率够用
           await ref.read(directMessageServiceProvider).tick();
+
+          // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。
+          if (!_audienceBusy) {
+            _audienceBusy = true;
+            try {
+              await ref.read(audienceServiceProvider).tick();
+            } finally {
+              _audienceBusy = false;
+            }
+          }
         }
       } catch (_) {
         // 静默：补发失败不该弹窗打断用户

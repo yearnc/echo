@@ -287,6 +287,15 @@ void main() {
 
     tearDown(() async => db.close());
 
+    /// v3.0 起排期不再预填台词，评论内容由模型在发帖后写入。
+    /// 测试里直接补上内容，模拟"模型写完了"。
+    Future<void> fillPendingComments(String postId) async {
+      final ids = await interactions.pendingCommentPersonaIds(postId);
+      await interactions.updatePendingComments(postId, {
+        for (final id in ids) id: '这条评论接住了帖子里的内容',
+      });
+    }
+
     /// 模拟"关掉 APP 两天"：把所有待办的时间挪到过去。
     Future<void> rewindPending() async {
       await db.customStatement(
@@ -321,6 +330,7 @@ void main() {
           likeLevel: LikeLevel.high,
         ),
       );
+      await fillPendingComments(postId);
       await rewindPending();
 
       final flushed = await scheduler.flushDue();
@@ -375,6 +385,9 @@ void main() {
         postId: postId,
         settings: EchoSettings.defaults,
       );
+      // 内容写出来之后才预约：空评论不值得叫醒手机。
+      await fillPendingComments(postId);
+      await withAlarms.rescheduleNotifications();
 
       expect(scheduled, isNotEmpty, reason: '评论要在 APP 关着时也能提醒');
 

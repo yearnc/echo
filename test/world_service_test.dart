@@ -118,6 +118,7 @@ void main() {
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(1)),
         sample: SampleContentGenerator(random: Random(1)),
+        readAllowResidentPosts: () => true,
         random: Random(1),
       );
     });
@@ -205,6 +206,7 @@ void main() {
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(2)),
         sample: SampleContentGenerator(random: Random(2)),
+        readAllowResidentPosts: () => true,
         random: Random(2),
       );
     });
@@ -311,6 +313,7 @@ void main() {
         interactions: InteractionRepository(db),
         generator: generator,
         sample: SampleContentGenerator(random: Random(2)),
+        readAllowResidentPosts: () => true,
         random: Random(2),
       );
 
@@ -422,6 +425,7 @@ void main() {
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(3)),
         sample: SampleContentGenerator(random: Random(3)),
+        readAllowResidentPosts: () => true,
         random: Random(3),
       );
       final key = '${WorldService.bioWatermarkPrefix}${solo.single.id}';
@@ -455,6 +459,7 @@ void main() {
         interactions: InteractionRepository(db),
         generator: SampleContentGenerator(random: Random(2)),
         sample: SampleContentGenerator(random: Random(2)),
+        readAllowResidentPosts: () => true,
         random: Random(2),
         onResidentsChanged: () => notified++,
       );

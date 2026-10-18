@@ -3100,9 +3100,6 @@ class $AiInteractionsTable extends AiInteractions
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES ai_personas (id)',
-    ),
   );
   static const VerificationMeta _typeMeta = const VerificationMeta('type');
   @override
@@ -3200,6 +3197,16 @@ class $AiInteractionsTable extends AiInteractions
     requiredDuringInsert: false,
     defaultValue: const Constant('pending'),
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('scheduled'),
+  );
   static const VerificationMeta _isAiMeta = const VerificationMeta('isAi');
   @override
   late final GeneratedColumn<bool> isAi = GeneratedColumn<bool>(
@@ -3271,6 +3278,7 @@ class $AiInteractionsTable extends AiInteractions
     scheduledAt,
     executedAt,
     status,
+    source,
     isAi,
     scope,
     parentId,
@@ -3374,6 +3382,12 @@ class $AiInteractionsTable extends AiInteractions
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
     }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
     if (data.containsKey('is_ai')) {
       context.handle(
         _isAiMeta,
@@ -3461,6 +3475,10 @@ class $AiInteractionsTable extends AiInteractions
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
       isAi: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_ai'],
@@ -3494,6 +3512,10 @@ class AiInteractionRow extends DataClass
     implements Insertable<AiInteractionRow> {
   final String id;
   final String postId;
+
+  /// 说话的人。v3.0 之后可能是 `post_voices` 里的临时网民，
+  /// 因此不再外键到 `ai_personas`（否则每个临时身份都要在固定住民表里
+  /// 插一条影子行，把住民主页和关注列表一起污染）。
   final String personaId;
 
   /// like / comment / follow / message / repost
@@ -3510,6 +3532,10 @@ class AiInteractionRow extends DataClass
 
   /// pending / done / cancelled
   final String status;
+
+  /// 这条互动从哪来：scheduled（随机排期）/ user_reply（接用户的话）/
+  /// peer_reply（AI 接 AI）/ plan（策划脚本）。
+  final String source;
   final bool isAi;
   final String scope;
   final String? parentId;
@@ -3528,6 +3554,7 @@ class AiInteractionRow extends DataClass
     required this.scheduledAt,
     this.executedAt,
     required this.status,
+    required this.source,
     required this.isAi,
     required this.scope,
     this.parentId,
@@ -3561,6 +3588,7 @@ class AiInteractionRow extends DataClass
       map['executed_at'] = Variable<int>(executedAt);
     }
     map['status'] = Variable<String>(status);
+    map['source'] = Variable<String>(source);
     map['is_ai'] = Variable<bool>(isAi);
     map['scope'] = Variable<String>(scope);
     if (!nullToAbsent || parentId != null) {
@@ -3599,6 +3627,7 @@ class AiInteractionRow extends DataClass
           ? const Value.absent()
           : Value(executedAt),
       status: Value(status),
+      source: Value(source),
       isAi: Value(isAi),
       scope: Value(scope),
       parentId: parentId == null && nullToAbsent
@@ -3629,6 +3658,7 @@ class AiInteractionRow extends DataClass
       scheduledAt: serializer.fromJson<int>(json['scheduledAt']),
       executedAt: serializer.fromJson<int?>(json['executedAt']),
       status: serializer.fromJson<String>(json['status']),
+      source: serializer.fromJson<String>(json['source']),
       isAi: serializer.fromJson<bool>(json['isAi']),
       scope: serializer.fromJson<String>(json['scope']),
       parentId: serializer.fromJson<String?>(json['parentId']),
@@ -3652,6 +3682,7 @@ class AiInteractionRow extends DataClass
       'scheduledAt': serializer.toJson<int>(scheduledAt),
       'executedAt': serializer.toJson<int?>(executedAt),
       'status': serializer.toJson<String>(status),
+      'source': serializer.toJson<String>(source),
       'isAi': serializer.toJson<bool>(isAi),
       'scope': serializer.toJson<String>(scope),
       'parentId': serializer.toJson<String?>(parentId),
@@ -3673,6 +3704,7 @@ class AiInteractionRow extends DataClass
     int? scheduledAt,
     Value<int?> executedAt = const Value.absent(),
     String? status,
+    String? source,
     bool? isAi,
     String? scope,
     Value<String?> parentId = const Value.absent(),
@@ -3693,6 +3725,7 @@ class AiInteractionRow extends DataClass
     scheduledAt: scheduledAt ?? this.scheduledAt,
     executedAt: executedAt.present ? executedAt.value : this.executedAt,
     status: status ?? this.status,
+    source: source ?? this.source,
     isAi: isAi ?? this.isAi,
     scope: scope ?? this.scope,
     parentId: parentId.present ? parentId.value : this.parentId,
@@ -3721,6 +3754,7 @@ class AiInteractionRow extends DataClass
           ? data.executedAt.value
           : this.executedAt,
       status: data.status.present ? data.status.value : this.status,
+      source: data.source.present ? data.source.value : this.source,
       isAi: data.isAi.present ? data.isAi.value : this.isAi,
       scope: data.scope.present ? data.scope.value : this.scope,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
@@ -3744,6 +3778,7 @@ class AiInteractionRow extends DataClass
           ..write('scheduledAt: $scheduledAt, ')
           ..write('executedAt: $executedAt, ')
           ..write('status: $status, ')
+          ..write('source: $source, ')
           ..write('isAi: $isAi, ')
           ..write('scope: $scope, ')
           ..write('parentId: $parentId, ')
@@ -3767,6 +3802,7 @@ class AiInteractionRow extends DataClass
     scheduledAt,
     executedAt,
     status,
+    source,
     isAi,
     scope,
     parentId,
@@ -3789,6 +3825,7 @@ class AiInteractionRow extends DataClass
           other.scheduledAt == this.scheduledAt &&
           other.executedAt == this.executedAt &&
           other.status == this.status &&
+          other.source == this.source &&
           other.isAi == this.isAi &&
           other.scope == this.scope &&
           other.parentId == this.parentId &&
@@ -3809,6 +3846,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
   final Value<int> scheduledAt;
   final Value<int?> executedAt;
   final Value<String> status;
+  final Value<String> source;
   final Value<bool> isAi;
   final Value<String> scope;
   final Value<String?> parentId;
@@ -3828,6 +3866,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     this.scheduledAt = const Value.absent(),
     this.executedAt = const Value.absent(),
     this.status = const Value.absent(),
+    this.source = const Value.absent(),
     this.isAi = const Value.absent(),
     this.scope = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -3848,6 +3887,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     required int scheduledAt,
     this.executedAt = const Value.absent(),
     this.status = const Value.absent(),
+    this.source = const Value.absent(),
     this.isAi = const Value.absent(),
     this.scope = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -3872,6 +3912,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     Expression<int>? scheduledAt,
     Expression<int>? executedAt,
     Expression<String>? status,
+    Expression<String>? source,
     Expression<bool>? isAi,
     Expression<String>? scope,
     Expression<String>? parentId,
@@ -3892,6 +3933,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (executedAt != null) 'executed_at': executedAt,
       if (status != null) 'status': status,
+      if (source != null) 'source': source,
       if (isAi != null) 'is_ai': isAi,
       if (scope != null) 'scope': scope,
       if (parentId != null) 'parent_id': parentId,
@@ -3914,6 +3956,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     Value<int>? scheduledAt,
     Value<int?>? executedAt,
     Value<String>? status,
+    Value<String>? source,
     Value<bool>? isAi,
     Value<String>? scope,
     Value<String?>? parentId,
@@ -3934,6 +3977,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
       scheduledAt: scheduledAt ?? this.scheduledAt,
       executedAt: executedAt ?? this.executedAt,
       status: status ?? this.status,
+      source: source ?? this.source,
       isAi: isAi ?? this.isAi,
       scope: scope ?? this.scope,
       parentId: parentId ?? this.parentId,
@@ -3982,6 +4026,9 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
     if (isAi.present) {
       map['is_ai'] = Variable<bool>(isAi.value);
     }
@@ -4018,6 +4065,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
           ..write('scheduledAt: $scheduledAt, ')
           ..write('executedAt: $executedAt, ')
           ..write('status: $status, ')
+          ..write('source: $source, ')
           ..write('isAi: $isAi, ')
           ..write('scope: $scope, ')
           ..write('parentId: $parentId, ')
@@ -6125,6 +6173,30 @@ class $CommentLikesTable extends CommentLikes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _actorKindMeta = const VerificationMeta(
+    'actorKind',
+  );
+  @override
+  late final GeneratedColumn<String> actorKind = GeneratedColumn<String>(
+    'actor_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('user'),
+  );
+  static const VerificationMeta _actorIdMeta = const VerificationMeta(
+    'actorId',
+  );
+  @override
+  late final GeneratedColumn<String> actorId = GeneratedColumn<String>(
+    'actor_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -6137,7 +6209,12 @@ class $CommentLikesTable extends CommentLikes
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [commentId, createdAt];
+  List<GeneratedColumn> get $columns => [
+    commentId,
+    actorKind,
+    actorId,
+    createdAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -6158,6 +6235,18 @@ class $CommentLikesTable extends CommentLikes
     } else if (isInserting) {
       context.missing(_commentIdMeta);
     }
+    if (data.containsKey('actor_kind')) {
+      context.handle(
+        _actorKindMeta,
+        actorKind.isAcceptableOrUnknown(data['actor_kind']!, _actorKindMeta),
+      );
+    }
+    if (data.containsKey('actor_id')) {
+      context.handle(
+        _actorIdMeta,
+        actorId.isAcceptableOrUnknown(data['actor_id']!, _actorIdMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -6170,7 +6259,7 @@ class $CommentLikesTable extends CommentLikes
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {commentId};
+  Set<GeneratedColumn> get $primaryKey => {commentId, actorKind, actorId};
   @override
   CommentLikeRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -6178,6 +6267,14 @@ class $CommentLikesTable extends CommentLikes
       commentId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}comment_id'],
+      )!,
+      actorKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}actor_kind'],
+      )!,
+      actorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}actor_id'],
       )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -6194,12 +6291,25 @@ class $CommentLikesTable extends CommentLikes
 
 class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
   final String commentId;
+
+  /// user = 我自己点的；voice = 某个 AI 网民点的。
+  final String actorKind;
+
+  /// voice 时是 post_voices 的 id；user 时为空串。
+  final String actorId;
   final int createdAt;
-  const CommentLikeRow({required this.commentId, required this.createdAt});
+  const CommentLikeRow({
+    required this.commentId,
+    required this.actorKind,
+    required this.actorId,
+    required this.createdAt,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['comment_id'] = Variable<String>(commentId);
+    map['actor_kind'] = Variable<String>(actorKind);
+    map['actor_id'] = Variable<String>(actorId);
     map['created_at'] = Variable<int>(createdAt);
     return map;
   }
@@ -6207,6 +6317,8 @@ class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
   CommentLikesCompanion toCompanion(bool nullToAbsent) {
     return CommentLikesCompanion(
       commentId: Value(commentId),
+      actorKind: Value(actorKind),
+      actorId: Value(actorId),
       createdAt: Value(createdAt),
     );
   }
@@ -6218,6 +6330,8 @@ class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return CommentLikeRow(
       commentId: serializer.fromJson<String>(json['commentId']),
+      actorKind: serializer.fromJson<String>(json['actorKind']),
+      actorId: serializer.fromJson<String>(json['actorId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
     );
   }
@@ -6226,18 +6340,28 @@ class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'commentId': serializer.toJson<String>(commentId),
+      'actorKind': serializer.toJson<String>(actorKind),
+      'actorId': serializer.toJson<String>(actorId),
       'createdAt': serializer.toJson<int>(createdAt),
     };
   }
 
-  CommentLikeRow copyWith({String? commentId, int? createdAt}) =>
-      CommentLikeRow(
-        commentId: commentId ?? this.commentId,
-        createdAt: createdAt ?? this.createdAt,
-      );
+  CommentLikeRow copyWith({
+    String? commentId,
+    String? actorKind,
+    String? actorId,
+    int? createdAt,
+  }) => CommentLikeRow(
+    commentId: commentId ?? this.commentId,
+    actorKind: actorKind ?? this.actorKind,
+    actorId: actorId ?? this.actorId,
+    createdAt: createdAt ?? this.createdAt,
+  );
   CommentLikeRow copyWithCompanion(CommentLikesCompanion data) {
     return CommentLikeRow(
       commentId: data.commentId.present ? data.commentId.value : this.commentId,
+      actorKind: data.actorKind.present ? data.actorKind.value : this.actorKind,
+      actorId: data.actorId.present ? data.actorId.value : this.actorId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -6246,43 +6370,57 @@ class CommentLikeRow extends DataClass implements Insertable<CommentLikeRow> {
   String toString() {
     return (StringBuffer('CommentLikeRow(')
           ..write('commentId: $commentId, ')
+          ..write('actorKind: $actorKind, ')
+          ..write('actorId: $actorId, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(commentId, createdAt);
+  int get hashCode => Object.hash(commentId, actorKind, actorId, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CommentLikeRow &&
           other.commentId == this.commentId &&
+          other.actorKind == this.actorKind &&
+          other.actorId == this.actorId &&
           other.createdAt == this.createdAt);
 }
 
 class CommentLikesCompanion extends UpdateCompanion<CommentLikeRow> {
   final Value<String> commentId;
+  final Value<String> actorKind;
+  final Value<String> actorId;
   final Value<int> createdAt;
   final Value<int> rowid;
   const CommentLikesCompanion({
     this.commentId = const Value.absent(),
+    this.actorKind = const Value.absent(),
+    this.actorId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CommentLikesCompanion.insert({
     required String commentId,
+    this.actorKind = const Value.absent(),
+    this.actorId = const Value.absent(),
     required int createdAt,
     this.rowid = const Value.absent(),
   }) : commentId = Value(commentId),
        createdAt = Value(createdAt);
   static Insertable<CommentLikeRow> custom({
     Expression<String>? commentId,
+    Expression<String>? actorKind,
+    Expression<String>? actorId,
     Expression<int>? createdAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (commentId != null) 'comment_id': commentId,
+      if (actorKind != null) 'actor_kind': actorKind,
+      if (actorId != null) 'actor_id': actorId,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -6290,11 +6428,15 @@ class CommentLikesCompanion extends UpdateCompanion<CommentLikeRow> {
 
   CommentLikesCompanion copyWith({
     Value<String>? commentId,
+    Value<String>? actorKind,
+    Value<String>? actorId,
     Value<int>? createdAt,
     Value<int>? rowid,
   }) {
     return CommentLikesCompanion(
       commentId: commentId ?? this.commentId,
+      actorKind: actorKind ?? this.actorKind,
+      actorId: actorId ?? this.actorId,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -6305,6 +6447,12 @@ class CommentLikesCompanion extends UpdateCompanion<CommentLikeRow> {
     final map = <String, Expression>{};
     if (commentId.present) {
       map['comment_id'] = Variable<String>(commentId.value);
+    }
+    if (actorKind.present) {
+      map['actor_kind'] = Variable<String>(actorKind.value);
+    }
+    if (actorId.present) {
+      map['actor_id'] = Variable<String>(actorId.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
@@ -6319,6 +6467,8 @@ class CommentLikesCompanion extends UpdateCompanion<CommentLikeRow> {
   String toString() {
     return (StringBuffer('CommentLikesCompanion(')
           ..write('commentId: $commentId, ')
+          ..write('actorKind: $actorKind, ')
+          ..write('actorId: $actorId, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -12753,6 +12903,4591 @@ class AddictionLogsCompanion extends UpdateCompanion<AddictionLogRow> {
   }
 }
 
+class $CustomResidentsTable extends CustomResidents
+    with TableInfo<$CustomResidentsTable, CustomResidentRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CustomResidentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _avatarAssetMeta = const VerificationMeta(
+    'avatarAsset',
+  );
+  @override
+  late final GeneratedColumn<String> avatarAsset = GeneratedColumn<String>(
+    'avatar_asset',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _bioMeta = const VerificationMeta('bio');
+  @override
+  late final GeneratedColumn<String> bio = GeneratedColumn<String>(
+    'bio',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _personalityMeta = const VerificationMeta(
+    'personality',
+  );
+  @override
+  late final GeneratedColumn<String> personality = GeneratedColumn<String>(
+    'personality',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _scenarioMeta = const VerificationMeta(
+    'scenario',
+  );
+  @override
+  late final GeneratedColumn<String> scenario = GeneratedColumn<String>(
+    'scenario',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _languageStyleMeta = const VerificationMeta(
+    'languageStyle',
+  );
+  @override
+  late final GeneratedColumn<String> languageStyle = GeneratedColumn<String>(
+    'language_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _toneMeta = const VerificationMeta('tone');
+  @override
+  late final GeneratedColumn<String> tone = GeneratedColumn<String>(
+    'tone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _firstMessageMeta = const VerificationMeta(
+    'firstMessage',
+  );
+  @override
+  late final GeneratedColumn<String> firstMessage = GeneratedColumn<String>(
+    'first_message',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _exampleDialogueMeta = const VerificationMeta(
+    'exampleDialogue',
+  );
+  @override
+  late final GeneratedColumn<String> exampleDialogue = GeneratedColumn<String>(
+    'example_dialogue',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _extraInstructionsMeta = const VerificationMeta(
+    'extraInstructions',
+  );
+  @override
+  late final GeneratedColumn<String> extraInstructions =
+      GeneratedColumn<String>(
+        'extra_instructions',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _activeHoursMeta = const VerificationMeta(
+    'activeHours',
+  );
+  @override
+  late final GeneratedColumn<String> activeHours = GeneratedColumn<String>(
+    'active_hours',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _memoryEnabledMeta = const VerificationMeta(
+    'memoryEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> memoryEnabled = GeneratedColumn<bool>(
+    'memory_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("memory_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _memoryLimitMeta = const VerificationMeta(
+    'memoryLimit',
+  );
+  @override
+  late final GeneratedColumn<int> memoryLimit = GeneratedColumn<int>(
+    'memory_limit',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(400),
+  );
+  static const VerificationMeta _alwaysShowMeta = const VerificationMeta(
+    'alwaysShow',
+  );
+  @override
+  late final GeneratedColumn<bool> alwaysShow = GeneratedColumn<bool>(
+    'always_show',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("always_show" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    avatarAsset,
+    bio,
+    description,
+    personality,
+    scenario,
+    languageStyle,
+    tone,
+    firstMessage,
+    exampleDialogue,
+    extraInstructions,
+    tags,
+    activeHours,
+    memoryEnabled,
+    memoryLimit,
+    alwaysShow,
+    createdAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'custom_residents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CustomResidentRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('avatar_asset')) {
+      context.handle(
+        _avatarAssetMeta,
+        avatarAsset.isAcceptableOrUnknown(
+          data['avatar_asset']!,
+          _avatarAssetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bio')) {
+      context.handle(
+        _bioMeta,
+        bio.isAcceptableOrUnknown(data['bio']!, _bioMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('personality')) {
+      context.handle(
+        _personalityMeta,
+        personality.isAcceptableOrUnknown(
+          data['personality']!,
+          _personalityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('scenario')) {
+      context.handle(
+        _scenarioMeta,
+        scenario.isAcceptableOrUnknown(data['scenario']!, _scenarioMeta),
+      );
+    }
+    if (data.containsKey('language_style')) {
+      context.handle(
+        _languageStyleMeta,
+        languageStyle.isAcceptableOrUnknown(
+          data['language_style']!,
+          _languageStyleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tone')) {
+      context.handle(
+        _toneMeta,
+        tone.isAcceptableOrUnknown(data['tone']!, _toneMeta),
+      );
+    }
+    if (data.containsKey('first_message')) {
+      context.handle(
+        _firstMessageMeta,
+        firstMessage.isAcceptableOrUnknown(
+          data['first_message']!,
+          _firstMessageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('example_dialogue')) {
+      context.handle(
+        _exampleDialogueMeta,
+        exampleDialogue.isAcceptableOrUnknown(
+          data['example_dialogue']!,
+          _exampleDialogueMeta,
+        ),
+      );
+    }
+    if (data.containsKey('extra_instructions')) {
+      context.handle(
+        _extraInstructionsMeta,
+        extraInstructions.isAcceptableOrUnknown(
+          data['extra_instructions']!,
+          _extraInstructionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
+    }
+    if (data.containsKey('active_hours')) {
+      context.handle(
+        _activeHoursMeta,
+        activeHours.isAcceptableOrUnknown(
+          data['active_hours']!,
+          _activeHoursMeta,
+        ),
+      );
+    }
+    if (data.containsKey('memory_enabled')) {
+      context.handle(
+        _memoryEnabledMeta,
+        memoryEnabled.isAcceptableOrUnknown(
+          data['memory_enabled']!,
+          _memoryEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('memory_limit')) {
+      context.handle(
+        _memoryLimitMeta,
+        memoryLimit.isAcceptableOrUnknown(
+          data['memory_limit']!,
+          _memoryLimitMeta,
+        ),
+      );
+    }
+    if (data.containsKey('always_show')) {
+      context.handle(
+        _alwaysShowMeta,
+        alwaysShow.isAcceptableOrUnknown(data['always_show']!, _alwaysShowMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CustomResidentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CustomResidentRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      avatarAsset: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_asset'],
+      )!,
+      bio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bio'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      personality: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}personality'],
+      )!,
+      scenario: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scenario'],
+      )!,
+      languageStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language_style'],
+      )!,
+      tone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tone'],
+      )!,
+      firstMessage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}first_message'],
+      )!,
+      exampleDialogue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}example_dialogue'],
+      )!,
+      extraInstructions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}extra_instructions'],
+      )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
+      activeHours: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}active_hours'],
+      )!,
+      memoryEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}memory_enabled'],
+      )!,
+      memoryLimit: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}memory_limit'],
+      ),
+      alwaysShow: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}always_show'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $CustomResidentsTable createAlias(String alias) {
+    return $CustomResidentsTable(attachedDatabase, alias);
+  }
+}
+
+class CustomResidentRow extends DataClass
+    implements Insertable<CustomResidentRow> {
+  final String id;
+  final String name;
+  final String avatarAsset;
+
+  /// 一句话简介（列表里显示）。
+  final String bio;
+
+  /// 详细设定：身份、背景、与用户的关系。
+  final String description;
+
+  /// 性格：4—6 条行为描述。
+  final String personality;
+
+  /// 场景：在哪儿遇到、当前是什么场合。
+  final String scenario;
+  final String languageStyle;
+  final String tone;
+
+  /// 私信第一次开口用。
+  final String firstMessage;
+
+  /// 示例对话：教模型怎么接话。
+  final String exampleDialogue;
+
+  /// 额外行为指令，放提示词尾部。
+  final String extraInstructions;
+
+  /// 管理用标签，逗号分隔；不发给模型。
+  final String tags;
+
+  /// 活跃时段（JSON 数组）。
+  final String activeHours;
+  final bool memoryEnabled;
+
+  /// null = 无上限。
+  final int? memoryLimit;
+  final bool alwaysShow;
+  final int createdAt;
+  final int? deletedAt;
+  const CustomResidentRow({
+    required this.id,
+    required this.name,
+    required this.avatarAsset,
+    required this.bio,
+    required this.description,
+    required this.personality,
+    required this.scenario,
+    required this.languageStyle,
+    required this.tone,
+    required this.firstMessage,
+    required this.exampleDialogue,
+    required this.extraInstructions,
+    required this.tags,
+    required this.activeHours,
+    required this.memoryEnabled,
+    this.memoryLimit,
+    required this.alwaysShow,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['avatar_asset'] = Variable<String>(avatarAsset);
+    map['bio'] = Variable<String>(bio);
+    map['description'] = Variable<String>(description);
+    map['personality'] = Variable<String>(personality);
+    map['scenario'] = Variable<String>(scenario);
+    map['language_style'] = Variable<String>(languageStyle);
+    map['tone'] = Variable<String>(tone);
+    map['first_message'] = Variable<String>(firstMessage);
+    map['example_dialogue'] = Variable<String>(exampleDialogue);
+    map['extra_instructions'] = Variable<String>(extraInstructions);
+    map['tags'] = Variable<String>(tags);
+    map['active_hours'] = Variable<String>(activeHours);
+    map['memory_enabled'] = Variable<bool>(memoryEnabled);
+    if (!nullToAbsent || memoryLimit != null) {
+      map['memory_limit'] = Variable<int>(memoryLimit);
+    }
+    map['always_show'] = Variable<bool>(alwaysShow);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  CustomResidentsCompanion toCompanion(bool nullToAbsent) {
+    return CustomResidentsCompanion(
+      id: Value(id),
+      name: Value(name),
+      avatarAsset: Value(avatarAsset),
+      bio: Value(bio),
+      description: Value(description),
+      personality: Value(personality),
+      scenario: Value(scenario),
+      languageStyle: Value(languageStyle),
+      tone: Value(tone),
+      firstMessage: Value(firstMessage),
+      exampleDialogue: Value(exampleDialogue),
+      extraInstructions: Value(extraInstructions),
+      tags: Value(tags),
+      activeHours: Value(activeHours),
+      memoryEnabled: Value(memoryEnabled),
+      memoryLimit: memoryLimit == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memoryLimit),
+      alwaysShow: Value(alwaysShow),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory CustomResidentRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CustomResidentRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      avatarAsset: serializer.fromJson<String>(json['avatarAsset']),
+      bio: serializer.fromJson<String>(json['bio']),
+      description: serializer.fromJson<String>(json['description']),
+      personality: serializer.fromJson<String>(json['personality']),
+      scenario: serializer.fromJson<String>(json['scenario']),
+      languageStyle: serializer.fromJson<String>(json['languageStyle']),
+      tone: serializer.fromJson<String>(json['tone']),
+      firstMessage: serializer.fromJson<String>(json['firstMessage']),
+      exampleDialogue: serializer.fromJson<String>(json['exampleDialogue']),
+      extraInstructions: serializer.fromJson<String>(json['extraInstructions']),
+      tags: serializer.fromJson<String>(json['tags']),
+      activeHours: serializer.fromJson<String>(json['activeHours']),
+      memoryEnabled: serializer.fromJson<bool>(json['memoryEnabled']),
+      memoryLimit: serializer.fromJson<int?>(json['memoryLimit']),
+      alwaysShow: serializer.fromJson<bool>(json['alwaysShow']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'avatarAsset': serializer.toJson<String>(avatarAsset),
+      'bio': serializer.toJson<String>(bio),
+      'description': serializer.toJson<String>(description),
+      'personality': serializer.toJson<String>(personality),
+      'scenario': serializer.toJson<String>(scenario),
+      'languageStyle': serializer.toJson<String>(languageStyle),
+      'tone': serializer.toJson<String>(tone),
+      'firstMessage': serializer.toJson<String>(firstMessage),
+      'exampleDialogue': serializer.toJson<String>(exampleDialogue),
+      'extraInstructions': serializer.toJson<String>(extraInstructions),
+      'tags': serializer.toJson<String>(tags),
+      'activeHours': serializer.toJson<String>(activeHours),
+      'memoryEnabled': serializer.toJson<bool>(memoryEnabled),
+      'memoryLimit': serializer.toJson<int?>(memoryLimit),
+      'alwaysShow': serializer.toJson<bool>(alwaysShow),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  CustomResidentRow copyWith({
+    String? id,
+    String? name,
+    String? avatarAsset,
+    String? bio,
+    String? description,
+    String? personality,
+    String? scenario,
+    String? languageStyle,
+    String? tone,
+    String? firstMessage,
+    String? exampleDialogue,
+    String? extraInstructions,
+    String? tags,
+    String? activeHours,
+    bool? memoryEnabled,
+    Value<int?> memoryLimit = const Value.absent(),
+    bool? alwaysShow,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+  }) => CustomResidentRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    avatarAsset: avatarAsset ?? this.avatarAsset,
+    bio: bio ?? this.bio,
+    description: description ?? this.description,
+    personality: personality ?? this.personality,
+    scenario: scenario ?? this.scenario,
+    languageStyle: languageStyle ?? this.languageStyle,
+    tone: tone ?? this.tone,
+    firstMessage: firstMessage ?? this.firstMessage,
+    exampleDialogue: exampleDialogue ?? this.exampleDialogue,
+    extraInstructions: extraInstructions ?? this.extraInstructions,
+    tags: tags ?? this.tags,
+    activeHours: activeHours ?? this.activeHours,
+    memoryEnabled: memoryEnabled ?? this.memoryEnabled,
+    memoryLimit: memoryLimit.present ? memoryLimit.value : this.memoryLimit,
+    alwaysShow: alwaysShow ?? this.alwaysShow,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  CustomResidentRow copyWithCompanion(CustomResidentsCompanion data) {
+    return CustomResidentRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      avatarAsset: data.avatarAsset.present
+          ? data.avatarAsset.value
+          : this.avatarAsset,
+      bio: data.bio.present ? data.bio.value : this.bio,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      personality: data.personality.present
+          ? data.personality.value
+          : this.personality,
+      scenario: data.scenario.present ? data.scenario.value : this.scenario,
+      languageStyle: data.languageStyle.present
+          ? data.languageStyle.value
+          : this.languageStyle,
+      tone: data.tone.present ? data.tone.value : this.tone,
+      firstMessage: data.firstMessage.present
+          ? data.firstMessage.value
+          : this.firstMessage,
+      exampleDialogue: data.exampleDialogue.present
+          ? data.exampleDialogue.value
+          : this.exampleDialogue,
+      extraInstructions: data.extraInstructions.present
+          ? data.extraInstructions.value
+          : this.extraInstructions,
+      tags: data.tags.present ? data.tags.value : this.tags,
+      activeHours: data.activeHours.present
+          ? data.activeHours.value
+          : this.activeHours,
+      memoryEnabled: data.memoryEnabled.present
+          ? data.memoryEnabled.value
+          : this.memoryEnabled,
+      memoryLimit: data.memoryLimit.present
+          ? data.memoryLimit.value
+          : this.memoryLimit,
+      alwaysShow: data.alwaysShow.present
+          ? data.alwaysShow.value
+          : this.alwaysShow,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CustomResidentRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('bio: $bio, ')
+          ..write('description: $description, ')
+          ..write('personality: $personality, ')
+          ..write('scenario: $scenario, ')
+          ..write('languageStyle: $languageStyle, ')
+          ..write('tone: $tone, ')
+          ..write('firstMessage: $firstMessage, ')
+          ..write('exampleDialogue: $exampleDialogue, ')
+          ..write('extraInstructions: $extraInstructions, ')
+          ..write('tags: $tags, ')
+          ..write('activeHours: $activeHours, ')
+          ..write('memoryEnabled: $memoryEnabled, ')
+          ..write('memoryLimit: $memoryLimit, ')
+          ..write('alwaysShow: $alwaysShow, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    avatarAsset,
+    bio,
+    description,
+    personality,
+    scenario,
+    languageStyle,
+    tone,
+    firstMessage,
+    exampleDialogue,
+    extraInstructions,
+    tags,
+    activeHours,
+    memoryEnabled,
+    memoryLimit,
+    alwaysShow,
+    createdAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CustomResidentRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.avatarAsset == this.avatarAsset &&
+          other.bio == this.bio &&
+          other.description == this.description &&
+          other.personality == this.personality &&
+          other.scenario == this.scenario &&
+          other.languageStyle == this.languageStyle &&
+          other.tone == this.tone &&
+          other.firstMessage == this.firstMessage &&
+          other.exampleDialogue == this.exampleDialogue &&
+          other.extraInstructions == this.extraInstructions &&
+          other.tags == this.tags &&
+          other.activeHours == this.activeHours &&
+          other.memoryEnabled == this.memoryEnabled &&
+          other.memoryLimit == this.memoryLimit &&
+          other.alwaysShow == this.alwaysShow &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> avatarAsset;
+  final Value<String> bio;
+  final Value<String> description;
+  final Value<String> personality;
+  final Value<String> scenario;
+  final Value<String> languageStyle;
+  final Value<String> tone;
+  final Value<String> firstMessage;
+  final Value<String> exampleDialogue;
+  final Value<String> extraInstructions;
+  final Value<String> tags;
+  final Value<String> activeHours;
+  final Value<bool> memoryEnabled;
+  final Value<int?> memoryLimit;
+  final Value<bool> alwaysShow;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const CustomResidentsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.avatarAsset = const Value.absent(),
+    this.bio = const Value.absent(),
+    this.description = const Value.absent(),
+    this.personality = const Value.absent(),
+    this.scenario = const Value.absent(),
+    this.languageStyle = const Value.absent(),
+    this.tone = const Value.absent(),
+    this.firstMessage = const Value.absent(),
+    this.exampleDialogue = const Value.absent(),
+    this.extraInstructions = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.activeHours = const Value.absent(),
+    this.memoryEnabled = const Value.absent(),
+    this.memoryLimit = const Value.absent(),
+    this.alwaysShow = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CustomResidentsCompanion.insert({
+    required String id,
+    required String name,
+    this.avatarAsset = const Value.absent(),
+    this.bio = const Value.absent(),
+    this.description = const Value.absent(),
+    this.personality = const Value.absent(),
+    this.scenario = const Value.absent(),
+    this.languageStyle = const Value.absent(),
+    this.tone = const Value.absent(),
+    this.firstMessage = const Value.absent(),
+    this.exampleDialogue = const Value.absent(),
+    this.extraInstructions = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.activeHours = const Value.absent(),
+    this.memoryEnabled = const Value.absent(),
+    this.memoryLimit = const Value.absent(),
+    this.alwaysShow = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt);
+  static Insertable<CustomResidentRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? avatarAsset,
+    Expression<String>? bio,
+    Expression<String>? description,
+    Expression<String>? personality,
+    Expression<String>? scenario,
+    Expression<String>? languageStyle,
+    Expression<String>? tone,
+    Expression<String>? firstMessage,
+    Expression<String>? exampleDialogue,
+    Expression<String>? extraInstructions,
+    Expression<String>? tags,
+    Expression<String>? activeHours,
+    Expression<bool>? memoryEnabled,
+    Expression<int>? memoryLimit,
+    Expression<bool>? alwaysShow,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (avatarAsset != null) 'avatar_asset': avatarAsset,
+      if (bio != null) 'bio': bio,
+      if (description != null) 'description': description,
+      if (personality != null) 'personality': personality,
+      if (scenario != null) 'scenario': scenario,
+      if (languageStyle != null) 'language_style': languageStyle,
+      if (tone != null) 'tone': tone,
+      if (firstMessage != null) 'first_message': firstMessage,
+      if (exampleDialogue != null) 'example_dialogue': exampleDialogue,
+      if (extraInstructions != null) 'extra_instructions': extraInstructions,
+      if (tags != null) 'tags': tags,
+      if (activeHours != null) 'active_hours': activeHours,
+      if (memoryEnabled != null) 'memory_enabled': memoryEnabled,
+      if (memoryLimit != null) 'memory_limit': memoryLimit,
+      if (alwaysShow != null) 'always_show': alwaysShow,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CustomResidentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? avatarAsset,
+    Value<String>? bio,
+    Value<String>? description,
+    Value<String>? personality,
+    Value<String>? scenario,
+    Value<String>? languageStyle,
+    Value<String>? tone,
+    Value<String>? firstMessage,
+    Value<String>? exampleDialogue,
+    Value<String>? extraInstructions,
+    Value<String>? tags,
+    Value<String>? activeHours,
+    Value<bool>? memoryEnabled,
+    Value<int?>? memoryLimit,
+    Value<bool>? alwaysShow,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return CustomResidentsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarAsset: avatarAsset ?? this.avatarAsset,
+      bio: bio ?? this.bio,
+      description: description ?? this.description,
+      personality: personality ?? this.personality,
+      scenario: scenario ?? this.scenario,
+      languageStyle: languageStyle ?? this.languageStyle,
+      tone: tone ?? this.tone,
+      firstMessage: firstMessage ?? this.firstMessage,
+      exampleDialogue: exampleDialogue ?? this.exampleDialogue,
+      extraInstructions: extraInstructions ?? this.extraInstructions,
+      tags: tags ?? this.tags,
+      activeHours: activeHours ?? this.activeHours,
+      memoryEnabled: memoryEnabled ?? this.memoryEnabled,
+      memoryLimit: memoryLimit ?? this.memoryLimit,
+      alwaysShow: alwaysShow ?? this.alwaysShow,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (avatarAsset.present) {
+      map['avatar_asset'] = Variable<String>(avatarAsset.value);
+    }
+    if (bio.present) {
+      map['bio'] = Variable<String>(bio.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (personality.present) {
+      map['personality'] = Variable<String>(personality.value);
+    }
+    if (scenario.present) {
+      map['scenario'] = Variable<String>(scenario.value);
+    }
+    if (languageStyle.present) {
+      map['language_style'] = Variable<String>(languageStyle.value);
+    }
+    if (tone.present) {
+      map['tone'] = Variable<String>(tone.value);
+    }
+    if (firstMessage.present) {
+      map['first_message'] = Variable<String>(firstMessage.value);
+    }
+    if (exampleDialogue.present) {
+      map['example_dialogue'] = Variable<String>(exampleDialogue.value);
+    }
+    if (extraInstructions.present) {
+      map['extra_instructions'] = Variable<String>(extraInstructions.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    if (activeHours.present) {
+      map['active_hours'] = Variable<String>(activeHours.value);
+    }
+    if (memoryEnabled.present) {
+      map['memory_enabled'] = Variable<bool>(memoryEnabled.value);
+    }
+    if (memoryLimit.present) {
+      map['memory_limit'] = Variable<int>(memoryLimit.value);
+    }
+    if (alwaysShow.present) {
+      map['always_show'] = Variable<bool>(alwaysShow.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CustomResidentsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('bio: $bio, ')
+          ..write('description: $description, ')
+          ..write('personality: $personality, ')
+          ..write('scenario: $scenario, ')
+          ..write('languageStyle: $languageStyle, ')
+          ..write('tone: $tone, ')
+          ..write('firstMessage: $firstMessage, ')
+          ..write('exampleDialogue: $exampleDialogue, ')
+          ..write('extraInstructions: $extraInstructions, ')
+          ..write('tags: $tags, ')
+          ..write('activeHours: $activeHours, ')
+          ..write('memoryEnabled: $memoryEnabled, ')
+          ..write('memoryLimit: $memoryLimit, ')
+          ..write('alwaysShow: $alwaysShow, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PostVoicesTable extends PostVoices
+    with TableInfo<$PostVoicesTable, PostVoiceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PostVoicesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ephemeral'),
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES custom_residents (id)',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _avatarAssetMeta = const VerificationMeta(
+    'avatarAsset',
+  );
+  @override
+  late final GeneratedColumn<String> avatarAsset = GeneratedColumn<String>(
+    'avatar_asset',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _avatarSeedMeta = const VerificationMeta(
+    'avatarSeed',
+  );
+  @override
+  late final GeneratedColumn<int> avatarSeed = GeneratedColumn<int>(
+    'avatar_seed',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bioMeta = const VerificationMeta('bio');
+  @override
+  late final GeneratedColumn<String> bio = GeneratedColumn<String>(
+    'bio',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _languageStyleMeta = const VerificationMeta(
+    'languageStyle',
+  );
+  @override
+  late final GeneratedColumn<String> languageStyle = GeneratedColumn<String>(
+    'language_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _toneMeta = const VerificationMeta('tone');
+  @override
+  late final GeneratedColumn<String> tone = GeneratedColumn<String>(
+    'tone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _memoryEnabledMeta = const VerificationMeta(
+    'memoryEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> memoryEnabled = GeneratedColumn<bool>(
+    'memory_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("memory_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _memoryLimitMeta = const VerificationMeta(
+    'memoryLimit',
+  );
+  @override
+  late final GeneratedColumn<int> memoryLimit = GeneratedColumn<int>(
+    'memory_limit',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(400),
+  );
+  static const VerificationMeta _alwaysShowMeta = const VerificationMeta(
+    'alwaysShow',
+  );
+  @override
+  late final GeneratedColumn<bool> alwaysShow = GeneratedColumn<bool>(
+    'always_show',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("always_show" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    postId,
+    kind,
+    residentId,
+    name,
+    avatarAsset,
+    avatarSeed,
+    bio,
+    languageStyle,
+    tone,
+    model,
+    memoryEnabled,
+    memoryLimit,
+    alwaysShow,
+    createdAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'post_voices';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PostVoiceRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('avatar_asset')) {
+      context.handle(
+        _avatarAssetMeta,
+        avatarAsset.isAcceptableOrUnknown(
+          data['avatar_asset']!,
+          _avatarAssetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('avatar_seed')) {
+      context.handle(
+        _avatarSeedMeta,
+        avatarSeed.isAcceptableOrUnknown(data['avatar_seed']!, _avatarSeedMeta),
+      );
+    }
+    if (data.containsKey('bio')) {
+      context.handle(
+        _bioMeta,
+        bio.isAcceptableOrUnknown(data['bio']!, _bioMeta),
+      );
+    }
+    if (data.containsKey('language_style')) {
+      context.handle(
+        _languageStyleMeta,
+        languageStyle.isAcceptableOrUnknown(
+          data['language_style']!,
+          _languageStyleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tone')) {
+      context.handle(
+        _toneMeta,
+        tone.isAcceptableOrUnknown(data['tone']!, _toneMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('memory_enabled')) {
+      context.handle(
+        _memoryEnabledMeta,
+        memoryEnabled.isAcceptableOrUnknown(
+          data['memory_enabled']!,
+          _memoryEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('memory_limit')) {
+      context.handle(
+        _memoryLimitMeta,
+        memoryLimit.isAcceptableOrUnknown(
+          data['memory_limit']!,
+          _memoryLimitMeta,
+        ),
+      );
+    }
+    if (data.containsKey('always_show')) {
+      context.handle(
+        _alwaysShowMeta,
+        alwaysShow.isAcceptableOrUnknown(data['always_show']!, _alwaysShowMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PostVoiceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PostVoiceRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      avatarAsset: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_asset'],
+      )!,
+      avatarSeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}avatar_seed'],
+      )!,
+      bio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bio'],
+      )!,
+      languageStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language_style'],
+      )!,
+      tone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tone'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      memoryEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}memory_enabled'],
+      )!,
+      memoryLimit: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}memory_limit'],
+      ),
+      alwaysShow: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}always_show'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $PostVoicesTable createAlias(String alias) {
+    return $PostVoicesTable(attachedDatabase, alias);
+  }
+}
+
+class PostVoiceRow extends DataClass implements Insertable<PostVoiceRow> {
+  final String id;
+  final String postId;
+  final String kind;
+
+  /// 固定住民在这条帖子里的快照指向谁；临时网民为空。
+  final String? residentId;
+  final String name;
+  final String avatarAsset;
+  final int avatarSeed;
+  final String bio;
+  final String languageStyle;
+  final String tone;
+  final String model;
+
+  /// 只有 custom 有意义：是否开长期记忆。
+  final bool memoryEnabled;
+
+  /// 每个固定住民独立上限；null = 无上限。
+  final int? memoryLimit;
+
+  /// 每帖至少出现一次（赞或评）。
+  final bool alwaysShow;
+  final int createdAt;
+  final int? deletedAt;
+  const PostVoiceRow({
+    required this.id,
+    required this.postId,
+    required this.kind,
+    this.residentId,
+    required this.name,
+    required this.avatarAsset,
+    required this.avatarSeed,
+    required this.bio,
+    required this.languageStyle,
+    required this.tone,
+    required this.model,
+    required this.memoryEnabled,
+    this.memoryLimit,
+    required this.alwaysShow,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || residentId != null) {
+      map['resident_id'] = Variable<String>(residentId);
+    }
+    map['name'] = Variable<String>(name);
+    map['avatar_asset'] = Variable<String>(avatarAsset);
+    map['avatar_seed'] = Variable<int>(avatarSeed);
+    map['bio'] = Variable<String>(bio);
+    map['language_style'] = Variable<String>(languageStyle);
+    map['tone'] = Variable<String>(tone);
+    map['model'] = Variable<String>(model);
+    map['memory_enabled'] = Variable<bool>(memoryEnabled);
+    if (!nullToAbsent || memoryLimit != null) {
+      map['memory_limit'] = Variable<int>(memoryLimit);
+    }
+    map['always_show'] = Variable<bool>(alwaysShow);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  PostVoicesCompanion toCompanion(bool nullToAbsent) {
+    return PostVoicesCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      kind: Value(kind),
+      residentId: residentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(residentId),
+      name: Value(name),
+      avatarAsset: Value(avatarAsset),
+      avatarSeed: Value(avatarSeed),
+      bio: Value(bio),
+      languageStyle: Value(languageStyle),
+      tone: Value(tone),
+      model: Value(model),
+      memoryEnabled: Value(memoryEnabled),
+      memoryLimit: memoryLimit == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memoryLimit),
+      alwaysShow: Value(alwaysShow),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory PostVoiceRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PostVoiceRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      residentId: serializer.fromJson<String?>(json['residentId']),
+      name: serializer.fromJson<String>(json['name']),
+      avatarAsset: serializer.fromJson<String>(json['avatarAsset']),
+      avatarSeed: serializer.fromJson<int>(json['avatarSeed']),
+      bio: serializer.fromJson<String>(json['bio']),
+      languageStyle: serializer.fromJson<String>(json['languageStyle']),
+      tone: serializer.fromJson<String>(json['tone']),
+      model: serializer.fromJson<String>(json['model']),
+      memoryEnabled: serializer.fromJson<bool>(json['memoryEnabled']),
+      memoryLimit: serializer.fromJson<int?>(json['memoryLimit']),
+      alwaysShow: serializer.fromJson<bool>(json['alwaysShow']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'kind': serializer.toJson<String>(kind),
+      'residentId': serializer.toJson<String?>(residentId),
+      'name': serializer.toJson<String>(name),
+      'avatarAsset': serializer.toJson<String>(avatarAsset),
+      'avatarSeed': serializer.toJson<int>(avatarSeed),
+      'bio': serializer.toJson<String>(bio),
+      'languageStyle': serializer.toJson<String>(languageStyle),
+      'tone': serializer.toJson<String>(tone),
+      'model': serializer.toJson<String>(model),
+      'memoryEnabled': serializer.toJson<bool>(memoryEnabled),
+      'memoryLimit': serializer.toJson<int?>(memoryLimit),
+      'alwaysShow': serializer.toJson<bool>(alwaysShow),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  PostVoiceRow copyWith({
+    String? id,
+    String? postId,
+    String? kind,
+    Value<String?> residentId = const Value.absent(),
+    String? name,
+    String? avatarAsset,
+    int? avatarSeed,
+    String? bio,
+    String? languageStyle,
+    String? tone,
+    String? model,
+    bool? memoryEnabled,
+    Value<int?> memoryLimit = const Value.absent(),
+    bool? alwaysShow,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+  }) => PostVoiceRow(
+    id: id ?? this.id,
+    postId: postId ?? this.postId,
+    kind: kind ?? this.kind,
+    residentId: residentId.present ? residentId.value : this.residentId,
+    name: name ?? this.name,
+    avatarAsset: avatarAsset ?? this.avatarAsset,
+    avatarSeed: avatarSeed ?? this.avatarSeed,
+    bio: bio ?? this.bio,
+    languageStyle: languageStyle ?? this.languageStyle,
+    tone: tone ?? this.tone,
+    model: model ?? this.model,
+    memoryEnabled: memoryEnabled ?? this.memoryEnabled,
+    memoryLimit: memoryLimit.present ? memoryLimit.value : this.memoryLimit,
+    alwaysShow: alwaysShow ?? this.alwaysShow,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  PostVoiceRow copyWithCompanion(PostVoicesCompanion data) {
+    return PostVoiceRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      name: data.name.present ? data.name.value : this.name,
+      avatarAsset: data.avatarAsset.present
+          ? data.avatarAsset.value
+          : this.avatarAsset,
+      avatarSeed: data.avatarSeed.present
+          ? data.avatarSeed.value
+          : this.avatarSeed,
+      bio: data.bio.present ? data.bio.value : this.bio,
+      languageStyle: data.languageStyle.present
+          ? data.languageStyle.value
+          : this.languageStyle,
+      tone: data.tone.present ? data.tone.value : this.tone,
+      model: data.model.present ? data.model.value : this.model,
+      memoryEnabled: data.memoryEnabled.present
+          ? data.memoryEnabled.value
+          : this.memoryEnabled,
+      memoryLimit: data.memoryLimit.present
+          ? data.memoryLimit.value
+          : this.memoryLimit,
+      alwaysShow: data.alwaysShow.present
+          ? data.alwaysShow.value
+          : this.alwaysShow,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostVoiceRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('kind: $kind, ')
+          ..write('residentId: $residentId, ')
+          ..write('name: $name, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('avatarSeed: $avatarSeed, ')
+          ..write('bio: $bio, ')
+          ..write('languageStyle: $languageStyle, ')
+          ..write('tone: $tone, ')
+          ..write('model: $model, ')
+          ..write('memoryEnabled: $memoryEnabled, ')
+          ..write('memoryLimit: $memoryLimit, ')
+          ..write('alwaysShow: $alwaysShow, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    postId,
+    kind,
+    residentId,
+    name,
+    avatarAsset,
+    avatarSeed,
+    bio,
+    languageStyle,
+    tone,
+    model,
+    memoryEnabled,
+    memoryLimit,
+    alwaysShow,
+    createdAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PostVoiceRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.kind == this.kind &&
+          other.residentId == this.residentId &&
+          other.name == this.name &&
+          other.avatarAsset == this.avatarAsset &&
+          other.avatarSeed == this.avatarSeed &&
+          other.bio == this.bio &&
+          other.languageStyle == this.languageStyle &&
+          other.tone == this.tone &&
+          other.model == this.model &&
+          other.memoryEnabled == this.memoryEnabled &&
+          other.memoryLimit == this.memoryLimit &&
+          other.alwaysShow == this.alwaysShow &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PostVoicesCompanion extends UpdateCompanion<PostVoiceRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String> kind;
+  final Value<String?> residentId;
+  final Value<String> name;
+  final Value<String> avatarAsset;
+  final Value<int> avatarSeed;
+  final Value<String> bio;
+  final Value<String> languageStyle;
+  final Value<String> tone;
+  final Value<String> model;
+  final Value<bool> memoryEnabled;
+  final Value<int?> memoryLimit;
+  final Value<bool> alwaysShow;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const PostVoicesCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.avatarAsset = const Value.absent(),
+    this.avatarSeed = const Value.absent(),
+    this.bio = const Value.absent(),
+    this.languageStyle = const Value.absent(),
+    this.tone = const Value.absent(),
+    this.model = const Value.absent(),
+    this.memoryEnabled = const Value.absent(),
+    this.memoryLimit = const Value.absent(),
+    this.alwaysShow = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PostVoicesCompanion.insert({
+    required String id,
+    required String postId,
+    this.kind = const Value.absent(),
+    this.residentId = const Value.absent(),
+    required String name,
+    this.avatarAsset = const Value.absent(),
+    this.avatarSeed = const Value.absent(),
+    this.bio = const Value.absent(),
+    this.languageStyle = const Value.absent(),
+    this.tone = const Value.absent(),
+    this.model = const Value.absent(),
+    this.memoryEnabled = const Value.absent(),
+    this.memoryLimit = const Value.absent(),
+    this.alwaysShow = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       postId = Value(postId),
+       name = Value(name),
+       createdAt = Value(createdAt);
+  static Insertable<PostVoiceRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? kind,
+    Expression<String>? residentId,
+    Expression<String>? name,
+    Expression<String>? avatarAsset,
+    Expression<int>? avatarSeed,
+    Expression<String>? bio,
+    Expression<String>? languageStyle,
+    Expression<String>? tone,
+    Expression<String>? model,
+    Expression<bool>? memoryEnabled,
+    Expression<int>? memoryLimit,
+    Expression<bool>? alwaysShow,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (kind != null) 'kind': kind,
+      if (residentId != null) 'resident_id': residentId,
+      if (name != null) 'name': name,
+      if (avatarAsset != null) 'avatar_asset': avatarAsset,
+      if (avatarSeed != null) 'avatar_seed': avatarSeed,
+      if (bio != null) 'bio': bio,
+      if (languageStyle != null) 'language_style': languageStyle,
+      if (tone != null) 'tone': tone,
+      if (model != null) 'model': model,
+      if (memoryEnabled != null) 'memory_enabled': memoryEnabled,
+      if (memoryLimit != null) 'memory_limit': memoryLimit,
+      if (alwaysShow != null) 'always_show': alwaysShow,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PostVoicesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? postId,
+    Value<String>? kind,
+    Value<String?>? residentId,
+    Value<String>? name,
+    Value<String>? avatarAsset,
+    Value<int>? avatarSeed,
+    Value<String>? bio,
+    Value<String>? languageStyle,
+    Value<String>? tone,
+    Value<String>? model,
+    Value<bool>? memoryEnabled,
+    Value<int?>? memoryLimit,
+    Value<bool>? alwaysShow,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PostVoicesCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      kind: kind ?? this.kind,
+      residentId: residentId ?? this.residentId,
+      name: name ?? this.name,
+      avatarAsset: avatarAsset ?? this.avatarAsset,
+      avatarSeed: avatarSeed ?? this.avatarSeed,
+      bio: bio ?? this.bio,
+      languageStyle: languageStyle ?? this.languageStyle,
+      tone: tone ?? this.tone,
+      model: model ?? this.model,
+      memoryEnabled: memoryEnabled ?? this.memoryEnabled,
+      memoryLimit: memoryLimit ?? this.memoryLimit,
+      alwaysShow: alwaysShow ?? this.alwaysShow,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (avatarAsset.present) {
+      map['avatar_asset'] = Variable<String>(avatarAsset.value);
+    }
+    if (avatarSeed.present) {
+      map['avatar_seed'] = Variable<int>(avatarSeed.value);
+    }
+    if (bio.present) {
+      map['bio'] = Variable<String>(bio.value);
+    }
+    if (languageStyle.present) {
+      map['language_style'] = Variable<String>(languageStyle.value);
+    }
+    if (tone.present) {
+      map['tone'] = Variable<String>(tone.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (memoryEnabled.present) {
+      map['memory_enabled'] = Variable<bool>(memoryEnabled.value);
+    }
+    if (memoryLimit.present) {
+      map['memory_limit'] = Variable<int>(memoryLimit.value);
+    }
+    if (alwaysShow.present) {
+      map['always_show'] = Variable<bool>(alwaysShow.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostVoicesCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('kind: $kind, ')
+          ..write('residentId: $residentId, ')
+          ..write('name: $name, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('avatarSeed: $avatarSeed, ')
+          ..write('bio: $bio, ')
+          ..write('languageStyle: $languageStyle, ')
+          ..write('tone: $tone, ')
+          ..write('model: $model, ')
+          ..write('memoryEnabled: $memoryEnabled, ')
+          ..write('memoryLimit: $memoryLimit, ')
+          ..write('alwaysShow: $alwaysShow, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AiThreadsTable extends AiThreads
+    with TableInfo<$AiThreadsTable, AiThreadRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiThreadsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _voiceIdMeta = const VerificationMeta(
+    'voiceId',
+  );
+  @override
+  late final GeneratedColumn<String> voiceId = GeneratedColumn<String>(
+    'voice_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES post_voices (id)',
+    ),
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _systemVersionMeta = const VerificationMeta(
+    'systemVersion',
+  );
+  @override
+  late final GeneratedColumn<int> systemVersion = GeneratedColumn<int>(
+    'system_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _prefixHashMeta = const VerificationMeta(
+    'prefixHash',
+  );
+  @override
+  late final GeneratedColumn<String> prefixHash = GeneratedColumn<String>(
+    'prefix_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _messageCountMeta = const VerificationMeta(
+    'messageCount',
+  );
+  @override
+  late final GeneratedColumn<int> messageCount = GeneratedColumn<int>(
+    'message_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _tokenEstimateMeta = const VerificationMeta(
+    'tokenEstimate',
+  );
+  @override
+  late final GeneratedColumn<int> tokenEstimate = GeneratedColumn<int>(
+    'token_estimate',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastRequestAtMeta = const VerificationMeta(
+    'lastRequestAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastRequestAt = GeneratedColumn<int>(
+    'last_request_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cacheReadTokensMeta = const VerificationMeta(
+    'cacheReadTokens',
+  );
+  @override
+  late final GeneratedColumn<int> cacheReadTokens = GeneratedColumn<int>(
+    'cache_read_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _cacheWriteTokensMeta = const VerificationMeta(
+    'cacheWriteTokens',
+  );
+  @override
+  late final GeneratedColumn<int> cacheWriteTokens = GeneratedColumn<int>(
+    'cache_write_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _compactedAtMeta = const VerificationMeta(
+    'compactedAt',
+  );
+  @override
+  late final GeneratedColumn<int> compactedAt = GeneratedColumn<int>(
+    'compacted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    postId,
+    voiceId,
+    provider,
+    model,
+    systemVersion,
+    prefixHash,
+    messageCount,
+    tokenEstimate,
+    lastRequestAt,
+    cacheReadTokens,
+    cacheWriteTokens,
+    compactedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_threads';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiThreadRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('voice_id')) {
+      context.handle(
+        _voiceIdMeta,
+        voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
+      );
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('system_version')) {
+      context.handle(
+        _systemVersionMeta,
+        systemVersion.isAcceptableOrUnknown(
+          data['system_version']!,
+          _systemVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('prefix_hash')) {
+      context.handle(
+        _prefixHashMeta,
+        prefixHash.isAcceptableOrUnknown(data['prefix_hash']!, _prefixHashMeta),
+      );
+    }
+    if (data.containsKey('message_count')) {
+      context.handle(
+        _messageCountMeta,
+        messageCount.isAcceptableOrUnknown(
+          data['message_count']!,
+          _messageCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('token_estimate')) {
+      context.handle(
+        _tokenEstimateMeta,
+        tokenEstimate.isAcceptableOrUnknown(
+          data['token_estimate']!,
+          _tokenEstimateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_request_at')) {
+      context.handle(
+        _lastRequestAtMeta,
+        lastRequestAt.isAcceptableOrUnknown(
+          data['last_request_at']!,
+          _lastRequestAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cache_read_tokens')) {
+      context.handle(
+        _cacheReadTokensMeta,
+        cacheReadTokens.isAcceptableOrUnknown(
+          data['cache_read_tokens']!,
+          _cacheReadTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cache_write_tokens')) {
+      context.handle(
+        _cacheWriteTokensMeta,
+        cacheWriteTokens.isAcceptableOrUnknown(
+          data['cache_write_tokens']!,
+          _cacheWriteTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('compacted_at')) {
+      context.handle(
+        _compactedAtMeta,
+        compactedAt.isAcceptableOrUnknown(
+          data['compacted_at']!,
+          _compactedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AiThreadRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiThreadRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      voiceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_id'],
+      ),
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      systemVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}system_version'],
+      )!,
+      prefixHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}prefix_hash'],
+      )!,
+      messageCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}message_count'],
+      )!,
+      tokenEstimate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}token_estimate'],
+      )!,
+      lastRequestAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_request_at'],
+      ),
+      cacheReadTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cache_read_tokens'],
+      )!,
+      cacheWriteTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cache_write_tokens'],
+      )!,
+      compactedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}compacted_at'],
+      ),
+    );
+  }
+
+  @override
+  $AiThreadsTable createAlias(String alias) {
+    return $AiThreadsTable(attachedDatabase, alias);
+  }
+}
+
+class AiThreadRow extends DataClass implements Insertable<AiThreadRow> {
+  final String id;
+  final String postId;
+  final String? voiceId;
+  final String provider;
+  final String model;
+  final int systemVersion;
+  final String prefixHash;
+  final int messageCount;
+  final int tokenEstimate;
+  final int? lastRequestAt;
+  final int cacheReadTokens;
+  final int cacheWriteTokens;
+  final int? compactedAt;
+  const AiThreadRow({
+    required this.id,
+    required this.postId,
+    this.voiceId,
+    required this.provider,
+    required this.model,
+    required this.systemVersion,
+    required this.prefixHash,
+    required this.messageCount,
+    required this.tokenEstimate,
+    this.lastRequestAt,
+    required this.cacheReadTokens,
+    required this.cacheWriteTokens,
+    this.compactedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    if (!nullToAbsent || voiceId != null) {
+      map['voice_id'] = Variable<String>(voiceId);
+    }
+    map['provider'] = Variable<String>(provider);
+    map['model'] = Variable<String>(model);
+    map['system_version'] = Variable<int>(systemVersion);
+    map['prefix_hash'] = Variable<String>(prefixHash);
+    map['message_count'] = Variable<int>(messageCount);
+    map['token_estimate'] = Variable<int>(tokenEstimate);
+    if (!nullToAbsent || lastRequestAt != null) {
+      map['last_request_at'] = Variable<int>(lastRequestAt);
+    }
+    map['cache_read_tokens'] = Variable<int>(cacheReadTokens);
+    map['cache_write_tokens'] = Variable<int>(cacheWriteTokens);
+    if (!nullToAbsent || compactedAt != null) {
+      map['compacted_at'] = Variable<int>(compactedAt);
+    }
+    return map;
+  }
+
+  AiThreadsCompanion toCompanion(bool nullToAbsent) {
+    return AiThreadsCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      voiceId: voiceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceId),
+      provider: Value(provider),
+      model: Value(model),
+      systemVersion: Value(systemVersion),
+      prefixHash: Value(prefixHash),
+      messageCount: Value(messageCount),
+      tokenEstimate: Value(tokenEstimate),
+      lastRequestAt: lastRequestAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastRequestAt),
+      cacheReadTokens: Value(cacheReadTokens),
+      cacheWriteTokens: Value(cacheWriteTokens),
+      compactedAt: compactedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(compactedAt),
+    );
+  }
+
+  factory AiThreadRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiThreadRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      voiceId: serializer.fromJson<String?>(json['voiceId']),
+      provider: serializer.fromJson<String>(json['provider']),
+      model: serializer.fromJson<String>(json['model']),
+      systemVersion: serializer.fromJson<int>(json['systemVersion']),
+      prefixHash: serializer.fromJson<String>(json['prefixHash']),
+      messageCount: serializer.fromJson<int>(json['messageCount']),
+      tokenEstimate: serializer.fromJson<int>(json['tokenEstimate']),
+      lastRequestAt: serializer.fromJson<int?>(json['lastRequestAt']),
+      cacheReadTokens: serializer.fromJson<int>(json['cacheReadTokens']),
+      cacheWriteTokens: serializer.fromJson<int>(json['cacheWriteTokens']),
+      compactedAt: serializer.fromJson<int?>(json['compactedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'voiceId': serializer.toJson<String?>(voiceId),
+      'provider': serializer.toJson<String>(provider),
+      'model': serializer.toJson<String>(model),
+      'systemVersion': serializer.toJson<int>(systemVersion),
+      'prefixHash': serializer.toJson<String>(prefixHash),
+      'messageCount': serializer.toJson<int>(messageCount),
+      'tokenEstimate': serializer.toJson<int>(tokenEstimate),
+      'lastRequestAt': serializer.toJson<int?>(lastRequestAt),
+      'cacheReadTokens': serializer.toJson<int>(cacheReadTokens),
+      'cacheWriteTokens': serializer.toJson<int>(cacheWriteTokens),
+      'compactedAt': serializer.toJson<int?>(compactedAt),
+    };
+  }
+
+  AiThreadRow copyWith({
+    String? id,
+    String? postId,
+    Value<String?> voiceId = const Value.absent(),
+    String? provider,
+    String? model,
+    int? systemVersion,
+    String? prefixHash,
+    int? messageCount,
+    int? tokenEstimate,
+    Value<int?> lastRequestAt = const Value.absent(),
+    int? cacheReadTokens,
+    int? cacheWriteTokens,
+    Value<int?> compactedAt = const Value.absent(),
+  }) => AiThreadRow(
+    id: id ?? this.id,
+    postId: postId ?? this.postId,
+    voiceId: voiceId.present ? voiceId.value : this.voiceId,
+    provider: provider ?? this.provider,
+    model: model ?? this.model,
+    systemVersion: systemVersion ?? this.systemVersion,
+    prefixHash: prefixHash ?? this.prefixHash,
+    messageCount: messageCount ?? this.messageCount,
+    tokenEstimate: tokenEstimate ?? this.tokenEstimate,
+    lastRequestAt: lastRequestAt.present
+        ? lastRequestAt.value
+        : this.lastRequestAt,
+    cacheReadTokens: cacheReadTokens ?? this.cacheReadTokens,
+    cacheWriteTokens: cacheWriteTokens ?? this.cacheWriteTokens,
+    compactedAt: compactedAt.present ? compactedAt.value : this.compactedAt,
+  );
+  AiThreadRow copyWithCompanion(AiThreadsCompanion data) {
+    return AiThreadRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      model: data.model.present ? data.model.value : this.model,
+      systemVersion: data.systemVersion.present
+          ? data.systemVersion.value
+          : this.systemVersion,
+      prefixHash: data.prefixHash.present
+          ? data.prefixHash.value
+          : this.prefixHash,
+      messageCount: data.messageCount.present
+          ? data.messageCount.value
+          : this.messageCount,
+      tokenEstimate: data.tokenEstimate.present
+          ? data.tokenEstimate.value
+          : this.tokenEstimate,
+      lastRequestAt: data.lastRequestAt.present
+          ? data.lastRequestAt.value
+          : this.lastRequestAt,
+      cacheReadTokens: data.cacheReadTokens.present
+          ? data.cacheReadTokens.value
+          : this.cacheReadTokens,
+      cacheWriteTokens: data.cacheWriteTokens.present
+          ? data.cacheWriteTokens.value
+          : this.cacheWriteTokens,
+      compactedAt: data.compactedAt.present
+          ? data.compactedAt.value
+          : this.compactedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiThreadRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('systemVersion: $systemVersion, ')
+          ..write('prefixHash: $prefixHash, ')
+          ..write('messageCount: $messageCount, ')
+          ..write('tokenEstimate: $tokenEstimate, ')
+          ..write('lastRequestAt: $lastRequestAt, ')
+          ..write('cacheReadTokens: $cacheReadTokens, ')
+          ..write('cacheWriteTokens: $cacheWriteTokens, ')
+          ..write('compactedAt: $compactedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    postId,
+    voiceId,
+    provider,
+    model,
+    systemVersion,
+    prefixHash,
+    messageCount,
+    tokenEstimate,
+    lastRequestAt,
+    cacheReadTokens,
+    cacheWriteTokens,
+    compactedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiThreadRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.voiceId == this.voiceId &&
+          other.provider == this.provider &&
+          other.model == this.model &&
+          other.systemVersion == this.systemVersion &&
+          other.prefixHash == this.prefixHash &&
+          other.messageCount == this.messageCount &&
+          other.tokenEstimate == this.tokenEstimate &&
+          other.lastRequestAt == this.lastRequestAt &&
+          other.cacheReadTokens == this.cacheReadTokens &&
+          other.cacheWriteTokens == this.cacheWriteTokens &&
+          other.compactedAt == this.compactedAt);
+}
+
+class AiThreadsCompanion extends UpdateCompanion<AiThreadRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String?> voiceId;
+  final Value<String> provider;
+  final Value<String> model;
+  final Value<int> systemVersion;
+  final Value<String> prefixHash;
+  final Value<int> messageCount;
+  final Value<int> tokenEstimate;
+  final Value<int?> lastRequestAt;
+  final Value<int> cacheReadTokens;
+  final Value<int> cacheWriteTokens;
+  final Value<int?> compactedAt;
+  final Value<int> rowid;
+  const AiThreadsCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.model = const Value.absent(),
+    this.systemVersion = const Value.absent(),
+    this.prefixHash = const Value.absent(),
+    this.messageCount = const Value.absent(),
+    this.tokenEstimate = const Value.absent(),
+    this.lastRequestAt = const Value.absent(),
+    this.cacheReadTokens = const Value.absent(),
+    this.cacheWriteTokens = const Value.absent(),
+    this.compactedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiThreadsCompanion.insert({
+    required String id,
+    required String postId,
+    this.voiceId = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.model = const Value.absent(),
+    this.systemVersion = const Value.absent(),
+    this.prefixHash = const Value.absent(),
+    this.messageCount = const Value.absent(),
+    this.tokenEstimate = const Value.absent(),
+    this.lastRequestAt = const Value.absent(),
+    this.cacheReadTokens = const Value.absent(),
+    this.cacheWriteTokens = const Value.absent(),
+    this.compactedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       postId = Value(postId);
+  static Insertable<AiThreadRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? voiceId,
+    Expression<String>? provider,
+    Expression<String>? model,
+    Expression<int>? systemVersion,
+    Expression<String>? prefixHash,
+    Expression<int>? messageCount,
+    Expression<int>? tokenEstimate,
+    Expression<int>? lastRequestAt,
+    Expression<int>? cacheReadTokens,
+    Expression<int>? cacheWriteTokens,
+    Expression<int>? compactedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (provider != null) 'provider': provider,
+      if (model != null) 'model': model,
+      if (systemVersion != null) 'system_version': systemVersion,
+      if (prefixHash != null) 'prefix_hash': prefixHash,
+      if (messageCount != null) 'message_count': messageCount,
+      if (tokenEstimate != null) 'token_estimate': tokenEstimate,
+      if (lastRequestAt != null) 'last_request_at': lastRequestAt,
+      if (cacheReadTokens != null) 'cache_read_tokens': cacheReadTokens,
+      if (cacheWriteTokens != null) 'cache_write_tokens': cacheWriteTokens,
+      if (compactedAt != null) 'compacted_at': compactedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiThreadsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? postId,
+    Value<String?>? voiceId,
+    Value<String>? provider,
+    Value<String>? model,
+    Value<int>? systemVersion,
+    Value<String>? prefixHash,
+    Value<int>? messageCount,
+    Value<int>? tokenEstimate,
+    Value<int?>? lastRequestAt,
+    Value<int>? cacheReadTokens,
+    Value<int>? cacheWriteTokens,
+    Value<int?>? compactedAt,
+    Value<int>? rowid,
+  }) {
+    return AiThreadsCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      voiceId: voiceId ?? this.voiceId,
+      provider: provider ?? this.provider,
+      model: model ?? this.model,
+      systemVersion: systemVersion ?? this.systemVersion,
+      prefixHash: prefixHash ?? this.prefixHash,
+      messageCount: messageCount ?? this.messageCount,
+      tokenEstimate: tokenEstimate ?? this.tokenEstimate,
+      lastRequestAt: lastRequestAt ?? this.lastRequestAt,
+      cacheReadTokens: cacheReadTokens ?? this.cacheReadTokens,
+      cacheWriteTokens: cacheWriteTokens ?? this.cacheWriteTokens,
+      compactedAt: compactedAt ?? this.compactedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (voiceId.present) {
+      map['voice_id'] = Variable<String>(voiceId.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (systemVersion.present) {
+      map['system_version'] = Variable<int>(systemVersion.value);
+    }
+    if (prefixHash.present) {
+      map['prefix_hash'] = Variable<String>(prefixHash.value);
+    }
+    if (messageCount.present) {
+      map['message_count'] = Variable<int>(messageCount.value);
+    }
+    if (tokenEstimate.present) {
+      map['token_estimate'] = Variable<int>(tokenEstimate.value);
+    }
+    if (lastRequestAt.present) {
+      map['last_request_at'] = Variable<int>(lastRequestAt.value);
+    }
+    if (cacheReadTokens.present) {
+      map['cache_read_tokens'] = Variable<int>(cacheReadTokens.value);
+    }
+    if (cacheWriteTokens.present) {
+      map['cache_write_tokens'] = Variable<int>(cacheWriteTokens.value);
+    }
+    if (compactedAt.present) {
+      map['compacted_at'] = Variable<int>(compactedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiThreadsCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('systemVersion: $systemVersion, ')
+          ..write('prefixHash: $prefixHash, ')
+          ..write('messageCount: $messageCount, ')
+          ..write('tokenEstimate: $tokenEstimate, ')
+          ..write('lastRequestAt: $lastRequestAt, ')
+          ..write('cacheReadTokens: $cacheReadTokens, ')
+          ..write('cacheWriteTokens: $cacheWriteTokens, ')
+          ..write('compactedAt: $compactedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PostViewsTable extends PostViews
+    with TableInfo<$PostViewsTable, PostViewRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PostViewsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _voiceIdMeta = const VerificationMeta(
+    'voiceId',
+  );
+  @override
+  late final GeneratedColumn<String> voiceId = GeneratedColumn<String>(
+    'voice_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES post_voices (id)',
+    ),
+  );
+  static const VerificationMeta _firstViewedAtMeta = const VerificationMeta(
+    'firstViewedAt',
+  );
+  @override
+  late final GeneratedColumn<int> firstViewedAt = GeneratedColumn<int>(
+    'first_viewed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastViewedAtMeta = const VerificationMeta(
+    'lastViewedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastViewedAt = GeneratedColumn<int>(
+    'last_viewed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _viewCountMeta = const VerificationMeta(
+    'viewCount',
+  );
+  @override
+  late final GeneratedColumn<int> viewCount = GeneratedColumn<int>(
+    'view_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    postId,
+    voiceId,
+    firstViewedAt,
+    lastViewedAt,
+    viewCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'post_views';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PostViewRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('voice_id')) {
+      context.handle(
+        _voiceIdMeta,
+        voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_voiceIdMeta);
+    }
+    if (data.containsKey('first_viewed_at')) {
+      context.handle(
+        _firstViewedAtMeta,
+        firstViewedAt.isAcceptableOrUnknown(
+          data['first_viewed_at']!,
+          _firstViewedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_firstViewedAtMeta);
+    }
+    if (data.containsKey('last_viewed_at')) {
+      context.handle(
+        _lastViewedAtMeta,
+        lastViewedAt.isAcceptableOrUnknown(
+          data['last_viewed_at']!,
+          _lastViewedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastViewedAtMeta);
+    }
+    if (data.containsKey('view_count')) {
+      context.handle(
+        _viewCountMeta,
+        viewCount.isAcceptableOrUnknown(data['view_count']!, _viewCountMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {postId, voiceId},
+  ];
+  @override
+  PostViewRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PostViewRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      voiceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_id'],
+      )!,
+      firstViewedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}first_viewed_at'],
+      )!,
+      lastViewedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_viewed_at'],
+      )!,
+      viewCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}view_count'],
+      )!,
+    );
+  }
+
+  @override
+  $PostViewsTable createAlias(String alias) {
+    return $PostViewsTable(attachedDatabase, alias);
+  }
+}
+
+class PostViewRow extends DataClass implements Insertable<PostViewRow> {
+  final String id;
+  final String postId;
+  final String voiceId;
+  final int firstViewedAt;
+  final int lastViewedAt;
+  final int viewCount;
+  const PostViewRow({
+    required this.id,
+    required this.postId,
+    required this.voiceId,
+    required this.firstViewedAt,
+    required this.lastViewedAt,
+    required this.viewCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    map['voice_id'] = Variable<String>(voiceId);
+    map['first_viewed_at'] = Variable<int>(firstViewedAt);
+    map['last_viewed_at'] = Variable<int>(lastViewedAt);
+    map['view_count'] = Variable<int>(viewCount);
+    return map;
+  }
+
+  PostViewsCompanion toCompanion(bool nullToAbsent) {
+    return PostViewsCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      voiceId: Value(voiceId),
+      firstViewedAt: Value(firstViewedAt),
+      lastViewedAt: Value(lastViewedAt),
+      viewCount: Value(viewCount),
+    );
+  }
+
+  factory PostViewRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PostViewRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      voiceId: serializer.fromJson<String>(json['voiceId']),
+      firstViewedAt: serializer.fromJson<int>(json['firstViewedAt']),
+      lastViewedAt: serializer.fromJson<int>(json['lastViewedAt']),
+      viewCount: serializer.fromJson<int>(json['viewCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'voiceId': serializer.toJson<String>(voiceId),
+      'firstViewedAt': serializer.toJson<int>(firstViewedAt),
+      'lastViewedAt': serializer.toJson<int>(lastViewedAt),
+      'viewCount': serializer.toJson<int>(viewCount),
+    };
+  }
+
+  PostViewRow copyWith({
+    String? id,
+    String? postId,
+    String? voiceId,
+    int? firstViewedAt,
+    int? lastViewedAt,
+    int? viewCount,
+  }) => PostViewRow(
+    id: id ?? this.id,
+    postId: postId ?? this.postId,
+    voiceId: voiceId ?? this.voiceId,
+    firstViewedAt: firstViewedAt ?? this.firstViewedAt,
+    lastViewedAt: lastViewedAt ?? this.lastViewedAt,
+    viewCount: viewCount ?? this.viewCount,
+  );
+  PostViewRow copyWithCompanion(PostViewsCompanion data) {
+    return PostViewRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      firstViewedAt: data.firstViewedAt.present
+          ? data.firstViewedAt.value
+          : this.firstViewedAt,
+      lastViewedAt: data.lastViewedAt.present
+          ? data.lastViewedAt.value
+          : this.lastViewedAt,
+      viewCount: data.viewCount.present ? data.viewCount.value : this.viewCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostViewRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('firstViewedAt: $firstViewedAt, ')
+          ..write('lastViewedAt: $lastViewedAt, ')
+          ..write('viewCount: $viewCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, postId, voiceId, firstViewedAt, lastViewedAt, viewCount);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PostViewRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.voiceId == this.voiceId &&
+          other.firstViewedAt == this.firstViewedAt &&
+          other.lastViewedAt == this.lastViewedAt &&
+          other.viewCount == this.viewCount);
+}
+
+class PostViewsCompanion extends UpdateCompanion<PostViewRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String> voiceId;
+  final Value<int> firstViewedAt;
+  final Value<int> lastViewedAt;
+  final Value<int> viewCount;
+  final Value<int> rowid;
+  const PostViewsCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.firstViewedAt = const Value.absent(),
+    this.lastViewedAt = const Value.absent(),
+    this.viewCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PostViewsCompanion.insert({
+    required String id,
+    required String postId,
+    required String voiceId,
+    required int firstViewedAt,
+    required int lastViewedAt,
+    this.viewCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       postId = Value(postId),
+       voiceId = Value(voiceId),
+       firstViewedAt = Value(firstViewedAt),
+       lastViewedAt = Value(lastViewedAt);
+  static Insertable<PostViewRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? voiceId,
+    Expression<int>? firstViewedAt,
+    Expression<int>? lastViewedAt,
+    Expression<int>? viewCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (firstViewedAt != null) 'first_viewed_at': firstViewedAt,
+      if (lastViewedAt != null) 'last_viewed_at': lastViewedAt,
+      if (viewCount != null) 'view_count': viewCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PostViewsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? postId,
+    Value<String>? voiceId,
+    Value<int>? firstViewedAt,
+    Value<int>? lastViewedAt,
+    Value<int>? viewCount,
+    Value<int>? rowid,
+  }) {
+    return PostViewsCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      voiceId: voiceId ?? this.voiceId,
+      firstViewedAt: firstViewedAt ?? this.firstViewedAt,
+      lastViewedAt: lastViewedAt ?? this.lastViewedAt,
+      viewCount: viewCount ?? this.viewCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (voiceId.present) {
+      map['voice_id'] = Variable<String>(voiceId.value);
+    }
+    if (firstViewedAt.present) {
+      map['first_viewed_at'] = Variable<int>(firstViewedAt.value);
+    }
+    if (lastViewedAt.present) {
+      map['last_viewed_at'] = Variable<int>(lastViewedAt.value);
+    }
+    if (viewCount.present) {
+      map['view_count'] = Variable<int>(viewCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostViewsCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('firstViewedAt: $firstViewedAt, ')
+          ..write('lastViewedAt: $lastViewedAt, ')
+          ..write('viewCount: $viewCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PostUnderstandingsTable extends PostUnderstandings
+    with TableInfo<$PostUnderstandingsTable, PostUnderstandingRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PostUnderstandingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES posts (id)',
+    ),
+  );
+  static const VerificationMeta _toneMeta = const VerificationMeta('tone');
+  @override
+  late final GeneratedColumn<String> tone = GeneratedColumn<String>(
+    'tone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _entitiesMeta = const VerificationMeta(
+    'entities',
+  );
+  @override
+  late final GeneratedColumn<String> entities = GeneratedColumn<String>(
+    'entities',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _pointMeta = const VerificationMeta('point');
+  @override
+  late final GeneratedColumn<String> point = GeneratedColumn<String>(
+    'point',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _jokeMechanismMeta = const VerificationMeta(
+    'jokeMechanism',
+  );
+  @override
+  late final GeneratedColumn<String> jokeMechanism = GeneratedColumn<String>(
+    'joke_mechanism',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _emotionMeta = const VerificationMeta(
+    'emotion',
+  );
+  @override
+  late final GeneratedColumn<String> emotion = GeneratedColumn<String>(
+    'emotion',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _insiderAngleMeta = const VerificationMeta(
+    'insiderAngle',
+  );
+  @override
+  late final GeneratedColumn<String> insiderAngle = GeneratedColumn<String>(
+    'insider_angle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _needsWebMeta = const VerificationMeta(
+    'needsWeb',
+  );
+  @override
+  late final GeneratedColumn<bool> needsWeb = GeneratedColumn<bool>(
+    'needs_web',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("needs_web" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    postId,
+    tone,
+    domain,
+    entities,
+    point,
+    jokeMechanism,
+    emotion,
+    insiderAngle,
+    needsWeb,
+    confidence,
+    model,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'post_understandings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PostUnderstandingRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('tone')) {
+      context.handle(
+        _toneMeta,
+        tone.isAcceptableOrUnknown(data['tone']!, _toneMeta),
+      );
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    }
+    if (data.containsKey('entities')) {
+      context.handle(
+        _entitiesMeta,
+        entities.isAcceptableOrUnknown(data['entities']!, _entitiesMeta),
+      );
+    }
+    if (data.containsKey('point')) {
+      context.handle(
+        _pointMeta,
+        point.isAcceptableOrUnknown(data['point']!, _pointMeta),
+      );
+    }
+    if (data.containsKey('joke_mechanism')) {
+      context.handle(
+        _jokeMechanismMeta,
+        jokeMechanism.isAcceptableOrUnknown(
+          data['joke_mechanism']!,
+          _jokeMechanismMeta,
+        ),
+      );
+    }
+    if (data.containsKey('emotion')) {
+      context.handle(
+        _emotionMeta,
+        emotion.isAcceptableOrUnknown(data['emotion']!, _emotionMeta),
+      );
+    }
+    if (data.containsKey('insider_angle')) {
+      context.handle(
+        _insiderAngleMeta,
+        insiderAngle.isAcceptableOrUnknown(
+          data['insider_angle']!,
+          _insiderAngleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('needs_web')) {
+      context.handle(
+        _needsWebMeta,
+        needsWeb.isAcceptableOrUnknown(data['needs_web']!, _needsWebMeta),
+      );
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {postId};
+  @override
+  PostUnderstandingRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PostUnderstandingRow(
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      )!,
+      tone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tone'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      )!,
+      entities: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entities'],
+      )!,
+      point: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}point'],
+      )!,
+      jokeMechanism: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}joke_mechanism'],
+      )!,
+      emotion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}emotion'],
+      )!,
+      insiderAngle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}insider_angle'],
+      )!,
+      needsWeb: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}needs_web'],
+      )!,
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PostUnderstandingsTable createAlias(String alias) {
+    return $PostUnderstandingsTable(attachedDatabase, alias);
+  }
+}
+
+class PostUnderstandingRow extends DataClass
+    implements Insertable<PostUnderstandingRow> {
+  final String postId;
+
+  /// 玩梗 / 感伤 / 分享 / 吐槽 / 求助 / 炫耀 / 日常
+  final String tone;
+
+  /// 游戏 / 行业 / 生活 / 情感 / 知识 / 其他
+  final String domain;
+
+  /// 游戏名、角色、术语、梗名（JSON 数组）
+  final String entities;
+
+  /// 一句话：这条帖子在说什么
+  final String point;
+
+  /// 玩梗时：笑点机制
+  final String jokeMechanism;
+
+  /// 感伤时：情绪落在哪件事上
+  final String emotion;
+
+  /// 游戏/行业：圈内人真正会接的点
+  final String insiderAngle;
+
+  /// 是否需要外部知识（联网）
+  final bool needsWeb;
+
+  /// 0—1；低的时候评论只许提问/围观，不许装懂
+  final double confidence;
+  final String model;
+  final int updatedAt;
+  const PostUnderstandingRow({
+    required this.postId,
+    required this.tone,
+    required this.domain,
+    required this.entities,
+    required this.point,
+    required this.jokeMechanism,
+    required this.emotion,
+    required this.insiderAngle,
+    required this.needsWeb,
+    required this.confidence,
+    required this.model,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['post_id'] = Variable<String>(postId);
+    map['tone'] = Variable<String>(tone);
+    map['domain'] = Variable<String>(domain);
+    map['entities'] = Variable<String>(entities);
+    map['point'] = Variable<String>(point);
+    map['joke_mechanism'] = Variable<String>(jokeMechanism);
+    map['emotion'] = Variable<String>(emotion);
+    map['insider_angle'] = Variable<String>(insiderAngle);
+    map['needs_web'] = Variable<bool>(needsWeb);
+    map['confidence'] = Variable<double>(confidence);
+    map['model'] = Variable<String>(model);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  PostUnderstandingsCompanion toCompanion(bool nullToAbsent) {
+    return PostUnderstandingsCompanion(
+      postId: Value(postId),
+      tone: Value(tone),
+      domain: Value(domain),
+      entities: Value(entities),
+      point: Value(point),
+      jokeMechanism: Value(jokeMechanism),
+      emotion: Value(emotion),
+      insiderAngle: Value(insiderAngle),
+      needsWeb: Value(needsWeb),
+      confidence: Value(confidence),
+      model: Value(model),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory PostUnderstandingRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PostUnderstandingRow(
+      postId: serializer.fromJson<String>(json['postId']),
+      tone: serializer.fromJson<String>(json['tone']),
+      domain: serializer.fromJson<String>(json['domain']),
+      entities: serializer.fromJson<String>(json['entities']),
+      point: serializer.fromJson<String>(json['point']),
+      jokeMechanism: serializer.fromJson<String>(json['jokeMechanism']),
+      emotion: serializer.fromJson<String>(json['emotion']),
+      insiderAngle: serializer.fromJson<String>(json['insiderAngle']),
+      needsWeb: serializer.fromJson<bool>(json['needsWeb']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      model: serializer.fromJson<String>(json['model']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'postId': serializer.toJson<String>(postId),
+      'tone': serializer.toJson<String>(tone),
+      'domain': serializer.toJson<String>(domain),
+      'entities': serializer.toJson<String>(entities),
+      'point': serializer.toJson<String>(point),
+      'jokeMechanism': serializer.toJson<String>(jokeMechanism),
+      'emotion': serializer.toJson<String>(emotion),
+      'insiderAngle': serializer.toJson<String>(insiderAngle),
+      'needsWeb': serializer.toJson<bool>(needsWeb),
+      'confidence': serializer.toJson<double>(confidence),
+      'model': serializer.toJson<String>(model),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  PostUnderstandingRow copyWith({
+    String? postId,
+    String? tone,
+    String? domain,
+    String? entities,
+    String? point,
+    String? jokeMechanism,
+    String? emotion,
+    String? insiderAngle,
+    bool? needsWeb,
+    double? confidence,
+    String? model,
+    int? updatedAt,
+  }) => PostUnderstandingRow(
+    postId: postId ?? this.postId,
+    tone: tone ?? this.tone,
+    domain: domain ?? this.domain,
+    entities: entities ?? this.entities,
+    point: point ?? this.point,
+    jokeMechanism: jokeMechanism ?? this.jokeMechanism,
+    emotion: emotion ?? this.emotion,
+    insiderAngle: insiderAngle ?? this.insiderAngle,
+    needsWeb: needsWeb ?? this.needsWeb,
+    confidence: confidence ?? this.confidence,
+    model: model ?? this.model,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  PostUnderstandingRow copyWithCompanion(PostUnderstandingsCompanion data) {
+    return PostUnderstandingRow(
+      postId: data.postId.present ? data.postId.value : this.postId,
+      tone: data.tone.present ? data.tone.value : this.tone,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      entities: data.entities.present ? data.entities.value : this.entities,
+      point: data.point.present ? data.point.value : this.point,
+      jokeMechanism: data.jokeMechanism.present
+          ? data.jokeMechanism.value
+          : this.jokeMechanism,
+      emotion: data.emotion.present ? data.emotion.value : this.emotion,
+      insiderAngle: data.insiderAngle.present
+          ? data.insiderAngle.value
+          : this.insiderAngle,
+      needsWeb: data.needsWeb.present ? data.needsWeb.value : this.needsWeb,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      model: data.model.present ? data.model.value : this.model,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostUnderstandingRow(')
+          ..write('postId: $postId, ')
+          ..write('tone: $tone, ')
+          ..write('domain: $domain, ')
+          ..write('entities: $entities, ')
+          ..write('point: $point, ')
+          ..write('jokeMechanism: $jokeMechanism, ')
+          ..write('emotion: $emotion, ')
+          ..write('insiderAngle: $insiderAngle, ')
+          ..write('needsWeb: $needsWeb, ')
+          ..write('confidence: $confidence, ')
+          ..write('model: $model, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    postId,
+    tone,
+    domain,
+    entities,
+    point,
+    jokeMechanism,
+    emotion,
+    insiderAngle,
+    needsWeb,
+    confidence,
+    model,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PostUnderstandingRow &&
+          other.postId == this.postId &&
+          other.tone == this.tone &&
+          other.domain == this.domain &&
+          other.entities == this.entities &&
+          other.point == this.point &&
+          other.jokeMechanism == this.jokeMechanism &&
+          other.emotion == this.emotion &&
+          other.insiderAngle == this.insiderAngle &&
+          other.needsWeb == this.needsWeb &&
+          other.confidence == this.confidence &&
+          other.model == this.model &&
+          other.updatedAt == this.updatedAt);
+}
+
+class PostUnderstandingsCompanion
+    extends UpdateCompanion<PostUnderstandingRow> {
+  final Value<String> postId;
+  final Value<String> tone;
+  final Value<String> domain;
+  final Value<String> entities;
+  final Value<String> point;
+  final Value<String> jokeMechanism;
+  final Value<String> emotion;
+  final Value<String> insiderAngle;
+  final Value<bool> needsWeb;
+  final Value<double> confidence;
+  final Value<String> model;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const PostUnderstandingsCompanion({
+    this.postId = const Value.absent(),
+    this.tone = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.entities = const Value.absent(),
+    this.point = const Value.absent(),
+    this.jokeMechanism = const Value.absent(),
+    this.emotion = const Value.absent(),
+    this.insiderAngle = const Value.absent(),
+    this.needsWeb = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.model = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PostUnderstandingsCompanion.insert({
+    required String postId,
+    this.tone = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.entities = const Value.absent(),
+    this.point = const Value.absent(),
+    this.jokeMechanism = const Value.absent(),
+    this.emotion = const Value.absent(),
+    this.insiderAngle = const Value.absent(),
+    this.needsWeb = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.model = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : postId = Value(postId),
+       updatedAt = Value(updatedAt);
+  static Insertable<PostUnderstandingRow> custom({
+    Expression<String>? postId,
+    Expression<String>? tone,
+    Expression<String>? domain,
+    Expression<String>? entities,
+    Expression<String>? point,
+    Expression<String>? jokeMechanism,
+    Expression<String>? emotion,
+    Expression<String>? insiderAngle,
+    Expression<bool>? needsWeb,
+    Expression<double>? confidence,
+    Expression<String>? model,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (postId != null) 'post_id': postId,
+      if (tone != null) 'tone': tone,
+      if (domain != null) 'domain': domain,
+      if (entities != null) 'entities': entities,
+      if (point != null) 'point': point,
+      if (jokeMechanism != null) 'joke_mechanism': jokeMechanism,
+      if (emotion != null) 'emotion': emotion,
+      if (insiderAngle != null) 'insider_angle': insiderAngle,
+      if (needsWeb != null) 'needs_web': needsWeb,
+      if (confidence != null) 'confidence': confidence,
+      if (model != null) 'model': model,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PostUnderstandingsCompanion copyWith({
+    Value<String>? postId,
+    Value<String>? tone,
+    Value<String>? domain,
+    Value<String>? entities,
+    Value<String>? point,
+    Value<String>? jokeMechanism,
+    Value<String>? emotion,
+    Value<String>? insiderAngle,
+    Value<bool>? needsWeb,
+    Value<double>? confidence,
+    Value<String>? model,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return PostUnderstandingsCompanion(
+      postId: postId ?? this.postId,
+      tone: tone ?? this.tone,
+      domain: domain ?? this.domain,
+      entities: entities ?? this.entities,
+      point: point ?? this.point,
+      jokeMechanism: jokeMechanism ?? this.jokeMechanism,
+      emotion: emotion ?? this.emotion,
+      insiderAngle: insiderAngle ?? this.insiderAngle,
+      needsWeb: needsWeb ?? this.needsWeb,
+      confidence: confidence ?? this.confidence,
+      model: model ?? this.model,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (tone.present) {
+      map['tone'] = Variable<String>(tone.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (entities.present) {
+      map['entities'] = Variable<String>(entities.value);
+    }
+    if (point.present) {
+      map['point'] = Variable<String>(point.value);
+    }
+    if (jokeMechanism.present) {
+      map['joke_mechanism'] = Variable<String>(jokeMechanism.value);
+    }
+    if (emotion.present) {
+      map['emotion'] = Variable<String>(emotion.value);
+    }
+    if (insiderAngle.present) {
+      map['insider_angle'] = Variable<String>(insiderAngle.value);
+    }
+    if (needsWeb.present) {
+      map['needs_web'] = Variable<bool>(needsWeb.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostUnderstandingsCompanion(')
+          ..write('postId: $postId, ')
+          ..write('tone: $tone, ')
+          ..write('domain: $domain, ')
+          ..write('entities: $entities, ')
+          ..write('point: $point, ')
+          ..write('jokeMechanism: $jokeMechanism, ')
+          ..write('emotion: $emotion, ')
+          ..write('insiderAngle: $insiderAngle, ')
+          ..write('needsWeb: $needsWeb, ')
+          ..write('confidence: $confidence, ')
+          ..write('model: $model, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ResidentMemoriesTable extends ResidentMemories
+    with TableInfo<$ResidentMemoriesTable, ResidentMemoryRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentMemoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES custom_residents (id)',
+    ),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<int> archivedAt = GeneratedColumn<int>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    source,
+    sourceId,
+    summary,
+    content,
+    tags,
+    createdAt,
+    updatedAt,
+    archivedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_memories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentMemoryRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResidentMemoryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentMemoryRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}archived_at'],
+      ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $ResidentMemoriesTable createAlias(String alias) {
+    return $ResidentMemoriesTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentMemoryRow extends DataClass
+    implements Insertable<ResidentMemoryRow> {
+  final String id;
+  final String residentId;
+
+  /// dm / comment / post / manual
+  final String source;
+  final String? sourceId;
+  final String summary;
+  final String content;
+
+  /// 逗号分隔：人物/地点/事件/偏好
+  final String tags;
+  final int createdAt;
+  final int updatedAt;
+  final int? archivedAt;
+  final int? deletedAt;
+  const ResidentMemoryRow({
+    required this.id,
+    required this.residentId,
+    required this.source,
+    this.sourceId,
+    required this.summary,
+    required this.content,
+    required this.tags,
+    required this.createdAt,
+    required this.updatedAt,
+    this.archivedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    map['summary'] = Variable<String>(summary);
+    map['content'] = Variable<String>(content);
+    map['tags'] = Variable<String>(tags);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<int>(archivedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  ResidentMemoriesCompanion toCompanion(bool nullToAbsent) {
+    return ResidentMemoriesCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      source: Value(source),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      summary: Value(summary),
+      content: Value(content),
+      tags: Value(tags),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory ResidentMemoryRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentMemoryRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      source: serializer.fromJson<String>(json['source']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      summary: serializer.fromJson<String>(json['summary']),
+      content: serializer.fromJson<String>(json['content']),
+      tags: serializer.fromJson<String>(json['tags']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      archivedAt: serializer.fromJson<int?>(json['archivedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'source': serializer.toJson<String>(source),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'summary': serializer.toJson<String>(summary),
+      'content': serializer.toJson<String>(content),
+      'tags': serializer.toJson<String>(tags),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'archivedAt': serializer.toJson<int?>(archivedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  ResidentMemoryRow copyWith({
+    String? id,
+    String? residentId,
+    String? source,
+    Value<String?> sourceId = const Value.absent(),
+    String? summary,
+    String? content,
+    String? tags,
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> archivedAt = const Value.absent(),
+    Value<int?> deletedAt = const Value.absent(),
+  }) => ResidentMemoryRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    source: source ?? this.source,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
+    summary: summary ?? this.summary,
+    content: content ?? this.content,
+    tags: tags ?? this.tags,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  ResidentMemoryRow copyWithCompanion(ResidentMemoriesCompanion data) {
+    return ResidentMemoryRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      source: data.source.present ? data.source.value : this.source,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      content: data.content.present ? data.content.value : this.content,
+      tags: data.tags.present ? data.tags.value : this.tags,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentMemoryRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('source: $source, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('summary: $summary, ')
+          ..write('content: $content, ')
+          ..write('tags: $tags, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    residentId,
+    source,
+    sourceId,
+    summary,
+    content,
+    tags,
+    createdAt,
+    updatedAt,
+    archivedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentMemoryRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.source == this.source &&
+          other.sourceId == this.sourceId &&
+          other.summary == this.summary &&
+          other.content == this.content &&
+          other.tags == this.tags &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.archivedAt == this.archivedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class ResidentMemoriesCompanion extends UpdateCompanion<ResidentMemoryRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<String> source;
+  final Value<String?> sourceId;
+  final Value<String> summary;
+  final Value<String> content;
+  final Value<String> tags;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> archivedAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const ResidentMemoriesCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.content = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResidentMemoriesCompanion.insert({
+    required String id,
+    required String residentId,
+    this.source = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.content = const Value.absent(),
+    this.tags = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.archivedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<ResidentMemoryRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<String>? source,
+    Expression<String>? sourceId,
+    Expression<String>? summary,
+    Expression<String>? content,
+    Expression<String>? tags,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? archivedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (source != null) 'source': source,
+      if (sourceId != null) 'source_id': sourceId,
+      if (summary != null) 'summary': summary,
+      if (content != null) 'content': content,
+      if (tags != null) 'tags': tags,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResidentMemoriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<String>? source,
+    Value<String?>? sourceId,
+    Value<String>? summary,
+    Value<String>? content,
+    Value<String>? tags,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? archivedAt,
+    Value<int?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return ResidentMemoriesCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      source: source ?? this.source,
+      sourceId: sourceId ?? this.sourceId,
+      summary: summary ?? this.summary,
+      content: content ?? this.content,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      archivedAt: archivedAt ?? this.archivedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<int>(archivedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentMemoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('source: $source, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('summary: $summary, ')
+          ..write('content: $content, ')
+          ..write('tags: $tags, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -12791,6 +17526,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ValueClarificationsTable(this);
   late final $RealActionsTable realActions = $RealActionsTable(this);
   late final $AddictionLogsTable addictionLogs = $AddictionLogsTable(this);
+  late final $CustomResidentsTable customResidents = $CustomResidentsTable(
+    this,
+  );
+  late final $PostVoicesTable postVoices = $PostVoicesTable(this);
+  late final $AiThreadsTable aiThreads = $AiThreadsTable(this);
+  late final $PostViewsTable postViews = $PostViewsTable(this);
+  late final $PostUnderstandingsTable postUnderstandings =
+      $PostUnderstandingsTable(this);
+  late final $ResidentMemoriesTable residentMemories = $ResidentMemoriesTable(
+    this,
+  );
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -12827,6 +17573,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'real_actions_created',
     'CREATE INDEX real_actions_created ON real_actions (created_at)',
   );
+  late final Index postVoicesByPost = Index(
+    'post_voices_by_post',
+    'CREATE INDEX post_voices_by_post ON post_voices (post_id, created_at)',
+  );
+  late final Index aiThreadsByPost = Index(
+    'ai_threads_by_post',
+    'CREATE INDEX ai_threads_by_post ON ai_threads (post_id, voice_id)',
+  );
+  late final Index postViewsByPost = Index(
+    'post_views_by_post',
+    'CREATE INDEX post_views_by_post ON post_views (post_id, last_viewed_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -12854,6 +17612,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     valueClarifications,
     realActions,
     addictionLogs,
+    customResidents,
+    postVoices,
+    aiThreads,
+    postViews,
+    postUnderstandings,
+    residentMemories,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
@@ -12863,6 +17627,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     notificationLogsDelivered,
     planEventsDue,
     realActionsCreated,
+    postVoicesByPost,
+    aiThreadsByPost,
+    postViewsByPost,
   ];
 }
 
@@ -13395,24 +18162,6 @@ final class $$AiPersonasTableReferences
     );
   }
 
-  static MultiTypedResultKey<$AiInteractionsTable, List<AiInteractionRow>>
-  _aiInteractionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.aiInteractions,
-    aliasName: 'ai_personas__id__ai_interactions__persona_id',
-  );
-
-  $$AiInteractionsTableProcessedTableManager get aiInteractionsRefs {
-    final manager = $$AiInteractionsTableTableManager(
-      $_db,
-      $_db.aiInteractions,
-    ).filter((f) => f.personaId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_aiInteractionsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
   static MultiTypedResultKey<$AiRelationshipsTable, List<AiRelationshipRow>>
   _aiRelationshipsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.aiRelationships,
@@ -13609,31 +18358,6 @@ class $$AiPersonasTableFilterComposer
           }) => $$PostsTableFilterComposer(
             $db: $db,
             $table: $db.posts,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> aiInteractionsRefs(
-    Expression<bool> Function($$AiInteractionsTableFilterComposer f) f,
-  ) {
-    final $$AiInteractionsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.aiInteractions,
-      getReferencedColumn: (t) => t.personaId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiInteractionsTableFilterComposer(
-            $db: $db,
-            $table: $db.aiInteractions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13957,31 +18681,6 @@ class $$AiPersonasTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> aiInteractionsRefs<T extends Object>(
-    Expression<T> Function($$AiInteractionsTableAnnotationComposer a) f,
-  ) {
-    final $$AiInteractionsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.aiInteractions,
-      getReferencedColumn: (t) => t.personaId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiInteractionsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.aiInteractions,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<T> aiRelationshipsRefs<T extends Object>(
     Expression<T> Function($$AiRelationshipsTableAnnotationComposer a) f,
   ) {
@@ -14073,7 +18772,6 @@ class $$AiPersonasTableTableManager
           AiPersonaRow,
           PrefetchHooks Function({
             bool postsRefs,
-            bool aiInteractionsRefs,
             bool aiRelationshipsRefs,
             bool personaRoutinesRefs,
             bool privateMessagesRefs,
@@ -14201,7 +18899,6 @@ class $$AiPersonasTableTableManager
           prefetchHooksCallback:
               ({
                 postsRefs = false,
-                aiInteractionsRefs = false,
                 aiRelationshipsRefs = false,
                 personaRoutinesRefs = false,
                 privateMessagesRefs = false,
@@ -14210,7 +18907,6 @@ class $$AiPersonasTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (postsRefs) db.posts,
-                    if (aiInteractionsRefs) db.aiInteractions,
                     if (aiRelationshipsRefs) db.aiRelationships,
                     if (personaRoutinesRefs) db.personaRoutines,
                     if (privateMessagesRefs) db.privateMessages,
@@ -14236,27 +18932,6 @@ class $$AiPersonasTableTableManager
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.authorPersonaId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (aiInteractionsRefs)
-                        await $_getPrefetchedData<
-                          AiPersonaRow,
-                          $AiPersonasTable,
-                          AiInteractionRow
-                        >(
-                          currentTable: table,
-                          referencedTable: $$AiPersonasTableReferences
-                              ._aiInteractionsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$AiPersonasTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).aiInteractionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.personaId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -14345,7 +19020,6 @@ typedef $$AiPersonasTableProcessedTableManager =
       AiPersonaRow,
       PrefetchHooks Function({
         bool postsRefs,
-        bool aiInteractionsRefs,
         bool aiRelationshipsRefs,
         bool personaRoutinesRefs,
         bool privateMessagesRefs,
@@ -14486,6 +19160,84 @@ final class $$PostsTableReferences
     ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_planEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PostVoicesTable, List<PostVoiceRow>>
+  _postVoicesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.postVoices,
+    aliasName: 'posts__id__post_voices__post_id',
+  );
+
+  $$PostVoicesTableProcessedTableManager get postVoicesRefs {
+    final manager = $$PostVoicesTableTableManager(
+      $_db,
+      $_db.postVoices,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_postVoicesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AiThreadsTable, List<AiThreadRow>>
+  _aiThreadsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.aiThreads,
+    aliasName: 'posts__id__ai_threads__post_id',
+  );
+
+  $$AiThreadsTableProcessedTableManager get aiThreadsRefs {
+    final manager = $$AiThreadsTableTableManager(
+      $_db,
+      $_db.aiThreads,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_aiThreadsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PostViewsTable, List<PostViewRow>>
+  _postViewsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.postViews,
+    aliasName: 'posts__id__post_views__post_id',
+  );
+
+  $$PostViewsTableProcessedTableManager get postViewsRefs {
+    final manager = $$PostViewsTableTableManager(
+      $_db,
+      $_db.postViews,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_postViewsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $PostUnderstandingsTable,
+    List<PostUnderstandingRow>
+  >
+  _postUnderstandingsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.postUnderstandings,
+        aliasName: 'posts__id__post_understandings__post_id',
+      );
+
+  $$PostUnderstandingsTableProcessedTableManager get postUnderstandingsRefs {
+    final manager = $$PostUnderstandingsTableTableManager(
+      $_db,
+      $_db.postUnderstandings,
+    ).filter((f) => f.postId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _postUnderstandingsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -14704,6 +19456,106 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
           }) => $$PlanEventsTableFilterComposer(
             $db: $db,
             $table: $db.planEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> postVoicesRefs(
+    Expression<bool> Function($$PostVoicesTableFilterComposer f) f,
+  ) {
+    final $$PostVoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> aiThreadsRefs(
+    Expression<bool> Function($$AiThreadsTableFilterComposer f) f,
+  ) {
+    final $$AiThreadsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiThreads,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiThreadsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiThreads,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> postViewsRefs(
+    Expression<bool> Function($$PostViewsTableFilterComposer f) f,
+  ) {
+    final $$PostViewsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postViews,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostViewsTableFilterComposer(
+            $db: $db,
+            $table: $db.postViews,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> postUnderstandingsRefs(
+    Expression<bool> Function($$PostUnderstandingsTableFilterComposer f) f,
+  ) {
+    final $$PostUnderstandingsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postUnderstandings,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostUnderstandingsTableFilterComposer(
+            $db: $db,
+            $table: $db.postUnderstandings,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15032,6 +19884,107 @@ class $$PostsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> postVoicesRefs<T extends Object>(
+    Expression<T> Function($$PostVoicesTableAnnotationComposer a) f,
+  ) {
+    final $$PostVoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> aiThreadsRefs<T extends Object>(
+    Expression<T> Function($$AiThreadsTableAnnotationComposer a) f,
+  ) {
+    final $$AiThreadsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiThreads,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiThreadsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiThreads,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> postViewsRefs<T extends Object>(
+    Expression<T> Function($$PostViewsTableAnnotationComposer a) f,
+  ) {
+    final $$PostViewsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postViews,
+      getReferencedColumn: (t) => t.postId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostViewsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postViews,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> postUnderstandingsRefs<T extends Object>(
+    Expression<T> Function($$PostUnderstandingsTableAnnotationComposer a) f,
+  ) {
+    final $$PostUnderstandingsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.postUnderstandings,
+          getReferencedColumn: (t) => t.postId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PostUnderstandingsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.postUnderstandings,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$PostsTableTableManager
@@ -15053,6 +20006,10 @@ class $$PostsTableTableManager
             bool userCommentsRefs,
             bool analysisResultsRefs,
             bool planEventsRefs,
+            bool postVoicesRefs,
+            bool aiThreadsRefs,
+            bool postViewsRefs,
+            bool postUnderstandingsRefs,
           })
         > {
   $$PostsTableTableManager(_$AppDatabase db, $PostsTable table)
@@ -15169,6 +20126,10 @@ class $$PostsTableTableManager
                 userCommentsRefs = false,
                 analysisResultsRefs = false,
                 planEventsRefs = false,
+                postVoicesRefs = false,
+                aiThreadsRefs = false,
+                postViewsRefs = false,
+                postUnderstandingsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -15177,6 +20138,10 @@ class $$PostsTableTableManager
                     if (userCommentsRefs) db.userComments,
                     if (analysisResultsRefs) db.analysisResults,
                     if (planEventsRefs) db.planEvents,
+                    if (postVoicesRefs) db.postVoices,
+                    if (aiThreadsRefs) db.aiThreads,
+                    if (postViewsRefs) db.postViews,
+                    if (postUnderstandingsRefs) db.postUnderstandings,
                   ],
                   addJoins:
                       <
@@ -15294,6 +20259,90 @@ class $$PostsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (postVoicesRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          PostVoiceRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._postVoicesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postVoicesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (aiThreadsRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          AiThreadRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._aiThreadsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiThreadsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (postViewsRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          PostViewRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._postViewsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postViewsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (postUnderstandingsRefs)
+                        await $_getPrefetchedData<
+                          PostRow,
+                          $PostsTable,
+                          PostUnderstandingRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostsTableReferences
+                              ._postUnderstandingsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postUnderstandingsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.postId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -15320,6 +20369,10 @@ typedef $$PostsTableProcessedTableManager =
         bool userCommentsRefs,
         bool analysisResultsRefs,
         bool planEventsRefs,
+        bool postVoicesRefs,
+        bool aiThreadsRefs,
+        bool postViewsRefs,
+        bool postUnderstandingsRefs,
       })
     >;
 typedef $$AiInteractionsTableCreateCompanionBuilder =
@@ -15336,6 +20389,7 @@ typedef $$AiInteractionsTableCreateCompanionBuilder =
       required int scheduledAt,
       Value<int?> executedAt,
       Value<String> status,
+      Value<String> source,
       Value<bool> isAi,
       Value<String> scope,
       Value<String?> parentId,
@@ -15357,6 +20411,7 @@ typedef $$AiInteractionsTableUpdateCompanionBuilder =
       Value<int> scheduledAt,
       Value<int?> executedAt,
       Value<String> status,
+      Value<String> source,
       Value<bool> isAi,
       Value<String> scope,
       Value<String?> parentId,
@@ -15390,23 +20445,6 @@ final class $$AiInteractionsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
-
-  static $AiPersonasTable _personaIdTable(_$AppDatabase db) =>
-      db.aiPersonas.createAlias('ai_interactions__persona_id__ai_personas__id');
-
-  $$AiPersonasTableProcessedTableManager get personaId {
-    final $_column = $_itemColumn<String>('persona_id')!;
-
-    final manager = $$AiPersonasTableTableManager(
-      $_db,
-      $_db.aiPersonas,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_personaIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
 }
 
 class $$AiInteractionsTableFilterComposer
@@ -15420,6 +20458,11 @@ class $$AiInteractionsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get personaId => $composableBuilder(
+    column: $table.personaId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15465,6 +20508,11 @@ class $$AiInteractionsTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15515,29 +20563,6 @@ class $$AiInteractionsTableFilterComposer
     );
     return composer;
   }
-
-  $$AiPersonasTableFilterComposer get personaId {
-    final $$AiPersonasTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.personaId,
-      referencedTable: $db.aiPersonas,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiPersonasTableFilterComposer(
-            $db: $db,
-            $table: $db.aiPersonas,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$AiInteractionsTableOrderingComposer
@@ -15551,6 +20576,11 @@ class $$AiInteractionsTableOrderingComposer
   });
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get personaId => $composableBuilder(
+    column: $table.personaId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -15596,6 +20626,11 @@ class $$AiInteractionsTableOrderingComposer
 
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -15646,29 +20681,6 @@ class $$AiInteractionsTableOrderingComposer
     );
     return composer;
   }
-
-  $$AiPersonasTableOrderingComposer get personaId {
-    final $$AiPersonasTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.personaId,
-      referencedTable: $db.aiPersonas,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiPersonasTableOrderingComposer(
-            $db: $db,
-            $table: $db.aiPersonas,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$AiInteractionsTableAnnotationComposer
@@ -15682,6 +20694,9 @@ class $$AiInteractionsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get personaId =>
+      $composableBuilder(column: $table.personaId, builder: (column) => column);
 
   GeneratedColumn<String> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -15717,6 +20732,9 @@ class $$AiInteractionsTableAnnotationComposer
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 
   GeneratedColumn<bool> get isAi =>
       $composableBuilder(column: $table.isAi, builder: (column) => column);
@@ -15755,29 +20773,6 @@ class $$AiInteractionsTableAnnotationComposer
     );
     return composer;
   }
-
-  $$AiPersonasTableAnnotationComposer get personaId {
-    final $$AiPersonasTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.personaId,
-      referencedTable: $db.aiPersonas,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AiPersonasTableAnnotationComposer(
-            $db: $db,
-            $table: $db.aiPersonas,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$AiInteractionsTableTableManager
@@ -15793,7 +20788,7 @@ class $$AiInteractionsTableTableManager
           $$AiInteractionsTableUpdateCompanionBuilder,
           (AiInteractionRow, $$AiInteractionsTableReferences),
           AiInteractionRow,
-          PrefetchHooks Function({bool postId, bool personaId})
+          PrefetchHooks Function({bool postId})
         > {
   $$AiInteractionsTableTableManager(
     _$AppDatabase db,
@@ -15822,6 +20817,7 @@ class $$AiInteractionsTableTableManager
                 Value<int> scheduledAt = const Value.absent(),
                 Value<int?> executedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<bool> isAi = const Value.absent(),
                 Value<String> scope = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -15841,6 +20837,7 @@ class $$AiInteractionsTableTableManager
                 scheduledAt: scheduledAt,
                 executedAt: executedAt,
                 status: status,
+                source: source,
                 isAi: isAi,
                 scope: scope,
                 parentId: parentId,
@@ -15862,6 +20859,7 @@ class $$AiInteractionsTableTableManager
                 required int scheduledAt,
                 Value<int?> executedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<bool> isAi = const Value.absent(),
                 Value<String> scope = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -15881,6 +20879,7 @@ class $$AiInteractionsTableTableManager
                 scheduledAt: scheduledAt,
                 executedAt: executedAt,
                 status: status,
+                source: source,
                 isAi: isAi,
                 scope: scope,
                 parentId: parentId,
@@ -15896,7 +20895,7 @@ class $$AiInteractionsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({postId = false, personaId = false}) {
+          prefetchHooksCallback: ({postId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -15927,17 +20926,6 @@ class $$AiInteractionsTableTableManager
                             .id,
                       ) as T;
                     }
-                    if (personaId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.personaId,
-                        referencedTable: $$AiInteractionsTableReferences
-                            ._personaIdTable(db),
-                        referencedColumn: $$AiInteractionsTableReferences
-                            ._personaIdTable(db)
-                            .id,
-                      ) as T;
-                    }
 
                     return state;
                   },
@@ -15962,7 +20950,7 @@ typedef $$AiInteractionsTableProcessedTableManager =
       $$AiInteractionsTableUpdateCompanionBuilder,
       (AiInteractionRow, $$AiInteractionsTableReferences),
       AiInteractionRow,
-      PrefetchHooks Function({bool postId, bool personaId})
+      PrefetchHooks Function({bool postId})
     >;
 typedef $$AiRelationshipsTableCreateCompanionBuilder =
     AiRelationshipsCompanion Function({
@@ -17496,12 +22484,16 @@ typedef $$UserCommentsTableProcessedTableManager =
 typedef $$CommentLikesTableCreateCompanionBuilder =
     CommentLikesCompanion Function({
       required String commentId,
+      Value<String> actorKind,
+      Value<String> actorId,
       required int createdAt,
       Value<int> rowid,
     });
 typedef $$CommentLikesTableUpdateCompanionBuilder =
     CommentLikesCompanion Function({
       Value<String> commentId,
+      Value<String> actorKind,
+      Value<String> actorId,
       Value<int> createdAt,
       Value<int> rowid,
     });
@@ -17517,6 +22509,16 @@ class $$CommentLikesTableFilterComposer
   });
   ColumnFilters<String> get commentId => $composableBuilder(
     column: $table.commentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actorKind => $composableBuilder(
+    column: $table.actorKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actorId => $composableBuilder(
+    column: $table.actorId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17540,6 +22542,16 @@ class $$CommentLikesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get actorKind => $composableBuilder(
+    column: $table.actorKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actorId => $composableBuilder(
+    column: $table.actorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -17557,6 +22569,12 @@ class $$CommentLikesTableAnnotationComposer
   });
   GeneratedColumn<String> get commentId =>
       $composableBuilder(column: $table.commentId, builder: (column) => column);
+
+  GeneratedColumn<String> get actorKind =>
+      $composableBuilder(column: $table.actorKind, builder: (column) => column);
+
+  GeneratedColumn<String> get actorId =>
+      $composableBuilder(column: $table.actorId, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -17594,20 +22612,28 @@ class $$CommentLikesTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> commentId = const Value.absent(),
+                Value<String> actorKind = const Value.absent(),
+                Value<String> actorId = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CommentLikesCompanion(
                 commentId: commentId,
+                actorKind: actorKind,
+                actorId: actorId,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String commentId,
+                Value<String> actorKind = const Value.absent(),
+                Value<String> actorId = const Value.absent(),
                 required int createdAt,
                 Value<int> rowid = const Value.absent(),
               }) => CommentLikesCompanion.insert(
                 commentId: commentId,
+                actorKind: actorKind,
+                actorId: actorId,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
@@ -21226,6 +26252,3421 @@ typedef $$AddictionLogsTableProcessedTableManager =
       AddictionLogRow,
       PrefetchHooks Function()
     >;
+typedef $$CustomResidentsTableCreateCompanionBuilder =
+    CustomResidentsCompanion Function({
+      required String id,
+      required String name,
+      Value<String> avatarAsset,
+      Value<String> bio,
+      Value<String> description,
+      Value<String> personality,
+      Value<String> scenario,
+      Value<String> languageStyle,
+      Value<String> tone,
+      Value<String> firstMessage,
+      Value<String> exampleDialogue,
+      Value<String> extraInstructions,
+      Value<String> tags,
+      Value<String> activeHours,
+      Value<bool> memoryEnabled,
+      Value<int?> memoryLimit,
+      Value<bool> alwaysShow,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$CustomResidentsTableUpdateCompanionBuilder =
+    CustomResidentsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> avatarAsset,
+      Value<String> bio,
+      Value<String> description,
+      Value<String> personality,
+      Value<String> scenario,
+      Value<String> languageStyle,
+      Value<String> tone,
+      Value<String> firstMessage,
+      Value<String> exampleDialogue,
+      Value<String> extraInstructions,
+      Value<String> tags,
+      Value<String> activeHours,
+      Value<bool> memoryEnabled,
+      Value<int?> memoryLimit,
+      Value<bool> alwaysShow,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$CustomResidentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CustomResidentsTable,
+          CustomResidentRow
+        > {
+  $$CustomResidentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$PostVoicesTable, List<PostVoiceRow>>
+  _postVoicesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.postVoices,
+    aliasName: 'custom_residents__id__post_voices__resident_id',
+  );
+
+  $$PostVoicesTableProcessedTableManager get postVoicesRefs {
+    final manager = $$PostVoicesTableTableManager(
+      $_db,
+      $_db.postVoices,
+    ).filter((f) => f.residentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_postVoicesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ResidentMemoriesTable, List<ResidentMemoryRow>>
+  _residentMemoriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.residentMemories,
+    aliasName: 'custom_residents__id__resident_memories__resident_id',
+  );
+
+  $$ResidentMemoriesTableProcessedTableManager get residentMemoriesRefs {
+    final manager = $$ResidentMemoriesTableTableManager(
+      $_db,
+      $_db.residentMemories,
+    ).filter((f) => f.residentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _residentMemoriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$CustomResidentsTableFilterComposer
+    extends Composer<_$AppDatabase, $CustomResidentsTable> {
+  $$CustomResidentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get personality => $composableBuilder(
+    column: $table.personality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scenario => $composableBuilder(
+    column: $table.scenario,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get firstMessage => $composableBuilder(
+    column: $table.firstMessage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get exampleDialogue => $composableBuilder(
+    column: $table.exampleDialogue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get extraInstructions => $composableBuilder(
+    column: $table.extraInstructions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> postVoicesRefs(
+    Expression<bool> Function($$PostVoicesTableFilterComposer f) f,
+  ) {
+    final $$PostVoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.residentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> residentMemoriesRefs(
+    Expression<bool> Function($$ResidentMemoriesTableFilterComposer f) f,
+  ) {
+    final $$ResidentMemoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.residentMemories,
+      getReferencedColumn: (t) => t.residentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ResidentMemoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.residentMemories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CustomResidentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CustomResidentsTable> {
+  $$CustomResidentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get personality => $composableBuilder(
+    column: $table.personality,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scenario => $composableBuilder(
+    column: $table.scenario,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get firstMessage => $composableBuilder(
+    column: $table.firstMessage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get exampleDialogue => $composableBuilder(
+    column: $table.exampleDialogue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get extraInstructions => $composableBuilder(
+    column: $table.extraInstructions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CustomResidentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CustomResidentsTable> {
+  $$CustomResidentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bio =>
+      $composableBuilder(column: $table.bio, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get personality => $composableBuilder(
+    column: $table.personality,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scenario =>
+      $composableBuilder(column: $table.scenario, builder: (column) => column);
+
+  GeneratedColumn<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tone =>
+      $composableBuilder(column: $table.tone, builder: (column) => column);
+
+  GeneratedColumn<String> get firstMessage => $composableBuilder(
+    column: $table.firstMessage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get exampleDialogue => $composableBuilder(
+    column: $table.exampleDialogue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get extraInstructions => $composableBuilder(
+    column: $table.extraInstructions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<String> get activeHours => $composableBuilder(
+    column: $table.activeHours,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  Expression<T> postVoicesRefs<T extends Object>(
+    Expression<T> Function($$PostVoicesTableAnnotationComposer a) f,
+  ) {
+    final $$PostVoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.residentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> residentMemoriesRefs<T extends Object>(
+    Expression<T> Function($$ResidentMemoriesTableAnnotationComposer a) f,
+  ) {
+    final $$ResidentMemoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.residentMemories,
+      getReferencedColumn: (t) => t.residentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ResidentMemoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.residentMemories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CustomResidentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CustomResidentsTable,
+          CustomResidentRow,
+          $$CustomResidentsTableFilterComposer,
+          $$CustomResidentsTableOrderingComposer,
+          $$CustomResidentsTableAnnotationComposer,
+          $$CustomResidentsTableCreateCompanionBuilder,
+          $$CustomResidentsTableUpdateCompanionBuilder,
+          (CustomResidentRow, $$CustomResidentsTableReferences),
+          CustomResidentRow,
+          PrefetchHooks Function({
+            bool postVoicesRefs,
+            bool residentMemoriesRefs,
+          })
+        > {
+  $$CustomResidentsTableTableManager(
+    _$AppDatabase db,
+    $CustomResidentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CustomResidentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CustomResidentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CustomResidentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> avatarAsset = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> personality = const Value.absent(),
+                Value<String> scenario = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> firstMessage = const Value.absent(),
+                Value<String> exampleDialogue = const Value.absent(),
+                Value<String> extraInstructions = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<String> activeHours = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int?> memoryLimit = const Value.absent(),
+                Value<bool> alwaysShow = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CustomResidentsCompanion(
+                id: id,
+                name: name,
+                avatarAsset: avatarAsset,
+                bio: bio,
+                description: description,
+                personality: personality,
+                scenario: scenario,
+                languageStyle: languageStyle,
+                tone: tone,
+                firstMessage: firstMessage,
+                exampleDialogue: exampleDialogue,
+                extraInstructions: extraInstructions,
+                tags: tags,
+                activeHours: activeHours,
+                memoryEnabled: memoryEnabled,
+                memoryLimit: memoryLimit,
+                alwaysShow: alwaysShow,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> avatarAsset = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> personality = const Value.absent(),
+                Value<String> scenario = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> firstMessage = const Value.absent(),
+                Value<String> exampleDialogue = const Value.absent(),
+                Value<String> extraInstructions = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<String> activeHours = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int?> memoryLimit = const Value.absent(),
+                Value<bool> alwaysShow = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CustomResidentsCompanion.insert(
+                id: id,
+                name: name,
+                avatarAsset: avatarAsset,
+                bio: bio,
+                description: description,
+                personality: personality,
+                scenario: scenario,
+                languageStyle: languageStyle,
+                tone: tone,
+                firstMessage: firstMessage,
+                exampleDialogue: exampleDialogue,
+                extraInstructions: extraInstructions,
+                tags: tags,
+                activeHours: activeHours,
+                memoryEnabled: memoryEnabled,
+                memoryLimit: memoryLimit,
+                alwaysShow: alwaysShow,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CustomResidentsTable, CustomResidentRow>(table),
+                  $$CustomResidentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({postVoicesRefs = false, residentMemoriesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (postVoicesRefs) db.postVoices,
+                    if (residentMemoriesRefs) db.residentMemories,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (postVoicesRefs)
+                        await $_getPrefetchedData<
+                          CustomResidentRow,
+                          $CustomResidentsTable,
+                          PostVoiceRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CustomResidentsTableReferences
+                              ._postVoicesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CustomResidentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postVoicesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.residentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (residentMemoriesRefs)
+                        await $_getPrefetchedData<
+                          CustomResidentRow,
+                          $CustomResidentsTable,
+                          ResidentMemoryRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CustomResidentsTableReferences
+                              ._residentMemoriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CustomResidentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).residentMemoriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.residentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$CustomResidentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CustomResidentsTable,
+      CustomResidentRow,
+      $$CustomResidentsTableFilterComposer,
+      $$CustomResidentsTableOrderingComposer,
+      $$CustomResidentsTableAnnotationComposer,
+      $$CustomResidentsTableCreateCompanionBuilder,
+      $$CustomResidentsTableUpdateCompanionBuilder,
+      (CustomResidentRow, $$CustomResidentsTableReferences),
+      CustomResidentRow,
+      PrefetchHooks Function({bool postVoicesRefs, bool residentMemoriesRefs})
+    >;
+typedef $$PostVoicesTableCreateCompanionBuilder = PostVoicesCompanion Function({
+  required String id,
+  required String postId,
+  Value<String> kind,
+  Value<String?> residentId,
+  required String name,
+  Value<String> avatarAsset,
+  Value<int> avatarSeed,
+  Value<String> bio,
+  Value<String> languageStyle,
+  Value<String> tone,
+  Value<String> model,
+  Value<bool> memoryEnabled,
+  Value<int?> memoryLimit,
+  Value<bool> alwaysShow,
+  required int createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$PostVoicesTableUpdateCompanionBuilder = PostVoicesCompanion Function({
+  Value<String> id,
+  Value<String> postId,
+  Value<String> kind,
+  Value<String?> residentId,
+  Value<String> name,
+  Value<String> avatarAsset,
+  Value<int> avatarSeed,
+  Value<String> bio,
+  Value<String> languageStyle,
+  Value<String> tone,
+  Value<String> model,
+  Value<bool> memoryEnabled,
+  Value<int?> memoryLimit,
+  Value<bool> alwaysShow,
+  Value<int> createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+final class $$PostVoicesTableReferences
+    extends BaseReferences<_$AppDatabase, $PostVoicesTable, PostVoiceRow> {
+  $$PostVoicesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('post_voices__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CustomResidentsTable _residentIdTable(_$AppDatabase db) => db
+      .customResidents
+      .createAlias('post_voices__resident_id__custom_residents__id');
+
+  $$CustomResidentsTableProcessedTableManager? get residentId {
+    final $_column = $_itemColumn<String>('resident_id');
+    if ($_column == null) return null;
+    final manager = $$CustomResidentsTableTableManager(
+      $_db,
+      $_db.customResidents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_residentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$AiThreadsTable, List<AiThreadRow>>
+  _aiThreadsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.aiThreads,
+    aliasName: 'post_voices__id__ai_threads__voice_id',
+  );
+
+  $$AiThreadsTableProcessedTableManager get aiThreadsRefs {
+    final manager = $$AiThreadsTableTableManager(
+      $_db,
+      $_db.aiThreads,
+    ).filter((f) => f.voiceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_aiThreadsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PostViewsTable, List<PostViewRow>>
+  _postViewsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.postViews,
+    aliasName: 'post_voices__id__post_views__voice_id',
+  );
+
+  $$PostViewsTableProcessedTableManager get postViewsRefs {
+    final manager = $$PostViewsTableTableManager(
+      $_db,
+      $_db.postViews,
+    ).filter((f) => f.voiceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_postViewsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PostVoicesTableFilterComposer
+    extends Composer<_$AppDatabase, $PostVoicesTable> {
+  $$PostVoicesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get avatarSeed => $composableBuilder(
+    column: $table.avatarSeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CustomResidentsTableFilterComposer get residentId {
+    final $$CustomResidentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableFilterComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> aiThreadsRefs(
+    Expression<bool> Function($$AiThreadsTableFilterComposer f) f,
+  ) {
+    final $$AiThreadsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiThreads,
+      getReferencedColumn: (t) => t.voiceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiThreadsTableFilterComposer(
+            $db: $db,
+            $table: $db.aiThreads,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> postViewsRefs(
+    Expression<bool> Function($$PostViewsTableFilterComposer f) f,
+  ) {
+    final $$PostViewsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postViews,
+      getReferencedColumn: (t) => t.voiceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostViewsTableFilterComposer(
+            $db: $db,
+            $table: $db.postViews,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PostVoicesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PostVoicesTable> {
+  $$PostVoicesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get avatarSeed => $composableBuilder(
+    column: $table.avatarSeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bio => $composableBuilder(
+    column: $table.bio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CustomResidentsTableOrderingComposer get residentId {
+    final $$CustomResidentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostVoicesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PostVoicesTable> {
+  $$PostVoicesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get avatarSeed => $composableBuilder(
+    column: $table.avatarSeed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bio =>
+      $composableBuilder(column: $table.bio, builder: (column) => column);
+
+  GeneratedColumn<String> get languageStyle => $composableBuilder(
+    column: $table.languageStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tone =>
+      $composableBuilder(column: $table.tone, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<bool> get memoryEnabled => $composableBuilder(
+    column: $table.memoryEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get memoryLimit => $composableBuilder(
+    column: $table.memoryLimit,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get alwaysShow => $composableBuilder(
+    column: $table.alwaysShow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CustomResidentsTableAnnotationComposer get residentId {
+    final $$CustomResidentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> aiThreadsRefs<T extends Object>(
+    Expression<T> Function($$AiThreadsTableAnnotationComposer a) f,
+  ) {
+    final $$AiThreadsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.aiThreads,
+      getReferencedColumn: (t) => t.voiceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AiThreadsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aiThreads,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> postViewsRefs<T extends Object>(
+    Expression<T> Function($$PostViewsTableAnnotationComposer a) f,
+  ) {
+    final $$PostViewsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.postViews,
+      getReferencedColumn: (t) => t.voiceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostViewsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postViews,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PostVoicesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PostVoicesTable,
+          PostVoiceRow,
+          $$PostVoicesTableFilterComposer,
+          $$PostVoicesTableOrderingComposer,
+          $$PostVoicesTableAnnotationComposer,
+          $$PostVoicesTableCreateCompanionBuilder,
+          $$PostVoicesTableUpdateCompanionBuilder,
+          (PostVoiceRow, $$PostVoicesTableReferences),
+          PostVoiceRow,
+          PrefetchHooks Function({
+            bool postId,
+            bool residentId,
+            bool aiThreadsRefs,
+            bool postViewsRefs,
+          })
+        > {
+  $$PostVoicesTableTableManager(_$AppDatabase db, $PostVoicesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PostVoicesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PostVoicesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PostVoicesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> postId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> residentId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> avatarAsset = const Value.absent(),
+                Value<int> avatarSeed = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int?> memoryLimit = const Value.absent(),
+                Value<bool> alwaysShow = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PostVoicesCompanion(
+                id: id,
+                postId: postId,
+                kind: kind,
+                residentId: residentId,
+                name: name,
+                avatarAsset: avatarAsset,
+                avatarSeed: avatarSeed,
+                bio: bio,
+                languageStyle: languageStyle,
+                tone: tone,
+                model: model,
+                memoryEnabled: memoryEnabled,
+                memoryLimit: memoryLimit,
+                alwaysShow: alwaysShow,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String postId,
+                Value<String> kind = const Value.absent(),
+                Value<String?> residentId = const Value.absent(),
+                required String name,
+                Value<String> avatarAsset = const Value.absent(),
+                Value<int> avatarSeed = const Value.absent(),
+                Value<String> bio = const Value.absent(),
+                Value<String> languageStyle = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<bool> memoryEnabled = const Value.absent(),
+                Value<int?> memoryLimit = const Value.absent(),
+                Value<bool> alwaysShow = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PostVoicesCompanion.insert(
+                id: id,
+                postId: postId,
+                kind: kind,
+                residentId: residentId,
+                name: name,
+                avatarAsset: avatarAsset,
+                avatarSeed: avatarSeed,
+                bio: bio,
+                languageStyle: languageStyle,
+                tone: tone,
+                model: model,
+                memoryEnabled: memoryEnabled,
+                memoryLimit: memoryLimit,
+                alwaysShow: alwaysShow,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PostVoicesTable, PostVoiceRow>(table),
+                  $$PostVoicesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                postId = false,
+                residentId = false,
+                aiThreadsRefs = false,
+                postViewsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (aiThreadsRefs) db.aiThreads,
+                    if (postViewsRefs) db.postViews,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (postId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.postId,
+                            referencedTable: $$PostVoicesTableReferences
+                                ._postIdTable(db),
+                            referencedColumn: $$PostVoicesTableReferences
+                                ._postIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (residentId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.residentId,
+                            referencedTable: $$PostVoicesTableReferences
+                                ._residentIdTable(db),
+                            referencedColumn: $$PostVoicesTableReferences
+                                ._residentIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (aiThreadsRefs)
+                        await $_getPrefetchedData<
+                          PostVoiceRow,
+                          $PostVoicesTable,
+                          AiThreadRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostVoicesTableReferences
+                              ._aiThreadsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostVoicesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).aiThreadsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.voiceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (postViewsRefs)
+                        await $_getPrefetchedData<
+                          PostVoiceRow,
+                          $PostVoicesTable,
+                          PostViewRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PostVoicesTableReferences
+                              ._postViewsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PostVoicesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postViewsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.voiceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PostVoicesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PostVoicesTable,
+      PostVoiceRow,
+      $$PostVoicesTableFilterComposer,
+      $$PostVoicesTableOrderingComposer,
+      $$PostVoicesTableAnnotationComposer,
+      $$PostVoicesTableCreateCompanionBuilder,
+      $$PostVoicesTableUpdateCompanionBuilder,
+      (PostVoiceRow, $$PostVoicesTableReferences),
+      PostVoiceRow,
+      PrefetchHooks Function({
+        bool postId,
+        bool residentId,
+        bool aiThreadsRefs,
+        bool postViewsRefs,
+      })
+    >;
+typedef $$AiThreadsTableCreateCompanionBuilder = AiThreadsCompanion Function({
+  required String id,
+  required String postId,
+  Value<String?> voiceId,
+  Value<String> provider,
+  Value<String> model,
+  Value<int> systemVersion,
+  Value<String> prefixHash,
+  Value<int> messageCount,
+  Value<int> tokenEstimate,
+  Value<int?> lastRequestAt,
+  Value<int> cacheReadTokens,
+  Value<int> cacheWriteTokens,
+  Value<int?> compactedAt,
+  Value<int> rowid,
+});
+typedef $$AiThreadsTableUpdateCompanionBuilder = AiThreadsCompanion Function({
+  Value<String> id,
+  Value<String> postId,
+  Value<String?> voiceId,
+  Value<String> provider,
+  Value<String> model,
+  Value<int> systemVersion,
+  Value<String> prefixHash,
+  Value<int> messageCount,
+  Value<int> tokenEstimate,
+  Value<int?> lastRequestAt,
+  Value<int> cacheReadTokens,
+  Value<int> cacheWriteTokens,
+  Value<int?> compactedAt,
+  Value<int> rowid,
+});
+
+final class $$AiThreadsTableReferences
+    extends BaseReferences<_$AppDatabase, $AiThreadsTable, AiThreadRow> {
+  $$AiThreadsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('ai_threads__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PostVoicesTable _voiceIdTable(_$AppDatabase db) =>
+      db.postVoices.createAlias('ai_threads__voice_id__post_voices__id');
+
+  $$PostVoicesTableProcessedTableManager? get voiceId {
+    final $_column = $_itemColumn<String>('voice_id');
+    if ($_column == null) return null;
+    final manager = $$PostVoicesTableTableManager(
+      $_db,
+      $_db.postVoices,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_voiceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AiThreadsTableFilterComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get systemVersion => $composableBuilder(
+    column: $table.systemVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get prefixHash => $composableBuilder(
+    column: $table.prefixHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get messageCount => $composableBuilder(
+    column: $table.messageCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tokenEstimate => $composableBuilder(
+    column: $table.tokenEstimate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastRequestAt => $composableBuilder(
+    column: $table.lastRequestAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cacheReadTokens => $composableBuilder(
+    column: $table.cacheReadTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableFilterComposer get voiceId {
+    final $$PostVoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiThreadsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get systemVersion => $composableBuilder(
+    column: $table.systemVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get prefixHash => $composableBuilder(
+    column: $table.prefixHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get messageCount => $composableBuilder(
+    column: $table.messageCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tokenEstimate => $composableBuilder(
+    column: $table.tokenEstimate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastRequestAt => $composableBuilder(
+    column: $table.lastRequestAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cacheReadTokens => $composableBuilder(
+    column: $table.cacheReadTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableOrderingComposer get voiceId {
+    final $$PostVoicesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableOrderingComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiThreadsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get systemVersion => $composableBuilder(
+    column: $table.systemVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get prefixHash => $composableBuilder(
+    column: $table.prefixHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get messageCount => $composableBuilder(
+    column: $table.messageCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get tokenEstimate => $composableBuilder(
+    column: $table.tokenEstimate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastRequestAt => $composableBuilder(
+    column: $table.lastRequestAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cacheReadTokens => $composableBuilder(
+    column: $table.cacheReadTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => column,
+  );
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableAnnotationComposer get voiceId {
+    final $$PostVoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AiThreadsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiThreadsTable,
+          AiThreadRow,
+          $$AiThreadsTableFilterComposer,
+          $$AiThreadsTableOrderingComposer,
+          $$AiThreadsTableAnnotationComposer,
+          $$AiThreadsTableCreateCompanionBuilder,
+          $$AiThreadsTableUpdateCompanionBuilder,
+          (AiThreadRow, $$AiThreadsTableReferences),
+          AiThreadRow,
+          PrefetchHooks Function({bool postId, bool voiceId})
+        > {
+  $$AiThreadsTableTableManager(_$AppDatabase db, $AiThreadsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiThreadsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiThreadsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiThreadsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> postId = const Value.absent(),
+                Value<String?> voiceId = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> systemVersion = const Value.absent(),
+                Value<String> prefixHash = const Value.absent(),
+                Value<int> messageCount = const Value.absent(),
+                Value<int> tokenEstimate = const Value.absent(),
+                Value<int?> lastRequestAt = const Value.absent(),
+                Value<int> cacheReadTokens = const Value.absent(),
+                Value<int> cacheWriteTokens = const Value.absent(),
+                Value<int?> compactedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiThreadsCompanion(
+                id: id,
+                postId: postId,
+                voiceId: voiceId,
+                provider: provider,
+                model: model,
+                systemVersion: systemVersion,
+                prefixHash: prefixHash,
+                messageCount: messageCount,
+                tokenEstimate: tokenEstimate,
+                lastRequestAt: lastRequestAt,
+                cacheReadTokens: cacheReadTokens,
+                cacheWriteTokens: cacheWriteTokens,
+                compactedAt: compactedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String postId,
+                Value<String?> voiceId = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> systemVersion = const Value.absent(),
+                Value<String> prefixHash = const Value.absent(),
+                Value<int> messageCount = const Value.absent(),
+                Value<int> tokenEstimate = const Value.absent(),
+                Value<int?> lastRequestAt = const Value.absent(),
+                Value<int> cacheReadTokens = const Value.absent(),
+                Value<int> cacheWriteTokens = const Value.absent(),
+                Value<int?> compactedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiThreadsCompanion.insert(
+                id: id,
+                postId: postId,
+                voiceId: voiceId,
+                provider: provider,
+                model: model,
+                systemVersion: systemVersion,
+                prefixHash: prefixHash,
+                messageCount: messageCount,
+                tokenEstimate: tokenEstimate,
+                lastRequestAt: lastRequestAt,
+                cacheReadTokens: cacheReadTokens,
+                cacheWriteTokens: cacheWriteTokens,
+                compactedAt: compactedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AiThreadsTable, AiThreadRow>(table),
+                  $$AiThreadsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({postId = false, voiceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (postId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.postId,
+                        referencedTable: $$AiThreadsTableReferences
+                            ._postIdTable(db),
+                        referencedColumn: $$AiThreadsTableReferences
+                            ._postIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+                    if (voiceId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.voiceId,
+                        referencedTable: $$AiThreadsTableReferences
+                            ._voiceIdTable(db),
+                        referencedColumn: $$AiThreadsTableReferences
+                            ._voiceIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AiThreadsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiThreadsTable,
+      AiThreadRow,
+      $$AiThreadsTableFilterComposer,
+      $$AiThreadsTableOrderingComposer,
+      $$AiThreadsTableAnnotationComposer,
+      $$AiThreadsTableCreateCompanionBuilder,
+      $$AiThreadsTableUpdateCompanionBuilder,
+      (AiThreadRow, $$AiThreadsTableReferences),
+      AiThreadRow,
+      PrefetchHooks Function({bool postId, bool voiceId})
+    >;
+typedef $$PostViewsTableCreateCompanionBuilder = PostViewsCompanion Function({
+  required String id,
+  required String postId,
+  required String voiceId,
+  required int firstViewedAt,
+  required int lastViewedAt,
+  Value<int> viewCount,
+  Value<int> rowid,
+});
+typedef $$PostViewsTableUpdateCompanionBuilder = PostViewsCompanion Function({
+  Value<String> id,
+  Value<String> postId,
+  Value<String> voiceId,
+  Value<int> firstViewedAt,
+  Value<int> lastViewedAt,
+  Value<int> viewCount,
+  Value<int> rowid,
+});
+
+final class $$PostViewsTableReferences
+    extends BaseReferences<_$AppDatabase, $PostViewsTable, PostViewRow> {
+  $$PostViewsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('post_views__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PostVoicesTable _voiceIdTable(_$AppDatabase db) =>
+      db.postVoices.createAlias('post_views__voice_id__post_voices__id');
+
+  $$PostVoicesTableProcessedTableManager get voiceId {
+    final $_column = $_itemColumn<String>('voice_id')!;
+
+    final manager = $$PostVoicesTableTableManager(
+      $_db,
+      $_db.postVoices,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_voiceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PostViewsTableFilterComposer
+    extends Composer<_$AppDatabase, $PostViewsTable> {
+  $$PostViewsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get firstViewedAt => $composableBuilder(
+    column: $table.firstViewedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastViewedAt => $composableBuilder(
+    column: $table.lastViewedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get viewCount => $composableBuilder(
+    column: $table.viewCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableFilterComposer get voiceId {
+    final $$PostVoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostViewsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PostViewsTable> {
+  $$PostViewsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get firstViewedAt => $composableBuilder(
+    column: $table.firstViewedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastViewedAt => $composableBuilder(
+    column: $table.lastViewedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get viewCount => $composableBuilder(
+    column: $table.viewCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableOrderingComposer get voiceId {
+    final $$PostVoicesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableOrderingComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostViewsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PostViewsTable> {
+  $$PostViewsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get firstViewedAt => $composableBuilder(
+    column: $table.firstViewedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastViewedAt => $composableBuilder(
+    column: $table.lastViewedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get viewCount =>
+      $composableBuilder(column: $table.viewCount, builder: (column) => column);
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PostVoicesTableAnnotationComposer get voiceId {
+    final $$PostVoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.postVoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostVoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.postVoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostViewsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PostViewsTable,
+          PostViewRow,
+          $$PostViewsTableFilterComposer,
+          $$PostViewsTableOrderingComposer,
+          $$PostViewsTableAnnotationComposer,
+          $$PostViewsTableCreateCompanionBuilder,
+          $$PostViewsTableUpdateCompanionBuilder,
+          (PostViewRow, $$PostViewsTableReferences),
+          PostViewRow,
+          PrefetchHooks Function({bool postId, bool voiceId})
+        > {
+  $$PostViewsTableTableManager(_$AppDatabase db, $PostViewsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PostViewsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PostViewsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PostViewsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> postId = const Value.absent(),
+                Value<String> voiceId = const Value.absent(),
+                Value<int> firstViewedAt = const Value.absent(),
+                Value<int> lastViewedAt = const Value.absent(),
+                Value<int> viewCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PostViewsCompanion(
+                id: id,
+                postId: postId,
+                voiceId: voiceId,
+                firstViewedAt: firstViewedAt,
+                lastViewedAt: lastViewedAt,
+                viewCount: viewCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String postId,
+                required String voiceId,
+                required int firstViewedAt,
+                required int lastViewedAt,
+                Value<int> viewCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PostViewsCompanion.insert(
+                id: id,
+                postId: postId,
+                voiceId: voiceId,
+                firstViewedAt: firstViewedAt,
+                lastViewedAt: lastViewedAt,
+                viewCount: viewCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PostViewsTable, PostViewRow>(table),
+                  $$PostViewsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({postId = false, voiceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (postId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.postId,
+                        referencedTable: $$PostViewsTableReferences
+                            ._postIdTable(db),
+                        referencedColumn: $$PostViewsTableReferences
+                            ._postIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+                    if (voiceId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.voiceId,
+                        referencedTable: $$PostViewsTableReferences
+                            ._voiceIdTable(db),
+                        referencedColumn: $$PostViewsTableReferences
+                            ._voiceIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PostViewsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PostViewsTable,
+      PostViewRow,
+      $$PostViewsTableFilterComposer,
+      $$PostViewsTableOrderingComposer,
+      $$PostViewsTableAnnotationComposer,
+      $$PostViewsTableCreateCompanionBuilder,
+      $$PostViewsTableUpdateCompanionBuilder,
+      (PostViewRow, $$PostViewsTableReferences),
+      PostViewRow,
+      PrefetchHooks Function({bool postId, bool voiceId})
+    >;
+typedef $$PostUnderstandingsTableCreateCompanionBuilder =
+    PostUnderstandingsCompanion Function({
+      required String postId,
+      Value<String> tone,
+      Value<String> domain,
+      Value<String> entities,
+      Value<String> point,
+      Value<String> jokeMechanism,
+      Value<String> emotion,
+      Value<String> insiderAngle,
+      Value<bool> needsWeb,
+      Value<double> confidence,
+      Value<String> model,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$PostUnderstandingsTableUpdateCompanionBuilder =
+    PostUnderstandingsCompanion Function({
+      Value<String> postId,
+      Value<String> tone,
+      Value<String> domain,
+      Value<String> entities,
+      Value<String> point,
+      Value<String> jokeMechanism,
+      Value<String> emotion,
+      Value<String> insiderAngle,
+      Value<bool> needsWeb,
+      Value<double> confidence,
+      Value<String> model,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$PostUnderstandingsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PostUnderstandingsTable,
+          PostUnderstandingRow
+        > {
+  $$PostUnderstandingsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PostsTable _postIdTable(_$AppDatabase db) =>
+      db.posts.createAlias('post_understandings__post_id__posts__id');
+
+  $$PostsTableProcessedTableManager get postId {
+    final $_column = $_itemColumn<String>('post_id')!;
+
+    final manager = $$PostsTableTableManager(
+      $_db,
+      $_db.posts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_postIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PostUnderstandingsTableFilterComposer
+    extends Composer<_$AppDatabase, $PostUnderstandingsTable> {
+  $$PostUnderstandingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entities => $composableBuilder(
+    column: $table.entities,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get point => $composableBuilder(
+    column: $table.point,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get jokeMechanism => $composableBuilder(
+    column: $table.jokeMechanism,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get emotion => $composableBuilder(
+    column: $table.emotion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get insiderAngle => $composableBuilder(
+    column: $table.insiderAngle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get needsWeb => $composableBuilder(
+    column: $table.needsWeb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PostsTableFilterComposer get postId {
+    final $$PostsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableFilterComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostUnderstandingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PostUnderstandingsTable> {
+  $$PostUnderstandingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get tone => $composableBuilder(
+    column: $table.tone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entities => $composableBuilder(
+    column: $table.entities,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get point => $composableBuilder(
+    column: $table.point,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get jokeMechanism => $composableBuilder(
+    column: $table.jokeMechanism,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get emotion => $composableBuilder(
+    column: $table.emotion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get insiderAngle => $composableBuilder(
+    column: $table.insiderAngle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get needsWeb => $composableBuilder(
+    column: $table.needsWeb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PostsTableOrderingComposer get postId {
+    final $$PostsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableOrderingComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostUnderstandingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PostUnderstandingsTable> {
+  $$PostUnderstandingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get tone =>
+      $composableBuilder(column: $table.tone, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get entities =>
+      $composableBuilder(column: $table.entities, builder: (column) => column);
+
+  GeneratedColumn<String> get point =>
+      $composableBuilder(column: $table.point, builder: (column) => column);
+
+  GeneratedColumn<String> get jokeMechanism => $composableBuilder(
+    column: $table.jokeMechanism,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get emotion =>
+      $composableBuilder(column: $table.emotion, builder: (column) => column);
+
+  GeneratedColumn<String> get insiderAngle => $composableBuilder(
+    column: $table.insiderAngle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get needsWeb =>
+      $composableBuilder(column: $table.needsWeb, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$PostsTableAnnotationComposer get postId {
+    final $$PostsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.postId,
+      referencedTable: $db.posts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PostsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PostUnderstandingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PostUnderstandingsTable,
+          PostUnderstandingRow,
+          $$PostUnderstandingsTableFilterComposer,
+          $$PostUnderstandingsTableOrderingComposer,
+          $$PostUnderstandingsTableAnnotationComposer,
+          $$PostUnderstandingsTableCreateCompanionBuilder,
+          $$PostUnderstandingsTableUpdateCompanionBuilder,
+          (PostUnderstandingRow, $$PostUnderstandingsTableReferences),
+          PostUnderstandingRow,
+          PrefetchHooks Function({bool postId})
+        > {
+  $$PostUnderstandingsTableTableManager(
+    _$AppDatabase db,
+    $PostUnderstandingsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PostUnderstandingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PostUnderstandingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PostUnderstandingsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> postId = const Value.absent(),
+                Value<String> tone = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<String> entities = const Value.absent(),
+                Value<String> point = const Value.absent(),
+                Value<String> jokeMechanism = const Value.absent(),
+                Value<String> emotion = const Value.absent(),
+                Value<String> insiderAngle = const Value.absent(),
+                Value<bool> needsWeb = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PostUnderstandingsCompanion(
+                postId: postId,
+                tone: tone,
+                domain: domain,
+                entities: entities,
+                point: point,
+                jokeMechanism: jokeMechanism,
+                emotion: emotion,
+                insiderAngle: insiderAngle,
+                needsWeb: needsWeb,
+                confidence: confidence,
+                model: model,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String postId,
+                Value<String> tone = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<String> entities = const Value.absent(),
+                Value<String> point = const Value.absent(),
+                Value<String> jokeMechanism = const Value.absent(),
+                Value<String> emotion = const Value.absent(),
+                Value<String> insiderAngle = const Value.absent(),
+                Value<bool> needsWeb = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PostUnderstandingsCompanion.insert(
+                postId: postId,
+                tone: tone,
+                domain: domain,
+                entities: entities,
+                point: point,
+                jokeMechanism: jokeMechanism,
+                emotion: emotion,
+                insiderAngle: insiderAngle,
+                needsWeb: needsWeb,
+                confidence: confidence,
+                model: model,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PostUnderstandingsTable, PostUnderstandingRow>(
+                    table,
+                  ),
+                  $$PostUnderstandingsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({postId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (postId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.postId,
+                        referencedTable: $$PostUnderstandingsTableReferences
+                            ._postIdTable(db),
+                        referencedColumn: $$PostUnderstandingsTableReferences
+                            ._postIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PostUnderstandingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PostUnderstandingsTable,
+      PostUnderstandingRow,
+      $$PostUnderstandingsTableFilterComposer,
+      $$PostUnderstandingsTableOrderingComposer,
+      $$PostUnderstandingsTableAnnotationComposer,
+      $$PostUnderstandingsTableCreateCompanionBuilder,
+      $$PostUnderstandingsTableUpdateCompanionBuilder,
+      (PostUnderstandingRow, $$PostUnderstandingsTableReferences),
+      PostUnderstandingRow,
+      PrefetchHooks Function({bool postId})
+    >;
+typedef $$ResidentMemoriesTableCreateCompanionBuilder =
+    ResidentMemoriesCompanion Function({
+      required String id,
+      required String residentId,
+      Value<String> source,
+      Value<String?> sourceId,
+      Value<String> summary,
+      Value<String> content,
+      Value<String> tags,
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> archivedAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$ResidentMemoriesTableUpdateCompanionBuilder =
+    ResidentMemoriesCompanion Function({
+      Value<String> id,
+      Value<String> residentId,
+      Value<String> source,
+      Value<String?> sourceId,
+      Value<String> summary,
+      Value<String> content,
+      Value<String> tags,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> archivedAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$ResidentMemoriesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ResidentMemoriesTable,
+          ResidentMemoryRow
+        > {
+  $$ResidentMemoriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CustomResidentsTable _residentIdTable(_$AppDatabase db) => db
+      .customResidents
+      .createAlias('resident_memories__resident_id__custom_residents__id');
+
+  $$CustomResidentsTableProcessedTableManager get residentId {
+    final $_column = $_itemColumn<String>('resident_id')!;
+
+    final manager = $$CustomResidentsTableTableManager(
+      $_db,
+      $_db.customResidents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_residentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ResidentMemoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentMemoriesTable> {
+  $$ResidentMemoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CustomResidentsTableFilterComposer get residentId {
+    final $$CustomResidentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableFilterComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResidentMemoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentMemoriesTable> {
+  $$ResidentMemoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CustomResidentsTableOrderingComposer get residentId {
+    final $$CustomResidentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResidentMemoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentMemoriesTable> {
+  $$ResidentMemoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CustomResidentsTableAnnotationComposer get residentId {
+    final $$CustomResidentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.residentId,
+      referencedTable: $db.customResidents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CustomResidentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.customResidents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResidentMemoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentMemoriesTable,
+          ResidentMemoryRow,
+          $$ResidentMemoriesTableFilterComposer,
+          $$ResidentMemoriesTableOrderingComposer,
+          $$ResidentMemoriesTableAnnotationComposer,
+          $$ResidentMemoriesTableCreateCompanionBuilder,
+          $$ResidentMemoriesTableUpdateCompanionBuilder,
+          (ResidentMemoryRow, $$ResidentMemoriesTableReferences),
+          ResidentMemoryRow,
+          PrefetchHooks Function({bool residentId})
+        > {
+  $$ResidentMemoriesTableTableManager(
+    _$AppDatabase db,
+    $ResidentMemoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentMemoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResidentMemoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ResidentMemoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> archivedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentMemoriesCompanion(
+                id: id,
+                residentId: residentId,
+                source: source,
+                sourceId: sourceId,
+                summary: summary,
+                content: content,
+                tags: tags,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                archivedAt: archivedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                Value<String> source = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> archivedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentMemoriesCompanion.insert(
+                id: id,
+                residentId: residentId,
+                source: source,
+                sourceId: sourceId,
+                summary: summary,
+                content: content,
+                tags: tags,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                archivedAt: archivedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ResidentMemoriesTable, ResidentMemoryRow>(table),
+                  $$ResidentMemoriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({residentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (residentId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.residentId,
+                        referencedTable: $$ResidentMemoriesTableReferences
+                            ._residentIdTable(db),
+                        referencedColumn: $$ResidentMemoriesTableReferences
+                            ._residentIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ResidentMemoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentMemoriesTable,
+      ResidentMemoryRow,
+      $$ResidentMemoriesTableFilterComposer,
+      $$ResidentMemoriesTableOrderingComposer,
+      $$ResidentMemoriesTableAnnotationComposer,
+      $$ResidentMemoriesTableCreateCompanionBuilder,
+      $$ResidentMemoriesTableUpdateCompanionBuilder,
+      (ResidentMemoryRow, $$ResidentMemoriesTableReferences),
+      ResidentMemoryRow,
+      PrefetchHooks Function({bool residentId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -21274,4 +29715,16 @@ class $AppDatabaseManager {
       $$RealActionsTableTableManager(_db, _db.realActions);
   $$AddictionLogsTableTableManager get addictionLogs =>
       $$AddictionLogsTableTableManager(_db, _db.addictionLogs);
+  $$CustomResidentsTableTableManager get customResidents =>
+      $$CustomResidentsTableTableManager(_db, _db.customResidents);
+  $$PostVoicesTableTableManager get postVoices =>
+      $$PostVoicesTableTableManager(_db, _db.postVoices);
+  $$AiThreadsTableTableManager get aiThreads =>
+      $$AiThreadsTableTableManager(_db, _db.aiThreads);
+  $$PostViewsTableTableManager get postViews =>
+      $$PostViewsTableTableManager(_db, _db.postViews);
+  $$PostUnderstandingsTableTableManager get postUnderstandings =>
+      $$PostUnderstandingsTableTableManager(_db, _db.postUnderstandings);
+  $$ResidentMemoriesTableTableManager get residentMemories =>
+      $$ResidentMemoriesTableTableManager(_db, _db.residentMemories);
 }

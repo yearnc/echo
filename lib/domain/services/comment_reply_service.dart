@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
+import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/post.dart';
 import 'content_generator.dart';
 import 'relationship_rules.dart';
+import 'resident_memory_service.dart';
 
 /// 住民接住你那句话（B7）。
 ///
@@ -25,6 +27,8 @@ class CommentReplyService {
     required this.personas,
     required this.relationships,
     required this.generator,
+    this.voiceRepo,
+    this.residentMemory,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -32,6 +36,12 @@ class CommentReplyService {
   final PersonaRepository personas;
   final RelationshipRepository relationships;
   final ContentGenerator generator;
+
+  /// 临时网民（v3.0）。可空：老测试和固定住民只走 personas。
+  final PostVoiceRepository? voiceRepo;
+
+  /// 固定住民记住“他回了我什么”。
+  final ResidentMemoryService? residentMemory;
 
   final Random _random;
 
@@ -57,10 +67,14 @@ class CommentReplyService {
     if (reply.isEmpty) return false;
 
     try {
-      final pool = await personas.loadAll();
-      AiPersona? persona;
-      for (final item in pool) {
-        if (item.id == personaId) persona = item;
+      // 先看这是不是这一帖的临时网民；不是再回固定住民里找。
+      final voice = await voiceRepo?.findById(personaId);
+      AiPersona? persona = voice?.toPersona();
+      if (persona == null) {
+        final pool = await personas.loadAll();
+        for (final item in pool) {
+          if (item.id == personaId) persona = item;
+        }
       }
       if (persona == null) return false;
 
@@ -85,6 +99,16 @@ class CommentReplyService {
         parentId: parent.id,
         scheduledAt: DateTime.now().add(_delay()),
       );
+
+      // 固定住民把“他回了我这句”记下来；临时网民不记。
+      final residentId = voice?.residentId;
+      if (residentId != null) {
+        await residentMemory?.rememberUserReply(
+          residentId: residentId,
+          reply: reply,
+          sourceId: parent.id,
+        );
+      }
       return true;
     } catch (error) {
       // 排不上就排不上：你那条回复已经发出去了，社区少一句追问不算塌天
@@ -115,5 +139,7 @@ final commentReplyServiceProvider = Provider<CommentReplyService>(
     personas: ref.watch(personaRepositoryProvider),
     relationships: ref.watch(relationshipRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
+    voiceRepo: ref.watch(postVoiceRepositoryProvider),
+    residentMemory: ref.watch(residentMemoryServiceProvider),
   ),
 );
