@@ -9,6 +9,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/addiction_repository.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
@@ -57,6 +58,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   /// 评论区先取最近 20 条，点“加载更多”每次多 20 条。
   int _commentLimit = 20;
+
+  /// 评论排序：规划书定的默认是「最新」，用户可以自己切「热度」。
+  _CommentOrder _order = _CommentOrder.latest;
 
   /// 页面销毁时不能再碰 ref（ConsumerState 已经被判为 unmounted），
   /// 所以在 initState 里先把"停播放"这个动作存下来。
@@ -119,6 +123,41 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(warning)));
+  }
+
+  /// 切换评论排序。两个选项就够：想看新的，或者想看大家认同的。
+  Future<void> _pickCommentOrder() async {
+    final picked = await showModalBottomSheet<_CommentOrder>(
+      context: context,
+      backgroundColor: EchoColors.surface,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            for (final option in _CommentOrder.values)
+              ListTile(
+                dense: true,
+                title: Text(
+                  option.label,
+                  style: TextStyle(color: EchoColors.text, fontSize: 14),
+                ),
+                subtitle: Text(
+                  option.hint,
+                  style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
+                ),
+                trailing: option == _order
+                    ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                    : null,
+                onTap: () => Navigator.of(context).pop(option),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == _order) return;
+    setState(() => _order = picked);
   }
 
   /// 开始回某一条。住民显示住民的名字，我自己的评论显示我的名字。
@@ -211,7 +250,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         children: [
                           _PostBody(post: post),
                           const SizedBox(height: 18),
-                          _CommentsHeader(count: comments.length),
+                          _CommentsHeader(
+                            count: comments.length,
+                            order: _order,
+                            onTap: _pickCommentOrder,
+                          ),
                           const SizedBox(height: 10),
                           if (mode.isClear)
                             const _ClearModeHint()
@@ -224,6 +267,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                               comments: comments,
                               voiceById: voiceById,
                               onReply: _startReply,
+                              order: _order,
                             ),
                             if (comments.length >= _commentLimit)
                               Center(
@@ -491,13 +535,20 @@ class _PostBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 谁发的：住民的动态显示住民本人，用户自己发的才显示"我"
+    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"
+    final resident = post.authorResidentId == null
+        ? null
+        : ref.watch(customResidentByIdProvider(post.authorResidentId!));
     final author = post.authorPersonaId == null
         ? null
         : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final name = author?.name ?? me?.displayName ?? AppTexts.defaultNickname;
-    final avatarRef = author?.avatar ?? me?.avatarOrNull;
+    final name = resident?.name ??
+        author?.name ??
+        me?.displayName ??
+        AppTexts.defaultNickname;
+    final avatarRef =
+        resident?.avatarAsset ?? author?.avatar ?? me?.avatarOrNull;
     final openAuthor = author == null
         ? null
         : () => context.push(RoutePaths.resident(author.id));
@@ -694,17 +745,30 @@ Future<void> _showViewers(
   );
 }
 
+/// 评论排序。
+enum _CommentOrder {
+  latest('最新', '刚说的话排在前面'),
+  hot('热度', '赞多的排在前面');
+
+  const _CommentOrder(this.label, this.hint);
+
+  final String label;
+  final String hint;
+}
+
 /// 评论区：默认只露两条回复，多的折起来（C3 的“展开评论”）。
 class _CommentThreadList extends StatefulWidget {
   const _CommentThreadList({
     required this.comments,
     required this.voiceById,
     required this.onReply,
+    this.order = _CommentOrder.latest,
   });
 
   final List<PostComment> comments;
   final Map<String, PostVoice> voiceById;
   final void Function(PostComment) onReply;
+  final _CommentOrder order;
 
   @override
   State<_CommentThreadList> createState() => _CommentThreadListState();
@@ -725,6 +789,16 @@ class _CommentThreadListState extends State<_CommentThreadList> {
         threads.last.replies.add(item.comment);
       }
     }
+
+    // 排的是**顶层评论**；楼中楼始终按说话顺序跟在它父亲下面——
+    // 把回复也按热度重排，一段对话就读不通了。
+    threads.sort((a, b) {
+      if (widget.order == _CommentOrder.hot) {
+        final byLikes = b.root.likeCount.compareTo(a.root.likeCount);
+        if (byLikes != 0) return byLikes;
+      }
+      return b.root.createdAt.compareTo(a.root.createdAt);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,9 +858,15 @@ class _CommentThread {
 }
 
 class _CommentsHeader extends StatelessWidget {
-  const _CommentsHeader({required this.count});
+  const _CommentsHeader({
+    required this.count,
+    required this.order,
+    required this.onTap,
+  });
 
   final int count;
+  final _CommentOrder order;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -798,10 +878,27 @@ class _CommentsHeader extends StatelessWidget {
               ?.copyWith(color: EchoColors.text, fontWeight: FontWeight.w600),
         ),
         const Spacer(),
-        Text(
-          '按热度',
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: EchoColors.textFaint),
+        GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '按${order.label}',
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: EchoColors.textMuted),
+                ),
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 14,
+                  color: EchoColors.textMuted,
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

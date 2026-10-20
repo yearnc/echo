@@ -100,7 +100,11 @@ class CommentTile extends ConsumerWidget {
         (personaId == null
             ? (me?.displayName ?? AppTexts.defaultNickname)
             : '路过的网友');
-    final avatarRef = voice?.avatarAsset ?? persona?.avatar;
+    // 自己那条评论也要用真头像：以前这里只查住民，persona 为空就退回
+    // 文字头像，于是「我」回复别人的每一条都变成一个字。
+    final avatarRef = voice?.avatarAsset ??
+        persona?.avatar ??
+        (personaId == null ? me?.avatarOrNull : null);
     final createdAt = createdAtOverride ?? comment.createdAt;
 
     // 点开一个人，看他是谁、平常在哪儿、发过什么——

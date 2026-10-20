@@ -113,6 +113,10 @@ class AudienceService {
     var added = 0;
 
     if (existing.isEmpty) {
+      // 先把 A+B+C 写进服务端缓存，再要第一批人（§4.3）。
+      // 必须等它回来：并发发出去的话，第一批并不会命中这次"预热"。
+      // 五秒封顶，失败就当这家不缓存前缀。
+      await contentGenerator?.prewarm(post: post);
       added += await _addBatch(
         post: post,
         config: config,

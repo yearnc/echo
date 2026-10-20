@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../domain/models/app_notification.dart';
+import '../../domain/services/notification_service.dart';
 
 /// 通知页（规划书 §3.7）。
 ///
@@ -30,6 +31,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(notificationRepositoryProvider).markAllRead();
+      // 列表看过了，状态栏里那条提醒也该一起消失
+      ref.read(systemNotificationProvider).cancelAllShown();
     });
   }
 

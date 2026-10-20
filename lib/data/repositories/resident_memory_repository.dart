@@ -31,6 +31,63 @@ class ResidentMemoryRepository {
     if (limit != null) await archiveOverflow(memory.residentId, limit);
   }
 
+  /// 正在生效的记忆（记忆页用）。按更新时间倒序，最近说过的在最上面。
+  Stream<List<ResidentMemory>> watchActive(String residentId) {
+    final query = _db.select(_db.residentMemories)
+      ..where(
+        (t) =>
+            t.residentId.equals(residentId) &
+            t.archivedAt.isNull() &
+            t.deletedAt.isNull(),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]);
+    return query.watch().map(
+      (rows) => rows.map(_toDomain).toList(growable: false),
+    );
+  }
+
+  /// 已归档的记忆：还留着，只是不再注入提示词。
+  Stream<List<ResidentMemory>> watchArchived(String residentId) {
+    final query = _db.select(_db.residentMemories)
+      ..where(
+        (t) =>
+            t.residentId.equals(residentId) &
+            t.archivedAt.isNotNull() &
+            t.deletedAt.isNull(),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.archivedAt)]);
+    return query.watch().map(
+      (rows) => rows.map(_toDomain).toList(growable: false),
+    );
+  }
+
+  /// 用户手动改一条记忆。只改摘要、正文和标签——
+  /// 来源与时间属于"这件事什么时候发生的"，不该被编辑。
+  Future<int> updateText({
+    required String id,
+    required String summary,
+    required String content,
+    required List<String> tags,
+  }) {
+    return (_db.update(_db.residentMemories)..where((t) => t.id.equals(id)))
+        .write(
+          ResidentMemoriesCompanion(
+            summary: Value(summary),
+            content: Value(content),
+            tags: Value(tags.join(',')),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  /// 把归档的放回生效列表。
+  Future<int> restore(String id) {
+    return (_db.update(_db.residentMemories)..where((t) => t.id.equals(id)))
+        .write(
+          ResidentMemoriesCompanion(archivedAt: const Value<int?>(null)),
+        );
+  }
+
   Future<List<ResidentMemory>> recent(
     String residentId, {
     int limit = 5,
@@ -186,3 +243,19 @@ class ResidentMemoryRepository {
 final residentMemoryRepositoryProvider = Provider<ResidentMemoryRepository>(
   (ref) => ResidentMemoryRepository(ref.watch(databaseProvider)),
 );
+
+/// 某个固定住民正在生效的记忆。
+final activeMemoriesProvider = StreamProvider.autoDispose
+    .family<List<ResidentMemory>, String>(
+      (ref, residentId) => ref
+          .watch(residentMemoryRepositoryProvider)
+          .watchActive(residentId),
+    );
+
+/// 某个固定住民已归档的记忆。
+final archivedMemoriesProvider = StreamProvider.autoDispose
+    .family<List<ResidentMemory>, String>(
+      (ref, residentId) => ref
+          .watch(residentMemoryRepositoryProvider)
+          .watchArchived(residentId),
+    );

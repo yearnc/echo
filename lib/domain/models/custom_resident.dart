@@ -1,3 +1,5 @@
+import 'ai_persona.dart';
+
 /// 用户自己配置的固定住民（阶段三）。
 class CustomResident {
   const CustomResident({
@@ -57,6 +59,41 @@ class CustomResident {
   final int? memoryLimit;
   final bool alwaysShow;
   final DateTime createdAt;
+
+  /// 给现有内容生成层用的适配对象。
+  ///
+  /// 固定住民比临时网民多的是人设和记忆，这里只负责把"设定"翻译成
+  /// 生成层认识的三段：身份/背景/场景、说话方式/示例、语气/额外指令。
+  /// 记忆不在这里——它每次按需检索，塞进人设会过期。
+  AiPersona toPersona() => AiPersona(
+    id: id,
+    name: name,
+    avatar: avatarAsset,
+    bio: [bio, description, scenario]
+        .where((part) => part.trim().isNotEmpty)
+        .join('\n'),
+    languageStyle: [languageStyle, exampleDialogue]
+        .where((part) => part.trim().isNotEmpty)
+        .join('\n'),
+    personalityType: '固定住民',
+    tone: [tone, extraInstructions]
+        .where((part) => part.trim().isNotEmpty)
+        .join('；'),
+    activeHours: activeHours,
+    relationship: '固定住民',
+    likeProbability: 0.6,
+    commentProbability: 0.7,
+    replyLength: 'medium',
+    voiceModel: '',
+    level: 1,
+    badges: const [],
+    followers: 0,
+    following: 0,
+    memoryEnabled: memoryEnabled,
+    relationshipLevel: 0,
+    commentSamples: const [],
+    routines: const [],
+  );
 
   CustomResident copyWith({
     String? name,

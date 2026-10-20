@@ -1,34 +1,22 @@
 import 'dart:math';
 
-// like 是 drift 的扩展方法，没法单独 show；isNotNull 与 matcher 重名，藏掉 drift 那份
-import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/media/media_service.dart';
+import 'package:echo/data/repositories/custom_resident_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/model_config_repository.dart';
-import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/post_voice_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
+import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/services/content_generator.dart';
-import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/model_gateway.dart';
+import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/resident_photo.dart';
-import 'package:echo/domain/services/resident_signature.dart';
 import 'package:echo/domain/services/world_service.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-/// 固定的一批住民，不去读 assets——这一层要测的是"挑谁、什么时候发"，
-/// 不是"assets 里有什么"。
-class _FixedPersonas implements PersonaRepository {
-  _FixedPersonas(this.pool);
-
-  final List<AiPersona> pool;
-
-  @override
-  Future<List<AiPersona>> loadAll() async => pool;
-}
 
 /// 一个"真的读了帖子"的生成器：评论内容里带上帖子正文，
 /// 用来验证住民动态底下的评论确实交给了模型，而不是随机台词。
@@ -64,9 +52,6 @@ class _MemoryKeyStore implements KeyStore {
 }
 
 /// 住民图文帖：这些用例都不谈出图，配一个"没配文生图"的服务。
-///
-/// 它走的是真实代码路径（真去查有没有图片配置），只是每次都走到
-/// "没配就只发文字"那一支——这比塞一个假对象更接近线上的样子。
 ResidentPhotoService _noPhotoService(AppDatabase db) => ResidentPhotoService(
   db: db,
   posts: PostRepository(db),
@@ -74,14 +59,46 @@ ResidentPhotoService _noPhotoService(AppDatabase db) => ResidentPhotoService(
   gateway: ModelGateway(ModelConfigRepository(db, keyStore: _MemoryKeyStore())),
 );
 
+/// 排期仍按 AiPersona 的形状挑人，这里造一批给纯逻辑用例用。
 List<AiPersona> _pool(int count) => List.generate(
   count,
   (i) => AiPersona(
-    id: 'persona_${i.toString().padLeft(3, '0')}',
+    id: 'resident_${i.toString().padLeft(3, '0')}',
     name: '住民$i',
-    circle: '同校圈',
     commentSamples: const ['台词'],
   ),
+);
+
+/// 把固定住民写进库——世界 tick 现在只认这一张表。
+Future<void> _seedResidents(AppDatabase db, int count) async {
+  final repo = CustomResidentRepository(db);
+  for (final persona in _pool(count)) {
+    await repo.upsert(
+      CustomResident(
+        id: persona.id,
+        name: persona.name,
+        description: '住在附近的人',
+        createdAt: DateTime(2026, 9, 1),
+      ),
+    );
+  }
+}
+
+WorldService _world(
+  AppDatabase db, {
+  required ContentGenerator generator,
+  SampleContentGenerator? sample,
+}) => WorldService(
+  db: db,
+  posts: PostRepository(db),
+  people: CustomResidentRepository(db),
+  voices: PostVoiceRepository(db),
+  photo: _noPhotoService(db),
+  interactions: InteractionRepository(db),
+  generator: generator,
+  sample: sample ?? SampleContentGenerator(random: Random(2)),
+  readAllowResidentPosts: () => true,
+  random: Random(2),
 );
 
 void main() {
@@ -109,18 +126,7 @@ void main() {
     setUp(() async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
       pool = _pool(12);
-      world = WorldService(
-        db: db,
-        posts: PostRepository(db),
-        personas: _FixedPersonas(pool),
-        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
-        photo: _noPhotoService(db),
-        interactions: InteractionRepository(db),
-        generator: SampleContentGenerator(random: Random(1)),
-        sample: SampleContentGenerator(random: Random(1)),
-        readAllowResidentPosts: () => true,
-        random: Random(1),
-      );
+      world = _world(db, generator: SampleContentGenerator(random: Random(1)));
     });
 
     tearDown(() async => db.close());
@@ -186,29 +192,8 @@ void main() {
 
     setUp(() async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-      final pool = _pool(6);
-
-      // 住民先入库：posts.author_persona_id 有外键指着 ai_personas
-      for (final persona in pool) {
-        await db
-            .into(db.aiPersonas)
-            .insert(
-              AiPersonasCompanion.insert(id: persona.id, name: persona.name),
-            );
-      }
-
-      world = WorldService(
-        db: db,
-        posts: PostRepository(db),
-        personas: _FixedPersonas(pool),
-        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
-        photo: _noPhotoService(db),
-        interactions: InteractionRepository(db),
-        generator: SampleContentGenerator(random: Random(2)),
-        sample: SampleContentGenerator(random: Random(2)),
-        readAllowResidentPosts: () => true,
-        random: Random(2),
-      );
+      await _seedResidents(db, 6);
+      world = _world(db, generator: SampleContentGenerator(random: Random(2)));
     });
 
     tearDown(() async => db.close());
@@ -243,7 +228,27 @@ void main() {
       expect(await db.select(db.posts).get(), isEmpty);
     });
 
-    test('隔够久了就补上，时间落在过去', () async {
+    test('没有固定住民就什么都不发生', () async {
+      final emptyDb = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(emptyDb.close);
+      final emptyWorld = _world(
+        emptyDb,
+        generator: SampleContentGenerator(random: Random(1)),
+      );
+      await emptyDb
+          .into(emptyDb.appSettings)
+          .insertOnConflictUpdate(
+            AppSettingsCompanion.insert(
+              key: WorldService.lastTickKey,
+              value: '${DateTime.now().subtract(const Duration(hours: 8)).millisecondsSinceEpoch}',
+            ),
+          );
+
+      expect(await emptyWorld.tick(), 0);
+      expect(await emptyDb.select(emptyDb.posts).get(), isEmpty);
+    });
+
+    test('隔够久了就补上，时间落在过去，作者是固定住民', () async {
       final now = DateTime.now();
       await setLastTick(now.subtract(const Duration(hours: 8)));
 
@@ -254,7 +259,8 @@ void main() {
       final rows = await db.select(db.posts).get();
       expect(rows.length, written);
       for (final row in rows) {
-        expect(row.authorPersonaId, isNotNull, reason: '这是住民发的，不是用户发的');
+        expect(row.authorResidentId, isNotNull, reason: '这是固定住民发的');
+        expect(row.authorPersonaId, isNull, reason: '旧住民不再长内容');
         expect(row.content, isNotEmpty, reason: '不能有空白动态');
         expect(row.scope, 'echo');
         expect(
@@ -300,22 +306,12 @@ void main() {
       final feed = await PostRepository(db).watchFeed(scope: 'echo').first;
       expect(feed, isNotEmpty);
       expect(feed.first.isByResident, isTrue);
+      expect(feed.first.authorResidentId, isNotNull);
     });
 
     test('住民动态的评论会交给模型重写，接住帖子内容', () async {
       final generator = _ReadingGenerator();
-      final readingWorld = WorldService(
-        db: db,
-        posts: PostRepository(db),
-        personas: _FixedPersonas(_pool(6)),
-        residents: PersonaStateRepository(db, _FixedPersonas(_pool(6))),
-        photo: _noPhotoService(db),
-        interactions: InteractionRepository(db),
-        generator: generator,
-        sample: SampleContentGenerator(random: Random(2)),
-        readAllowResidentPosts: () => true,
-        random: Random(2),
-      );
+      final readingWorld = _world(db, generator: generator);
 
       await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
       await readingWorld.tick();
@@ -338,7 +334,6 @@ void main() {
     });
 
     test('住民动态下面会有人来串门，而且不是帖主自己', () async {
-      // 多跑几轮：每条动态来几个人是随机的（0—2），一轮可能一个都没来
       for (var round = 0; round < 5; round++) {
         await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
         await world.tick();
@@ -347,143 +342,50 @@ void main() {
       final replies = await db.select(db.aiInteractions).get();
       expect(replies, isNotEmpty, reason: '五轮下来总该有人路过一次');
 
+      final voices = await db.select(db.postVoices).get();
+      final byVoiceId = {for (final voice in voices) voice.id: voice};
+
       for (final reply in replies) {
         final query = db.select(db.posts)
           ..where((t) => t.id.equals(reply.postId));
         final post = await query.getSingle();
 
-        expect(post.authorPersonaId, isNotNull, reason: '回应是给住民动态排的');
+        expect(post.authorResidentId, isNotNull, reason: '回应是给住民动态排的');
+        final commenter = byVoiceId[reply.personaId];
+        expect(commenter, isNotNull, reason: '评论者必须是这一帖的固定住民快照');
         expect(
-          reply.personaId,
-          isNot(post.authorPersonaId),
+          commenter!.residentId,
+          isNot(post.authorResidentId),
           reason: '自己不该回自己的帖',
         );
         expect(reply.content, isNotEmpty, reason: '不能有空白评论');
       }
     });
 
-    Future<int> changedBios() async {
-      final rows = await db.select(db.aiPersonas).get();
-      return rows.where((row) => row.bio.isNotEmpty).length;
-    }
-
-    test('住民会顺手换个签名，一次 tick 只换一个', () async {
-      var before = 0;
-      var total = 0;
-
-      // 多跑几轮：改签名有概率打折，一轮可能一个都不改
-      for (var round = 0; round < 20; round++) {
-        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
-        await world.tick();
-
-        final after = await changedBios();
-        expect(
-          after - before,
-          lessThanOrEqualTo(ResidentSignature.maxPerTick),
-          reason: '一轮下来冒出好几个人同时换签名，就是程序在动了',
-        );
-        before = after;
-        total = after;
-      }
-
-      expect(total, greaterThan(0), reason: '二十轮下来总该有人换过一次');
-
-      final rows = await db.select(db.aiPersonas).get();
-      for (final row in rows.where((r) => r.bio.isNotEmpty)) {
-        expect(row.bio.length, lessThanOrEqualTo(ResidentSignature.maxLength));
-      }
-    });
-
-    test('水位记在换过的那个人头上，签名才有冷却可言', () async {
-      for (var round = 0; round < 20; round++) {
-        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
-        await world.tick();
-      }
-
-      final changed = (await db.select(db.aiPersonas).get())
-          .where((row) => row.bio.isNotEmpty)
-          .toList();
-      final marks = await (db.select(
-        db.appSettings,
-      )..where((t) => t.key.like('${WorldService.bioWatermarkPrefix}%'))).get();
-
-      expect(
-        marks.map((m) => m.key).toSet(),
-        changed.map((r) => '${WorldService.bioWatermarkPrefix}${r.id}').toSet(),
-      );
-    });
-
-    test('同一个住民短期内不会被换第二次', () async {
-      // 池子里只留一个人：候选永远是他，冷却一旦生效就再没人可换
-      final solo = _pool(1);
-      final world = WorldService(
-        db: db,
-        posts: PostRepository(db),
-        personas: _FixedPersonas(solo),
-        residents: PersonaStateRepository(db, _FixedPersonas(solo)),
-        photo: _noPhotoService(db),
-        interactions: InteractionRepository(db),
-        generator: SampleContentGenerator(random: Random(3)),
-        sample: SampleContentGenerator(random: Random(3)),
-        readAllowResidentPosts: () => true,
-        random: Random(3),
-      );
-      final key = '${WorldService.bioWatermarkPrefix}${solo.single.id}';
-
-      Future<String?> mark() async {
-        final query = db.select(db.appSettings)
-          ..where((t) => t.key.equals(key));
-        return (await query.getSingleOrNull())?.value;
-      }
-
-      final seen = <String>{};
-      for (var round = 0; round < 20; round++) {
-        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
-        await world.tick();
-        final value = await mark();
-        if (value != null) seen.add(value);
-      }
-
-      expect(seen.length, 1, reason: '水位更新过一次之后就该待在冷却里');
-    });
-
-    test('换完签名会叫界面重读一次', () async {
-      var notified = 0;
-      final pool = _pool(6);
-      final world = WorldService(
-        db: db,
-        posts: PostRepository(db),
-        personas: _FixedPersonas(pool),
-        residents: PersonaStateRepository(db, _FixedPersonas(pool)),
-        photo: _noPhotoService(db),
-        interactions: InteractionRepository(db),
-        generator: SampleContentGenerator(random: Random(2)),
-        sample: SampleContentGenerator(random: Random(2)),
-        readAllowResidentPosts: () => true,
-        random: Random(2),
-        onResidentsChanged: () => notified++,
-      );
-
-      for (var round = 0; round < 20 && notified == 0; round++) {
-        await setLastTick(DateTime.now().subtract(const Duration(hours: 8)));
-        await world.tick();
-      }
-
-      expect(notified, 1, reason: '没人换签名就不必让界面白重读');
-    });
-
-    test('residentAuthorsOf 只认住民发的帖子', () async {
+    test('residentAuthorsOf 认固定住民发的帖子', () async {
       final posts = PostRepository(db);
       final mine = await posts.create(content: '我自己发的', scope: 'echo');
       final theirs = await posts.createResidentPost(
-        personaId: 'persona_001',
-        content: '住民发的',
+        residentId: 'resident_001',
+        content: '固定住民发的',
       );
 
       final authors = await posts.residentAuthorsOf({mine, theirs});
 
       expect(authors.keys, [theirs]);
-      expect(authors[theirs], 'persona_001');
+      expect(authors[theirs], 'resident_001');
+    });
+
+    test('固定住民的动态不算进「我的」统计', () async {
+      final posts = PostRepository(db);
+      await posts.create(content: '我自己发的', scope: 'echo');
+      await posts.createResidentPost(
+        residentId: 'resident_001',
+        content: '固定住民发的',
+      );
+
+      final stats = await posts.watchStats().first;
+      expect(stats.postCount, 1);
     });
   });
 }

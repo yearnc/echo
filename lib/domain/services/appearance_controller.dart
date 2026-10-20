@@ -10,6 +10,7 @@ import '../../data/db/database_provider.dart';
 /// 这很实际）。
 enum AppearanceMode {
   auto('跟随模式'),
+  system('跟随系统'),
   light('日间'),
   dark('夜间');
 
@@ -20,6 +21,7 @@ enum AppearanceMode {
   String get key => name;
 
   static AppearanceMode fromKey(String? key) => switch (key) {
+    'system' => AppearanceMode.system,
     'light' => AppearanceMode.light,
     'dark' => AppearanceMode.dark,
     _ => AppearanceMode.auto,

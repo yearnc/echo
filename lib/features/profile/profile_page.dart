@@ -28,6 +28,11 @@ class ProfilePage extends ConsumerWidget {
             title: '设置',
             onTap: () => context.push(RoutePaths.settings),
           ),
+          _Tile(
+            icon: Icons.help_outline,
+            title: '帮助',
+            onTap: () => context.push(RoutePaths.help),
+          ),
         ],
       ),
     );

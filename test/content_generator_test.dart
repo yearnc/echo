@@ -22,6 +22,7 @@ import 'package:echo/domain/services/interaction_planner.dart';
 import 'package:echo/domain/services/model_content_generator.dart';
 import 'package:echo/domain/services/relationship_rules.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
+import 'package:echo/domain/services/model_call_common.dart';
 import 'package:echo/domain/services/model_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -145,6 +146,9 @@ class _FakeGenerator implements ContentGenerator {
 
   @override
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
+
+  @override
+  Future<void> prewarm({required Post post}) async {}
 }
 
 void main() {
@@ -262,6 +266,35 @@ void main() {
       expect(prompt, contains('他记得：他上次拍过一张天空照'));
     });
 
+    test('共享前缀里有帖子、没有这一批的人物', () {
+      final shared = ModelContentGenerator.sharedSystemPrompt(
+        _post(content: '正文里有一棵树'),
+      );
+
+      expect(shared, contains('正文里有一棵树'));
+      expect(shared, contains('不要提到自己是 AI'));
+      expect(shared, isNot(contains('这次要评论的人')));
+      expect(shared, isNot(contains('JSON')));
+    });
+
+    test('批次后缀里有人物，但不重复帖子快照', () {
+      final batch = ModelContentGenerator.batchPrompt([
+        _persona('persona_001', name: '温柔学姐'),
+      ]);
+
+      expect(batch, contains('[1] 温柔学姐'));
+      expect(batch, contains('JSON'));
+      expect(batch, isNot(contains('帖子正文')));
+    });
+
+    test('同一条帖子的共享前缀逐字节一致', () {
+      final post = _post(content: '稳定前缀');
+      final first = ModelContentGenerator.sharedSystemPrompt(post);
+      final second = ModelContentGenerator.sharedSystemPrompt(post);
+
+      expect(first, second);
+    });
+
     test('记忆关掉的人不带记忆，但关系那行还在', () {
       final prompt = ModelContentGenerator.systemPrompt(
         [_persona('persona_001', memoryEnabled: false)],
@@ -276,6 +309,55 @@ void main() {
 
       expect(prompt, contains('你和他的关系：熟人'));
       expect(prompt, isNot(contains('他记得：')));
+    });
+  });
+
+  group('缓存用量', () {
+    test('OpenAI：prompt_tokens_details.cached_tokens', () {
+      final usage = ModelUsage.fromBody({
+        'usage': {
+          'prompt_tokens': 2000,
+          'completion_tokens': 120,
+          'prompt_tokens_details': {'cached_tokens': 1536},
+        },
+      });
+
+      expect(usage.promptTokens, 2000);
+      expect(usage.cachedTokens, 1536);
+      expect(usage.cacheHitRate, 77);
+    });
+
+    test('DeepSeek：prompt_cache_hit_tokens', () {
+      final usage = ModelUsage.fromBody({
+        'usage': {
+          'prompt_tokens': 1024,
+          'completion_tokens': 60,
+          'prompt_cache_hit_tokens': 1024,
+        },
+      });
+
+      expect(usage.cachedTokens, 1024);
+      expect(usage.cacheHitRate, 100);
+    });
+
+    test('Anthropic：cache_read / cache_creation', () {
+      final usage = ModelUsage.fromBody({
+        'usage': {
+          'input_tokens': 800,
+          'output_tokens': 40,
+          'cache_read_input_tokens': 640,
+          'cache_creation_input_tokens': 160,
+        },
+      });
+
+      expect(usage.cachedTokens, 640);
+      expect(usage.cacheWriteTokens, 160);
+      expect(usage.cacheHitRate, 80);
+    });
+
+    test('没有 usage 就是零，不编数字', () {
+      expect(ModelUsage.fromBody({'choices': []}).hasData, isFalse);
+      expect(ModelUsage.fromBody(null).cacheHitRate, 0);
     });
   });
 

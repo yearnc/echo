@@ -6,6 +6,7 @@ import '../../features/composer/compose_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
 import '../../features/feed/feed_page.dart';
 import '../../features/follows/follows_page.dart';
+import '../../features/help/help_page.dart';
 import '../../features/messages/chat_page.dart';
 import '../../features/messages/messages_page.dart';
 import '../../features/models/model_edit_page.dart';
@@ -19,6 +20,7 @@ import '../../features/records/records_page.dart';
 import '../../features/resident/resident_page.dart';
 import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
+import '../../features/residents/resident_memories_page.dart';
 import '../../features/safety/minor_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
@@ -66,6 +68,10 @@ class RoutePaths {
   static const String customResidents = '/custom-residents';
   static const String customResidentEdit = '/custom-residents/edit';
 
+  /// 某个固定住民的长期记忆。
+  static String residentMemories(String residentId) =>
+      '/custom-residents/memories/$residentId';
+
   /// 策划脚本管理。
   static const String scripts = '/scripts';
 
@@ -92,6 +98,9 @@ class RoutePaths {
 
   /// 编辑我的资料（昵称 / 头像）。
   static const String profileEdit = '/settings/profile';
+
+  /// 帮助与常见问题。
+  static const String help = '/help';
 
   static String post(String id) => '/post/$id';
 
@@ -179,6 +188,12 @@ final appRouter = GoRouter(
         residentId: state.uri.queryParameters['residentId'],
       ),
     ),
+    GoRoute(
+      path: '/custom-residents/memories/:id',
+      builder: (context, state) => ResidentMemoriesPage(
+        residentId: state.pathParameters['id'] ?? '',
+      ),
+    ),
     // 私信会话是沉浸式的：进去之后只有你们两个人，不挂底部导航
     GoRoute(
       path: '/chat/:id',
@@ -237,6 +252,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.profileEdit,
       builder: (context, state) => const ProfileEditPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.help,
+      builder: (context, state) => const HelpPage(),
     ),
     GoRoute(
       path: RoutePaths.scripts,

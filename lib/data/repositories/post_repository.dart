@@ -20,7 +20,9 @@ class PostRepository {
   /// 信息流：按时间倒序，自动跟随数据库变化。
   Stream<List<Post>> watchFeed({String? scope, int? limit}) {
     final query = _db.select(_db.posts)
-      ..where((t) => t.deletedAt.isNull())
+      // 旧版本那 32 位住民的动态不再出现在信息流里（v3.0 之后不再长内容），
+      // 数据仍然保留，只是这个"模拟社区"的入口不再摆出来。
+      ..where((t) => t.deletedAt.isNull() & t.authorPersonaId.isNull())
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
 
     if (scope != null) {
@@ -38,13 +40,19 @@ class PostRepository {
   Future<Map<String, String>> residentAuthorsOf(Set<String> postIds) async {
     if (postIds.isEmpty) return const {};
 
-    final query = _db.select(_db.posts)
-      ..where((t) => t.id.isIn(postIds) & t.authorPersonaId.isNotNull());
+    final query = _db.select(_db.posts)..where(
+      (t) =>
+          t.id.isIn(postIds) &
+          (t.authorPersonaId.isNotNull() | t.authorResidentId.isNotNull()),
+    );
 
     final rows = await query.get();
-    // 查询已经过滤掉作者为空的帖子，这里的 `?` 只是把"理论上仍可能为 null"
-    // 表达出来，不该出现的条目会被直接丢掉
-    return {for (final row in rows) row.id: ?row.authorPersonaId};
+    // 固定住民动态和旧住民动态都算"别人的帖子"：在别人帖子下面来人了，
+    // 没有理由通知用户。作者 id 具体是谁这里不关心，只用来区分归属。
+    return {
+      for (final row in rows)
+        row.id: row.authorResidentId ?? row.authorPersonaId!,
+    };
   }
 
   /// 某个住民自己发的动态（住民主页用）。
@@ -52,6 +60,18 @@ class PostRepository {
     final query = _db.select(_db.posts)
       ..where(
         (t) => t.authorPersonaId.equals(personaId) & t.deletedAt.isNull(),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
+
+    return query.watch().map((rows) => rows.map(_toDomain).toList());
+  }
+
+  /// 某个固定住民自己发的动态。
+  Stream<List<Post>> watchByResident(String residentId) {
+    final query = _db.select(_db.posts)
+      ..where(
+        (t) =>
+            t.authorResidentId.equals(residentId) & t.deletedAt.isNull(),
       )
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
 
@@ -71,6 +91,7 @@ class PostRepository {
       ..where(
         (t) =>
             t.authorPersonaId.isNull() &
+            t.authorResidentId.isNull() &
             t.deletedAt.isNull() &
             t.scope.equals(scope),
       )
@@ -135,7 +156,8 @@ class PostRepository {
   /// 拟人程度是用户给自己帖子调的旋钮）；而且它的时间**可以是过去**——
   /// 世界 tick 要补上"用户没开 APP 的那几个小时里社区发生了什么"。
   Future<String> createResidentPost({
-    required String personaId,
+    String? personaId,
+    String? residentId,
     required String content,
     DateTime? createdAt,
     String? topicName,
@@ -155,6 +177,7 @@ class PostRepository {
             topicName: Value(topicName),
             isAiGenerated: const Value(true),
             authorPersonaId: Value(personaId),
+            authorResidentId: Value(residentId),
             // 住民的动态下面也会有人来评论，那就是这个社区自己的呼吸
             allowAiReply: const Value(true),
           ),
@@ -251,7 +274,8 @@ class PostRepository {
     final count = _db.posts.id.count();
     final likes = _db.posts.likeCount.sum();
     final mine = _db.posts.deletedAt.isNull() &
-        _db.posts.authorPersonaId.isNull();
+        _db.posts.authorPersonaId.isNull() &
+        _db.posts.authorResidentId.isNull();
     final query = _db.selectOnly(_db.posts)
       ..addColumns([count, likes])
       ..where(mine);
@@ -286,6 +310,7 @@ class PostRepository {
       allowAiReply: row.allowAiReply,
       isHot: row.isHot,
       authorPersonaId: row.authorPersonaId,
+      authorResidentId: row.authorResidentId,
       likedByMe: row.likedAt != null,
     );
   }

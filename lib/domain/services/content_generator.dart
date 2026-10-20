@@ -65,6 +65,12 @@ abstract interface class ContentGenerator {
   /// 与 `replies` 分开是因为口吻不同：那个是“回用户”，这个只是
   /// 一屋子人里另一个人的随口接话。返回 null 表示这次不接。
   Future<String?> peerReply({required PeerReplyThread thread});
+
+  /// 预热：把「静态规则 + 帖子快照」先写进服务端的 KV 缓存（规划书 §4.3）。
+  ///
+  /// 输出丢弃，只为了让紧随其后的第一批评论直接命中。
+  /// 没有模型、或者服务商不做前缀缓存时，这就是一次可以忽略的小请求。
+  Future<void> prewarm({required Post post});
 }
 
 /// AI 接 AI 的上文。
@@ -182,6 +188,11 @@ class SampleContentGenerator implements ContentGenerator {
 
   @override
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
+
+  @override
+  Future<void> prewarm({required Post post}) async {
+    // 样本层没有服务端缓存这回事
+  }
 
   /// 分圈层的动态模板。
   ///
@@ -511,6 +522,18 @@ class ContentSource implements ContentGenerator {
     } catch (error) {
       debugPrint('[内容生成] 这次没接上 AI 的话：$error');
       return null;
+    }
+  }
+
+  @override
+  Future<void> prewarm({required Post post}) async {
+    try {
+      final config = await activeConfig();
+      if (config == null) return;
+      await model.prewarm(config: config, post: post);
+    } catch (error) {
+      // 预热失败不影响发帖；它只是省钱的优化，不是功能
+      debugPrint('[缓存] 预热没成：$error');
     }
   }
 

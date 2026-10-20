@@ -1,0 +1,141 @@
+import 'package:drift/native.dart';
+import 'package:echo/data/db/app_database.dart';
+import 'package:echo/data/repositories/custom_resident_repository.dart';
+import 'package:echo/data/repositories/post_repository.dart';
+import 'package:echo/data/repositories/private_message_repository.dart';
+import 'package:echo/data/repositories/resident_memory_repository.dart';
+import 'package:echo/domain/models/custom_resident.dart';
+import 'package:echo/domain/services/action_registry.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  late AppDatabase db;
+  late ActionRegistry actions;
+  late PrivateMessageRepository messages;
+
+  setUp(() async {
+    db = AppDatabase.forTesting(NativeDatabase.memory());
+    messages = PrivateMessageRepository(db);
+    actions = ActionRegistry(
+      db: db,
+      residents: CustomResidentRepository(db),
+      memories: ResidentMemoryRepository(db),
+      messages: messages,
+      posts: PostRepository(db),
+    );
+
+    await CustomResidentRepository(db).upsert(
+      CustomResident(
+        id: 'resident_001',
+        name: '小满',
+        createdAt: DateTime(2026, 10, 1),
+      ),
+    );
+  });
+
+  tearDown(() async => db.close());
+
+  test('同一个幂等键只发一次', () async {
+    final first = await actions.sendDirectMessage(
+      residentId: 'resident_001',
+      content: '在吗',
+      idempotencyKey: 'dm:1',
+    );
+    final second = await actions.sendDirectMessage(
+      residentId: 'resident_001',
+      content: '在吗',
+      idempotencyKey: 'dm:1',
+    );
+
+    expect(first.ok, isTrue);
+    expect(second.ok, isTrue);
+    expect(second.data['replayed'], isTrue);
+    expect(await db.select(db.privateMessages).get(), hasLength(1));
+  });
+
+  test('每天主动私信有上限', () async {
+    for (var i = 0; i < ActionRegistry.dailyDmLimit; i++) {
+      final result = await actions.sendDirectMessage(
+        residentId: 'resident_001',
+        content: '第 $i 句',
+        idempotencyKey: 'dm:$i',
+      );
+      expect(result.ok, isTrue);
+    }
+
+    final over = await actions.sendDirectMessage(
+      residentId: 'resident_001',
+      content: '第 4 句',
+      idempotencyKey: 'dm:4',
+    );
+    expect(over.ok, isFalse);
+    expect(over.message, contains('额度'));
+  });
+
+  test('固定住民每天最多发一条动态', () async {
+    final first = await actions.createResidentPost(
+      residentId: 'resident_001',
+      content: '今天桂花开了',
+      idempotencyKey: 'post:1',
+    );
+    final second = await actions.createResidentPost(
+      residentId: 'resident_001',
+      content: '第二条',
+      idempotencyKey: 'post:2',
+    );
+
+    expect(first.ok, isTrue);
+    expect(second.ok, isFalse);
+    expect(await db.select(db.posts).get(), hasLength(1));
+  });
+
+  test('记忆写入后能检索到，并且重复来源不写第二次', () async {
+    final wrote = await actions.writeMemory(
+      residentId: 'resident_001',
+      summary: '他最近在学做菜',
+      sourceId: 'post_1',
+      idempotencyKey: 'mem:1',
+    );
+    expect(wrote.ok, isTrue);
+
+    final again = await actions.writeMemory(
+      residentId: 'resident_001',
+      summary: '他最近在学做菜',
+      sourceId: 'post_1',
+      idempotencyKey: 'mem:2',
+    );
+    expect(again.message, contains('已经记过'));
+
+    final found = await actions.searchMemories(
+      residentId: 'resident_001',
+      query: '做菜',
+    );
+    final list = found.data['memories'] as List;
+    expect(list, hasLength(1));
+    expect((list.single as Map)['summary'], contains('做菜'));
+  });
+
+  test('关掉记忆的人不写也不查', () async {
+    await CustomResidentRepository(db).upsert(
+      CustomResident(
+        id: 'resident_001',
+        name: '小满',
+        memoryEnabled: false,
+        createdAt: DateTime(2026, 10, 1),
+      ),
+    );
+
+    final wrote = await actions.writeMemory(
+      residentId: 'resident_001',
+      summary: '记住了什么',
+      idempotencyKey: 'mem:off',
+    );
+    final found = await actions.searchMemories(
+      residentId: 'resident_001',
+      query: '什么',
+    );
+
+    expect(wrote.ok, isFalse);
+    expect(found.ok, isFalse);
+  });
+}

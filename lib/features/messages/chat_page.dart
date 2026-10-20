@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/direct_message_service.dart';
+import '../../domain/services/resident_memory_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -36,7 +38,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _markRead());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markRead();
+      _maybeSayOpening();
+    });
     // 他不会秒回：回应排在几分钟之后，页面得自己隔一会儿重问一次，
     // 不然那句话要等你退出去再进来才看得见。
     _refresh = Timer.periodic(const Duration(seconds: 20), (_) {
@@ -59,6 +64,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
+  /// 固定住民的开场白：第一次进对话，他先说那句。
+  ///
+  /// 这句话是用户自己在设定里写的，放在这里用最合适——它不是模型生成的
+  /// 对白，而是"这个人第一次给你发消息时会说什么"。
+  Future<void> _maybeSayOpening() async {
+    // 直接查库：首帧时固定住民列表可能还没流到界面
+    final resident = await ref
+        .read(customResidentRepositoryProvider)
+        .findById(widget.personaId);
+    final opening = resident?.firstMessage.trim() ?? '';
+    if (opening.isEmpty) return;
+
+    final repo = ref.read(privateMessageRepositoryProvider);
+    final existing = await repo.watchThread(widget.personaId).first;
+    if (existing.isNotEmpty) return;
+
+    await repo.scheduleIncoming(
+      personaId: widget.personaId,
+      content: opening,
+      at: DateTime.now(),
+    );
+  }
+
   /// 我发一句。
   ///
   /// 发完顺手让私信服务排一条回应——**不 await**：排期是他那边的事，
@@ -75,6 +103,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           content: content,
           mediaType: sticker == null ? 'text' : 'sticker',
         );
+
+    // 固定住民记得住你说过的话。表情包不算一句话，不写进记忆。
+    final resident = ref.read(customResidentByIdProvider(widget.personaId));
+    if (resident != null && sticker == null) {
+      unawaited(
+        ref
+            .read(residentMemoryServiceProvider)
+            .rememberUserReply(
+              residentId: resident.id,
+              reply: content,
+            ),
+      );
+    }
+
     unawaited(ref.read(directMessageServiceProvider).tick());
   }
 
@@ -96,9 +138,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final resident = ref.watch(customResidentByIdProvider(widget.personaId));
     final persona = ref.watch(personaByIdProvider(widget.personaId));
     final thread = ref.watch(privateThreadProvider(widget.personaId));
-    final name = persona?.name ?? '社区住民';
+    final name = resident?.name ?? persona?.name ?? '社区住民';
+    final avatarRef = resident?.avatarAsset ?? persona?.avatar;
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -140,7 +184,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         return _Bubble(
                           message: message,
                           name: name,
-                          avatarRef: persona?.avatar,
+                          avatarRef: avatarRef,
                         );
                       },
                     ),

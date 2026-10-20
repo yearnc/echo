@@ -21,6 +21,7 @@ class Post {
     this.allowAiReply = true,
     this.isHot = false,
     this.authorPersonaId,
+    this.authorResidentId,
     this.likedByMe = false,
   });
 
@@ -44,11 +45,15 @@ class Post {
   /// 只能靠这一列分——信息流、帖子详情、通知都看它。
   final String? authorPersonaId;
 
+  /// 固定住民自己发的动态记的是他的 id；用户发的为空。
+  final String? authorResidentId;
+
   /// 我点过赞没有。住民当然不知道这件事——这颗心只属于这台设备。
   final bool likedByMe;
 
   bool get hasImages => images.isNotEmpty;
-  bool get isByResident => authorPersonaId != null;
+  bool get isByResident =>
+      authorPersonaId != null || authorResidentId != null;
 
   Post copyWith({
     int? likeCount,
@@ -69,6 +74,7 @@ class Post {
       allowAiReply: allowAiReply,
       isHot: isHot ?? this.isHot,
       authorPersonaId: authorPersonaId,
+      authorResidentId: authorResidentId,
       likedByMe: likedByMe ?? this.likedByMe,
     );
   }

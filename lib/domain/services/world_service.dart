@@ -8,18 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/app_database.dart';
 import '../../data/db/database_provider.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/post_voice_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
+import '../models/post_voice.dart';
 import '../models/resident_post.dart';
 import 'community_settings_controller.dart';
 import 'content_generator.dart';
-import 'content_moderator.dart';
 import 'interaction_planner.dart';
 import 'resident_photo.dart';
-import 'resident_signature.dart';
 
 /// 世界 tick：让社区在用户不在的时候也继续发生事情。
 ///
@@ -33,23 +33,27 @@ class WorldService {
   WorldService({
     required this.db,
     required this.posts,
-    required this.personas,
-    required this.residents,
+    required this.people,
+    required this.voices,
     required this.photo,
     required this.interactions,
     required this.generator,
     required this.sample,
-    this.onResidentsChanged,
     this.readAllowResidentPosts,
     Random? random,
   }) : _random = random ?? Random();
 
   final AppDatabase db;
   final PostRepository posts;
-  final PersonaRepository personas;
 
-  /// 住民当前的样子（B3.5）：换签名写的就是这一层。
-  final PersonaStateRepository residents;
+  /// 谁会自己发动态：只有用户配置的固定住民。
+  ///
+  /// 旧版本那批 32 位住民已经不再长内容了——开关写着「固定住民动态」，
+  /// 长出来的却是旧住民，用户一眼就看出对不上。
+  final CustomResidentRepository people;
+
+  /// 每帖出现的人。动态底下也要有评论，评论者身份跟着快照走。
+  final PostVoiceRepository voices;
 
   /// 住民自己发图文帖（B3.5）。
   final ResidentPhotoService photo;
@@ -57,13 +61,10 @@ class WorldService {
   final InteractionRepository interactions;
   final ContentGenerator generator;
 
-  /// 住民动态底下的回应从这儿出（见 [_schedulePeers] 里为什么不走模型）。
+  /// 住民动态底下的回应从这儿出（见 [_schedulePeers] 里为什么先占位）。
   final SampleContentGenerator sample;
 
-  /// 有人换了签名之后通知界面重读——住民资料是全局缓存的那一份。
-  final void Function()? onResidentsChanged;
-
-  /// AI 住民要不要自己发动态。默认 false，可空（测试里不传就是关）。
+  /// 固定住民要不要自己发动态。默认 false，可空（测试里不传就是关）。
   final bool Function()? readAllowResidentPosts;
 
   final Random _random;
@@ -81,9 +82,6 @@ class WorldService {
   static const int maxPerTick = 4;
 
   static const String lastTickKey = 'world.lastTickAt';
-
-  /// 签名水位的键前缀：`resident.bio.lastAt.<住民 id>`。
-  static const String bioWatermarkPrefix = 'resident.bio.lastAt.';
 
   /// 检查并补齐。返回这次发了几条动态。
   Future<int> tick() async {
@@ -107,7 +105,10 @@ class WorldService {
     final elapsed = now.difference(last);
     if (elapsed < minGap) return 0;
 
-    final pool = await personas.loadAll();
+    // 只有固定住民会自己起头。空着就什么都不发生——不拿旧住民补位。
+    final pool = [
+      for (final resident in await people.all()) resident.toPersona(),
+    ];
     if (pool.isEmpty) return 0;
 
     final moments = planMoments(
@@ -128,7 +129,8 @@ class WorldService {
       final draft = byPersona[moment.persona.id];
       if (draft == null) continue;
       final postId = await posts.createResidentPost(
-        personaId: draft.personaId,
+        // 作者是固定住民：不写 author_persona_id，旧住民那一列保持为空
+        residentId: draft.personaId,
         content: draft.content,
         // 时间落在这条动态"该发生"的那一刻，不是现在——
         // 这样打开 APP 看到的是"过去几小时里发生的事"，而不是一屏"刚刚"
@@ -144,7 +146,7 @@ class WorldService {
       );
       // 用预置台词先把排期占住（评论区不会空着），再让模型把内容换成
       // "真的看过这条动态"的话。不 await：写评论要几秒，而社区该动就动。
-      unawaited(_upgradePeerComments(postId: postId, pool: pool));
+      unawaited(_upgradePeerComments(postId: postId));
       written++;
     }
 
@@ -152,14 +154,6 @@ class WorldService {
     // await 一下，用户开机就得先看几十秒空白。文字先发出去，图生成好了
     // 再挂到那条动态上；黄了就当这次是纯文字。
     unawaited(_attachPhoto(postIds: postIds, moments: moments, at: now));
-
-    // 换签名是锦上添花：它写库失败不该把这次补的动态一起赔进去，
-    // 更不该让水位停在原地——那下一次 tick 会把同一段时间窗再补一遍。
-    try {
-      await _maybeChangeBio(drafts: drafts, at: now);
-    } catch (error) {
-      debugPrint('[世界] 这次没能换成签名，跳过：$error');
-    }
 
     await _saveLastTickAt(now);
     return written;
@@ -180,70 +174,7 @@ class WorldService {
     }
   }
 
-  /// 顺手让一个住民换签名（B3.5）。
-  ///
-  /// 挂在这里而不是另开一个定时任务：改签名的由头就是他刚发的那条动态，
-  /// 而这条动态正是这一次 tick 生出来的。分成两处，就会出现"这个人刚发了
-  /// 一条情绪很重的动态，隔了两天才换签名"这种对不上的时序。
-  ///
-  /// 内容换成长句、没过本地词表的，一律当"这次不换"——签名是一句话，
-  /// 而它是会挂在主页最显眼的地方的。
-  Future<String?> _maybeChangeBio({
-    required List<ResidentPostDraft> drafts,
-    required DateTime at,
-  }) async {
-    final picked = ResidentSignature.pick(
-      drafts: drafts,
-      at: at,
-      lastChangedAt: await _bioWatermarks(),
-      random: _random,
-    );
-    if (picked == null) return null;
-
-    final bio = picked.newBio!.trim();
-    if (ContentModerator.checkLocally(bio) != null) return null;
-
-    final updated = await residents.updateBio(
-      personaId: picked.personaId,
-      bio: bio,
-    );
-    if (updated == 0) return null;
-
-    await _saveBioWatermark(picked.personaId, at);
-    onResidentsChanged?.call();
-    return picked.personaId;
-  }
-
-  /// 每个人上次换签名的时刻。读的是 app_settings——它是调度水位，
-  /// 和 `world.lastTickAt` 一个性质，不必为它在住民表上加一列。
-  Future<Map<String, DateTime>> _bioWatermarks() async {
-    final query = db.select(db.appSettings)
-      ..where((t) => t.key.like('$bioWatermarkPrefix%'));
-    final rows = await query.get();
-
-    final result = <String, DateTime>{};
-    for (final row in rows) {
-      final raw = int.tryParse(row.value);
-      if (raw == null) continue;
-      result[row.key.substring(bioWatermarkPrefix.length)] =
-          DateTime.fromMillisecondsSinceEpoch(raw);
-    }
-    return result;
-  }
-
-  Future<void> _saveBioWatermark(String personaId, DateTime at) async {
-    await db
-        .into(db.appSettings)
-        .insertOnConflictUpdate(
-          AppSettingsCompanion.insert(
-            key: '$bioWatermarkPrefix$personaId',
-            value: '${at.millisecondsSinceEpoch}',
-            scope: const Value('echo'),
-          ),
-        );
-  }
-
-  /// 给一条住民动态排几位邻居的回应。
+  /// 给一条住民动态排几位的回应。
   ///
   /// 先按 1—3 条排期、用预置台词占住位置（不这么做的话，模型慢几秒，
   /// 用户刷新时就只能看到一条空评论区）。内容随后由
@@ -264,12 +195,28 @@ class WorldService {
     final count = 1 + _random.nextInt(3);
     if (others.isEmpty) return;
 
+    final now = DateTime.now();
+    final built = <PostVoice>[];
     final planned = <PlannedInteraction>[];
     for (var i = 0; i < count && i < others.length; i++) {
       final persona = others[i];
+      final voice = PostVoice(
+        // 同一个人在同一条动态下只有一个身份；重跑也不会造出第二张脸
+        id: 'voice_${persona.id}_$postId',
+        postId: postId,
+        kind: PostVoiceKind.custom,
+        residentId: persona.id,
+        name: persona.name,
+        avatarAsset: persona.avatar,
+        bio: persona.bio,
+        languageStyle: persona.languageStyle,
+        tone: persona.tone,
+        createdAt: now,
+      );
+      built.add(voice);
       planned.add(
         PlannedInteraction(
-          personaId: persona.id,
+          personaId: voice.id,
           type: 'comment',
           content: sample.forPersona(persona),
           // 一条动态发出去，十几分钟到几小时内陆续有人路过
@@ -278,6 +225,7 @@ class WorldService {
       );
     }
 
+    await voices.insertAll(built);
     await interactions.insertPlanned(postId, planned);
   }
 
@@ -290,15 +238,17 @@ class WorldService {
   ///
   /// 排期早就落库了，所以这一步失败也无所谓：预置台词还在，社区照常运转，
   /// 只是这条评论又变成"随口一句"。
-  Future<void> _upgradePeerComments({
-    required String postId,
-    required List<AiPersona> pool,
-  }) async {
+  Future<void> _upgradePeerComments({required String postId}) async {
     try {
       final personaIds = await interactions.pendingCommentPersonaIds(postId);
       if (personaIds.isEmpty) return;
 
-      final byId = {for (final persona in pool) persona.id: persona};
+      // 评论者的身份是这一帖的 post_voices 快照——直接从库里读，
+      // 不再从旧住民池里对号入座。
+      final snapshots = await voices.byPost(postId);
+      final byId = {
+        for (final voice in snapshots) voice.id: voice.toPersona(),
+      };
       final targets = personaIds
           .map((id) => byId[id])
           .whereType<AiPersona>()
@@ -402,14 +352,12 @@ final worldServiceProvider = Provider<WorldService>(
   (ref) => WorldService(
     db: ref.watch(databaseProvider),
     posts: ref.watch(postRepositoryProvider),
-    personas: ref.watch(personaRepositoryProvider),
-    residents: ref.watch(personaStateRepositoryProvider),
+    people: ref.watch(customResidentRepositoryProvider),
+    voices: ref.watch(postVoiceRepositoryProvider),
     photo: ref.watch(residentPhotoServiceProvider),
     interactions: ref.watch(interactionRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
     sample: ref.watch(sampleContentGeneratorProvider),
-    // 住民资料是全局缓存的那一份，改完得让它重读
-    onResidentsChanged: () => ref.invalidate(personasProvider),
     readAllowResidentPosts: () =>
         ref.read(communitySettingsProvider).allowResidentPosts,
   ),

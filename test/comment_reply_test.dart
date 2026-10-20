@@ -6,6 +6,7 @@ import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/relationship_repository.dart';
+import 'package:echo/data/repositories/user_profile_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/services/comment_reply_service.dart';
@@ -42,6 +43,7 @@ void main() {
       interactions: interactions,
       personas: _FixedPersonas(const [persona]),
       relationships: RelationshipRepository(db),
+      userProfiles: UserProfileRepository(db),
       generator: SampleContentGenerator(random: Random(5)),
       random: Random(5),
     );
@@ -75,6 +77,11 @@ void main() {
     final rows = await db.select(db.aiInteractions).get();
     expect(rows.length, 1);
     expect(rows.single.parentId, 'c1', reason: '挂在你回的那条下面');
+    expect(
+      rows.single.replyToName,
+      isNotEmpty,
+      reason: 'AI 的回复也要说清楚在回谁',
+    );
     expect(rows.single.status, 'pending');
     expect(
       rows.single.scheduledAt,

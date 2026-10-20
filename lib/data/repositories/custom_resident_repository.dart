@@ -132,3 +132,16 @@ final customResidentRepositoryProvider = Provider<CustomResidentRepository>(
 final customResidentsProvider = StreamProvider<List<CustomResident>>(
   (ref) => ref.watch(customResidentRepositoryProvider).watchAll(),
 );
+
+/// 按 id 找一位固定住民（信息流、帖子详情显示作者用）。
+///
+/// 固定住民数量很少（建议上限六个），从列表里找比每条动态各开一次
+/// 数据库查询更省事，也和列表的刷新天然同步。
+final customResidentByIdProvider = Provider.autoDispose
+    .family<CustomResident?, String>((ref, id) {
+      final all = ref.watch(customResidentsProvider).value ?? const [];
+      for (final resident in all) {
+        if (resident.id == id) return resident;
+      }
+      return null;
+    });

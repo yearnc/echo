@@ -79,6 +79,10 @@ class AiInteractions extends Table {
   BoolColumn get isAi => boolean().withDefault(const Constant(true))();
   TextColumn get scope => text().withDefault(const Constant('echo'))();
   TextColumn get parentId => text().nullable()();
+
+  /// 楼中楼里"回复 XXX"。用户自己的评论存在 user_comments 里，
+  /// AI 的回复只能存在这里——不写的话界面上就只剩一条孤零零的回复。
+  TextColumn get replyToName => text().nullable()();
   IntColumn get likeCount => integer().withDefault(const Constant(0))();
   IntColumn get deletedAt => integer().nullable()();
 

@@ -30,14 +30,17 @@ class ModelContentGenerator {
   }) async {
     if (personas.isEmpty) return const {};
 
+    // 前缀缓存的顺序是硬要求：**帖子快照必须在 system 里、在人物之前**。
+    // 同一帖的每一批人都不一样，如果把"这次要评论的人"放到帖子前面，
+    // 前缀从第一个名字就开始分叉——帖子部分永远命不中。
     final raw = await _gateway.complete(
       config: config,
       messages: [
+        {'role': 'system', 'content': sharedSystemPrompt(post)},
         {
-          'role': 'system',
-          'content': systemPrompt(personas, relations: relations),
+          'role': 'user',
+          'content': batchPrompt(personas, relations: relations),
         },
-        {'role': 'user', 'content': postPrompt(post)},
       ],
       // 这里要的是像人，不是稳定——同一句话被复读才是问题
       temperature: 0.9,
@@ -48,6 +51,27 @@ class ModelContentGenerator {
     );
 
     return parseComments(raw, personas);
+  }
+
+  /// 预热请求（§4.3）：只把共享前缀写进缓存，输出丢掉。
+  ///
+  /// 这里的 system **必须和 [comments] 用的逐字节一致**，否则等于没预热。
+  /// 所以两边都走 [sharedSystemPrompt]，谁也别手抄一份。
+  Future<void> prewarm({
+    required ModelConfig config,
+    required Post post,
+  }) async {
+    await _gateway.complete(
+      config: config,
+      messages: [
+        {'role': 'system', 'content': sharedSystemPrompt(post)},
+        {'role': 'user', 'content': '收到，等待下一批。'},
+      ],
+      temperature: 0,
+      maxTokens: 8,
+      // 预热是为了省下一批的钱，不是让用户等——超过五秒就当这家不缓存
+      timeout: const Duration(seconds: 5),
+    );
   }
 
   /// 住民自己发的动态（B3）。同样是**一次请求写完整批**。
@@ -294,14 +318,17 @@ class ModelContentGenerator {
     return buffer.toString();
   }
 
-  /// 系统提示词：把这批人是谁讲清楚，再说要什么形状的东西。
+  /// 共享前缀：静态规则 + 帖子快照（规划书 §4.2 的 A+B+C）。
   ///
-  /// 纯函数，单独测。提示词是这一层最容易悄悄退化的东西——
-  /// 改一个词、少一行约束，产出的质量就掉一档，而界面上什么都看不出来。
-  static String systemPrompt(
-    List<AiPersona> personas, {
-    Map<String, RelationshipState> relations = const {},
-  }) {
+  /// 这一整段在同一帖的所有批次之间**逐字节一致**，是缓存真正能命中的部分。
+  /// 所以这里不能出现"第几批""现在几点""这批有几个人"——
+  /// 那些全部放进 [batchPrompt]。
+  static String sharedSystemPrompt(Post post) {
+    return '${_rules()}\n${postPrompt(post)}';
+  }
+
+  /// 静态规则（A+B）。纯文本，不随帖子、批次、时间变化。
+  static String _rules() {
     final buffer = StringBuffer()
       ..writeln('你是「回响」里刷到这条帖子的几个普通人，不是社区工作人员，也不是来开导谁的。')
       ..writeln()
@@ -315,9 +342,19 @@ class ModelContentGenerator {
       ..writeln('- 跟这个人还不熟的，别自来熟；已经聊过几次的，说话可以更随意一点')
       ..writeln('- 下面写了「他记得」的，可以顺口提一句（像"你上次拍的那张"，但别每次都用）')
       ..writeln('- 不要提到自己是 AI')
-      ..writeln('- 同一批评论之间不要雷同，也不要点评彼此')
-      ..writeln()
-      ..writeln('这次要评论的人：');
+      ..writeln('- 同一批评论之间不要雷同，也不要点评彼此');
+    return buffer.toString();
+  }
+
+  /// 动态后缀（D+F）：这一批人是谁、要什么形状。
+  ///
+  /// 每次请求都会变，所以只能放在共享前缀之后。它前面的内容越稳定，
+  /// 服务商能复用到的前缀就越长。
+  static String batchPrompt(
+    List<AiPersona> personas, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    final buffer = StringBuffer()..writeln('这次要评论的人：');
 
     for (var i = 0; i < personas.length; i++) {
       final persona = personas[i];
@@ -340,6 +377,15 @@ class ModelContentGenerator {
       ..writeln('[{"index": 1, "content": "评论内容"}, ...]');
 
     return buffer.toString();
+  }
+
+  /// 兼容旧调用：静态规则 + 本批人物。**不含帖子**，别拿它当单次请求的
+  /// system prompt 用——那会退回"每批都从零开始"的老问题。
+  static String systemPrompt(
+    List<AiPersona> personas, {
+    Map<String, RelationshipState> relations = const {},
+  }) {
+    return '${_rules()}\n${batchPrompt(personas, relations: relations)}';
   }
 
   /// 「你和他的关系」那一行（B4）。

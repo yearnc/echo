@@ -72,6 +72,12 @@ class Posts extends Table {
   TextColumn get authorPersonaId =>
       text().nullable().references(AiPersonas, #id)();
 
+  /// 固定住民自己发的动态记的是他的 id；用户发的、旧住民发的为空。
+  ///
+  /// 不设外键：固定住民可以被删除（软删除），而动态要留着；
+  /// 而且这一列只回答"谁发的"，不承担级联语义。
+  TextColumn get authorResidentId => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

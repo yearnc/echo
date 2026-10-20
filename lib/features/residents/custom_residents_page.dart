@@ -67,6 +67,13 @@ class CustomResidentsPage extends ConsumerWidget {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: '记忆',
+                        icon: const Icon(Icons.psychology_outlined, size: 20),
+                        onPressed: () => context.push(
+                          RoutePaths.residentMemories(resident.id),
+                        ),
+                      ),
                       if (resident.alwaysShow)
                         const Icon(Icons.push_pin, size: 16),
                       IconButton(

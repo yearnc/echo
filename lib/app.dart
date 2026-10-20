@@ -114,10 +114,23 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   /// 预约是"排好就不管"的：在 APP 里看着屏幕时到点也会亮一下，那是打扰。
   /// 所以一回到前台就把预约全撤掉（通知列表里照样有），切到后台再从
   /// 库里剩下的队列重排一遍。**开着不弹、关着能收到**，两边都成立。
+  /// 手机在深色/浅色之间切换时，选了「跟随系统」的界面要立刻跟上。
+  @override
+  void didChangePlatformBrightness() {
+    super.didChangePlatformBrightness();
+    if (mounted && ref.read(appearanceControllerProvider) == AppearanceMode.system) {
+      setState(() {});
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(ref.read(systemNotificationProvider).cancelAllScheduled());
+      final notifications = ref.read(systemNotificationProvider);
+      // 人已经回到 APP 里了，通知栏里的旧提醒该收掉——留着只会让人
+      // 以为自己还没看。未到点的预约也一并撤，前台不靠系统提醒。
+      unawaited(notifications.cancelAllShown());
+      unawaited(notifications.cancelAllScheduled());
     } else if (state == AppLifecycleState.paused) {
       unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
     }
@@ -141,9 +154,14 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       );
     }
 
-    // 明暗由外观设置决定（auto 时跟模式走）。
+    // 明暗由外观设置决定（auto 跟模式走；system 跟手机的深色模式走）。
+    final systemDark = WidgetsBinding
+        .instance
+        .platformDispatcher
+        .platformBrightness == Brightness.dark;
     final palette = switch (appearance) {
       AppearanceMode.auto => mode.isEcho ? kPaletteDark : kPaletteLight,
+      AppearanceMode.system => systemDark ? kPaletteDark : kPaletteLight,
       AppearanceMode.light => kPaletteLight,
       AppearanceMode.dark => kPaletteDark,
     };

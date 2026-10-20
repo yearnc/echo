@@ -54,6 +54,9 @@ class _FakeContent implements ContentGenerator {
 
   @override
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
+
+  @override
+  Future<void> prewarm({required Post post}) async {}
 }
 
 class _FakeGenerator implements PostVoiceGenerator {

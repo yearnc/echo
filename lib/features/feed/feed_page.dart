@@ -6,6 +6,7 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/persona_repository.dart';
@@ -284,16 +285,23 @@ class _PostCard extends ConsumerWidget {
             .map((comment) => comment.personaId)
             .whereType<String>()
             .toList(growable: false);
-    // 谁发的：住民的动态显示住民本人，用户自己发的才显示"我"。
-    // 住民动态和用户帖子躺在同一张表里（阶段 B 计划书决策 3），
-    // 差别只有 authorPersonaId 这一列。
+    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"。
+    // 三种动态躺在同一张表里，靠两个作者列区分。
+    final resident = post.authorResidentId == null
+        ? null
+        : ref.watch(customResidentByIdProvider(post.authorResidentId!));
     final author = post.authorPersonaId == null
         ? null
         : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final name = author?.name ?? me?.displayName ?? AppTexts.defaultNickname;
-    final avatarRef = author?.avatar ?? me?.avatarOrNull;
-    // 住民的头像和名字可以点开——那是"这个账号背后有个人"的入口
+    final name = resident?.name ??
+        author?.name ??
+        me?.displayName ??
+        AppTexts.defaultNickname;
+    final avatarRef =
+        resident?.avatarAsset ?? author?.avatar ?? me?.avatarOrNull;
+    // 旧住民的头像和名字可以点开——那是"这个账号背后有个人"的入口；
+    // 固定住民还没有公开主页，点开不跳。
     final openAuthor = author == null
         ? null
         : () => context.push(RoutePaths.resident(author.id));

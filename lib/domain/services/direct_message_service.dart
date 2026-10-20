@@ -6,13 +6,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/app_database.dart';
 import '../../data/db/database_provider.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
+import '../../data/repositories/resident_memory_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
+import '../models/custom_resident.dart';
+import '../models/model_config.dart';
 import 'content_generator.dart';
+import 'model_gateway.dart';
 import 'relationship_rules.dart';
+import 'resident_tool_session.dart';
 
 /// 私信什么时候发生（B5）。挂在冷启动与心跳上，和世界 tick 一个待遇。
 ///
@@ -30,7 +36,11 @@ class DirectMessageService {
     required this.messages,
     required this.relationships,
     required this.personas,
+    required this.residents,
+    required this.memories,
     required this.generator,
+    this.activeConfig,
+    this.toolSession,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -38,7 +48,18 @@ class DirectMessageService {
   final PrivateMessageRepository messages;
   final RelationshipRepository relationships;
   final PersonaRepository personas;
+
+  /// 固定住民（v3.0）：他们的私信不靠关系门槛，靠用户自己配置。
+  final CustomResidentRepository residents;
+  final ResidentMemoryRepository memories;
   final ContentGenerator generator;
+
+  /// 固定住民回复时的 tool calling（可空：测试和没配模型时走批量生成）。
+  final Future<ModelConfig?> Function()? activeConfig;
+  final ResidentToolSession? toolSession;
+
+  /// 服务商不支持 tools 时不再反复试：一次 400 之后整轮退回预检索。
+  bool _toolsUnavailable = false;
 
   final Random _random;
 
@@ -50,6 +71,9 @@ class DirectMessageService {
 
   /// 上一轮已经给谁排了主动私信（水位）。
   static const String lastProactiveKey = 'dm.lastProactiveAt';
+
+  /// 固定住民每人一条水位：一个人开过口了，不该挡住别人。
+  static const String residentOpenedPrefix = 'dm.openedAt.';
 
   /// 回你一句大概要等多久。真人不会秒回，也不至于让你等到明天。
   static const Duration minReplyDelay = Duration(seconds: 40);
@@ -73,16 +97,24 @@ class DirectMessageService {
   }
 
   /// 你说完话还没人接的那些会话，让他接一句。
+  ///
+  /// 会话对象有两种：用户自己配置的固定住民，和旧版本那批住民。
+  /// 前者走人设 + 记忆，后者走原来那套关系数据。
   Future<int> _replyToUnanswered() async {
     final awaiting = await messages.personaIdsAwaitingReply();
     if (awaiting.isEmpty) return 0;
 
     final pool = await personas.loadAll();
     final byId = {for (final persona in pool) persona.id: persona};
+    final residentById = {
+      for (final resident in await residents.all()) resident.id: resident,
+    };
 
     final threads = <DirectThread>[];
+    final threadRelations = <String, RelationshipState>{};
     for (final id in awaiting.take(maxRepliesPerTick)) {
-      final persona = byId[id];
+      final resident = residentById[id];
+      final persona = resident?.toPersona() ?? byId[id];
       if (persona == null) continue;
 
       final turns = await messages.recentTurns(id);
@@ -95,13 +127,60 @@ class DirectMessageService {
           ],
         ),
       );
+      if (resident != null) {
+        threadRelations[id] = RelationshipState(
+          personaId: id,
+          // 固定住民是用户自己请来的，不存在"陌生人不能聊"
+          level: 1,
+          memorySummary: await _memorySummary(id),
+        );
+      }
     }
     if (threads.isEmpty) return 0;
 
-    final lines = await generator.directMessages(
-      threads: threads,
-      relations: await _relations(),
-    );
+    // 固定住民先走 tool calling：能查记忆、能记事情、能自己发动态。
+    // 模型不支持或这一步失败，就退回批量生成（人设 + 预检索的记忆摘要）。
+    final lines = <String, String>{};
+    final batch = <DirectThread>[];
+    final config = _toolsUnavailable ? null : await activeConfig?.call();
+    for (final thread in threads) {
+      final resident = residentById[thread.persona.id];
+      if (resident == null || config == null || toolSession == null) {
+        batch.add(thread);
+        continue;
+      }
+      try {
+        final said = thread.recent.isEmpty
+            ? ''
+            : thread.recent.last.text;
+        final line =
+            (await toolSession!.reply(
+              resident: resident,
+              config: config,
+              recent: thread.recent,
+              latestUserMessage: said,
+            ))?.trim() ??
+            '';
+        if (line.isEmpty) {
+          batch.add(thread);
+        } else {
+          lines[thread.persona.id] = line;
+        }
+      } catch (error) {
+        debugPrint('[私信] ${resident.name} 的工具调用没成，退回批量生成：$error');
+        _toolsUnavailable = true;
+        batch.add(thread);
+      }
+    }
+
+    if (batch.isNotEmpty) {
+      lines.addAll(
+        await generator.directMessages(
+          threads: batch,
+          relations: {...await _relations(), ...threadRelations},
+        ),
+      );
+    }
 
     var written = 0;
     for (final thread in threads) {
@@ -118,9 +197,52 @@ class DirectMessageService {
     return written;
   }
 
+  /// 固定住民先来敲门：不靠关系门槛，靠用户自己配置。
+  ///
+  /// 配了开场白就用那句原话——它是用户替 TA 写的，模型再润色就变味了；
+  /// 没配才让模型按人设起个头。
+  Future<int> _maybeOpenResident() async {
+    final now = DateTime.now();
+    final all = await residents.all();
+    if (all.isEmpty) return 0;
+
+    final candidates = <CustomResident>[];
+    for (final resident in all) {
+      if (await messages.lastAt(resident.id) != null) continue;
+      if (await _openedRecently(resident.id, now)) continue;
+      candidates.add(resident);
+    }
+    if (candidates.isEmpty) return 0;
+
+    final resident = candidates[_random.nextInt(candidates.length)];
+    var line = resident.firstMessage.trim();
+    if (line.isEmpty) {
+      try {
+        final lines = await generator.directMessages(
+          threads: [DirectThread(persona: resident.toPersona())],
+        );
+        line = lines[resident.id]?.trim() ?? '';
+      } catch (error) {
+        debugPrint('[私信] ${resident.name} 的开场白没写出来：$error');
+        return 0;
+      }
+    }
+    if (line.isEmpty) return 0;
+
+    await messages.scheduleIncoming(
+      personaId: resident.id,
+      content: line,
+      at: now.add(_randomDuration(minOpeningDelay, maxOpeningDelay)),
+    );
+    await _saveOpenedAt(resident.id, now);
+    return 1;
+  }
+
   /// 关系够近、又还没聊过的人，可能来敲你的门。
   Future<int> _maybeOpen() async {
     final now = DateTime.now();
+    if (await _maybeOpenResident() > 0) return 1;
+
     final last = await _lastProactiveAt();
     if (last != null && now.difference(last) < proactiveGap) return 0;
 
@@ -171,6 +293,37 @@ class DirectMessageService {
     return Duration(seconds: low + _random.nextInt(high - low));
   }
 
+  Future<bool> _openedRecently(String residentId, DateTime now) async {
+    final row =
+        await (db.select(db.appSettings)
+              ..where((t) => t.key.equals('$residentOpenedPrefix$residentId')))
+            .getSingleOrNull();
+    final raw = int.tryParse(row?.value ?? '');
+    if (raw == null) return false;
+    return now.difference(DateTime.fromMillisecondsSinceEpoch(raw)) <
+        proactiveGap;
+  }
+
+  Future<void> _saveOpenedAt(String residentId, DateTime at) async {
+    await db
+        .into(db.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+            key: '$residentOpenedPrefix$residentId',
+            value: '${at.millisecondsSinceEpoch}',
+            scope: const Value('echo'),
+          ),
+        );
+  }
+
+  /// 固定住民的记忆摘要：最多 5 条、300 字，只放这次对话里用得到的那几段。
+  Future<String> _memorySummary(String residentId) async {
+    final recent = await memories.recent(residentId, limit: 5);
+    if (recent.isEmpty) return '';
+    final text = recent.map((memory) => memory.toPromptLine()).join('；');
+    return text.length > 300 ? '${text.substring(0, 300)}…' : text;
+  }
+
   Future<DateTime?> _lastProactiveAt() async {
     final row =
         await (db.select(db.appSettings)
@@ -208,6 +361,10 @@ final directMessageServiceProvider = Provider<DirectMessageService>(
     messages: ref.watch(privateMessageRepositoryProvider),
     relationships: ref.watch(relationshipRepositoryProvider),
     personas: ref.watch(personaRepositoryProvider),
+    residents: ref.watch(customResidentRepositoryProvider),
+    memories: ref.watch(residentMemoryRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
+    activeConfig: ref.watch(modelGatewayProvider).activeConfig,
+    toolSession: ref.watch(residentToolSessionProvider),
   ),
 );

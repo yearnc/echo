@@ -64,7 +64,7 @@ SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
        voice_duration_ms, parent_id, reply_to_name, like_count, at, is_ai
 FROM (
   SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
-         voice_duration_ms, parent_id, NULL AS reply_to_name, like_count,
+         voice_duration_ms, parent_id, reply_to_name, like_count,
          scheduled_at AS at, is_ai
   FROM ai_interactions
   WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
@@ -299,6 +299,7 @@ ORDER BY at ASC
     required String content,
     required String parentId,
     required DateTime scheduledAt,
+    String? replyToName,
     String source = 'user_reply',
   }) async {
     await _db
@@ -312,6 +313,7 @@ ORDER BY at ASC
             mediaType: const Value('text'),
             content: Value(content),
             parentId: Value(parentId),
+            replyToName: Value(replyToName),
             scheduledAt: scheduledAt.millisecondsSinceEpoch,
             status: const Value('pending'),
             source: Value(source),

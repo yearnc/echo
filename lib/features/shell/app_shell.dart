@@ -8,6 +8,7 @@ import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/notification_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/permanent_notice_banner.dart';
 
@@ -95,7 +96,15 @@ class AppShell extends ConsumerWidget {
         mode: mode,
         unreadCount: unread,
         unreadMessages: unreadMessages,
-        onTap: (path) => context.go(path),
+        // 点进消息或通知，就说明用户已经看到了：顺手把状态栏里
+        // 已经弹出来的提醒收掉，别让它们一直挂着。
+        onTap: (path) {
+          if (path == RoutePaths.messages ||
+              path == RoutePaths.notifications) {
+            ref.read(systemNotificationProvider).cancelAllShown();
+          }
+          context.go(path);
+        },
       ),
     );
   }

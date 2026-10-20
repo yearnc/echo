@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
+import '../../domain/models/custom_resident.dart';
 import '../../domain/models/private_message.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -20,6 +22,7 @@ class MessagesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationsProvider);
+    final residents = ref.watch(customResidentsProvider).value ?? const [];
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -56,19 +59,105 @@ class MessagesPage extends ConsumerWidget {
             style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
           ),
         ),
-        data: (list) => list.isEmpty
-            ? const _Empty()
-            : ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                itemCount: list.length,
-                separatorBuilder: (context, index) => Divider(
+        data: (list) {
+          // 还没聊过的固定住民单独列在下面：设置完就能直接开聊，
+          // 不用等关系升温，也不用等他先来敲门。
+          final started = {for (final item in list) item.personaId};
+          final fresh = residents
+              .where((resident) => !started.contains(resident.id))
+              .toList(growable: false);
+
+          return ListView(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            children: [
+              if (list.isEmpty)
+                const SizedBox(height: 260, child: _Empty()),
+              for (final conversation in list) ...[
+                _ConversationTile(conversation: conversation),
+                Divider(
                   height: 1,
                   color: EchoColors.divider,
                   indent: 74,
                 ),
-                itemBuilder: (context, index) =>
-                    _ConversationTile(conversation: list[index]),
+              ],
+              if (fresh.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
+                  child: Text(
+                    '固定住民',
+                    style: TextStyle(
+                      color: EchoColors.textFaint,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+                for (final resident in fresh)
+                  _ResidentEntry(resident: resident),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 还没开过口的固定住民：点一下就能开始一段私信。
+class _ResidentEntry extends StatelessWidget {
+  const _ResidentEntry({required this.resident});
+
+  final CustomResident resident;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push(RoutePaths.chat(resident.id)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
+        child: Row(
+          children: [
+            UserAvatar(
+              name: resident.name,
+              avatarRef: resident.avatarAsset,
+              size: 46,
+              showRing: true,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    resident.name,
+                    style: TextStyle(
+                      color: EchoColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    resident.bio.trim().isEmpty
+                        ? '点开说第一句话'
+                        : resident.bio,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: EchoColors.textFaint,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
               ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: EchoColors.textFaint,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -81,8 +170,9 @@ class _ConversationTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final resident = ref.watch(customResidentByIdProvider(conversation.personaId));
     final persona = ref.watch(personaByIdProvider(conversation.personaId));
-    final name = persona?.name ?? '社区住民';
+    final name = resident?.name ?? persona?.name ?? '社区住民';
     final unread = conversation.unreadCount > 0;
 
     return InkWell(
@@ -93,7 +183,7 @@ class _ConversationTile extends ConsumerWidget {
           children: [
             UserAvatar(
               name: name,
-              avatarRef: persona?.avatar,
+              avatarRef: resident?.avatarAsset ?? persona?.avatar,
               size: 46,
               showRing: true,
             ),

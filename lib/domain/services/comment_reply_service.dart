@@ -7,6 +7,7 @@ import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/post.dart';
 import 'content_generator.dart';
@@ -27,6 +28,7 @@ class CommentReplyService {
     required this.personas,
     required this.relationships,
     required this.generator,
+    required this.userProfiles,
     this.voiceRepo,
     this.residentMemory,
     Random? random,
@@ -35,6 +37,7 @@ class CommentReplyService {
   final InteractionRepository interactions;
   final PersonaRepository personas;
   final RelationshipRepository relationships;
+  final UserProfileRepository userProfiles;
   final ContentGenerator generator;
 
   /// 临时网民（v3.0）。可空：老测试和固定住民只走 personas。
@@ -92,11 +95,15 @@ class CommentReplyService {
       final line = lines[personaId]?.trim() ?? '';
       if (line.isEmpty) return false;
 
+      // 他回的是"我"：评论区要能看出这一层关系，否则就是一句没头没尾的接话
+      final myName = (await userProfiles.load())?.displayName ?? '我';
+
       await interactions.insertFollowUp(
         postId: postId,
         personaId: personaId,
         content: line,
         parentId: parent.id,
+        replyToName: myName,
         scheduledAt: DateTime.now().add(_delay()),
       );
 
@@ -139,6 +146,7 @@ final commentReplyServiceProvider = Provider<CommentReplyService>(
     personas: ref.watch(personaRepositoryProvider),
     relationships: ref.watch(relationshipRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
+    userProfiles: ref.watch(userProfileRepositoryProvider),
     voiceRepo: ref.watch(postVoiceRepositoryProvider),
     residentMemory: ref.watch(residentMemoryServiceProvider),
   ),

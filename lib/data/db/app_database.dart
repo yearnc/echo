@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'tables/action_tables.dart';
 import 'tables/ai_tables.dart';
 import 'tables/clear_tables.dart';
 import 'tables/content_tables.dart';
@@ -54,6 +55,7 @@ part 'app_database.g.dart';
     PostUnderstandings,
     CustomResidents,
     ResidentMemories,
+    ActionLogs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -63,7 +65,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 21;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -321,6 +323,68 @@ class AppDatabase extends _$AppDatabase {
           );
           await m.addColumn(customResidents, customResidents.tags);
         }
+      }
+      if (from < 22) {
+        // v22：固定住民自己也能发动态、也能私信了。
+        await m.addColumn(posts, posts.authorResidentId);
+
+        // AI 的楼中楼回复也要记得自己在回谁。
+        final hasInteractionsForReply = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'ai_interactions'",
+        ).getSingleOrNull();
+        if (hasInteractionsForReply != null) {
+          await m.addColumn(aiInteractions, aiInteractions.replyToName);
+        }
+
+        // private_messages.persona_id 原来外键指着 ai_personas，固定住民的 id
+        // 插不进去。会话对象现在可能是旧住民、也可能是固定住民，
+        // 只能去掉外键；两张表的 id 由各自的生成器保证唯一。
+        final hasMessages = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'private_messages'",
+        ).getSingleOrNull();
+        if (hasMessages != null) {
+          await customStatement('''
+            CREATE TABLE private_messages_v22 (
+              id TEXT NOT NULL,
+              persona_id TEXT NOT NULL,
+              direction TEXT NOT NULL,
+              content TEXT NOT NULL DEFAULT '',
+              media_type TEXT NOT NULL DEFAULT 'text',
+              voice_path TEXT NULL,
+              transcript TEXT NULL,
+              created_at INTEGER NOT NULL,
+              read_at INTEGER NULL,
+              deleted_at INTEGER NULL,
+              scope TEXT NOT NULL DEFAULT 'echo',
+              PRIMARY KEY (id)
+            )
+          ''');
+          await customStatement('''
+            INSERT INTO private_messages_v22 (
+              id, persona_id, direction, content, media_type, voice_path,
+              transcript, created_at, read_at, deleted_at, scope
+            )
+            SELECT
+              id, persona_id, direction, content, media_type, voice_path,
+              transcript, created_at, read_at, deleted_at, scope
+            FROM private_messages
+          ''');
+          await customStatement('DROP TABLE private_messages');
+          await customStatement(
+            'ALTER TABLE private_messages_v22 RENAME TO private_messages',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS private_messages_persona '
+            'ON private_messages (persona_id)',
+          );
+        }
+      }
+      if (from < 23) {
+        // v23：动作账本。工具调用、批量围观、被动触发都从这里过一遍，
+        // 幂等键保证同一句话不会被模型重复发两次。
+        await m.createTable(actionLogs);
       }
     },
   );

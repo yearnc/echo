@@ -8,6 +8,27 @@ import '../../data/repositories/model_config_repository.dart';
 import '../models/model_config.dart';
 import 'model_call_common.dart';
 
+/// 模型要调用一个工具。
+class ToolCallRequest {
+  const ToolCallRequest({
+    required this.id,
+    required this.name,
+    this.arguments = const {},
+  });
+
+  final String id;
+  final String name;
+  final Map<String, dynamic> arguments;
+}
+
+/// 带工具的一轮回复：要么给了话，要么给了要调用的工具。
+class ToolChatResult {
+  const ToolChatResult({this.content = '', this.toolCalls = const []});
+
+  final String content;
+  final List<ToolCallRequest> toolCalls;
+}
+
 /// 一次业务调用失败。[message] 是可以直接显示给用户的中文。
 class ModelCallException implements Exception {
   const ModelCallException(this.message);
@@ -90,6 +111,10 @@ class ModelGateway {
         ),
       );
 
+      // 缓存命中只能从 usage 看出来。没命中和没数据显示上都是"0"，
+      // 但这里不编数字：服务商不回 usage，就当不知道。
+      logModelUsage(config.model, ModelUsage.fromBody(response.data));
+
       final content = extractAssistantContent(response.data);
       if (content == null) {
         throw const ModelCallException('模型没有返回内容');
@@ -97,6 +122,100 @@ class ModelGateway {
       return content;
     } on DioException catch (error) {
       throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
+    }
+  }
+
+  /// 带 tools 的一轮对话（OpenAI 兼容的 function calling）。
+  ///
+  /// 不支持 tools 的服务商会直接 400——调用方据此退回"本地预检索"，
+  /// 所以这里不猜"这家支不支持"，试一次最省事。
+  Future<ToolChatResult> completeWithTools({
+    required ModelConfig config,
+    required List<Map<String, dynamic>> messages,
+    required List<Map<String, dynamic>> tools,
+    double temperature = 0.8,
+    int? maxTokens,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final apiKey = (await _configs.readKey(config.id))?.trim() ?? '';
+    if (apiKey.isEmpty) {
+      throw const ModelCallException('这条配置还没有填 API Key');
+    }
+
+    final baseUrl = normalizeBaseUrl(config.baseUrl);
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) throw ModelCallException(problem);
+
+    final body = <String, dynamic>{
+      'model': config.model,
+      'messages': messages,
+      'temperature': temperature,
+      'tools': tools,
+      'tool_choice': 'auto',
+    };
+    if (maxTokens != null) body['max_tokens'] = maxTokens;
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$baseUrl/chat/completions',
+        data: body,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+
+      logModelUsage('${config.model}（tools）', ModelUsage.fromBody(response.data));
+
+      final choices = response.data?['choices'];
+      if (choices is! List || choices.isEmpty) {
+        throw const ModelCallException('模型没有返回内容');
+      }
+      final message = (choices.first as Map)['message'];
+      if (message is! Map) {
+        throw const ModelCallException('模型返回的形状不认识');
+      }
+
+      final calls = <ToolCallRequest>[];
+      final rawCalls = message['tool_calls'];
+      if (rawCalls is List) {
+        for (final raw in rawCalls) {
+          if (raw is! Map) continue;
+          final function = raw['function'];
+          if (function is! Map) continue;
+          final name = function['name'];
+          if (name is! String || name.isEmpty) continue;
+          calls.add(
+            ToolCallRequest(
+              id: (raw['id'] as String?) ?? 'call_${calls.length}',
+              name: name,
+              arguments: _parseArguments(function['arguments']),
+            ),
+          );
+        }
+      }
+
+      return ToolChatResult(
+        content: (message['content'] as String?)?.trim() ?? '',
+        toolCalls: calls,
+      );
+    } on DioException catch (error) {
+      throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
+    }
+  }
+
+  static Map<String, dynamic> _parseArguments(Object? raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is! String || raw.trim().isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
+    } catch (_) {
+      return const {};
     }
   }
 

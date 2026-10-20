@@ -69,7 +69,10 @@ class PersonaRoutines extends Table {
 @TableIndex(name: 'private_messages_persona', columns: {#personaId})
 class PrivateMessages extends Table {
   TextColumn get id => text()();
-  TextColumn get personaId => text().references(AiPersonas, #id)();
+
+  /// 会话对方：旧住民的 id，或者固定住民的 id（v3.0）。
+  /// 两张表各自保证 id 唯一，这里不设外键。
+  TextColumn get personaId => text()();
 
   /// in = 住民发给我的，out = 我发出去的
   TextColumn get direction => text()();

@@ -123,6 +123,19 @@ class SystemNotificationService {
     }
   }
 
+  /// 把通知栏里已经弹出来的提醒收掉。
+  ///
+  /// 用户既然已经打开 APP 看到了消息，状态栏里那条"有人回应你"就完成了
+  /// 它的使命；一直挂着反而像没读过。只清"已经展示的"，
+  /// 没到点的预约由 [cancelAllScheduled] 单独管。
+  Future<void> cancelAllShown() async {
+    try {
+      await _plugin.cancelAll();
+    } catch (error) {
+      debugPrint('[通知] 通知栏没清干净：$error');
+    }
+  }
+
   /// 取消所有已预约、还没弹出的通知。
   ///
   /// 只动"排着的"，已经弹出来的历史通知不动——切模式不该顺手把

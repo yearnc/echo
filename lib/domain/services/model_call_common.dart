@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// 模型调用的公共小工具。
 ///
@@ -96,6 +97,77 @@ Map<String, dynamic>? firstImageEntry(Map<String, dynamic>? body) {
     if (first is String && first.isNotEmpty) return {'url': first};
   }
   return null;
+}
+
+/// 一次请求的 token 账。缓存命中与否只能从这里看出来。
+///
+/// 各家字段名不一样，但说的是同一件事：
+/// - OpenAI：`prompt_tokens_details.cached_tokens`
+/// - DeepSeek：`prompt_cache_hit_tokens`
+/// - Anthropic：`cache_read_input_tokens` / `cache_creation_input_tokens`
+///
+/// 没给就是 0——**不猜**。服务商不回 usage 时，命中率未知比编一个数字好。
+class ModelUsage {
+  const ModelUsage({
+    this.promptTokens = 0,
+    this.completionTokens = 0,
+    this.cachedTokens = 0,
+    this.cacheWriteTokens = 0,
+  });
+
+  final int promptTokens;
+  final int completionTokens;
+  final int cachedTokens;
+  final int cacheWriteTokens;
+
+  static const ModelUsage zero = ModelUsage();
+
+  bool get hasData => promptTokens > 0 || completionTokens > 0;
+  int get cacheHitRate =>
+      promptTokens == 0 ? 0 : (cachedTokens / promptTokens * 100).round();
+
+  /// 一行日志：排查"怎么一直没命中"时，就靠它。
+  String get summary =>
+      '输入 $promptTokens（缓存命中 $cachedTokens，$cacheHitRate%'
+      '${cacheWriteTokens > 0 ? '，写入 $cacheWriteTokens' : ''}）'
+      '｜输出 $completionTokens';
+
+  static ModelUsage fromBody(Map<String, dynamic>? body) {
+    final usage = body?['usage'];
+    if (usage is! Map) return zero;
+
+    int pick(List<String> keys) {
+      for (final key in keys) {
+        final value = usage[key];
+        if (value is num) return value.toInt();
+      }
+      return 0;
+    }
+
+    final details = usage['prompt_tokens_details'];
+    var cached = 0;
+    if (details is Map) {
+      final value = details['cached_tokens'];
+      if (value is num) cached = value.toInt();
+    }
+
+    return ModelUsage(
+      promptTokens: pick(const ['prompt_tokens', 'input_tokens']),
+      completionTokens: pick(const ['completion_tokens', 'output_tokens']),
+      cachedTokens: cached == 0
+          ? pick(const [
+              'prompt_cache_hit_tokens',
+              'cache_read_input_tokens',
+            ])
+          : cached,
+      cacheWriteTokens: pick(const ['cache_creation_input_tokens']),
+    );
+  }
+}
+
+void logModelUsage(String label, ModelUsage usage) {
+  if (!usage.hasData) return;
+  debugPrint('[缓存] $label：${usage.summary}');
 }
 
 /// 从 OpenAI 兼容的响应里取出助手的第一条回复文本。

@@ -533,11 +533,20 @@ class SchedulerService {
       final line = lines[authorId]?.trim() ?? '';
       if (line.isEmpty) return;
 
+      // 他回的是哪个人：先看这一帖的临时网民快照，再回落到旧住民名单
+      var targetName = (await voiceRepo?.findById(item.personaId))?.name;
+      if (targetName == null) {
+        for (final persona in pool) {
+          if (persona.id == item.personaId) targetName = persona.name;
+        }
+      }
+
       await interactions.insertFollowUp(
         postId: item.postId,
         personaId: authorId,
         content: line,
         parentId: item.id,
+        replyToName: targetName,
         scheduledAt: DateTime.now().add(
           Duration(minutes: 10 + _random.nextInt(50)),
         ),
@@ -635,6 +644,7 @@ class SchedulerService {
         personaId: other.id,
         content: text,
         parentId: item.id,
+        replyToName: voiceMap[item.personaId]?.name ?? name,
         scheduledAt: DateTime.now().add(
           Duration(minutes: 1 + _random.nextInt(6)),
         ),

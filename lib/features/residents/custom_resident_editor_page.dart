@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -120,6 +121,42 @@ class _CustomResidentEditorPageState
     });
 
     final limitText = _memoryLimit.text.trim();
+    final newLimit = limitText.isEmpty ? null : int.tryParse(limitText);
+
+    // 调低上限：先把"会归档几条"说清楚，别让用户以为记忆被删了。
+    final id = widget.residentId;
+    if (id != null && newLimit != null) {
+      final memories = ref.read(residentMemoryRepositoryProvider);
+      final current = await memories.count(id);
+      if (current > newLimit) {
+        if (!mounted) return;
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('调低记忆上限？'),
+            content: Text(
+              '当前有 $current 条，将把 ${current - newLimit} 条较早的记忆移入归档。'
+              '归档不会删除，之后可以在记忆页手动恢复。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('确认'),
+              ),
+            ],
+          ),
+        );
+        if (ok != true) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
+      }
+    }
+
     final resident = CustomResident(
       id: widget.residentId ?? CustomResidentRepository.newId(),
       name: name,
@@ -139,13 +176,18 @@ class _CustomResidentEditorPageState
           .where((tag) => tag.trim().isNotEmpty)
           .toList(growable: false),
       memoryEnabled: _memory,
-      memoryLimit: limitText.isEmpty ? null : int.tryParse(limitText),
+      memoryLimit: newLimit,
       alwaysShow: _alwaysShow,
       createdAt: _createdAt ?? DateTime.now(),
     );
 
     try {
       await ref.read(customResidentRepositoryProvider).upsert(resident);
+      if (newLimit != null) {
+        await ref
+            .read(residentMemoryRepositoryProvider)
+            .archiveOverflow(resident.id, newLimit);
+      }
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (error) {

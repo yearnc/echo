@@ -285,6 +285,7 @@ class SettingsPage extends ConsumerWidget {
                 subtitle: Text(
                   switch (option) {
                     AppearanceMode.auto => '回响模式深色，清醒模式暖白',
+                    AppearanceMode.system => '跟着手机的深色模式走',
                     AppearanceMode.light => '两种模式都用暖白',
                     AppearanceMode.dark => '两种模式都用深色',
                   },
