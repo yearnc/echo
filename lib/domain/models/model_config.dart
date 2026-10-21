@@ -6,7 +6,8 @@
 enum ModelKind {
   chat('chat', '对话'),
   image('image', '文生图'),
-  tts('tts', '语音合成');
+  tts('tts', '语音合成'),
+  vision('vision', '图片理解');
 
   const ModelKind(this.id, this.label);
 
@@ -31,6 +32,7 @@ class ModelConfig {
     required this.baseUrl,
     required this.model,
     this.kind = ModelKind.chat,
+    this.supportsVision = false,
     this.enabled = false,
     this.createdAt = 0,
     this.updatedAt = 0,
@@ -48,8 +50,11 @@ class ModelConfig {
   final String baseUrl;
   final String model;
 
-  /// 用途：对话 / 文生图。
+  /// 用途：对话 / 文生图 / 语音合成 / 图片理解。
   final ModelKind kind;
+
+  /// 对话模型能不能直接收图片。关着时私信图片不会塞进请求。
+  final bool supportsVision;
 
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
@@ -224,10 +229,37 @@ class ModelConfig {
     ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
   ];
 
+  /// 图片理解预设：只列确认兼容 OpenAI `image_url` 入参的那几家。
+  static const List<ModelPreset> visionPresets = [
+    ModelPreset(
+      id: 'qwen-vl',
+      label: '通义千问 VL',
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      model: 'qwen-vl-max',
+      altModels: ['qwen-vl-plus'],
+    ),
+    ModelPreset(
+      id: 'zhipu-vl',
+      label: '智谱 GLM-4V',
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      model: 'glm-4v-plus',
+      altModels: ['glm-4v-flash'],
+    ),
+    ModelPreset(
+      id: 'openai-vl',
+      label: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      altModels: ['gpt-4o-mini'],
+    ),
+    ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
+  ];
+
   /// 某个用途下有哪些预设。
   static List<ModelPreset> presetsOf(ModelKind kind) => switch (kind) {
     ModelKind.image => imagePresets,
     ModelKind.tts => ttsPresets,
+    ModelKind.vision => visionPresets,
     ModelKind.chat => presets,
   };
 
@@ -248,6 +280,7 @@ class ModelConfig {
     String? baseUrl,
     String? model,
     ModelKind? kind,
+    bool? supportsVision,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -256,6 +289,7 @@ class ModelConfig {
       id: id,
       provider: provider ?? this.provider,
       label: label ?? this.label,
+      supportsVision: supportsVision ?? this.supportsVision,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
       kind: kind ?? this.kind,

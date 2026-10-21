@@ -12,6 +12,8 @@ class CommunitySettingsController extends Notifier<CommunitySettings> {
       'community.allowResidentPosts';
   static const String allowLurkKey = 'community.allowLurk';
   static const String aiPeerLimitKey = 'community.aiPeerInteractionLimit';
+  static const String sendImagesDirectlyKey =
+      'community.sendPostImagesDirectly';
 
   @override
   CommunitySettings build() {
@@ -27,6 +29,7 @@ class CommunitySettingsController extends Notifier<CommunitySettings> {
                 allowResidentPostsKey,
                 allowLurkKey,
                 aiPeerLimitKey,
+                sendImagesDirectlyKey,
               ]),
             ))
             .get();
@@ -37,6 +40,7 @@ class CommunitySettingsController extends Notifier<CommunitySettings> {
       allowLurk: map[allowLurkKey] != 'false',
       aiPeerInteractionLimit:
           int.tryParse(map[aiPeerLimitKey] ?? '') ?? 2,
+      sendPostImagesDirectly: map[sendImagesDirectlyKey] == 'true',
     );
   }
 
@@ -54,6 +58,11 @@ class CommunitySettingsController extends Notifier<CommunitySettings> {
     final clamped = limit.clamp(0, 10);
     state = state.copyWith(aiPeerInteractionLimit: clamped);
     await _write(aiPeerLimitKey, '$clamped');
+  }
+
+  Future<void> setSendPostImagesDirectly(bool direct) async {
+    state = state.copyWith(sendPostImagesDirectly: direct);
+    await _write(sendImagesDirectlyKey, direct ? 'true' : 'false');
   }
 
   Future<void> _write(String key, String value) async {

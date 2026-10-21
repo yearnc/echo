@@ -75,7 +75,10 @@ class AiThreads extends Table {
 class PostViews extends Table {
   TextColumn get id => text()();
   TextColumn get postId => text().references(Posts, #id)();
-  TextColumn get voiceId => text().references(PostVoices, #id)();
+
+  /// 浏览者：临时网民/固定住民的 voice id，或者保留值 `viewer_me`（我自己）。
+  /// 不设外键——"我"不在 post_voices 里。
+  TextColumn get voiceId => text()();
   IntColumn get firstViewedAt => integer()();
   IntColumn get lastViewedAt => integer()();
   IntColumn get viewCount => integer().withDefault(const Constant(1))();

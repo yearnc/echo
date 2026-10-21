@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/media/image_payload.dart';
+import '../../data/repositories/model_config_repository.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
 import '../models/post_understanding.dart';
@@ -19,25 +21,76 @@ class PostAnalyzer {
   Future<PostUnderstanding?> analyze({
     required ModelConfig config,
     required Post post,
+    ModelConfig? visionConfig,
   }) async {
     try {
-      final raw = await _gateway.complete(
+      final raw = await _analyzeRaw(
+        config: visionConfig ?? config,
+        post: post,
+        useImages: visionConfig != null,
+      );
+      return parse(
+        raw,
+        postId: post.id,
+        model: (visionConfig ?? config).model,
+      );
+    } catch (error) {
+      // 视觉模型不可用/不支持图片时退回纯文字，不让整条帖子解析失败。
+      debugPrint('[解析] 带图解析失败，退回文字：$error');
+      try {
+        final raw = await _analyzeRaw(
+          config: config,
+          post: post,
+          useImages: false,
+        );
+        return parse(raw, postId: post.id, model: config.model);
+      } catch (fallbackError) {
+        // 解析失败不算塌天：评论照常生成，只是不硬接梗。
+        debugPrint('[解析] 这条帖子没看懂：$fallbackError');
+        return null;
+      }
+    }
+  }
+
+  Future<String> _analyzeRaw({
+    required ModelConfig config,
+    required Post post,
+    required bool useImages,
+  }) async {
+    final parts = useImages
+        ? await ImagePayload.partsFromRefs(post.images)
+        : const <Map<String, dynamic>>[];
+    final text = userPrompt(post, imagesAttached: parts.isNotEmpty);
+
+    if (parts.isEmpty) {
+      return _gateway.complete(
         config: config,
         messages: [
           {'role': 'system', 'content': systemPrompt()},
-          {'role': 'user', 'content': userPrompt(post)},
+          {'role': 'user', 'content': text},
         ],
-        // 理解要稳，不要发挥
         temperature: 0.2,
-        maxTokens: 500,
-        timeout: const Duration(seconds: 20),
+        maxTokens: 600,
+        timeout: const Duration(seconds: 25),
       );
-      return parse(raw, postId: post.id, model: config.model);
-    } catch (error) {
-      // 解析失败不算塌天：评论照常生成，只是不硬接梗。
-      debugPrint('[解析] 这条帖子没看懂：$error');
-      return null;
     }
+
+    return _gateway.completeRich(
+      config: config,
+      messages: [
+        {'role': 'system', 'content': systemPrompt()},
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': text},
+            ...parts,
+          ],
+        },
+      ],
+      temperature: 0.2,
+      maxTokens: 600,
+      timeout: const Duration(seconds: 30),
+    );
   }
 
   static String systemPrompt() {
@@ -49,6 +102,7 @@ class PostAnalyzer {
 - domain：游戏 / 行业 / 生活 / 情感 / 知识 / 其他
 - entities：帖子提到的游戏名、角色、术语、梗名，最多 8 个
 - point：一句话说清这条帖子在说什么（20 字以内）
+- image_summary：如果帖子带了图，用 1—2 句写清画面里有什么、氛围/笑点在哪；没图或看不到图就留空
 - joke_mechanism：如果是玩梗，笑点是什么（谐音 / 反差 / 自嘲 / 圈内黑话 / 剧情梗）；不是玩梗留空
 - emotion：如果是感伤，情绪落在哪件事上；不是留空
 - insider_angle：如果是游戏或行业，圈内人真正会接的那个点；不是留空
@@ -58,7 +112,7 @@ class PostAnalyzer {
 只输出 JSON，不要代码块、不要解释。''';
   }
 
-  static String userPrompt(Post post) {
+  static String userPrompt(Post post, {bool imagesAttached = false}) {
     final buffer = StringBuffer()
       ..writeln('帖子正文：')
       ..writeln(post.content);
@@ -68,8 +122,10 @@ class PostAnalyzer {
     }
     if (post.hasImages) {
       buffer.writeln(
-        '（这条帖子还带了 ${post.images.length} 张图；你看不到图，'
-        '只能根据文字和话题判断）',
+        imagesAttached
+            ? '（这条帖子还带了 ${post.images.length} 张图，图片已经附在这条消息里）'
+            : '（这条帖子还带了 ${post.images.length} 张图；这次看不到图，'
+                  '只能根据文字和话题判断，image_summary 留空）',
       );
     }
     return buffer.toString();
@@ -118,6 +174,7 @@ class PostAnalyzer {
         domain: domain ?? '',
         entities: entities,
         point: point ?? '',
+        imageSummary: _string(data['image_summary']) ?? '',
         jokeMechanism: _string(data['joke_mechanism']) ?? '',
         emotion: _string(data['emotion']) ?? '',
         insiderAngle: _string(data['insider_angle']) ?? '',
@@ -141,3 +198,9 @@ class PostAnalyzer {
 final postAnalyzerProvider = Provider<PostAnalyzer>(
   (ref) => PostAnalyzer(ref.watch(modelGatewayProvider)),
 );
+
+/// 当前可用的图片理解配置；没配就是 null（帖子图片退回文字解析）。
+final visionConfigProvider = FutureProvider<ModelConfig?>((ref) {
+  ref.watch(modelConfigsProvider);
+  return ref.watch(modelGatewayProvider).activeConfig(kind: ModelKind.vision);
+});

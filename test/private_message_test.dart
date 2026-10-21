@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show TableUpdate;
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/private_message_repository.dart';
@@ -49,6 +50,9 @@ void main() {
             .millisecondsSinceEpoch,
       ],
     );
+    // customStatement 不告诉 Drift 哪张表变了；手动通知一次，
+    // 等同于“时间到了”触发了一次读取。
+    db.notifyUpdates({TableUpdate.onTable(db.privateMessages)});
 
     final thread = await messages.watchThread('persona_001').first;
     expect(thread.length, 1);

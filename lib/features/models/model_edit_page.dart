@@ -40,6 +40,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   bool _obscureKey = true;
   bool _hasSavedKey = false;
   bool _enabled = false;
+  bool _supportsVision = false;
   ProbeResult? _probe;
 
   /// 进页面时的表单快照。当前值和它不一致，就说明有没保存的改动。
@@ -53,6 +54,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _baseUrlCtrl.text.trim(),
     _modelCtrl.text.trim(),
     _enabled ? '1' : '0',
+    _supportsVision ? '1' : '0',
   ].join('|');
 
   bool get _dirty =>
@@ -105,6 +107,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _baseUrlCtrl.text = config?.baseUrl ?? '';
       _modelCtrl.text = config?.model ?? '';
       _enabled = config?.enabled ?? false;
+      _supportsVision = config?.supportsVision ?? false;
       _hasSavedKey = hasKey;
       _loading = false;
       _initialSnapshot = _snapshot;
@@ -170,6 +173,12 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
         model: model,
       ),
       ModelKind.tts => await probe.testTts(
+        baseUrl: baseUrl,
+        apiKey: key,
+        model: model,
+      ),
+      // 图片理解也是对话接口；用一句文本验连通性，真正的看图在运行时。
+      ModelKind.vision => await probe.test(
         baseUrl: baseUrl,
         apiKey: key,
         model: model,
@@ -246,6 +255,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       baseUrl: baseUrl,
       model: model,
       kind: _kind,
+      supportsVision: _supportsVision,
     );
 
     await repo.save(saved);
@@ -431,9 +441,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
             if (_kind != ModelKind.chat) ...[
               const SizedBox(height: 8),
               Text(
-                _kind == ModelKind.image
-                    ? '兼容 OpenAI 的 /images/generations 接口。'
-                    : '兼容 OpenAI 的 /audio/speech 接口，音色由服务商提供。',
+                switch (_kind) {
+                  ModelKind.image => '兼容 OpenAI 的 /images/generations 接口。',
+                  ModelKind.tts => '兼容 OpenAI 的 /audio/speech 接口，音色由服务商提供。',
+                  ModelKind.vision =>
+                    '兼容 OpenAI 的 image_url 入参；用作帖子图片的“先看懂”。',
+                  ModelKind.chat => '',
+                },
                 style: TextStyle(
                   color: EchoColors.textFaint,
                   fontSize: 11.5,
@@ -441,6 +455,14 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                 ),
               ),
             ],
+            if (_kind == ModelKind.chat)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('这个模型能看图'),
+                subtitle: const Text('开启后，私信里你发的图片会原样带进对话'),
+                value: _supportsVision,
+                onChanged: (value) => setState(() => _supportsVision = value),
+              ),
             const SizedBox(height: 20),
             const _Label('服务商'),
             Wrap(
@@ -481,6 +503,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                 hintText: switch (_kind) {
                   ModelKind.image => 'gpt-image-1.5',
                   ModelKind.tts => 'FunAudioLLM/CosyVoice2-0.5B',
+                  ModelKind.vision => 'qwen-vl-max',
                   ModelKind.chat => 'deepseek-flash',
                 },
               ),
@@ -567,6 +590,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                     : switch (_kind) {
                         ModelKind.image => '测试出图',
                         ModelKind.tts => '测试合成',
+                        ModelKind.vision => '测试连接',
                         ModelKind.chat => '测试连接',
                       },
               ),

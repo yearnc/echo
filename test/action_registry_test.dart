@@ -1,9 +1,11 @@
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
+import 'package:echo/data/media/media_service.dart';
 import 'package:echo/data/repositories/custom_resident_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/private_message_repository.dart';
 import 'package:echo/data/repositories/resident_memory_repository.dart';
+import 'package:echo/data/repositories/sticker_repository.dart';
 import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/services/action_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +24,7 @@ void main() {
       memories: ResidentMemoryRepository(db),
       messages: messages,
       posts: PostRepository(db),
+      stickers: StickerRepository(db, const MediaService()),
     );
 
     await CustomResidentRepository(db).upsert(

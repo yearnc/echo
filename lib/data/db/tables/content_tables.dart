@@ -25,6 +25,20 @@ class UserProfile extends Table {
   TextColumn get nickname => text().withDefault(const Constant(''))();
   TextColumn get avatar => text().withDefault(const Constant(''))();
   TextColumn get signature => text().withDefault(const Constant(''))();
+
+  /// 身份资料（v24）：给模型的前缀用，只存在本机。
+  ///
+  /// 性别存的是稳定的枚举值（male/female/nonbinary/secret），
+  /// 界面显示成中文；这样换文案时不用动数据库。
+  TextColumn get gender => text().withDefault(const Constant(''))();
+  TextColumn get ageRange => text().withDefault(const Constant(''))();
+  TextColumn get occupation => text().withDefault(const Constant(''))();
+  TextColumn get city => text().withDefault(const Constant(''))();
+  TextColumn get interests => text().withDefault(const Constant(''))();
+
+  /// 希望 AI 怎么称呼你（可以和昵称不同）。
+  TextColumn get preferredName => text().withDefault(const Constant(''))();
+  TextColumn get intro => text().withDefault(const Constant(''))();
   IntColumn get level => integer().withDefault(const Constant(1))();
   IntColumn get exp => integer().withDefault(const Constant(0))();
   IntColumn get followers => integer().withDefault(const Constant(0))();

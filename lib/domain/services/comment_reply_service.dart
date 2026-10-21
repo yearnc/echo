@@ -3,13 +3,16 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/ai_persona.dart';
+import '../models/custom_resident.dart';
 import '../models/post.dart';
+import '../models/post_voice.dart';
 import 'content_generator.dart';
 import 'relationship_rules.dart';
 import 'resident_memory_service.dart';
@@ -29,6 +32,7 @@ class CommentReplyService {
     required this.relationships,
     required this.generator,
     required this.userProfiles,
+    this.residents,
     this.voiceRepo,
     this.residentMemory,
     Random? random,
@@ -38,6 +42,9 @@ class CommentReplyService {
   final PersonaRepository personas;
   final RelationshipRepository relationships;
   final UserProfileRepository userProfiles;
+
+  /// 固定住民：楼主接住你的评论时要用他的人设。
+  final CustomResidentRepository? residents;
   final ContentGenerator generator;
 
   /// 临时网民（v3.0）。可空：老测试和固定住民只走 personas。
@@ -124,6 +131,100 @@ class CommentReplyService {
     }
   }
 
+  /// 你在固定住民的帖子下面直接评论（不是在回某条），楼主接一句。
+  ///
+  /// 和楼中楼共用同一套 `/replies` 提示词：把**帖子正文**当成楼主
+  /// 说过的那句话，把**你的评论**当成别人回他的那句——语义刚好对得上。
+  /// 这条以前完全没有：固定住民的帖子下面根本没有他的 voice 快照，
+  /// 追问服务找不到人，评论区就一直静着。
+  Future<bool> maybeAuthorReply({
+    required String postId,
+    required String residentId,
+    required String postContent,
+    required String myCommentId,
+    required String myReply,
+  }) async {
+    final reply = myReply.trim();
+    if (reply.isEmpty) return false;
+
+    try {
+      final resident = await residents?.findById(residentId);
+      if (resident == null) return false;
+
+      final voice = await _ensureVoice(postId: postId, resident: resident);
+      final persona = voice?.toPersona() ?? resident.toPersona();
+
+      final lines = await generator.replies(
+        threads: [
+          ReplyThread(
+            persona: persona,
+            mine: postContent,
+            yours: reply,
+          ),
+        ],
+      );
+      final line = lines[persona.id]?.trim() ?? '';
+      if (line.isEmpty) return false;
+
+      final myName = (await userProfiles.load())?.displayName ?? '我';
+      await interactions.insertFollowUp(
+        postId: postId,
+        personaId: persona.id,
+        content: line,
+        parentId: myCommentId,
+        replyToName: myName,
+        scheduledAt: DateTime.now().add(_delay()),
+      );
+
+      await residentMemory?.rememberUserReply(
+        residentId: residentId,
+        reply: reply,
+        sourceId: myCommentId,
+      );
+      return true;
+    } catch (error) {
+      debugPrint('[楼主回复] 这次没排上：$error');
+      return false;
+    }
+  }
+
+  /// 保证楼主在这条帖子下有一个 voice 快照。
+  ///
+  /// 老帖子可能是在 v3.0 之前发的，作者没进 post_voices；
+  /// 补一条之后，评论区的名字/头像、以及后续的追问都能认出来。
+  Future<PostVoice?> _ensureVoice({
+    required String postId,
+    required CustomResident resident,
+  }) async {
+    final repo = voiceRepo;
+    if (repo == null) return null;
+
+    final id = 'voice_${resident.id}_$postId';
+    final existing = await repo.findById(id);
+    if (existing != null) return existing;
+
+    final voice = PostVoice(
+      id: id,
+      postId: postId,
+      kind: PostVoiceKind.custom,
+      residentId: resident.id,
+      name: resident.name,
+      avatarAsset: resident.avatarAsset,
+      bio: [resident.bio, resident.description, resident.scenario]
+          .where((part) => part.trim().isNotEmpty)
+          .join('\n'),
+      languageStyle: [resident.languageStyle, resident.exampleDialogue]
+          .where((part) => part.trim().isNotEmpty)
+          .join('\n'),
+      tone: [resident.tone, resident.extraInstructions]
+          .where((part) => part.trim().isNotEmpty)
+          .join('；'),
+      createdAt: DateTime.now(),
+    );
+    await repo.insertAll([voice]);
+    return voice;
+  }
+
   Duration _delay() {
     final low = minDelay.inSeconds;
     final high = maxDelay.inSeconds;
@@ -147,6 +248,7 @@ final commentReplyServiceProvider = Provider<CommentReplyService>(
     relationships: ref.watch(relationshipRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
     userProfiles: ref.watch(userProfileRepositoryProvider),
+    residents: ref.watch(customResidentRepositoryProvider),
     voiceRepo: ref.watch(postVoiceRepositoryProvider),
     residentMemory: ref.watch(residentMemoryServiceProvider),
   ),

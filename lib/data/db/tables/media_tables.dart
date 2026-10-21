@@ -13,6 +13,9 @@ class Stickers extends Table {
   TextColumn get name => text()();
   TextColumn get category => text()();
 
+  /// AI 选表情时看的标签（JSON 数组）。没标签的表情包不会进 AI 目录。
+  TextColumn get tags => text().withDefault(const Constant('[]'))();
+
   /// asset / file
   TextColumn get source => text().withDefault(const Constant('asset'))();
   TextColumn get path => text()();

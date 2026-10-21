@@ -3,11 +3,36 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/media/image_payload.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
+
+/// 这一轮选中的表情包。
+///
+/// 工具只做“选哪张”的决策；真正落库由 DirectMessageService 通过
+/// ActionRegistry 统一写入，保住幂等和动作日志。
+class ResidentStickerChoice {
+  const ResidentStickerChoice({
+    required this.callId,
+    required this.id,
+    required this.path,
+  });
+
+  final String callId;
+  final String id;
+  final String path;
+}
+
+/// 固定住民这一轮要发的东西：一句话 + 最多一张表情包。
+class ResidentReply {
+  const ResidentReply({this.text = '', this.stickers = const []});
+
+  final String text;
+  final List<ResidentStickerChoice> stickers;
+}
 
 /// 固定住民的"自主行为"会话：真正的 tool calling（v3.0 阶段三）。
 ///
@@ -34,23 +59,28 @@ class ResidentToolSession {
   ];
 
   /// 这个模型能不能用工具。失败一次就降级——不反复试。
-  Future<String?> reply({
+  Future<ResidentReply?> reply({
     required CustomResident resident,
     required ModelConfig config,
     required List<DirectTurn> recent,
     required String latestUserMessage,
+    DateTime? at,
   }) async {
     final deadline = DateTime.now().add(totalTimeout);
     final memoryLines = await _prefetch(resident);
+    final stickers = <ResidentStickerChoice>[];
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
         'content': _systemPrompt(resident),
       },
-      {
-        'role': 'user',
-        'content': _userPrompt(recent, latestUserMessage, memoryLines),
-      },
+      ...await _historyMessages(
+        recent: recent,
+        config: config,
+        latest: latestUserMessage,
+        memoryLines: memoryLines,
+        at: at,
+      ),
     ];
 
     for (var round = 0; round < maxRounds; round++) {
@@ -69,7 +99,10 @@ class ResidentToolSession {
       );
 
       if (result.toolCalls.isEmpty) {
-        return result.content.trim();
+        return ResidentReply(
+          text: result.content.trim(),
+          stickers: stickers,
+        );
       }
 
       messages.add({
@@ -90,11 +123,32 @@ class ResidentToolSession {
 
       for (final call in result.toolCalls) {
         if (deadline.difference(DateTime.now()) <= Duration.zero) break;
-        final outcome = await _execute(
-          resident: resident,
-          call: call,
-          latestUserMessage: latestUserMessage,
-        );
+        final ActionOutcome outcome;
+        if (call.name == 'send_sticker' && stickers.isNotEmpty) {
+          outcome = const ActionOutcome(
+            ok: false,
+            message: '一次回复最多发一张表情包',
+          );
+        } else {
+          outcome = await _execute(
+            resident: resident,
+            call: call,
+            latestUserMessage: latestUserMessage,
+          );
+          if (call.name == 'send_sticker' && outcome.ok) {
+            final id = outcome.data['sticker_id'];
+            final path = outcome.data['path'];
+            if (id is String && path is String) {
+              stickers.add(
+                ResidentStickerChoice(
+                  callId: call.id,
+                  id: id,
+                  path: path,
+                ),
+              );
+            }
+          }
+        }
         messages.add({
           'role': 'tool',
           'tool_call_id': call.id,
@@ -106,7 +160,9 @@ class ResidentToolSession {
     // 轮次用完或超时：让模型不带工具收个尾，还能不能好好说句话
     try {
       final left = deadline.difference(DateTime.now());
-      if (left <= const Duration(seconds: 1)) return '';
+      if (left <= const Duration(seconds: 1)) {
+        return ResidentReply(stickers: stickers);
+      }
       final finalResult = await gateway.completeWithTools(
         config: config,
         messages: [
@@ -121,10 +177,13 @@ class ResidentToolSession {
         maxTokens: 160,
         timeout: left,
       );
-      return finalResult.content.trim();
+      return ResidentReply(
+        text: finalResult.content.trim(),
+        stickers: stickers,
+      );
     } catch (error) {
       debugPrint('[工具] 收尾也没成：$error');
-      return '';
+      return ResidentReply(stickers: stickers);
     }
   }
 
@@ -168,31 +227,96 @@ $persona
 - 用户明确说"记住……"时，才用 memory_write 记下来；别自己往记忆里写推测。
 - 没什么可查的就直接说话，不要为了让流程好看而调用工具。
 - 一次回复里最多调用两个工具。
+- 想发表情包时，先用 list_stickers 看目录，再用 send_sticker 选一张；
+  一次回复最多一张，没有合适的就纯文字。
+- 对方难过、求助时，只能选安慰/抱抱/陪伴/鼓励这类标签，不要用吐槽/看戏类。
 ''';
   }
 
-  String _userPrompt(
-    List<DirectTurn> recent,
-    String latest,
-    String memoryLines,
-  ) {
-    final buffer = StringBuffer();
-    if (memoryLines.isNotEmpty) {
-      buffer
-        ..writeln('以下是你们以前聊过的，仅供参考：')
-        ..writeln(memoryLines)
-        ..writeln();
-    }
-    if (recent.isNotEmpty) {
-      buffer.writeln('最近的对话：');
-      for (final turn in recent) {
-        buffer.writeln('${turn.fromMe ? '我' : '他'}：${turn.text}');
+  /// 把最近几轮组装成真正的 user/assistant 消息。
+  ///
+  /// - system 只放人设和规则，逐字节稳定；
+  /// - 历史原样保留，图片留在它被发出来的那一轮；
+  /// - 时间、记忆、这一轮的提示放在**最后一条 user 消息**里，
+  ///   不会因为每轮都变而把前缀打碎。
+  Future<List<Map<String, dynamic>>> _historyMessages({
+    required List<DirectTurn> recent,
+    required ModelConfig config,
+    required String latest,
+    required String memoryLines,
+    DateTime? at,
+  }) async {
+    final messages = <Map<String, dynamic>>[];
+
+    for (final turn in recent) {
+      if (turn.fromMe) {
+        messages.add({
+          'role': 'assistant',
+          'content': turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim(),
+        });
+        continue;
       }
-      buffer.writeln();
+
+      final text = turn.text.trim().isEmpty
+          ? '[对方发来一张图片]'
+          : turn.text.trim();
+      Map<String, dynamic>? image;
+      if (turn.imageRef != null && config.supportsVision) {
+        image = await ImagePayload.partFromRef(turn.imageRef!);
+      }
+      messages.add({
+        'role': 'user',
+        'content': image == null
+            ? text
+            : [
+                {'type': 'text', 'text': text},
+                image,
+              ],
+      });
     }
-    buffer.writeln('他刚说：$latest');
-    buffer.writeln('直接回他一句。');
-    return buffer.toString();
+
+    final tail = StringBuffer()
+      ..writeln('现在：${_timeLabel(at ?? DateTime.now())}');
+    if (memoryLines.isNotEmpty) {
+      tail
+        ..writeln('你们以前聊过（仅供参考）：')
+        ..writeln(memoryLines);
+    }
+    if (latest.trim().isNotEmpty &&
+        (recent.isEmpty || recent.last.fromMe)) {
+      tail.writeln('他刚说：${latest.trim()}');
+    }
+    tail.writeln('直接回他一句。');
+
+    final tailText = tail.toString().trim();
+    if (messages.isNotEmpty && messages.last['role'] == 'user') {
+      final content = messages.last['content'];
+      if (content is String) {
+        messages.last['content'] = [
+          {'type': 'text', 'text': '$content\n\n$tailText'},
+        ];
+      } else if (content is List) {
+        content.add({'type': 'text', 'text': tailText});
+      }
+    } else {
+      messages.add({'role': 'user', 'content': tailText});
+    }
+    return messages;
+  }
+
+  static String _timeLabel(DateTime at) {
+    final phase = switch (at.hour) {
+      >= 5 && < 8 => '清晨',
+      >= 8 && < 11 => '上午',
+      >= 11 && < 14 => '中午',
+      >= 14 && < 17 => '下午',
+      >= 17 && < 19 => '傍晚',
+      >= 19 && < 23 => '晚上',
+      _ => '深夜',
+    };
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${at.month}月${at.day}日 $phase $hh:$mm';
   }
 
   Future<ActionOutcome> _execute({
@@ -238,6 +362,13 @@ $persona
         return ActionOutcome(
           ok: true,
           data: {'tools': [for (final tool in tools) _toolName(tool)]},
+        );
+      case 'list_stickers':
+        return actions.listStickers();
+      case 'send_sticker':
+        return actions.chooseSticker(
+          id: (args['sticker_id'] as String?) ?? '',
+          tag: (args['tag'] as String?) ?? '',
         );
       case 'web_search':
         return const ActionOutcome(
@@ -380,6 +511,35 @@ $persona
         'name': 'list_tools',
         'description': '列出当前可用的工具。',
         'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'list_stickers',
+        'description': '看看当前有哪些带标签的表情包可用（id、名称、标签）。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'send_sticker',
+        'description':
+            '发一张表情包。一次回复最多一张；对方难过时只选安慰/陪伴类标签。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'sticker_id': {
+              'type': 'string',
+              'description': 'list_stickers 返回的 id，优先用它',
+            },
+            'tag': {
+              'type': 'string',
+              'description': '没给 id 时按标签匹配；匹配到多张会要求重选',
+            },
+          },
+        },
       },
     },
   ];

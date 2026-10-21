@@ -34,7 +34,17 @@ class UserProfileRepository {
   ///
   /// 传空字符串是**有意义的**——"把昵称清掉"意味着回落到默认名，
   /// "把头像清掉"意味着用文字头像。所以这里不能用"null 就是不传"的写法。
-  Future<void> save({String? nickname, String? avatarRef}) async {
+  Future<void> save({
+    String? nickname,
+    String? avatarRef,
+    String? gender,
+    String? ageRange,
+    String? occupation,
+    String? city,
+    String? interests,
+    String? preferredName,
+    String? intro,
+  }) async {
     final companion = UserProfileCompanion(
       nickname: nickname == null
           ? const Value.absent()
@@ -42,6 +52,21 @@ class UserProfileRepository {
       avatar: avatarRef == null
           ? const Value.absent()
           : Value(avatarRef.trim()),
+      gender: gender == null ? const Value.absent() : Value(gender.trim()),
+      ageRange: ageRange == null
+          ? const Value.absent()
+          : Value(ageRange.trim()),
+      occupation: occupation == null
+          ? const Value.absent()
+          : Value(occupation.trim()),
+      city: city == null ? const Value.absent() : Value(city.trim()),
+      interests: interests == null
+          ? const Value.absent()
+          : Value(interests.trim()),
+      preferredName: preferredName == null
+          ? const Value.absent()
+          : Value(preferredName.trim()),
+      intro: intro == null ? const Value.absent() : Value(intro.trim()),
     );
 
     final updated = await (_db.update(
@@ -57,6 +82,13 @@ class UserProfileRepository {
             id: profileId,
             nickname: Value(nickname?.trim() ?? ''),
             avatar: Value(avatarRef?.trim() ?? ''),
+            gender: Value(gender?.trim() ?? ''),
+            ageRange: Value(ageRange?.trim() ?? ''),
+            occupation: Value(occupation?.trim() ?? ''),
+            city: Value(city?.trim() ?? ''),
+            interests: Value(interests?.trim() ?? ''),
+            preferredName: Value(preferredName?.trim() ?? ''),
+            intro: Value(intro?.trim() ?? ''),
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );
@@ -64,7 +96,17 @@ class UserProfileRepository {
 
   UserProfile? _toDomain(UserProfileRow? row) => row == null
       ? null
-      : UserProfile(nickname: row.nickname, avatarRef: row.avatar);
+      : UserProfile(
+          nickname: row.nickname,
+          avatarRef: row.avatar,
+          gender: row.gender,
+          ageRange: row.ageRange,
+          occupation: row.occupation,
+          city: row.city,
+          interests: row.interests,
+          preferredName: row.preferredName,
+          intro: row.intro,
+        );
 }
 
 final userProfileRepositoryProvider = Provider<UserProfileRepository>(

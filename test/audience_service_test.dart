@@ -30,6 +30,8 @@ class _FakeContent implements ContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async {
     lastRelations = relations;
     return {for (final persona in personas) persona.id: '固定住民的评论'};
@@ -56,7 +58,10 @@ class _FakeContent implements ContentGenerator {
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
 
   @override
-  Future<void> prewarm({required Post post}) async {}
+  Future<void> prewarm({
+    required Post post,
+    PostUnderstanding? understanding,
+  }) async {}
 }
 
 class _FakeGenerator implements PostVoiceGenerator {
@@ -75,12 +80,23 @@ class _FakeGenerator implements PostVoiceGenerator {
     required int count,
     required bool allowLurk,
     PostUnderstanding? understanding,
+    DateTime? at,
+    Set<String> avoidNames = const {},
+    bool sendImagesDirectly = false,
   }) async {
     calls++;
     lastAllowLurk = allowLurk;
     if (shouldThrow) throw Exception('boom');
     if (returnsEmpty) return const [];
-    return drafts;
+    // 逐人请求：每次交出一个还没用过的草稿。
+    final available = drafts
+        .where((draft) => !avoidNames.contains(draft.name))
+        .take(count)
+        .toList(growable: false);
+    drafts = drafts
+        .where((draft) => !available.contains(draft))
+        .toList(growable: false);
+    return available;
   }
 }
 
@@ -180,13 +196,14 @@ void main() {
     final service = build(generator, active: config);
 
     await service.prepare(postId: postId, density: ReplyDensity.low);
+    final callsAfterFirst = generator.calls;
     final second = await service.prepare(
       postId: postId,
       density: ReplyDensity.low,
     );
 
     expect(second, 1);
-    expect(generator.calls, 1, reason: '第二次不该再请求模型');
+    expect(generator.calls, callsAfterFirst, reason: '第二次不该再请求模型');
     expect(await voices.byPost(postId), hasLength(1));
   });
 

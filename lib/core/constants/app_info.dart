@@ -4,7 +4,7 @@
 /// Android 上 versionName 就是 pubspec 里那个，APK 里写的和界面上显示的
 /// 必须是同一个版本，否则两个地方会各说各话（阶段 A 那次就没跟上，
 /// 设置页一直停在 0.1.0）。
-const String appVersion = '3.1.1';
+const String appVersion = '3.2.0';
 
 /// 括号里那句阶段说明，只给开发者看，不参与版本比较。
-const String appStageLabel = '阶段 C · v3.1';
+const String appStageLabel = '阶段 C · v3.2';

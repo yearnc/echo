@@ -16,6 +16,7 @@ import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/post.dart';
+import 'package:echo/domain/models/post_understanding.dart';
 import 'package:echo/domain/models/resident_post.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/interaction_planner.dart';
@@ -115,6 +116,8 @@ class _FakeGenerator implements ContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async {
     calls++;
     final failure = error;
@@ -148,7 +151,10 @@ class _FakeGenerator implements ContentGenerator {
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
 
   @override
-  Future<void> prewarm({required Post post}) async {}
+  Future<void> prewarm({
+    required Post post,
+    PostUnderstanding? understanding,
+  }) async {}
 }
 
 void main() {

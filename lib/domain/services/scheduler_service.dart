@@ -57,6 +57,7 @@ class SchedulerService {
     this.voiceRepo,
     this.understandings,
     this.readAiPeerLimit,
+    this.readSendImagesDirectly,
     this.memory,
     this.voice,
     this.readVoiceSettings,
@@ -87,6 +88,9 @@ class SchedulerService {
 
   /// 每帖 AI 接 AI 的上限；不传就是默认 2。
   final int Function()? readAiPeerLimit;
+
+  /// 帖子图片原图直发还是先总结（设置项）。
+  final bool Function()? readSendImagesDirectly;
 
   /// 「我记得你…」（B4）。可空：没有它就只是不记，互动本身照常。
   final MemorySummarizer? memory;
@@ -189,6 +193,8 @@ class SchedulerService {
           personas: targets,
           post: post,
           relations: await _loadRelations(),
+          understanding: await understandings?.find(postId),
+          sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
         );
         await interactions.updatePendingComments(postId, generated);
       }
@@ -356,15 +362,17 @@ class SchedulerService {
         }
         // AI 接 AI 的话只在应用内出现，不叫醒手机，也不加红点。
         if (!item.isPeerReply) {
+          // 表情包评论的 content 是文件路径，别把它铺到通知正文里。
+          final preview = item.mediaType == 'image' ? '[表情包]' : content;
           await notifications.insert(
             id: 'n_${item.id}',
             postId: item.postId,
             type: 'comment',
             title: '$name 评论了你的帖子',
-            body: content,
+            body: preview,
             at: item.scheduledAt,
           );
-          notify?.call('n_${item.id}', '$name 评论了你的帖子', content);
+          notify?.call('n_${item.id}', '$name 评论了你的帖子', preview);
         }
 
         // 合成语音（B8）。这一步跑在后台：语音要多等一两秒才出得来，
@@ -822,6 +830,8 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     understandings: ref.watch(postUnderstandingRepositoryProvider),
     readAiPeerLimit: () =>
         ref.read(communitySettingsProvider).aiPeerInteractionLimit,
+    readSendImagesDirectly: () =>
+        ref.read(communitySettingsProvider).sendPostImagesDirectly,
     memory: ref.watch(memorySummarizerProvider),
     voice: ref.watch(ttsServiceProvider),
     readVoiceSettings: () => ref.read(voiceSettingsControllerProvider),

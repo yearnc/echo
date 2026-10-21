@@ -99,7 +99,7 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.hub_outlined,
                 title: '模型配置',
-                subtitle: '对话 / 文生图 / 语音合成',
+                subtitle: '对话 / 文生图 / 语音合成 / 图片理解',
                 onTap: () => context.push(RoutePaths.models),
               ),
             ],
@@ -128,6 +128,18 @@ class SettingsPage extends ConsumerWidget {
                     .read(communitySettingsProvider.notifier)
                     .setAllowLurk(on),
               ),
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.image_search_outlined,
+                title: '帖子图片原图发给 AI',
+                subtitle: community.sendPostImagesDirectly
+                    ? '每次生成都会带上图片，更准但更贵'
+                    : '先理解一次、生成摘要共享（推荐）',
+                value: community.sendPostImagesDirectly,
+                onChanged: (on) => ref
+                    .read(communitySettingsProvider.notifier)
+                    .setSendPostImagesDirectly(on),
+              ),
               _Row(
                 isEcho: isEcho,
                 icon: Icons.forum_outlined,
@@ -150,6 +162,19 @@ class SettingsPage extends ConsumerWidget {
                 icon: Icons.emoji_emotions_outlined,
                 title: '头像与表情包',
                 onTap: () => context.push(RoutePaths.stickers),
+              ),
+            ],
+          ),
+          _Group(
+            title: '我的资料',
+            isEcho: isEcho,
+            children: [
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.badge_outlined,
+                title: '我的身份',
+                subtitle: '性别、职业、城市等，作为前缀发给 AI',
+                onTap: () => context.push(RoutePaths.identity),
               ),
             ],
           ),

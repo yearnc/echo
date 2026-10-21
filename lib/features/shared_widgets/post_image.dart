@@ -10,15 +10,21 @@ import '../../core/theme/app_colors.dart';
 /// 素材还没放进来时渲染一个**有意设计的占位块**（柔和渐变 + 提示文字），
 /// 而不是红色报错框——演示彩排时如果图还没到位，画面也不至于难看。
 class PostImage extends StatelessWidget {
-  const PostImage({super.key, required this.ref, this.height = 220});
+  const PostImage({
+    super.key,
+    required this.ref,
+    this.height = 220,
+    this.borderRadius = 14,
+  });
 
   final String ref;
   final double height;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(borderRadius),
       child: SizedBox(
         width: double.infinity,
         height: height,

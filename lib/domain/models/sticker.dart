@@ -28,6 +28,7 @@ class StickerItem {
     required this.name,
     required this.category,
     required this.path,
+    this.tags = const [],
     this.isUser = false,
     this.isBuiltin = false,
   });
@@ -36,8 +37,16 @@ class StickerItem {
   final String name;
   final String category;
   final String path;
+
+  /// AI 选表情时看的标签。空标签 = AI 不会用它。
+  final List<String> tags;
   final bool isUser;
   final bool isBuiltin;
+
+  bool get isUsableByAi => tags.isNotEmpty;
+
+  /// 标签拼成一行，给提示词和 UI 用。
+  String get tagLine => tags.join('、');
 
   /// 图片缺失时显示的文字。
   ///

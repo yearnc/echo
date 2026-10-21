@@ -11,6 +11,7 @@ import 'package:echo/data/repositories/post_voice_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/post.dart';
+import 'package:echo/domain/models/post_understanding.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/model_gateway.dart';
 import 'package:echo/domain/services/relationship_rules.dart';
@@ -30,6 +31,8 @@ class _ReadingGenerator extends SampleContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async {
     commentCalls++;
     return {

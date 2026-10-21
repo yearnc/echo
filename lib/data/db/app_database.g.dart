@@ -310,6 +310,84 @@ class $UserProfileTable extends UserProfile
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _genderMeta = const VerificationMeta('gender');
+  @override
+  late final GeneratedColumn<String> gender = GeneratedColumn<String>(
+    'gender',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _ageRangeMeta = const VerificationMeta(
+    'ageRange',
+  );
+  @override
+  late final GeneratedColumn<String> ageRange = GeneratedColumn<String>(
+    'age_range',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _occupationMeta = const VerificationMeta(
+    'occupation',
+  );
+  @override
+  late final GeneratedColumn<String> occupation = GeneratedColumn<String>(
+    'occupation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _cityMeta = const VerificationMeta('city');
+  @override
+  late final GeneratedColumn<String> city = GeneratedColumn<String>(
+    'city',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _interestsMeta = const VerificationMeta(
+    'interests',
+  );
+  @override
+  late final GeneratedColumn<String> interests = GeneratedColumn<String>(
+    'interests',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _preferredNameMeta = const VerificationMeta(
+    'preferredName',
+  );
+  @override
+  late final GeneratedColumn<String> preferredName = GeneratedColumn<String>(
+    'preferred_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _introMeta = const VerificationMeta('intro');
+  @override
+  late final GeneratedColumn<String> intro = GeneratedColumn<String>(
+    'intro',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _levelMeta = const VerificationMeta('level');
   @override
   late final GeneratedColumn<int> level = GeneratedColumn<int>(
@@ -371,6 +449,13 @@ class $UserProfileTable extends UserProfile
     nickname,
     avatar,
     signature,
+    gender,
+    ageRange,
+    occupation,
+    city,
+    interests,
+    preferredName,
+    intro,
     level,
     exp,
     followers,
@@ -410,6 +495,51 @@ class $UserProfileTable extends UserProfile
       context.handle(
         _signatureMeta,
         signature.isAcceptableOrUnknown(data['signature']!, _signatureMeta),
+      );
+    }
+    if (data.containsKey('gender')) {
+      context.handle(
+        _genderMeta,
+        gender.isAcceptableOrUnknown(data['gender']!, _genderMeta),
+      );
+    }
+    if (data.containsKey('age_range')) {
+      context.handle(
+        _ageRangeMeta,
+        ageRange.isAcceptableOrUnknown(data['age_range']!, _ageRangeMeta),
+      );
+    }
+    if (data.containsKey('occupation')) {
+      context.handle(
+        _occupationMeta,
+        occupation.isAcceptableOrUnknown(data['occupation']!, _occupationMeta),
+      );
+    }
+    if (data.containsKey('city')) {
+      context.handle(
+        _cityMeta,
+        city.isAcceptableOrUnknown(data['city']!, _cityMeta),
+      );
+    }
+    if (data.containsKey('interests')) {
+      context.handle(
+        _interestsMeta,
+        interests.isAcceptableOrUnknown(data['interests']!, _interestsMeta),
+      );
+    }
+    if (data.containsKey('preferred_name')) {
+      context.handle(
+        _preferredNameMeta,
+        preferredName.isAcceptableOrUnknown(
+          data['preferred_name']!,
+          _preferredNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('intro')) {
+      context.handle(
+        _introMeta,
+        intro.isAcceptableOrUnknown(data['intro']!, _introMeta),
       );
     }
     if (data.containsKey('level')) {
@@ -469,6 +599,34 @@ class $UserProfileTable extends UserProfile
         DriftSqlType.string,
         data['${effectivePrefix}signature'],
       )!,
+      gender: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}gender'],
+      )!,
+      ageRange: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}age_range'],
+      )!,
+      occupation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}occupation'],
+      )!,
+      city: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}city'],
+      )!,
+      interests: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}interests'],
+      )!,
+      preferredName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preferred_name'],
+      )!,
+      intro: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}intro'],
+      )!,
       level: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}level'],
@@ -503,6 +661,20 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
   final String nickname;
   final String avatar;
   final String signature;
+
+  /// 身份资料（v24）：给模型的前缀用，只存在本机。
+  ///
+  /// 性别存的是稳定的枚举值（male/female/nonbinary/secret），
+  /// 界面显示成中文；这样换文案时不用动数据库。
+  final String gender;
+  final String ageRange;
+  final String occupation;
+  final String city;
+  final String interests;
+
+  /// 希望 AI 怎么称呼你（可以和昵称不同）。
+  final String preferredName;
+  final String intro;
   final int level;
   final int exp;
   final int followers;
@@ -513,6 +685,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
     required this.nickname,
     required this.avatar,
     required this.signature,
+    required this.gender,
+    required this.ageRange,
+    required this.occupation,
+    required this.city,
+    required this.interests,
+    required this.preferredName,
+    required this.intro,
     required this.level,
     required this.exp,
     required this.followers,
@@ -526,6 +705,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
     map['nickname'] = Variable<String>(nickname);
     map['avatar'] = Variable<String>(avatar);
     map['signature'] = Variable<String>(signature);
+    map['gender'] = Variable<String>(gender);
+    map['age_range'] = Variable<String>(ageRange);
+    map['occupation'] = Variable<String>(occupation);
+    map['city'] = Variable<String>(city);
+    map['interests'] = Variable<String>(interests);
+    map['preferred_name'] = Variable<String>(preferredName);
+    map['intro'] = Variable<String>(intro);
     map['level'] = Variable<int>(level);
     map['exp'] = Variable<int>(exp);
     map['followers'] = Variable<int>(followers);
@@ -540,6 +726,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
       nickname: Value(nickname),
       avatar: Value(avatar),
       signature: Value(signature),
+      gender: Value(gender),
+      ageRange: Value(ageRange),
+      occupation: Value(occupation),
+      city: Value(city),
+      interests: Value(interests),
+      preferredName: Value(preferredName),
+      intro: Value(intro),
       level: Value(level),
       exp: Value(exp),
       followers: Value(followers),
@@ -558,6 +751,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
       nickname: serializer.fromJson<String>(json['nickname']),
       avatar: serializer.fromJson<String>(json['avatar']),
       signature: serializer.fromJson<String>(json['signature']),
+      gender: serializer.fromJson<String>(json['gender']),
+      ageRange: serializer.fromJson<String>(json['ageRange']),
+      occupation: serializer.fromJson<String>(json['occupation']),
+      city: serializer.fromJson<String>(json['city']),
+      interests: serializer.fromJson<String>(json['interests']),
+      preferredName: serializer.fromJson<String>(json['preferredName']),
+      intro: serializer.fromJson<String>(json['intro']),
       level: serializer.fromJson<int>(json['level']),
       exp: serializer.fromJson<int>(json['exp']),
       followers: serializer.fromJson<int>(json['followers']),
@@ -573,6 +773,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
       'nickname': serializer.toJson<String>(nickname),
       'avatar': serializer.toJson<String>(avatar),
       'signature': serializer.toJson<String>(signature),
+      'gender': serializer.toJson<String>(gender),
+      'ageRange': serializer.toJson<String>(ageRange),
+      'occupation': serializer.toJson<String>(occupation),
+      'city': serializer.toJson<String>(city),
+      'interests': serializer.toJson<String>(interests),
+      'preferredName': serializer.toJson<String>(preferredName),
+      'intro': serializer.toJson<String>(intro),
       'level': serializer.toJson<int>(level),
       'exp': serializer.toJson<int>(exp),
       'followers': serializer.toJson<int>(followers),
@@ -586,6 +793,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
     String? nickname,
     String? avatar,
     String? signature,
+    String? gender,
+    String? ageRange,
+    String? occupation,
+    String? city,
+    String? interests,
+    String? preferredName,
+    String? intro,
     int? level,
     int? exp,
     int? followers,
@@ -596,6 +810,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
     nickname: nickname ?? this.nickname,
     avatar: avatar ?? this.avatar,
     signature: signature ?? this.signature,
+    gender: gender ?? this.gender,
+    ageRange: ageRange ?? this.ageRange,
+    occupation: occupation ?? this.occupation,
+    city: city ?? this.city,
+    interests: interests ?? this.interests,
+    preferredName: preferredName ?? this.preferredName,
+    intro: intro ?? this.intro,
     level: level ?? this.level,
     exp: exp ?? this.exp,
     followers: followers ?? this.followers,
@@ -608,6 +829,17 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
       nickname: data.nickname.present ? data.nickname.value : this.nickname,
       avatar: data.avatar.present ? data.avatar.value : this.avatar,
       signature: data.signature.present ? data.signature.value : this.signature,
+      gender: data.gender.present ? data.gender.value : this.gender,
+      ageRange: data.ageRange.present ? data.ageRange.value : this.ageRange,
+      occupation: data.occupation.present
+          ? data.occupation.value
+          : this.occupation,
+      city: data.city.present ? data.city.value : this.city,
+      interests: data.interests.present ? data.interests.value : this.interests,
+      preferredName: data.preferredName.present
+          ? data.preferredName.value
+          : this.preferredName,
+      intro: data.intro.present ? data.intro.value : this.intro,
       level: data.level.present ? data.level.value : this.level,
       exp: data.exp.present ? data.exp.value : this.exp,
       followers: data.followers.present ? data.followers.value : this.followers,
@@ -623,6 +855,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
           ..write('nickname: $nickname, ')
           ..write('avatar: $avatar, ')
           ..write('signature: $signature, ')
+          ..write('gender: $gender, ')
+          ..write('ageRange: $ageRange, ')
+          ..write('occupation: $occupation, ')
+          ..write('city: $city, ')
+          ..write('interests: $interests, ')
+          ..write('preferredName: $preferredName, ')
+          ..write('intro: $intro, ')
           ..write('level: $level, ')
           ..write('exp: $exp, ')
           ..write('followers: $followers, ')
@@ -638,6 +877,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
     nickname,
     avatar,
     signature,
+    gender,
+    ageRange,
+    occupation,
+    city,
+    interests,
+    preferredName,
+    intro,
     level,
     exp,
     followers,
@@ -652,6 +898,13 @@ class UserProfileRow extends DataClass implements Insertable<UserProfileRow> {
           other.nickname == this.nickname &&
           other.avatar == this.avatar &&
           other.signature == this.signature &&
+          other.gender == this.gender &&
+          other.ageRange == this.ageRange &&
+          other.occupation == this.occupation &&
+          other.city == this.city &&
+          other.interests == this.interests &&
+          other.preferredName == this.preferredName &&
+          other.intro == this.intro &&
           other.level == this.level &&
           other.exp == this.exp &&
           other.followers == this.followers &&
@@ -664,6 +917,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
   final Value<String> nickname;
   final Value<String> avatar;
   final Value<String> signature;
+  final Value<String> gender;
+  final Value<String> ageRange;
+  final Value<String> occupation;
+  final Value<String> city;
+  final Value<String> interests;
+  final Value<String> preferredName;
+  final Value<String> intro;
   final Value<int> level;
   final Value<int> exp;
   final Value<int> followers;
@@ -675,6 +935,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
     this.nickname = const Value.absent(),
     this.avatar = const Value.absent(),
     this.signature = const Value.absent(),
+    this.gender = const Value.absent(),
+    this.ageRange = const Value.absent(),
+    this.occupation = const Value.absent(),
+    this.city = const Value.absent(),
+    this.interests = const Value.absent(),
+    this.preferredName = const Value.absent(),
+    this.intro = const Value.absent(),
     this.level = const Value.absent(),
     this.exp = const Value.absent(),
     this.followers = const Value.absent(),
@@ -687,6 +954,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
     this.nickname = const Value.absent(),
     this.avatar = const Value.absent(),
     this.signature = const Value.absent(),
+    this.gender = const Value.absent(),
+    this.ageRange = const Value.absent(),
+    this.occupation = const Value.absent(),
+    this.city = const Value.absent(),
+    this.interests = const Value.absent(),
+    this.preferredName = const Value.absent(),
+    this.intro = const Value.absent(),
     this.level = const Value.absent(),
     this.exp = const Value.absent(),
     this.followers = const Value.absent(),
@@ -700,6 +974,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
     Expression<String>? nickname,
     Expression<String>? avatar,
     Expression<String>? signature,
+    Expression<String>? gender,
+    Expression<String>? ageRange,
+    Expression<String>? occupation,
+    Expression<String>? city,
+    Expression<String>? interests,
+    Expression<String>? preferredName,
+    Expression<String>? intro,
     Expression<int>? level,
     Expression<int>? exp,
     Expression<int>? followers,
@@ -712,6 +993,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
       if (nickname != null) 'nickname': nickname,
       if (avatar != null) 'avatar': avatar,
       if (signature != null) 'signature': signature,
+      if (gender != null) 'gender': gender,
+      if (ageRange != null) 'age_range': ageRange,
+      if (occupation != null) 'occupation': occupation,
+      if (city != null) 'city': city,
+      if (interests != null) 'interests': interests,
+      if (preferredName != null) 'preferred_name': preferredName,
+      if (intro != null) 'intro': intro,
       if (level != null) 'level': level,
       if (exp != null) 'exp': exp,
       if (followers != null) 'followers': followers,
@@ -726,6 +1014,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
     Value<String>? nickname,
     Value<String>? avatar,
     Value<String>? signature,
+    Value<String>? gender,
+    Value<String>? ageRange,
+    Value<String>? occupation,
+    Value<String>? city,
+    Value<String>? interests,
+    Value<String>? preferredName,
+    Value<String>? intro,
     Value<int>? level,
     Value<int>? exp,
     Value<int>? followers,
@@ -738,6 +1033,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
       nickname: nickname ?? this.nickname,
       avatar: avatar ?? this.avatar,
       signature: signature ?? this.signature,
+      gender: gender ?? this.gender,
+      ageRange: ageRange ?? this.ageRange,
+      occupation: occupation ?? this.occupation,
+      city: city ?? this.city,
+      interests: interests ?? this.interests,
+      preferredName: preferredName ?? this.preferredName,
+      intro: intro ?? this.intro,
       level: level ?? this.level,
       exp: exp ?? this.exp,
       followers: followers ?? this.followers,
@@ -761,6 +1063,27 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
     }
     if (signature.present) {
       map['signature'] = Variable<String>(signature.value);
+    }
+    if (gender.present) {
+      map['gender'] = Variable<String>(gender.value);
+    }
+    if (ageRange.present) {
+      map['age_range'] = Variable<String>(ageRange.value);
+    }
+    if (occupation.present) {
+      map['occupation'] = Variable<String>(occupation.value);
+    }
+    if (city.present) {
+      map['city'] = Variable<String>(city.value);
+    }
+    if (interests.present) {
+      map['interests'] = Variable<String>(interests.value);
+    }
+    if (preferredName.present) {
+      map['preferred_name'] = Variable<String>(preferredName.value);
+    }
+    if (intro.present) {
+      map['intro'] = Variable<String>(intro.value);
     }
     if (level.present) {
       map['level'] = Variable<int>(level.value);
@@ -790,6 +1113,13 @@ class UserProfileCompanion extends UpdateCompanion<UserProfileRow> {
           ..write('nickname: $nickname, ')
           ..write('avatar: $avatar, ')
           ..write('signature: $signature, ')
+          ..write('gender: $gender, ')
+          ..write('ageRange: $ageRange, ')
+          ..write('occupation: $occupation, ')
+          ..write('city: $city, ')
+          ..write('interests: $interests, ')
+          ..write('preferredName: $preferredName, ')
+          ..write('intro: $intro, ')
           ..write('level: $level, ')
           ..write('exp: $exp, ')
           ..write('followers: $followers, ')
@@ -5833,6 +6163,18 @@ class $UserCommentsTable extends UserComments
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _mediaTypeMeta = const VerificationMeta(
+    'mediaType',
+  );
+  @override
+  late final GeneratedColumn<String> mediaType = GeneratedColumn<String>(
+    'media_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('text'),
+  );
   static const VerificationMeta _parentIdMeta = const VerificationMeta(
     'parentId',
   );
@@ -5882,6 +6224,7 @@ class $UserCommentsTable extends UserComments
     id,
     postId,
     content,
+    mediaType,
     parentId,
     replyToName,
     createdAt,
@@ -5919,6 +6262,12 @@ class $UserCommentsTable extends UserComments
       );
     } else if (isInserting) {
       context.missing(_contentMeta);
+    }
+    if (data.containsKey('media_type')) {
+      context.handle(
+        _mediaTypeMeta,
+        mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
     }
     if (data.containsKey('parent_id')) {
       context.handle(
@@ -5970,6 +6319,10 @@ class $UserCommentsTable extends UserComments
         DriftSqlType.string,
         data['${effectivePrefix}content'],
       )!,
+      mediaType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_type'],
+      )!,
       parentId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}parent_id'],
@@ -6000,6 +6353,9 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
   final String postId;
   final String content;
 
+  /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
+  final String mediaType;
+
   /// 这条是在回谁。指向的可能是住民的评论（在 `ai_interactions` 里），
   /// 也可能是别人回我的——跨两张表，所以这里不设外键。
   final String? parentId;
@@ -6013,6 +6369,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     required this.id,
     required this.postId,
     required this.content,
+    required this.mediaType,
     this.parentId,
     this.replyToName,
     required this.createdAt,
@@ -6024,6 +6381,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     map['id'] = Variable<String>(id);
     map['post_id'] = Variable<String>(postId);
     map['content'] = Variable<String>(content);
+    map['media_type'] = Variable<String>(mediaType);
     if (!nullToAbsent || parentId != null) {
       map['parent_id'] = Variable<String>(parentId);
     }
@@ -6042,6 +6400,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       id: Value(id),
       postId: Value(postId),
       content: Value(content),
+      mediaType: Value(mediaType),
       parentId: parentId == null && nullToAbsent
           ? const Value.absent()
           : Value(parentId),
@@ -6064,6 +6423,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       id: serializer.fromJson<String>(json['id']),
       postId: serializer.fromJson<String>(json['postId']),
       content: serializer.fromJson<String>(json['content']),
+      mediaType: serializer.fromJson<String>(json['mediaType']),
       parentId: serializer.fromJson<String?>(json['parentId']),
       replyToName: serializer.fromJson<String?>(json['replyToName']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -6077,6 +6437,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       'id': serializer.toJson<String>(id),
       'postId': serializer.toJson<String>(postId),
       'content': serializer.toJson<String>(content),
+      'mediaType': serializer.toJson<String>(mediaType),
       'parentId': serializer.toJson<String?>(parentId),
       'replyToName': serializer.toJson<String?>(replyToName),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -6088,6 +6449,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     String? id,
     String? postId,
     String? content,
+    String? mediaType,
     Value<String?> parentId = const Value.absent(),
     Value<String?> replyToName = const Value.absent(),
     int? createdAt,
@@ -6096,6 +6458,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     id: id ?? this.id,
     postId: postId ?? this.postId,
     content: content ?? this.content,
+    mediaType: mediaType ?? this.mediaType,
     parentId: parentId.present ? parentId.value : this.parentId,
     replyToName: replyToName.present ? replyToName.value : this.replyToName,
     createdAt: createdAt ?? this.createdAt,
@@ -6106,6 +6469,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       id: data.id.present ? data.id.value : this.id,
       postId: data.postId.present ? data.postId.value : this.postId,
       content: data.content.present ? data.content.value : this.content,
+      mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
       replyToName: data.replyToName.present
           ? data.replyToName.value
@@ -6121,6 +6485,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           ..write('id: $id, ')
           ..write('postId: $postId, ')
           ..write('content: $content, ')
+          ..write('mediaType: $mediaType, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
           ..write('createdAt: $createdAt, ')
@@ -6134,6 +6499,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     id,
     postId,
     content,
+    mediaType,
     parentId,
     replyToName,
     createdAt,
@@ -6146,6 +6512,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           other.id == this.id &&
           other.postId == this.postId &&
           other.content == this.content &&
+          other.mediaType == this.mediaType &&
           other.parentId == this.parentId &&
           other.replyToName == this.replyToName &&
           other.createdAt == this.createdAt &&
@@ -6156,6 +6523,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
   final Value<String> id;
   final Value<String> postId;
   final Value<String> content;
+  final Value<String> mediaType;
   final Value<String?> parentId;
   final Value<String?> replyToName;
   final Value<int> createdAt;
@@ -6165,6 +6533,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     this.id = const Value.absent(),
     this.postId = const Value.absent(),
     this.content = const Value.absent(),
+    this.mediaType = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -6175,6 +6544,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     required String id,
     required String postId,
     required String content,
+    this.mediaType = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
     required int createdAt,
@@ -6188,6 +6558,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Expression<String>? id,
     Expression<String>? postId,
     Expression<String>? content,
+    Expression<String>? mediaType,
     Expression<String>? parentId,
     Expression<String>? replyToName,
     Expression<int>? createdAt,
@@ -6198,6 +6569,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       if (id != null) 'id': id,
       if (postId != null) 'post_id': postId,
       if (content != null) 'content': content,
+      if (mediaType != null) 'media_type': mediaType,
       if (parentId != null) 'parent_id': parentId,
       if (replyToName != null) 'reply_to_name': replyToName,
       if (createdAt != null) 'created_at': createdAt,
@@ -6210,6 +6582,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Value<String>? id,
     Value<String>? postId,
     Value<String>? content,
+    Value<String>? mediaType,
     Value<String?>? parentId,
     Value<String?>? replyToName,
     Value<int>? createdAt,
@@ -6220,6 +6593,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       id: id ?? this.id,
       postId: postId ?? this.postId,
       content: content ?? this.content,
+      mediaType: mediaType ?? this.mediaType,
       parentId: parentId ?? this.parentId,
       replyToName: replyToName ?? this.replyToName,
       createdAt: createdAt ?? this.createdAt,
@@ -6239,6 +6613,9 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     }
     if (content.present) {
       map['content'] = Variable<String>(content.value);
+    }
+    if (mediaType.present) {
+      map['media_type'] = Variable<String>(mediaType.value);
     }
     if (parentId.present) {
       map['parent_id'] = Variable<String>(parentId.value);
@@ -6264,6 +6641,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
           ..write('id: $id, ')
           ..write('postId: $postId, ')
           ..write('content: $content, ')
+          ..write('mediaType: $mediaType, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
           ..write('createdAt: $createdAt, ')
@@ -9017,6 +9395,16 @@ class $StickersTable extends Stickers
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _sourceMeta = const VerificationMeta('source');
   @override
   late final GeneratedColumn<String> source = GeneratedColumn<String>(
@@ -9101,6 +9489,7 @@ class $StickersTable extends Stickers
     id,
     name,
     category,
+    tags,
     source,
     path,
     isUser,
@@ -9141,6 +9530,12 @@ class $StickersTable extends Stickers
       );
     } else if (isInserting) {
       context.missing(_categoryMeta);
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
     }
     if (data.containsKey('source')) {
       context.handle(
@@ -9207,6 +9602,10 @@ class $StickersTable extends Stickers
         DriftSqlType.string,
         data['${effectivePrefix}category'],
       )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
       source: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source'],
@@ -9251,6 +9650,9 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
   final String name;
   final String category;
 
+  /// AI 选表情时看的标签（JSON 数组）。没标签的表情包不会进 AI 目录。
+  final String tags;
+
   /// asset / file
   final String source;
   final String path;
@@ -9263,6 +9665,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
     required this.id,
     required this.name,
     required this.category,
+    required this.tags,
     required this.source,
     required this.path,
     required this.isUser,
@@ -9277,6 +9680,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['category'] = Variable<String>(category);
+    map['tags'] = Variable<String>(tags);
     map['source'] = Variable<String>(source);
     map['path'] = Variable<String>(path);
     map['is_user'] = Variable<bool>(isUser);
@@ -9296,6 +9700,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
       id: Value(id),
       name: Value(name),
       category: Value(category),
+      tags: Value(tags),
       source: Value(source),
       path: Value(path),
       isUser: Value(isUser),
@@ -9319,6 +9724,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       category: serializer.fromJson<String>(json['category']),
+      tags: serializer.fromJson<String>(json['tags']),
       source: serializer.fromJson<String>(json['source']),
       path: serializer.fromJson<String>(json['path']),
       isUser: serializer.fromJson<bool>(json['isUser']),
@@ -9335,6 +9741,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'category': serializer.toJson<String>(category),
+      'tags': serializer.toJson<String>(tags),
       'source': serializer.toJson<String>(source),
       'path': serializer.toJson<String>(path),
       'isUser': serializer.toJson<bool>(isUser),
@@ -9349,6 +9756,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
     String? id,
     String? name,
     String? category,
+    String? tags,
     String? source,
     String? path,
     bool? isUser,
@@ -9360,6 +9768,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
     id: id ?? this.id,
     name: name ?? this.name,
     category: category ?? this.category,
+    tags: tags ?? this.tags,
     source: source ?? this.source,
     path: path ?? this.path,
     isUser: isUser ?? this.isUser,
@@ -9373,6 +9782,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       category: data.category.present ? data.category.value : this.category,
+      tags: data.tags.present ? data.tags.value : this.tags,
       source: data.source.present ? data.source.value : this.source,
       path: data.path.present ? data.path.value : this.path,
       isUser: data.isUser.present ? data.isUser.value : this.isUser,
@@ -9389,6 +9799,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('category: $category, ')
+          ..write('tags: $tags, ')
           ..write('source: $source, ')
           ..write('path: $path, ')
           ..write('isUser: $isUser, ')
@@ -9405,6 +9816,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
     id,
     name,
     category,
+    tags,
     source,
     path,
     isUser,
@@ -9420,6 +9832,7 @@ class StickerRow extends DataClass implements Insertable<StickerRow> {
           other.id == this.id &&
           other.name == this.name &&
           other.category == this.category &&
+          other.tags == this.tags &&
           other.source == this.source &&
           other.path == this.path &&
           other.isUser == this.isUser &&
@@ -9433,6 +9846,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> category;
+  final Value<String> tags;
   final Value<String> source;
   final Value<String> path;
   final Value<bool> isUser;
@@ -9445,6 +9859,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.category = const Value.absent(),
+    this.tags = const Value.absent(),
     this.source = const Value.absent(),
     this.path = const Value.absent(),
     this.isUser = const Value.absent(),
@@ -9458,6 +9873,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
     required String id,
     required String name,
     required String category,
+    this.tags = const Value.absent(),
     this.source = const Value.absent(),
     required String path,
     this.isUser = const Value.absent(),
@@ -9474,6 +9890,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? category,
+    Expression<String>? tags,
     Expression<String>? source,
     Expression<String>? path,
     Expression<bool>? isUser,
@@ -9487,6 +9904,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (category != null) 'category': category,
+      if (tags != null) 'tags': tags,
       if (source != null) 'source': source,
       if (path != null) 'path': path,
       if (isUser != null) 'is_user': isUser,
@@ -9502,6 +9920,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
     Value<String>? id,
     Value<String>? name,
     Value<String>? category,
+    Value<String>? tags,
     Value<String>? source,
     Value<String>? path,
     Value<bool>? isUser,
@@ -9515,6 +9934,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
       id: id ?? this.id,
       name: name ?? this.name,
       category: category ?? this.category,
+      tags: tags ?? this.tags,
       source: source ?? this.source,
       path: path ?? this.path,
       isUser: isUser ?? this.isUser,
@@ -9537,6 +9957,9 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
     }
     if (source.present) {
       map['source'] = Variable<String>(source.value);
@@ -9571,6 +9994,7 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('category: $category, ')
+          ..write('tags: $tags, ')
           ..write('source: $source, ')
           ..write('path: $path, ')
           ..write('isUser: $isUser, ')
@@ -11245,6 +11669,21 @@ class $ModelConfigsTable extends ModelConfigs
     requiredDuringInsert: false,
     defaultValue: const Constant('chat'),
   );
+  static const VerificationMeta _supportsVisionMeta = const VerificationMeta(
+    'supportsVision',
+  );
+  @override
+  late final GeneratedColumn<bool> supportsVision = GeneratedColumn<bool>(
+    'supports_vision',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("supports_vision" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -11290,6 +11729,7 @@ class $ModelConfigsTable extends ModelConfigs
     baseUrl,
     model,
     kind,
+    supportsVision,
     enabled,
     createdAt,
     updatedAt,
@@ -11349,6 +11789,15 @@ class $ModelConfigsTable extends ModelConfigs
         kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
       );
     }
+    if (data.containsKey('supports_vision')) {
+      context.handle(
+        _supportsVisionMeta,
+        supportsVision.isAcceptableOrUnknown(
+          data['supports_vision']!,
+          _supportsVisionMeta,
+        ),
+      );
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -11404,6 +11853,10 @@ class $ModelConfigsTable extends ModelConfigs
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      supportsVision: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}supports_vision'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -11444,6 +11897,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
   /// 用户完全可能只想用便宜的那个。
   final String kind;
 
+  /// 这条对话模型能不能直接收图片（v24）。
+  /// 关着的时候私信图片不会塞进请求，避免整轮 400。
+  final bool supportsVision;
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   final bool enabled;
   final int createdAt;
@@ -11455,6 +11912,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     required this.baseUrl,
     required this.model,
     required this.kind,
+    required this.supportsVision,
     required this.enabled,
     required this.createdAt,
     required this.updatedAt,
@@ -11468,6 +11926,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     map['base_url'] = Variable<String>(baseUrl);
     map['model'] = Variable<String>(model);
     map['kind'] = Variable<String>(kind);
+    map['supports_vision'] = Variable<bool>(supportsVision);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -11482,6 +11941,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       baseUrl: Value(baseUrl),
       model: Value(model),
       kind: Value(kind),
+      supportsVision: Value(supportsVision),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -11500,6 +11960,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       baseUrl: serializer.fromJson<String>(json['baseUrl']),
       model: serializer.fromJson<String>(json['model']),
       kind: serializer.fromJson<String>(json['kind']),
+      supportsVision: serializer.fromJson<bool>(json['supportsVision']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -11515,6 +11976,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       'baseUrl': serializer.toJson<String>(baseUrl),
       'model': serializer.toJson<String>(model),
       'kind': serializer.toJson<String>(kind),
+      'supportsVision': serializer.toJson<bool>(supportsVision),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -11528,6 +11990,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     String? baseUrl,
     String? model,
     String? kind,
+    bool? supportsVision,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -11538,6 +12001,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     baseUrl: baseUrl ?? this.baseUrl,
     model: model ?? this.model,
     kind: kind ?? this.kind,
+    supportsVision: supportsVision ?? this.supportsVision,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -11550,6 +12014,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
       model: data.model.present ? data.model.value : this.model,
       kind: data.kind.present ? data.kind.value : this.kind,
+      supportsVision: data.supportsVision.present
+          ? data.supportsVision.value
+          : this.supportsVision,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -11565,6 +12032,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           ..write('baseUrl: $baseUrl, ')
           ..write('model: $model, ')
           ..write('kind: $kind, ')
+          ..write('supportsVision: $supportsVision, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -11580,6 +12048,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     baseUrl,
     model,
     kind,
+    supportsVision,
     enabled,
     createdAt,
     updatedAt,
@@ -11594,6 +12063,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           other.baseUrl == this.baseUrl &&
           other.model == this.model &&
           other.kind == this.kind &&
+          other.supportsVision == this.supportsVision &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -11606,6 +12076,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   final Value<String> baseUrl;
   final Value<String> model;
   final Value<String> kind;
+  final Value<bool> supportsVision;
   final Value<bool> enabled;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -11617,6 +12088,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.baseUrl = const Value.absent(),
     this.model = const Value.absent(),
     this.kind = const Value.absent(),
+    this.supportsVision = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -11629,6 +12101,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     required String baseUrl,
     required String model,
     this.kind = const Value.absent(),
+    this.supportsVision = const Value.absent(),
     this.enabled = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -11647,6 +12120,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Expression<String>? baseUrl,
     Expression<String>? model,
     Expression<String>? kind,
+    Expression<bool>? supportsVision,
     Expression<bool>? enabled,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -11659,6 +12133,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       if (baseUrl != null) 'base_url': baseUrl,
       if (model != null) 'model': model,
       if (kind != null) 'kind': kind,
+      if (supportsVision != null) 'supports_vision': supportsVision,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -11673,6 +12148,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Value<String>? baseUrl,
     Value<String>? model,
     Value<String>? kind,
+    Value<bool>? supportsVision,
     Value<bool>? enabled,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -11685,6 +12161,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
       kind: kind ?? this.kind,
+      supportsVision: supportsVision ?? this.supportsVision,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -11713,6 +12190,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
+    if (supportsVision.present) {
+      map['supports_vision'] = Variable<bool>(supportsVision.value);
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
@@ -11737,6 +12217,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ..write('baseUrl: $baseUrl, ')
           ..write('model: $model, ')
           ..write('kind: $kind, ')
+          ..write('supportsVision: $supportsVision, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -15841,9 +16322,6 @@ class $PostViewsTable extends PostViews
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES post_voices (id)',
-    ),
   );
   static const VerificationMeta _firstViewedAtMeta = const VerificationMeta(
     'firstViewedAt',
@@ -15998,6 +16476,9 @@ class $PostViewsTable extends PostViews
 class PostViewRow extends DataClass implements Insertable<PostViewRow> {
   final String id;
   final String postId;
+
+  /// 浏览者：临时网民/固定住民的 voice id，或者保留值 `viewer_me`（我自己）。
+  /// 不设外键——"我"不在 post_voices 里。
   final String voiceId;
   final int firstViewedAt;
   final int lastViewedAt;
@@ -16290,6 +16771,18 @@ class $PostUnderstandingsTable extends PostUnderstandings
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _imageSummaryMeta = const VerificationMeta(
+    'imageSummary',
+  );
+  @override
+  late final GeneratedColumn<String> imageSummary = GeneratedColumn<String>(
+    'image_summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _jokeMechanismMeta = const VerificationMeta(
     'jokeMechanism',
   );
@@ -16381,6 +16874,7 @@ class $PostUnderstandingsTable extends PostUnderstandings
     domain,
     entities,
     point,
+    imageSummary,
     jokeMechanism,
     emotion,
     insiderAngle,
@@ -16431,6 +16925,15 @@ class $PostUnderstandingsTable extends PostUnderstandings
       context.handle(
         _pointMeta,
         point.isAcceptableOrUnknown(data['point']!, _pointMeta),
+      );
+    }
+    if (data.containsKey('image_summary')) {
+      context.handle(
+        _imageSummaryMeta,
+        imageSummary.isAcceptableOrUnknown(
+          data['image_summary']!,
+          _imageSummaryMeta,
+        ),
       );
     }
     if (data.containsKey('joke_mechanism')) {
@@ -16512,6 +17015,10 @@ class $PostUnderstandingsTable extends PostUnderstandings
         DriftSqlType.string,
         data['${effectivePrefix}point'],
       )!,
+      imageSummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_summary'],
+      )!,
       jokeMechanism: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}joke_mechanism'],
@@ -16565,6 +17072,10 @@ class PostUnderstandingRow extends DataClass
   /// 一句话：这条帖子在说什么
   final String point;
 
+  /// 图片理解（v24）：一次解析，所有网民共享。
+  /// 没有配视觉模型或帖子没图时为空。
+  final String imageSummary;
+
   /// 玩梗时：笑点机制
   final String jokeMechanism;
 
@@ -16587,6 +17098,7 @@ class PostUnderstandingRow extends DataClass
     required this.domain,
     required this.entities,
     required this.point,
+    required this.imageSummary,
     required this.jokeMechanism,
     required this.emotion,
     required this.insiderAngle,
@@ -16603,6 +17115,7 @@ class PostUnderstandingRow extends DataClass
     map['domain'] = Variable<String>(domain);
     map['entities'] = Variable<String>(entities);
     map['point'] = Variable<String>(point);
+    map['image_summary'] = Variable<String>(imageSummary);
     map['joke_mechanism'] = Variable<String>(jokeMechanism);
     map['emotion'] = Variable<String>(emotion);
     map['insider_angle'] = Variable<String>(insiderAngle);
@@ -16620,6 +17133,7 @@ class PostUnderstandingRow extends DataClass
       domain: Value(domain),
       entities: Value(entities),
       point: Value(point),
+      imageSummary: Value(imageSummary),
       jokeMechanism: Value(jokeMechanism),
       emotion: Value(emotion),
       insiderAngle: Value(insiderAngle),
@@ -16641,6 +17155,7 @@ class PostUnderstandingRow extends DataClass
       domain: serializer.fromJson<String>(json['domain']),
       entities: serializer.fromJson<String>(json['entities']),
       point: serializer.fromJson<String>(json['point']),
+      imageSummary: serializer.fromJson<String>(json['imageSummary']),
       jokeMechanism: serializer.fromJson<String>(json['jokeMechanism']),
       emotion: serializer.fromJson<String>(json['emotion']),
       insiderAngle: serializer.fromJson<String>(json['insiderAngle']),
@@ -16659,6 +17174,7 @@ class PostUnderstandingRow extends DataClass
       'domain': serializer.toJson<String>(domain),
       'entities': serializer.toJson<String>(entities),
       'point': serializer.toJson<String>(point),
+      'imageSummary': serializer.toJson<String>(imageSummary),
       'jokeMechanism': serializer.toJson<String>(jokeMechanism),
       'emotion': serializer.toJson<String>(emotion),
       'insiderAngle': serializer.toJson<String>(insiderAngle),
@@ -16675,6 +17191,7 @@ class PostUnderstandingRow extends DataClass
     String? domain,
     String? entities,
     String? point,
+    String? imageSummary,
     String? jokeMechanism,
     String? emotion,
     String? insiderAngle,
@@ -16688,6 +17205,7 @@ class PostUnderstandingRow extends DataClass
     domain: domain ?? this.domain,
     entities: entities ?? this.entities,
     point: point ?? this.point,
+    imageSummary: imageSummary ?? this.imageSummary,
     jokeMechanism: jokeMechanism ?? this.jokeMechanism,
     emotion: emotion ?? this.emotion,
     insiderAngle: insiderAngle ?? this.insiderAngle,
@@ -16703,6 +17221,9 @@ class PostUnderstandingRow extends DataClass
       domain: data.domain.present ? data.domain.value : this.domain,
       entities: data.entities.present ? data.entities.value : this.entities,
       point: data.point.present ? data.point.value : this.point,
+      imageSummary: data.imageSummary.present
+          ? data.imageSummary.value
+          : this.imageSummary,
       jokeMechanism: data.jokeMechanism.present
           ? data.jokeMechanism.value
           : this.jokeMechanism,
@@ -16727,6 +17248,7 @@ class PostUnderstandingRow extends DataClass
           ..write('domain: $domain, ')
           ..write('entities: $entities, ')
           ..write('point: $point, ')
+          ..write('imageSummary: $imageSummary, ')
           ..write('jokeMechanism: $jokeMechanism, ')
           ..write('emotion: $emotion, ')
           ..write('insiderAngle: $insiderAngle, ')
@@ -16745,6 +17267,7 @@ class PostUnderstandingRow extends DataClass
     domain,
     entities,
     point,
+    imageSummary,
     jokeMechanism,
     emotion,
     insiderAngle,
@@ -16762,6 +17285,7 @@ class PostUnderstandingRow extends DataClass
           other.domain == this.domain &&
           other.entities == this.entities &&
           other.point == this.point &&
+          other.imageSummary == this.imageSummary &&
           other.jokeMechanism == this.jokeMechanism &&
           other.emotion == this.emotion &&
           other.insiderAngle == this.insiderAngle &&
@@ -16778,6 +17302,7 @@ class PostUnderstandingsCompanion
   final Value<String> domain;
   final Value<String> entities;
   final Value<String> point;
+  final Value<String> imageSummary;
   final Value<String> jokeMechanism;
   final Value<String> emotion;
   final Value<String> insiderAngle;
@@ -16792,6 +17317,7 @@ class PostUnderstandingsCompanion
     this.domain = const Value.absent(),
     this.entities = const Value.absent(),
     this.point = const Value.absent(),
+    this.imageSummary = const Value.absent(),
     this.jokeMechanism = const Value.absent(),
     this.emotion = const Value.absent(),
     this.insiderAngle = const Value.absent(),
@@ -16807,6 +17333,7 @@ class PostUnderstandingsCompanion
     this.domain = const Value.absent(),
     this.entities = const Value.absent(),
     this.point = const Value.absent(),
+    this.imageSummary = const Value.absent(),
     this.jokeMechanism = const Value.absent(),
     this.emotion = const Value.absent(),
     this.insiderAngle = const Value.absent(),
@@ -16823,6 +17350,7 @@ class PostUnderstandingsCompanion
     Expression<String>? domain,
     Expression<String>? entities,
     Expression<String>? point,
+    Expression<String>? imageSummary,
     Expression<String>? jokeMechanism,
     Expression<String>? emotion,
     Expression<String>? insiderAngle,
@@ -16838,6 +17366,7 @@ class PostUnderstandingsCompanion
       if (domain != null) 'domain': domain,
       if (entities != null) 'entities': entities,
       if (point != null) 'point': point,
+      if (imageSummary != null) 'image_summary': imageSummary,
       if (jokeMechanism != null) 'joke_mechanism': jokeMechanism,
       if (emotion != null) 'emotion': emotion,
       if (insiderAngle != null) 'insider_angle': insiderAngle,
@@ -16855,6 +17384,7 @@ class PostUnderstandingsCompanion
     Value<String>? domain,
     Value<String>? entities,
     Value<String>? point,
+    Value<String>? imageSummary,
     Value<String>? jokeMechanism,
     Value<String>? emotion,
     Value<String>? insiderAngle,
@@ -16870,6 +17400,7 @@ class PostUnderstandingsCompanion
       domain: domain ?? this.domain,
       entities: entities ?? this.entities,
       point: point ?? this.point,
+      imageSummary: imageSummary ?? this.imageSummary,
       jokeMechanism: jokeMechanism ?? this.jokeMechanism,
       emotion: emotion ?? this.emotion,
       insiderAngle: insiderAngle ?? this.insiderAngle,
@@ -16898,6 +17429,9 @@ class PostUnderstandingsCompanion
     }
     if (point.present) {
       map['point'] = Variable<String>(point.value);
+    }
+    if (imageSummary.present) {
+      map['image_summary'] = Variable<String>(imageSummary.value);
     }
     if (jokeMechanism.present) {
       map['joke_mechanism'] = Variable<String>(jokeMechanism.value);
@@ -16934,6 +17468,7 @@ class PostUnderstandingsCompanion
           ..write('domain: $domain, ')
           ..write('entities: $entities, ')
           ..write('point: $point, ')
+          ..write('imageSummary: $imageSummary, ')
           ..write('jokeMechanism: $jokeMechanism, ')
           ..write('emotion: $emotion, ')
           ..write('insiderAngle: $insiderAngle, ')
@@ -18544,6 +19079,13 @@ typedef $$UserProfileTableCreateCompanionBuilder =
       Value<String> nickname,
       Value<String> avatar,
       Value<String> signature,
+      Value<String> gender,
+      Value<String> ageRange,
+      Value<String> occupation,
+      Value<String> city,
+      Value<String> interests,
+      Value<String> preferredName,
+      Value<String> intro,
       Value<int> level,
       Value<int> exp,
       Value<int> followers,
@@ -18557,6 +19099,13 @@ typedef $$UserProfileTableUpdateCompanionBuilder =
       Value<String> nickname,
       Value<String> avatar,
       Value<String> signature,
+      Value<String> gender,
+      Value<String> ageRange,
+      Value<String> occupation,
+      Value<String> city,
+      Value<String> interests,
+      Value<String> preferredName,
+      Value<String> intro,
       Value<int> level,
       Value<int> exp,
       Value<int> followers,
@@ -18591,6 +19140,41 @@ class $$UserProfileTableFilterComposer
 
   ColumnFilters<String> get signature => $composableBuilder(
     column: $table.signature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get gender => $composableBuilder(
+    column: $table.gender,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ageRange => $composableBuilder(
+    column: $table.ageRange,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get occupation => $composableBuilder(
+    column: $table.occupation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get city => $composableBuilder(
+    column: $table.city,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get interests => $composableBuilder(
+    column: $table.interests,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get preferredName => $composableBuilder(
+    column: $table.preferredName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get intro => $composableBuilder(
+    column: $table.intro,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18649,6 +19233,41 @@ class $$UserProfileTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get gender => $composableBuilder(
+    column: $table.gender,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ageRange => $composableBuilder(
+    column: $table.ageRange,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get occupation => $composableBuilder(
+    column: $table.occupation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get city => $composableBuilder(
+    column: $table.city,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get interests => $composableBuilder(
+    column: $table.interests,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get preferredName => $composableBuilder(
+    column: $table.preferredName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get intro => $composableBuilder(
+    column: $table.intro,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get level => $composableBuilder(
     column: $table.level,
     builder: (column) => ColumnOrderings(column),
@@ -18695,6 +19314,31 @@ class $$UserProfileTableAnnotationComposer
 
   GeneratedColumn<String> get signature =>
       $composableBuilder(column: $table.signature, builder: (column) => column);
+
+  GeneratedColumn<String> get gender =>
+      $composableBuilder(column: $table.gender, builder: (column) => column);
+
+  GeneratedColumn<String> get ageRange =>
+      $composableBuilder(column: $table.ageRange, builder: (column) => column);
+
+  GeneratedColumn<String> get occupation => $composableBuilder(
+    column: $table.occupation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get city =>
+      $composableBuilder(column: $table.city, builder: (column) => column);
+
+  GeneratedColumn<String> get interests =>
+      $composableBuilder(column: $table.interests, builder: (column) => column);
+
+  GeneratedColumn<String> get preferredName => $composableBuilder(
+    column: $table.preferredName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get intro =>
+      $composableBuilder(column: $table.intro, builder: (column) => column);
 
   GeneratedColumn<int> get level =>
       $composableBuilder(column: $table.level, builder: (column) => column);
@@ -18747,6 +19391,13 @@ class $$UserProfileTableTableManager
                 Value<String> nickname = const Value.absent(),
                 Value<String> avatar = const Value.absent(),
                 Value<String> signature = const Value.absent(),
+                Value<String> gender = const Value.absent(),
+                Value<String> ageRange = const Value.absent(),
+                Value<String> occupation = const Value.absent(),
+                Value<String> city = const Value.absent(),
+                Value<String> interests = const Value.absent(),
+                Value<String> preferredName = const Value.absent(),
+                Value<String> intro = const Value.absent(),
                 Value<int> level = const Value.absent(),
                 Value<int> exp = const Value.absent(),
                 Value<int> followers = const Value.absent(),
@@ -18758,6 +19409,13 @@ class $$UserProfileTableTableManager
                 nickname: nickname,
                 avatar: avatar,
                 signature: signature,
+                gender: gender,
+                ageRange: ageRange,
+                occupation: occupation,
+                city: city,
+                interests: interests,
+                preferredName: preferredName,
+                intro: intro,
                 level: level,
                 exp: exp,
                 followers: followers,
@@ -18771,6 +19429,13 @@ class $$UserProfileTableTableManager
                 Value<String> nickname = const Value.absent(),
                 Value<String> avatar = const Value.absent(),
                 Value<String> signature = const Value.absent(),
+                Value<String> gender = const Value.absent(),
+                Value<String> ageRange = const Value.absent(),
+                Value<String> occupation = const Value.absent(),
+                Value<String> city = const Value.absent(),
+                Value<String> interests = const Value.absent(),
+                Value<String> preferredName = const Value.absent(),
+                Value<String> intro = const Value.absent(),
                 Value<int> level = const Value.absent(),
                 Value<int> exp = const Value.absent(),
                 Value<int> followers = const Value.absent(),
@@ -18782,6 +19447,13 @@ class $$UserProfileTableTableManager
                 nickname: nickname,
                 avatar: avatar,
                 signature: signature,
+                gender: gender,
+                ageRange: ageRange,
+                occupation: occupation,
+                city: city,
+                interests: interests,
+                preferredName: preferredName,
+                intro: intro,
                 level: level,
                 exp: exp,
                 followers: followers,
@@ -22701,6 +23373,7 @@ typedef $$UserCommentsTableCreateCompanionBuilder =
       required String id,
       required String postId,
       required String content,
+      Value<String> mediaType,
       Value<String?> parentId,
       Value<String?> replyToName,
       required int createdAt,
@@ -22712,6 +23385,7 @@ typedef $$UserCommentsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> postId,
       Value<String> content,
+      Value<String> mediaType,
       Value<String?> parentId,
       Value<String?> replyToName,
       Value<int> createdAt,
@@ -22757,6 +23431,11 @@ class $$UserCommentsTableFilterComposer
 
   ColumnFilters<String> get content => $composableBuilder(
     column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -22823,6 +23502,11 @@ class $$UserCommentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get parentId => $composableBuilder(
     column: $table.parentId,
     builder: (column) => ColumnOrderings(column),
@@ -22881,6 +23565,9 @@ class $$UserCommentsTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaType =>
+      $composableBuilder(column: $table.mediaType, builder: (column) => column);
 
   GeneratedColumn<String> get parentId =>
       $composableBuilder(column: $table.parentId, builder: (column) => column);
@@ -22951,6 +23638,7 @@ class $$UserCommentsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> postId = const Value.absent(),
                 Value<String> content = const Value.absent(),
+                Value<String> mediaType = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
@@ -22960,6 +23648,7 @@ class $$UserCommentsTableTableManager
                 id: id,
                 postId: postId,
                 content: content,
+                mediaType: mediaType,
                 parentId: parentId,
                 replyToName: replyToName,
                 createdAt: createdAt,
@@ -22971,6 +23660,7 @@ class $$UserCommentsTableTableManager
                 required String id,
                 required String postId,
                 required String content,
+                Value<String> mediaType = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
                 required int createdAt,
@@ -22980,6 +23670,7 @@ class $$UserCommentsTableTableManager
                 id: id,
                 postId: postId,
                 content: content,
+                mediaType: mediaType,
                 parentId: parentId,
                 replyToName: replyToName,
                 createdAt: createdAt,
@@ -24658,6 +25349,7 @@ typedef $$StickersTableCreateCompanionBuilder = StickersCompanion Function({
   required String id,
   required String name,
   required String category,
+  Value<String> tags,
   Value<String> source,
   required String path,
   Value<bool> isUser,
@@ -24671,6 +25363,7 @@ typedef $$StickersTableUpdateCompanionBuilder = StickersCompanion Function({
   Value<String> id,
   Value<String> name,
   Value<String> category,
+  Value<String> tags,
   Value<String> source,
   Value<String> path,
   Value<bool> isUser,
@@ -24702,6 +25395,11 @@ class $$StickersTableFilterComposer
 
   ColumnFilters<String> get category => $composableBuilder(
     column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24765,6 +25463,11 @@ class $$StickersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get source => $composableBuilder(
     column: $table.source,
     builder: (column) => ColumnOrderings(column),
@@ -24818,6 +25521,9 @@ class $$StickersTableAnnotationComposer
 
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
 
   GeneratedColumn<String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
@@ -24875,6 +25581,7 @@ class $$StickersTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> category = const Value.absent(),
+                Value<String> tags = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> path = const Value.absent(),
                 Value<bool> isUser = const Value.absent(),
@@ -24887,6 +25594,7 @@ class $$StickersTableTableManager
                 id: id,
                 name: name,
                 category: category,
+                tags: tags,
                 source: source,
                 path: path,
                 isUser: isUser,
@@ -24901,6 +25609,7 @@ class $$StickersTableTableManager
                 required String id,
                 required String name,
                 required String category,
+                Value<String> tags = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 required String path,
                 Value<bool> isUser = const Value.absent(),
@@ -24913,6 +25622,7 @@ class $$StickersTableTableManager
                 id: id,
                 name: name,
                 category: category,
+                tags: tags,
                 source: source,
                 path: path,
                 isUser: isUser,
@@ -25822,6 +26532,7 @@ typedef $$ModelConfigsTableCreateCompanionBuilder =
       required String baseUrl,
       required String model,
       Value<String> kind,
+      Value<bool> supportsVision,
       Value<bool> enabled,
       required int createdAt,
       required int updatedAt,
@@ -25835,6 +26546,7 @@ typedef $$ModelConfigsTableUpdateCompanionBuilder =
       Value<String> baseUrl,
       Value<String> model,
       Value<String> kind,
+      Value<bool> supportsVision,
       Value<bool> enabled,
       Value<int> createdAt,
       Value<int> updatedAt,
@@ -25877,6 +26589,11 @@ class $$ModelConfigsTableFilterComposer
 
   ColumnFilters<String> get kind => $composableBuilder(
     column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get supportsVision => $composableBuilder(
+    column: $table.supportsVision,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25935,6 +26652,11 @@ class $$ModelConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get supportsVision => $composableBuilder(
+    column: $table.supportsVision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -25977,6 +26699,11 @@ class $$ModelConfigsTableAnnotationComposer
 
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<bool> get supportsVision => $composableBuilder(
+    column: $table.supportsVision,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
@@ -26025,6 +26752,7 @@ class $$ModelConfigsTableTableManager
                 Value<String> baseUrl = const Value.absent(),
                 Value<String> model = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<bool> supportsVision = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -26036,6 +26764,7 @@ class $$ModelConfigsTableTableManager
                 baseUrl: baseUrl,
                 model: model,
                 kind: kind,
+                supportsVision: supportsVision,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -26049,6 +26778,7 @@ class $$ModelConfigsTableTableManager
                 required String baseUrl,
                 required String model,
                 Value<String> kind = const Value.absent(),
+                Value<bool> supportsVision = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -26060,6 +26790,7 @@ class $$ModelConfigsTableTableManager
                 baseUrl: baseUrl,
                 model: model,
                 kind: kind,
+                supportsVision: supportsVision,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -27617,24 +28348,6 @@ final class $$PostVoicesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
-
-  static MultiTypedResultKey<$PostViewsTable, List<PostViewRow>>
-  _postViewsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.postViews,
-    aliasName: 'post_voices__id__post_views__voice_id',
-  );
-
-  $$PostViewsTableProcessedTableManager get postViewsRefs {
-    final manager = $$PostViewsTableTableManager(
-      $_db,
-      $_db.postViews,
-    ).filter((f) => f.voiceId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_postViewsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
 }
 
 class $$PostVoicesTableFilterComposer
@@ -27778,31 +28491,6 @@ class $$PostVoicesTableFilterComposer
           }) => $$AiThreadsTableFilterComposer(
             $db: $db,
             $table: $db.aiThreads,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> postViewsRefs(
-    Expression<bool> Function($$PostViewsTableFilterComposer f) f,
-  ) {
-    final $$PostViewsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.postViews,
-      getReferencedColumn: (t) => t.voiceId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PostViewsTableFilterComposer(
-            $db: $db,
-            $table: $db.postViews,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -28072,31 +28760,6 @@ class $$PostVoicesTableAnnotationComposer
     );
     return f(composer);
   }
-
-  Expression<T> postViewsRefs<T extends Object>(
-    Expression<T> Function($$PostViewsTableAnnotationComposer a) f,
-  ) {
-    final $$PostViewsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.postViews,
-      getReferencedColumn: (t) => t.voiceId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PostViewsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.postViews,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$PostVoicesTableTableManager
@@ -28116,7 +28779,6 @@ class $$PostVoicesTableTableManager
             bool postId,
             bool residentId,
             bool aiThreadsRefs,
-            bool postViewsRefs,
           })
         > {
   $$PostVoicesTableTableManager(_$AppDatabase db, $PostVoicesTable table)
@@ -28215,18 +28877,10 @@ class $$PostVoicesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({
-                postId = false,
-                residentId = false,
-                aiThreadsRefs = false,
-                postViewsRefs = false,
-              }) {
+              ({postId = false, residentId = false, aiThreadsRefs = false}) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [
-                    if (aiThreadsRefs) db.aiThreads,
-                    if (postViewsRefs) db.postViews,
-                  ],
+                  explicitlyWatchedTables: [if (aiThreadsRefs) db.aiThreads],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -28291,27 +28945,6 @@ class $$PostVoicesTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (postViewsRefs)
-                        await $_getPrefetchedData<
-                          PostVoiceRow,
-                          $PostVoicesTable,
-                          PostViewRow
-                        >(
-                          currentTable: table,
-                          referencedTable: $$PostVoicesTableReferences
-                              ._postViewsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$PostVoicesTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).postViewsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.voiceId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
                     ];
                   },
                 );
@@ -28332,12 +28965,7 @@ typedef $$PostVoicesTableProcessedTableManager =
       $$PostVoicesTableUpdateCompanionBuilder,
       (PostVoiceRow, $$PostVoicesTableReferences),
       PostVoiceRow,
-      PrefetchHooks Function({
-        bool postId,
-        bool residentId,
-        bool aiThreadsRefs,
-        bool postViewsRefs,
-      })
+      PrefetchHooks Function({bool postId, bool residentId, bool aiThreadsRefs})
     >;
 typedef $$AiThreadsTableCreateCompanionBuilder = AiThreadsCompanion Function({
   required String id,
@@ -28943,23 +29571,6 @@ final class $$PostViewsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
-
-  static $PostVoicesTable _voiceIdTable(_$AppDatabase db) =>
-      db.postVoices.createAlias('post_views__voice_id__post_voices__id');
-
-  $$PostVoicesTableProcessedTableManager get voiceId {
-    final $_column = $_itemColumn<String>('voice_id')!;
-
-    final manager = $$PostVoicesTableTableManager(
-      $_db,
-      $_db.postVoices,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_voiceIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
 }
 
 class $$PostViewsTableFilterComposer
@@ -28973,6 +29584,11 @@ class $$PostViewsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29013,29 +29629,6 @@ class $$PostViewsTableFilterComposer
     );
     return composer;
   }
-
-  $$PostVoicesTableFilterComposer get voiceId {
-    final $$PostVoicesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.voiceId,
-      referencedTable: $db.postVoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PostVoicesTableFilterComposer(
-            $db: $db,
-            $table: $db.postVoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PostViewsTableOrderingComposer
@@ -29049,6 +29642,11 @@ class $$PostViewsTableOrderingComposer
   });
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -29089,29 +29687,6 @@ class $$PostViewsTableOrderingComposer
     );
     return composer;
   }
-
-  $$PostVoicesTableOrderingComposer get voiceId {
-    final $$PostVoicesTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.voiceId,
-      referencedTable: $db.postVoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PostVoicesTableOrderingComposer(
-            $db: $db,
-            $table: $db.postVoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PostViewsTableAnnotationComposer
@@ -29125,6 +29700,9 @@ class $$PostViewsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get voiceId =>
+      $composableBuilder(column: $table.voiceId, builder: (column) => column);
 
   GeneratedColumn<int> get firstViewedAt => $composableBuilder(
     column: $table.firstViewedAt,
@@ -29161,29 +29739,6 @@ class $$PostViewsTableAnnotationComposer
     );
     return composer;
   }
-
-  $$PostVoicesTableAnnotationComposer get voiceId {
-    final $$PostVoicesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.voiceId,
-      referencedTable: $db.postVoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PostVoicesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.postVoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PostViewsTableTableManager
@@ -29199,7 +29754,7 @@ class $$PostViewsTableTableManager
           $$PostViewsTableUpdateCompanionBuilder,
           (PostViewRow, $$PostViewsTableReferences),
           PostViewRow,
-          PrefetchHooks Function({bool postId, bool voiceId})
+          PrefetchHooks Function({bool postId})
         > {
   $$PostViewsTableTableManager(_$AppDatabase db, $PostViewsTable table)
     : super(
@@ -29256,7 +29811,7 @@ class $$PostViewsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({postId = false, voiceId = false}) {
+          prefetchHooksCallback: ({postId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -29287,17 +29842,6 @@ class $$PostViewsTableTableManager
                             .id,
                       ) as T;
                     }
-                    if (voiceId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.voiceId,
-                        referencedTable: $$PostViewsTableReferences
-                            ._voiceIdTable(db),
-                        referencedColumn: $$PostViewsTableReferences
-                            ._voiceIdTable(db)
-                            .id,
-                      ) as T;
-                    }
 
                     return state;
                   },
@@ -29322,7 +29866,7 @@ typedef $$PostViewsTableProcessedTableManager =
       $$PostViewsTableUpdateCompanionBuilder,
       (PostViewRow, $$PostViewsTableReferences),
       PostViewRow,
-      PrefetchHooks Function({bool postId, bool voiceId})
+      PrefetchHooks Function({bool postId})
     >;
 typedef $$PostUnderstandingsTableCreateCompanionBuilder =
     PostUnderstandingsCompanion Function({
@@ -29331,6 +29875,7 @@ typedef $$PostUnderstandingsTableCreateCompanionBuilder =
       Value<String> domain,
       Value<String> entities,
       Value<String> point,
+      Value<String> imageSummary,
       Value<String> jokeMechanism,
       Value<String> emotion,
       Value<String> insiderAngle,
@@ -29347,6 +29892,7 @@ typedef $$PostUnderstandingsTableUpdateCompanionBuilder =
       Value<String> domain,
       Value<String> entities,
       Value<String> point,
+      Value<String> imageSummary,
       Value<String> jokeMechanism,
       Value<String> emotion,
       Value<String> insiderAngle,
@@ -29414,6 +29960,11 @@ class $$PostUnderstandingsTableFilterComposer
 
   ColumnFilters<String> get point => $composableBuilder(
     column: $table.point,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageSummary => $composableBuilder(
+    column: $table.imageSummary,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29505,6 +30056,11 @@ class $$PostUnderstandingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get imageSummary => $composableBuilder(
+    column: $table.imageSummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get jokeMechanism => $composableBuilder(
     column: $table.jokeMechanism,
     builder: (column) => ColumnOrderings(column),
@@ -29584,6 +30140,11 @@ class $$PostUnderstandingsTableAnnotationComposer
 
   GeneratedColumn<String> get point =>
       $composableBuilder(column: $table.point, builder: (column) => column);
+
+  GeneratedColumn<String> get imageSummary => $composableBuilder(
+    column: $table.imageSummary,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get jokeMechanism => $composableBuilder(
     column: $table.jokeMechanism,
@@ -29674,6 +30235,7 @@ class $$PostUnderstandingsTableTableManager
                 Value<String> domain = const Value.absent(),
                 Value<String> entities = const Value.absent(),
                 Value<String> point = const Value.absent(),
+                Value<String> imageSummary = const Value.absent(),
                 Value<String> jokeMechanism = const Value.absent(),
                 Value<String> emotion = const Value.absent(),
                 Value<String> insiderAngle = const Value.absent(),
@@ -29688,6 +30250,7 @@ class $$PostUnderstandingsTableTableManager
                 domain: domain,
                 entities: entities,
                 point: point,
+                imageSummary: imageSummary,
                 jokeMechanism: jokeMechanism,
                 emotion: emotion,
                 insiderAngle: insiderAngle,
@@ -29704,6 +30267,7 @@ class $$PostUnderstandingsTableTableManager
                 Value<String> domain = const Value.absent(),
                 Value<String> entities = const Value.absent(),
                 Value<String> point = const Value.absent(),
+                Value<String> imageSummary = const Value.absent(),
                 Value<String> jokeMechanism = const Value.absent(),
                 Value<String> emotion = const Value.absent(),
                 Value<String> insiderAngle = const Value.absent(),
@@ -29718,6 +30282,7 @@ class $$PostUnderstandingsTableTableManager
                 domain: domain,
                 entities: entities,
                 point: point,
+                imageSummary: imageSummary,
                 jokeMechanism: jokeMechanism,
                 emotion: emotion,
                 insiderAngle: insiderAngle,

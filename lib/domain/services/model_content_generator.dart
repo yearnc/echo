@@ -2,9 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../data/media/image_payload.dart';
+
 import '../models/ai_persona.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
+import '../models/post_understanding.dart';
 import '../models/resident_post.dart';
 import 'community_calendar.dart';
 import 'content_generator.dart';
@@ -27,28 +30,50 @@ class ModelContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async {
     if (personas.isEmpty) return const {};
 
     // 前缀缓存的顺序是硬要求：**帖子快照必须在 system 里、在人物之前**。
     // 同一帖的每一批人都不一样，如果把"这次要评论的人"放到帖子前面，
     // 前缀从第一个名字就开始分叉——帖子部分永远命不中。
-    final raw = await _gateway.complete(
-      config: config,
-      messages: [
-        {'role': 'system', 'content': sharedSystemPrompt(post)},
-        {
-          'role': 'user',
-          'content': batchPrompt(personas, relations: relations),
-        },
-      ],
-      // 这里要的是像人，不是稳定——同一句话被复读才是问题
-      temperature: 0.9,
-      // 一档最多可能写十来条评论，800 token 会在中段把 JSON 截断，
-      // 解析失败后整批退回预置台词——那就是"接上 API 还是答非所问"。
-      maxTokens: 1600,
-      timeout: const Duration(seconds: 30),
-    );
+    final system = sharedSystemPrompt(post, understanding: understanding);
+    final user = batchPrompt(personas, relations: relations);
+    final images = sendImagesDirectly && post.hasImages
+        ? await ImagePayload.partsFromRefs(post.images)
+        : const <Map<String, dynamic>>[];
+
+    final raw = images.isEmpty
+        ? await _gateway.complete(
+            config: config,
+            messages: [
+              {'role': 'system', 'content': system},
+              {'role': 'user', 'content': user},
+            ],
+            // 这里要的是像人，不是稳定——同一句话被复读才是问题
+            temperature: 0.9,
+            // 一档最多可能写十来条评论，800 token 会在中段把 JSON 截断，
+            // 解析失败后整批退回预置台词——那就是"接上 API 还是答非所问"。
+            maxTokens: 1600,
+            timeout: const Duration(seconds: 30),
+          )
+        : await _gateway.completeRich(
+            config: config,
+            messages: [
+              {'role': 'system', 'content': system},
+              {
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': user},
+                  ...images,
+                ],
+              },
+            ],
+            temperature: 0.9,
+            maxTokens: 1600,
+            timeout: const Duration(seconds: 30),
+          );
 
     return parseComments(raw, personas);
   }
@@ -60,11 +85,15 @@ class ModelContentGenerator {
   Future<void> prewarm({
     required ModelConfig config,
     required Post post,
+    PostUnderstanding? understanding,
   }) async {
     await _gateway.complete(
       config: config,
       messages: [
-        {'role': 'system', 'content': sharedSystemPrompt(post)},
+        {
+          'role': 'system',
+          'content': sharedSystemPrompt(post, understanding: understanding),
+        },
         {'role': 'user', 'content': '收到，等待下一批。'},
       ],
       temperature: 0,
@@ -127,7 +156,12 @@ class ModelContentGenerator {
           'role': 'system',
           'content': directPrompt(threads, relations: relations),
         },
-        {'role': 'user', 'content': '请写出这 ${threads.length} 条消息。'},
+        {
+          'role': 'user',
+          'content':
+              '请写出这 ${threads.length} 条消息。\n'
+              '（现在：${momentLabel(threads.first.at ?? DateTime.now())}）',
+        },
       ],
       temperature: 0.9,
       maxTokens: 500,
@@ -323,8 +357,19 @@ class ModelContentGenerator {
   /// 这一整段在同一帖的所有批次之间**逐字节一致**，是缓存真正能命中的部分。
   /// 所以这里不能出现"第几批""现在几点""这批有几个人"——
   /// 那些全部放进 [batchPrompt]。
-  static String sharedSystemPrompt(Post post) {
-    return '${_rules()}\n${postPrompt(post)}';
+  static String sharedSystemPrompt(
+    Post post, {
+    PostUnderstanding? understanding,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln(_rules())
+      ..writeln(postPrompt(post));
+    // 解析结果是一帖一份，仍然属于稳定前缀；图片摘要也在这里，
+    // 所以临时网民和固定住民都能“看到”同一段画面描述。
+    if (understanding != null) {
+      buffer.writeln(understanding.toPromptBlock());
+    }
+    return buffer.toString();
   }
 
   /// 静态规则（A+B）。纯文本，不随帖子、批次、时间变化。

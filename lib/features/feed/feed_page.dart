@@ -11,10 +11,12 @@ import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
+import '../../domain/models/post_voice.dart';
 import '../shared_widgets/like_button.dart';
-import '../shared_widgets/post_image.dart';
+import '../shared_widgets/post_image_grid.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 回响模式首页：信息流（规划书 §3.4）。
@@ -366,7 +368,7 @@ class _PostCard extends ConsumerWidget {
             ),
             if (post.hasImages) ...[
               const SizedBox(height: 10),
-              PostImage(ref: post.images.first),
+              PostImageGrid(images: post.images),
             ],
             const SizedBox(height: 12),
             _PostFooter(post: post, likerIds: likerIds),
@@ -415,15 +417,40 @@ class _PostFooter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 评论者可能是临时网民：他们不在 ai_personas 里，查名字会回落成
+    // “社区住民”，头像就变成一个“社”字。这里优先读这一帖的
+    // post_voices 快照，查不到的人才跳过，不拿兜底名硬画。
+    final voices =
+        ref.watch(postVoicesProvider(post.id)).value ??
+        const <PostVoice>[];
+    final voiceById = {for (final voice in voices) voice.id: voice};
+    final avatars = <({String name, String? avatarRef})>[];
+    for (final id in likerIds) {
+      final voice = voiceById[id];
+      if (voice != null) {
+        avatars.add((
+          name: voice.name,
+          avatarRef: voice.avatarAsset.trim().isEmpty
+              ? null
+              : voice.avatarAsset,
+        ));
+        continue;
+      }
+      final persona = ref.watch(personaByIdProvider(id));
+      if (persona != null) {
+        avatars.add((name: persona.name, avatarRef: persona.avatar));
+      }
+    }
+
     return Row(
       children: [
-        if (likerIds.isNotEmpty) ...[
+        if (avatars.isNotEmpty) ...[
           SizedBox(
-            width: 22.0 + (likerIds.length - 1) * 15,
+            width: 22.0 + (avatars.length - 1) * 15,
             height: 22,
             child: Stack(
               children: [
-                for (var i = 0; i < likerIds.length; i++)
+                for (var i = 0; i < avatars.length; i++)
                   Positioned(
                     left: i * 15.0,
                     child: Container(
@@ -433,10 +460,8 @@ class _PostFooter extends ConsumerWidget {
                       ),
                       padding: const EdgeInsets.all(1),
                       child: UserAvatar(
-                        name: ref.watch(personaNameProvider(likerIds[i])),
-                        avatarRef: ref
-                            .watch(personaByIdProvider(likerIds[i]))
-                            ?.avatar,
+                        name: avatars[i].name,
+                        avatarRef: avatars[i].avatarRef,
                         size: 20,
                       ),
                     ),

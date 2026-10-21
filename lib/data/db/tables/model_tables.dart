@@ -29,6 +29,11 @@ class ModelConfigs extends Table {
   /// 用户完全可能只想用便宜的那个。
   TextColumn get kind => text().withDefault(const Constant('chat'))();
 
+  /// 这条对话模型能不能直接收图片（v24）。
+  /// 关着的时候私信图片不会塞进请求，避免整轮 400。
+  BoolColumn get supportsVision =>
+      boolean().withDefault(const Constant(false))();
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 

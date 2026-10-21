@@ -41,15 +41,25 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _fallbackColor();
+    final hasImage = _looksLikeImage();
 
+    // 有图时**不能**再铺一层半透明底色：圆形裁切的抗锯齿边缘会和底色
+    // 混出一圈“背景残留”，看起来像头像没铺满。底色只留给文字头像。
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withValues(alpha: 0.18),
+        color: hasImage ? Colors.transparent : color.withValues(alpha: 0.18),
         border: showRing
-            ? Border.all(color: color.withValues(alpha: 0.55), width: 1.4)
+            ? Border.all(
+                color: hasImage
+                    ? Theme.of(context).colorScheme.outline.withValues(
+                        alpha: 0.45,
+                      )
+                    : color.withValues(alpha: 0.55),
+                width: 1.4,
+              )
             : null,
       ),
       clipBehavior: Clip.antiAlias,
@@ -57,39 +67,52 @@ class UserAvatar extends StatelessWidget {
     );
   }
 
+  /// 是否可能是一张图。文件不存在的仍走文字兜底；asset 交给 errorBuilder。
+  bool _looksLikeImage() {
+    final ref = avatarRef?.trim() ?? '';
+    if (ref.startsWith('asset:') || ref.startsWith('http')) return true;
+    if (ref.startsWith('file:')) {
+      return File(ref.substring('file:'.length)).existsSync();
+    }
+    return false;
+  }
+
   Widget _buildContent(Color color) {
     final ref = avatarRef?.trim() ?? '';
     if (ref.isEmpty) return _textFallback(color);
 
     if (ref.startsWith('asset:')) {
-      return Image.asset(
-        ref.substring('asset:'.length),
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-        errorBuilder: (_, _, _) => _textFallback(color),
+      return SizedBox.expand(
+        child: Image.asset(
+          ref.substring('asset:'.length),
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          errorBuilder: (_, _, _) => _textFallback(color),
+        ),
       );
     }
 
     if (ref.startsWith('file:')) {
       final file = File(ref.substring('file:'.length));
       if (!file.existsSync()) return _textFallback(color);
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-        errorBuilder: (_, _, _) => _textFallback(color),
+      return SizedBox.expand(
+        child: Image.file(
+          file,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          errorBuilder: (_, _, _) => _textFallback(color),
+        ),
       );
     }
 
     if (ref.startsWith('http://') || ref.startsWith('https://')) {
-      return Image.network(
-        ref,
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-        errorBuilder: (_, _, _) => _textFallback(color),
+      return SizedBox.expand(
+        child: Image.network(
+          ref,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          errorBuilder: (_, _, _) => _textFallback(color),
+        ),
       );
     }
 
@@ -97,14 +120,18 @@ class UserAvatar extends StatelessWidget {
   }
 
   Widget _textFallback(Color color) {
-    return Center(
-      child: Text(
-        _initial(),
-        style: TextStyle(
-          fontSize: size * 0.4,
-          fontWeight: FontWeight.w700,
-          color: color,
-          height: 1,
+    // 图片加载失败时把底色补回来，不然文字头像会挂在透明背景上。
+    return ColoredBox(
+      color: color.withValues(alpha: 0.18),
+      child: Center(
+        child: Text(
+          _initial(),
+          style: TextStyle(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.w700,
+            color: color,
+            height: 1,
+          ),
         ),
       ),
     );

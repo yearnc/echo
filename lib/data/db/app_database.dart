@@ -65,7 +65,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -385,6 +385,93 @@ class AppDatabase extends _$AppDatabase {
         // v23：动作账本。工具调用、批量围观、被动触发都从这里过一遍，
         // 幂等键保证同一句话不会被模型重复发两次。
         await m.createTable(actionLogs);
+      }
+      if (from < 24) {
+        // v24：身份资料、表情包标签、图片理解、评论区表情包。
+        //
+        // 统一的加列方式先查 PRAGMA：从很老的版本升上来时，某些表是
+        // 在后续迁移里按**当前定义**新建的，直接 addColumn 会撞
+        // "duplicate column name"（v12 已经踩过一次）。
+        Future<bool> hasTable(String table) async {
+          final row = await customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = ?",
+            variables: [Variable<String>(table)],
+          ).getSingleOrNull();
+          return row != null;
+        }
+
+        Future<bool> hasColumn(String table, String column) async {
+          if (!await hasTable(table)) return false;
+          final rows = await customSelect('PRAGMA table_info($table)').get();
+          return rows.any((row) => row.read<String>('name') == column);
+        }
+
+        Future<void> addTextColumn(String table, String column) async {
+          if (!await hasTable(table)) return;
+          if (!await hasColumn(table, column)) {
+            await customStatement(
+              "ALTER TABLE $table ADD COLUMN $column TEXT NOT NULL DEFAULT ''",
+            );
+          }
+        }
+
+        for (final column in const [
+          'gender',
+          'age_range',
+          'occupation',
+          'city',
+          'interests',
+          'preferred_name',
+          'intro',
+        ]) {
+          await addTextColumn('user_profile', column);
+        }
+        await addTextColumn('user_comments', 'media_type');
+        await addTextColumn('stickers', 'tags');
+        await addTextColumn('post_understandings', 'image_summary');
+
+        if (!await hasColumn('model_configs', 'supports_vision')) {
+          await customStatement(
+            'ALTER TABLE model_configs ADD COLUMN supports_vision '
+            'INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+
+        // post_views 原来把 voice_id 外键到 post_voices，导致"我自己"
+        // 的浏览记录写不进去。SQLite 不能直接删外键，只能重建。
+        // 只处理 v14 及以后真的带着旧外键建出来的表；更老的库会在
+        // v14 那一步按当前定义新建，不需要再动。
+        if (from >= 14) {
+          await customStatement('''
+            CREATE TABLE post_views_v24 (
+              id TEXT NOT NULL,
+              post_id TEXT NOT NULL REFERENCES posts (id),
+              voice_id TEXT NOT NULL,
+              first_viewed_at INTEGER NOT NULL,
+              last_viewed_at INTEGER NOT NULL,
+              view_count INTEGER NOT NULL DEFAULT 1,
+              PRIMARY KEY (id),
+              UNIQUE (post_id, voice_id)
+            )
+          ''');
+          await customStatement('''
+            INSERT INTO post_views_v24 (
+              id, post_id, voice_id, first_viewed_at, last_viewed_at, view_count
+            )
+            SELECT id, post_id, voice_id, first_viewed_at, last_viewed_at,
+                   view_count
+            FROM post_views
+          ''');
+          await customStatement('DROP TABLE post_views');
+          await customStatement(
+            'ALTER TABLE post_views_v24 RENAME TO post_views',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS post_views_by_post '
+            'ON post_views (post_id, last_viewed_at)',
+          );
+        }
       }
     },
   );

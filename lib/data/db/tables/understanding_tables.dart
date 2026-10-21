@@ -21,6 +21,10 @@ class PostUnderstandings extends Table {
   /// 一句话：这条帖子在说什么
   TextColumn get point => text().withDefault(const Constant(''))();
 
+  /// 图片理解（v24）：一次解析，所有网民共享。
+  /// 没有配视觉模型或帖子没图时为空。
+  TextColumn get imageSummary => text().withDefault(const Constant(''))();
+
   /// 玩梗时：笑点机制
   TextColumn get jokeMechanism => text().withDefault(const Constant(''))();
 

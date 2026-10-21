@@ -14,6 +14,7 @@ import '../../features/models/models_page.dart';
 import '../../features/notifications/notifications_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
 import '../../features/post_detail/post_detail_page.dart';
+import '../../features/profile/identity_page.dart';
 import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
@@ -98,6 +99,9 @@ class RoutePaths {
 
   /// 编辑我的资料（昵称 / 头像）。
   static const String profileEdit = '/settings/profile';
+
+  /// 我的身份（性别 / 职业 / 城市等，作为 AI 前缀）。
+  static const String identity = '/settings/identity';
 
   /// 帮助与常见问题。
   static const String help = '/help';
@@ -252,6 +256,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.profileEdit,
       builder: (context, state) => const ProfileEditPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.identity,
+      builder: (context, state) => const IdentityPage(),
     ),
     GoRoute(
       path: RoutePaths.help,

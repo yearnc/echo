@@ -14,6 +14,7 @@ import '../../domain/models/post.dart';
 import '../../domain/models/post_voice.dart';
 import '../../domain/services/voice_playback.dart';
 import '../../domain/services/voice_waveform.dart';
+import 'post_image.dart';
 import 'user_avatar.dart';
 
 /// 评论底下那颗心。
@@ -207,6 +208,16 @@ class CommentTile extends ConsumerWidget {
                   ],
                   if (comment.isVoice)
                     VoiceBubble(comment: comment)
+                  else if (comment.mediaType == CommentMedia.image)
+                    SizedBox(
+                      width: 132,
+                      height: 132,
+                      child: PostImage(
+                        ref: comment.content ?? '',
+                        height: 132,
+                        borderRadius: 10,
+                      ),
+                    )
                   else
                     Text(
                       comment.content ?? '',

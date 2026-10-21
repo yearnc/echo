@@ -24,8 +24,10 @@ import '../../domain/services/mode_controller.dart';
 import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/like_button.dart';
-import '../shared_widgets/post_image.dart';
+import '../shared_widgets/post_image_grid.dart';
+import '../shared_widgets/sticker_picker_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
+import '../../domain/models/sticker.dart';
 import '../shell/app_shell.dart';
 
 /// 帖子详情 + 评论区（规划书 §3.5）。
@@ -116,6 +118,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     // 清醒模式里没有反馈可看，不该计入
     if (!ref.read(modeControllerProvider).isEcho) return;
 
+    // 浏览量也要算上我自己：以前只记了防沉迷，别人的帖子点进去
+    // 数字永远不动，看着像坏了。
+    await ref
+        .read(postVoiceRepositoryProvider)
+        .recordUserView(widget.postId);
     final guard = ref.read(addictionGuardProvider);
     await guard.recordView(widget.postId);
     final warning = await guard.evaluate();
@@ -285,7 +292,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     // 记录是写给自己的
                     if (mode.isEcho)
                       _CommentComposer(
-                        postId: post.id,
+                        post: post,
                         replyToId: _replyToId,
                         replyToName: _replyToName,
                         replyTarget: _replyTarget,
@@ -305,14 +312,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 /// 不然"被看见"这件事只是单向的表演。
 class _CommentComposer extends ConsumerStatefulWidget {
   const _CommentComposer({
-    required this.postId,
+    required this.post,
     this.replyToId,
     this.replyToName,
     this.replyTarget,
     this.onDone,
   });
 
-  final String postId;
+  final Post post;
+  String get postId => post.id;
 
   /// 非空表示这条是回给某一条的。
   final String? replyToId;
@@ -338,13 +346,44 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     super.dispose();
   }
 
+  Future<void> _pickSticker() async {
+    final picked = await showStickerPicker(context, ref);
+    if (picked != null) await _sendSticker(picked);
+  }
+
+  Future<void> _sendSticker(StickerItem sticker) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(interactionRepositoryProvider)
+          .addMyComment(
+            postId: widget.postId,
+            content: sticker.path,
+            mediaType: 'image',
+            parentId: widget.replyToId,
+            replyToName: widget.replyToName,
+          );
+      if (!mounted) return;
+      widget.onDone?.call();
+      setState(() => _sending = false);
+      FocusScope.of(context).unfocus();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+    }
+  }
+
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty || _sending) return;
 
     setState(() => _sending = true);
     try {
-      await ref
+      final commentId = await ref
           .read(interactionRepositoryProvider)
           .addMyComment(
             postId: widget.postId,
@@ -366,6 +405,22 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
                 myReply: text,
               ),
         );
+      } else {
+        // 直接在固定住民的帖子下面评论：楼主本人也接一句。
+        final authorId = widget.post.authorResidentId ?? '';
+        if (authorId.isNotEmpty) {
+          unawaited(
+            ref
+                .read(commentReplyServiceProvider)
+                .maybeAuthorReply(
+                  postId: widget.postId,
+                  residentId: authorId,
+                  postContent: widget.post.content,
+                  myCommentId: commentId,
+                  myReply: text,
+                ),
+          );
+        }
       }
       if (!mounted) return;
       _ctrl.clear();
@@ -424,6 +479,15 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
               padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
               child: Row(
                 children: [
+                  IconButton(
+                    onPressed: _sending ? null : _pickSticker,
+                    tooltip: '表情包',
+                    icon: Icon(
+                      Icons.emoji_emotions_outlined,
+                      color: EchoColors.textMuted,
+                      size: 21,
+                    ),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
@@ -602,7 +666,7 @@ class _PostBody extends ConsumerWidget {
         ),
         if (post.hasImages) ...[
           const SizedBox(height: 12),
-          PostImage(ref: post.images.first, height: 240),
+          PostImageGrid(images: post.images, singleHeight: 240),
         ],
         const SizedBox(height: 14),
         Row(
@@ -668,6 +732,7 @@ Future<void> _showViewers(
   final interacted = await ref
       .read(interactionRepositoryProvider)
       .interactedPersonaIds(postId);
+  final me = ref.read(userProfileProvider).value;
   if (!context.mounted) return;
 
   await showModalBottomSheet<void>(
@@ -704,8 +769,12 @@ Future<void> _showViewers(
                   return Row(
                     children: [
                       UserAvatar(
-                        name: viewer.voice.name,
-                        avatarRef: viewer.voice.avatarAsset,
+                        name: viewer.isMe
+                            ? (me?.displayName ?? '我')
+                            : viewer.voice.name,
+                        avatarRef: viewer.isMe
+                            ? me?.avatarOrNull
+                            : viewer.voice.avatarAsset,
                         size: 32,
                       ),
                       const SizedBox(width: 10),

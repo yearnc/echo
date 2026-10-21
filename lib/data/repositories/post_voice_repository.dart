@@ -16,6 +16,10 @@ class PostVoiceRepository {
   /// 内置头像池的尺寸（`assets/avatars/avatar_001~032.webp`）。
   static const int avatarCount = 32;
 
+  /// “我自己”的浏览记录用这个保留 id。它不在 post_voices 里，
+  /// 所以 post_views.voice_id 不能有外键（v24 已重建）。
+  static const String userViewerId = 'viewer_me';
+
   Future<void> insertAll(List<PostVoice> voices) async {
     if (voices.isEmpty) return;
     await _db.batch((batch) {
@@ -151,6 +155,15 @@ class PostVoiceRepository {
         );
   }
 
+  /// 我自己看了一眼。同一个帖子只留一行，重复进来加次数。
+  Future<void> recordUserView(String postId, {DateTime? at}) {
+    return recordView(
+      postId: postId,
+      voiceId: userViewerId,
+      at: at,
+    );
+  }
+
   Stream<int> watchViewCount(String postId) {
     final count = _db.postViews.id.count();
     final query = _db.selectOnly(_db.postViews)
@@ -180,7 +193,22 @@ class PostVoiceRepository {
     final voices = await byIds(rows.map((row) => row.voiceId));
     return [
       for (final row in rows)
-        if (voices[row.voiceId] != null)
+        if (row.voiceId == userViewerId)
+          PostViewer(
+            voice: PostVoice(
+              id: userViewerId,
+              postId: postId,
+              kind: PostVoiceKind.ephemeral,
+              name: '我',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(
+                row.firstViewedAt,
+              ),
+            ),
+            lastViewedAt: DateTime.fromMillisecondsSinceEpoch(row.lastViewedAt),
+            viewCount: row.viewCount,
+            isMe: true,
+          )
+        else if (voices[row.voiceId] != null)
           PostViewer(
             voice: voices[row.voiceId]!,
             lastViewedAt: DateTime.fromMillisecondsSinceEpoch(
@@ -230,11 +258,15 @@ class PostViewer {
     required this.voice,
     required this.lastViewedAt,
     required this.viewCount,
+    this.isMe = false,
   });
 
   final PostVoice voice;
   final DateTime lastViewedAt;
   final int viewCount;
+
+  /// 这一行是"我自己"，界面用本机资料显示名字和头像。
+  final bool isMe;
 }
 
 final postVoiceRepositoryProvider = Provider<PostVoiceRepository>(

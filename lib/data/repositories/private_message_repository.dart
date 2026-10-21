@@ -26,7 +26,6 @@ class PrivateMessageRepository {
     return _db
         .customSelect(
           _conversationsSql,
-          variables: [_nowVar],
           readsFrom: {_db.privateMessages},
         )
         .watch()
@@ -34,17 +33,25 @@ class PrivateMessageRepository {
   }
 
   /// 和某个人的全部往来（按时间正序，够聊天页从上往下铺）。
+  ///
+  /// **不在 SQL 里绑一个"建查询那一刻"的 now**：那样你刚发出去的消息
+  /// 时间戳一定比它大，会被过滤掉，界面上就像"点了发送没反应"。
+  /// 这里把过滤放到每次查询结果上，时间取的是**读出来的那一刻**；
+  /// 还没到点的排期消息仍然不会提前出现。
   Stream<List<PrivateMessage>> watchThread(String personaId) {
     return (_db.select(_db.privateMessages)
           ..where(
-            (t) =>
-                t.personaId.equals(personaId) &
-                t.deletedAt.isNull() &
-                t.createdAt.isSmallerOrEqualValue(_now),
+            (t) => t.personaId.equals(personaId) & t.deletedAt.isNull(),
           )
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .watch()
-        .map((rows) => rows.map(_toMessage).toList(growable: false));
+        .map((rows) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          return [
+            for (final row in rows)
+              if (row.createdAt <= now) _toMessage(row),
+          ];
+        });
   }
 
   /// 还没读的私信有几条（底部导航上那个红点用它）。
@@ -56,7 +63,13 @@ class PrivateMessageRepository {
         _db.privateMessages.direction.equals('in') &
             _db.privateMessages.readAt.isNull() &
             _db.privateMessages.deletedAt.isNull() &
-            _db.privateMessages.createdAt.isSmallerOrEqualValue(_now),
+            // 用 SQL 里的 now，而不是建查询时绑定的值：否则刚收到的那条
+            // 永远落在“未来”，红点要等页面重建才出现。
+            _db.privateMessages.createdAt.isSmallerOrEqual(
+              CustomExpression<int>(
+                "(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + 999)",
+              ),
+            ),
       );
 
     return query.watchSingle().map((row) => row.read(count) ?? 0);
@@ -201,7 +214,6 @@ class PrivateMessageRepository {
 
   int get _now => DateTime.now().millisecondsSinceEpoch;
 
-  Variable<int> get _nowVar => Variable<int>(_now);
 
   Conversation _toConversation(QueryRow row) => Conversation(
     personaId: row.read<String>('persona_id'),
@@ -258,6 +270,14 @@ WHERE m.deleted_at IS NULL
 ''';
 
   /// 会话列表：每个聊过的人取最后一条，顺带数一数没读的。
+  ///
+  /// 时间用 SQL 里的 `now` 而不是绑定参数：会话列表会一直挂着监听，
+  /// 绑定一次 now 的话，之后新发的消息永远落在"未来"。
+  /// 当前时间的毫秒值。`strftime('%s')` 只到秒，同一秒里刚发的消息会被
+  /// 判成“未来”而消失；用 julian day 换成毫秒。
+  static const String _conversationsNow =
+      'CAST((julianday(\'now\') - 2440587.5) * 86400000 AS INTEGER)';
+
   static const String _conversationsSql = '''
 SELECT
   m.persona_id AS persona_id,
@@ -271,16 +291,16 @@ SELECT
       AND u.direction = 'in'
       AND u.read_at IS NULL
       AND u.deleted_at IS NULL
-      AND u.created_at <= ?1
+      AND u.created_at <= $_conversationsNow
   ) AS unread
 FROM private_messages m
 WHERE m.deleted_at IS NULL
-  AND m.created_at <= ?1
+  AND m.created_at <= $_conversationsNow
   AND m.id = (
     SELECT l.id FROM private_messages l
     WHERE l.persona_id = m.persona_id
       AND l.deleted_at IS NULL
-      AND l.created_at <= ?1
+      AND l.created_at <= $_conversationsNow
     ORDER BY l.created_at DESC
     LIMIT 1
   )

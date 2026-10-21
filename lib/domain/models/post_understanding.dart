@@ -8,6 +8,7 @@ class PostUnderstanding {
     this.domain = '',
     this.entities = const [],
     this.point = '',
+    this.imageSummary = '',
     this.jokeMechanism = '',
     this.emotion = '',
     this.insiderAngle = '',
@@ -29,6 +30,9 @@ class PostUnderstanding {
 
   /// 一句话：这条帖子在说什么。
   final String point;
+
+  /// 图片内容摘要（v24）：一帖只解析一次，所有网民共享。
+  final String imageSummary;
   final String jokeMechanism;
   final String emotion;
   final String insiderAngle;
@@ -48,6 +52,9 @@ class PostUnderstanding {
       ..writeln('语气：${tone.isEmpty ? '日常' : tone}')
       ..writeln('领域：${domain.isEmpty ? '生活' : domain}');
     if (point.isNotEmpty) buffer.writeln('在说：$point');
+    if (imageSummary.isNotEmpty) {
+      buffer.writeln('图片里：$imageSummary');
+    }
     if (entities.isNotEmpty) {
       buffer.writeln('提到的：${entities.join('、')}');
     }

@@ -15,6 +15,7 @@ import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
+import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'relationship_rules.dart';
@@ -41,6 +42,7 @@ class DirectMessageService {
     required this.generator,
     this.activeConfig,
     this.toolSession,
+    this.actions,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -57,6 +59,9 @@ class DirectMessageService {
   /// 固定住民回复时的 tool calling（可空：测试和没配模型时走批量生成）。
   final Future<ModelConfig?> Function()? activeConfig;
   final ResidentToolSession? toolSession;
+
+  /// 表情包的真正落库入口（和私信文本共用同一个动作账本）。
+  final ActionRegistry? actions;
 
   /// 服务商不支持 tools 时不再反复试：一次 400 之后整轮退回预检索。
   bool _toolsUnavailable = false;
@@ -121,9 +126,20 @@ class DirectMessageService {
       threads.add(
         DirectThread(
           persona: persona,
+          at: DateTime.now(),
           recent: [
             for (final turn in turns)
-              DirectTurn(fromMe: !turn.fromMe, text: turn.content),
+              DirectTurn(
+                fromMe: !turn.fromMe,
+                text: turn.mediaType == 'image'
+                    ? ''
+                    : (turn.mediaType == 'sticker'
+                          ? '[表情包]'
+                          : turn.content),
+                imageRef: turn.mediaType == 'image' && turn.fromMe
+                    ? turn.content
+                    : null,
+              ),
           ],
         ),
       );
@@ -138,9 +154,9 @@ class DirectMessageService {
     }
     if (threads.isEmpty) return 0;
 
-    // 固定住民先走 tool calling：能查记忆、能记事情、能自己发动态。
-    // 模型不支持或这一步失败，就退回批量生成（人设 + 预检索的记忆摘要）。
-    final lines = <String, String>{};
+    // 固定住民先走 tool calling：能查记忆、能记事情、能自己发动态、
+    // 也能挑表情包。模型不支持或这一步失败，就退回批量生成。
+    final replies = <String, ResidentReply>{};
     final batch = <DirectThread>[];
     final config = _toolsUnavailable ? null : await activeConfig?.call();
     for (final thread in threads) {
@@ -153,18 +169,18 @@ class DirectMessageService {
         final said = thread.recent.isEmpty
             ? ''
             : thread.recent.last.text;
-        final line =
-            (await toolSession!.reply(
-              resident: resident,
-              config: config,
-              recent: thread.recent,
-              latestUserMessage: said,
-            ))?.trim() ??
-            '';
-        if (line.isEmpty) {
+        final reply = await toolSession!.reply(
+          resident: resident,
+          config: config,
+          recent: thread.recent,
+          latestUserMessage: said,
+          at: DateTime.now(),
+        );
+        if (reply == null ||
+            (reply.text.trim().isEmpty && reply.stickers.isEmpty)) {
           batch.add(thread);
         } else {
-          lines[thread.persona.id] = line;
+          replies[thread.persona.id] = reply;
         }
       } catch (error) {
         debugPrint('[私信] ${resident.name} 的工具调用没成，退回批量生成：$error');
@@ -174,27 +190,85 @@ class DirectMessageService {
     }
 
     if (batch.isNotEmpty) {
-      lines.addAll(
-        await generator.directMessages(
-          threads: batch,
-          relations: {...await _relations(), ...threadRelations},
-        ),
+      final generated = await generator.directMessages(
+        threads: batch,
+        relations: {...await _relations(), ...threadRelations},
       );
+      for (final entry in generated.entries) {
+        replies[entry.key] = ResidentReply(text: entry.value);
+      }
     }
 
     var written = 0;
     for (final thread in threads) {
-      final line = lines[thread.persona.id]?.trim() ?? '';
-      if (line.isEmpty) continue;
+      final reply = replies[thread.persona.id];
+      if (reply == null) continue;
 
-      await messages.scheduleIncoming(
-        personaId: thread.persona.id,
-        content: line,
-        at: DateTime.now().add(_randomDuration(minReplyDelay, maxReplyDelay)),
+      final at = DateTime.now().add(
+        _randomDuration(minReplyDelay, maxReplyDelay),
       );
-      written++;
+      final text = reply.text.trim();
+      var wroteSomething = false;
+
+      if (text.isNotEmpty) {
+        await messages.scheduleIncoming(
+          personaId: thread.persona.id,
+          content: text,
+          at: at,
+        );
+        wroteSomething = true;
+      }
+
+      for (final sticker in reply.stickers) {
+        final registry = actions;
+        if (registry != null) {
+          final outcome = await registry.sendStickerMessage(
+            residentId: thread.persona.id,
+            stickerPath: sticker.path,
+            // 比文字晚 1ms：同一毫秒里排序不稳定，先看到话再看到图更像人。
+            at: at.add(const Duration(milliseconds: 1)),
+            idempotencyKey:
+                'sticker:${thread.persona.id}:${sticker.callId}',
+          );
+          if (!outcome.ok) {
+            debugPrint('[私信] 表情包没发出去：${outcome.message}');
+            continue;
+          }
+        } else {
+          await messages.scheduleIncoming(
+            personaId: thread.persona.id,
+            content: sticker.path,
+            mediaType: 'sticker',
+            at: at,
+          );
+        }
+        wroteSomething = true;
+      }
+
+      if (wroteSomething) written++;
     }
     return written;
+  }
+
+  /// 第一次进对话时调用：让固定住民把开场白说出来。
+  ///
+  /// **幂等**：只要这个会话里已经有任何一条消息（包括还没到点的排期），
+  /// 就什么都不做。以前聊天页用"过滤后的会话是否为空"判断，看不到
+  /// 已排期但未到点的那条，于是又插一条，最后收到两句一模一样的开场白。
+  Future<bool> ensureOpening(String residentId) async {
+    final resident = await residents.findById(residentId);
+    final opening = resident?.firstMessage.trim() ?? '';
+    if (resident == null || opening.isEmpty) return false;
+    if (await messages.lastAt(residentId) != null) return false;
+
+    final now = DateTime.now();
+    await messages.scheduleIncoming(
+      personaId: residentId,
+      content: opening,
+      at: now,
+    );
+    await _saveOpenedAt(residentId, now);
+    return true;
   }
 
   /// 固定住民先来敲门：不靠关系门槛，靠用户自己配置。
@@ -219,7 +293,9 @@ class DirectMessageService {
     if (line.isEmpty) {
       try {
         final lines = await generator.directMessages(
-          threads: [DirectThread(persona: resident.toPersona())],
+          threads: [
+            DirectThread(persona: resident.toPersona(), at: now),
+          ],
         );
         line = lines[resident.id]?.trim() ?? '';
       } catch (error) {
@@ -260,7 +336,7 @@ class DirectMessageService {
 
     final persona = candidates[_random.nextInt(candidates.length)];
     final lines = await generator.directMessages(
-      threads: [DirectThread(persona: persona)],
+      threads: [DirectThread(persona: persona, at: now)],
       relations: relations,
     );
     final line = lines[persona.id]?.trim() ?? '';
@@ -366,5 +442,6 @@ final directMessageServiceProvider = Provider<DirectMessageService>(
     generator: ref.watch(contentSourceProvider),
     activeConfig: ref.watch(modelGatewayProvider).activeConfig,
     toolSession: ref.watch(residentToolSessionProvider),
+    actions: ref.watch(actionRegistryProvider),
   ),
 );

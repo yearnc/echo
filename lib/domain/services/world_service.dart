@@ -11,6 +11,7 @@ import '../../data/db/database_provider.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/post_understanding_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
@@ -39,7 +40,9 @@ class WorldService {
     required this.interactions,
     required this.generator,
     required this.sample,
+    this.understandings,
     this.readAllowResidentPosts,
+    this.readSendImagesDirectly,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -64,8 +67,14 @@ class WorldService {
   /// 住民动态底下的回应从这儿出（见 [_schedulePeers] 里为什么先占位）。
   final SampleContentGenerator sample;
 
+  /// 住民动态底下的评论也要看到“这条帖子在说什么 / 图里有什么”。
+  final PostUnderstandingRepository? understandings;
+
   /// 固定住民要不要自己发动态。默认 false，可空（测试里不传就是关）。
   final bool Function()? readAllowResidentPosts;
+
+  /// 帖子图片原图直发还是先总结（设置项）。
+  final bool Function()? readSendImagesDirectly;
 
   final Random _random;
 
@@ -188,6 +197,32 @@ class WorldService {
     required List<AiPersona> pool,
     required DateTime at,
   }) async {
+    // 楼主自己也要在这条帖子的 post_voices 里留一个快照。
+    // 没有它，评论区认不出作者，用户直接评论帖子时也找不到“谁来回复”。
+    AiPersona? author;
+    for (final persona in pool) {
+      if (persona.id == authorId) {
+        author = persona;
+        break;
+      }
+    }
+    if (author != null) {
+      await voices.insertAll([
+        PostVoice(
+          id: 'voice_${author.id}_$postId',
+          postId: postId,
+          kind: PostVoiceKind.custom,
+          residentId: author.id,
+          name: author.name,
+          avatarAsset: author.avatar,
+          bio: author.bio,
+          languageStyle: author.languageStyle,
+          tone: author.tone,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+    }
+
     final others = pool.where((p) => p.id != authorId).toList()
       ..shuffle(_random);
     // 1—3 条：以前有 1/3 的概率一条都没有，一屏翻下去全是零评论，
@@ -258,7 +293,12 @@ class WorldService {
       final post = await posts.findById(postId);
       if (post == null) return;
 
-      final generated = await generator.comments(personas: targets, post: post);
+      final generated = await generator.comments(
+        personas: targets,
+        post: post,
+        understanding: await understandings?.find(postId),
+        sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
+      );
       if (generated.isEmpty) return;
       await interactions.updatePendingComments(postId, generated);
     } catch (error) {
@@ -358,7 +398,10 @@ final worldServiceProvider = Provider<WorldService>(
     interactions: ref.watch(interactionRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
     sample: ref.watch(sampleContentGeneratorProvider),
+    understandings: ref.watch(postUnderstandingRepositoryProvider),
     readAllowResidentPosts: () =>
         ref.read(communitySettingsProvider).allowResidentPosts,
+    readSendImagesDirectly: () =>
+        ref.read(communitySettingsProvider).sendPostImagesDirectly,
   ),
 );

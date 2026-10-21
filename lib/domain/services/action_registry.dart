@@ -10,6 +10,7 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
+import '../../data/repositories/sticker_repository.dart';
 import '../models/resident_memory.dart';
 
 /// 一次动作的结果。工具调用要把它原样读给模型听。
@@ -43,6 +44,7 @@ class ActionRegistry {
     required this.memories,
     required this.messages,
     required this.posts,
+    required this.stickers,
   });
 
   final AppDatabase db;
@@ -50,6 +52,7 @@ class ActionRegistry {
   final ResidentMemoryRepository memories;
   final PrivateMessageRepository messages;
   final PostRepository posts;
+  final StickerRepository stickers;
 
   /// 每个固定住民每天最多主动发几条私信、几条动态。
   static const int dailyDmLimit = 3;
@@ -145,6 +148,117 @@ class ActionRegistry {
         await messages.scheduleIncoming(
           personaId: residentId,
           content: text,
+          at: at ?? DateTime.now(),
+        );
+        return const ActionOutcome(ok: true, message: '已发出');
+      },
+    );
+  }
+
+  /// 当前可用的表情包目录（给固定住民的 `list_stickers` 工具）。
+  ///
+  /// 只列带标签的：没标签的表情，AI 不知道该在什么时候用。
+  Future<ActionOutcome> listStickers() async {
+    final items = await stickers.taggedItems();
+    return ActionOutcome(
+      ok: true,
+      data: {
+        'stickers': [
+          for (final item in items)
+            {'id': item.id, 'name': item.name, 'tags': item.tags},
+        ],
+        if (items.isEmpty) 'message': '还没有带标签的表情包',
+      },
+    );
+  }
+
+  /// 从 id 或标签里选一张表情。只做选择，不落库。
+  Future<ActionOutcome> chooseSticker({
+    String id = '',
+    String tag = '',
+  }) async {
+    final items = await stickers.taggedItems();
+    if (id.trim().isNotEmpty) {
+      for (final item in items) {
+        if (item.id == id.trim()) {
+          return ActionOutcome(
+            ok: true,
+            data: {
+              'sticker_id': item.id,
+              'path': item.path,
+              'name': item.name,
+              'tags': item.tags,
+            },
+          );
+        }
+      }
+      return const ActionOutcome(ok: false, message: '没有这个表情包');
+    }
+
+    final needle = tag.trim();
+    if (needle.isEmpty) {
+      return const ActionOutcome(ok: false, message: '要指定 sticker_id 或 tag');
+    }
+    final matches = [
+      for (final item in items)
+        if (item.tags.any((value) => value.contains(needle))) item,
+    ];
+    if (matches.isEmpty) {
+      return ActionOutcome(ok: false, message: '没有标签含「$needle」的表情包');
+    }
+    if (matches.length > 1) {
+      return ActionOutcome(
+        ok: false,
+        message: '有多张符合，请改用 sticker_id',
+        data: {
+          'candidates': [
+            for (final item in matches)
+              {'id': item.id, 'name': item.name, 'tags': item.tags},
+          ],
+        },
+      );
+    }
+    final item = matches.first;
+    return ActionOutcome(
+      ok: true,
+      data: {
+        'sticker_id': item.id,
+        'path': item.path,
+        'name': item.name,
+        'tags': item.tags,
+      },
+    );
+  }
+
+  /// 真正把一张表情发进私信。sid 只允许是用户自己的素材。
+  Future<ActionOutcome> sendStickerMessage({
+    required String residentId,
+    required String stickerPath,
+    required String idempotencyKey,
+    DateTime? at,
+    String source = 'tool',
+  }) async {
+    return run(
+      actorId: residentId,
+      actorKind: 'resident',
+      action: 'send_sticker',
+      idempotencyKey: idempotencyKey,
+      targetId: 'user',
+      params: {'path': stickerPath},
+      source: source,
+      body: () async {
+        final resident = await residents.findById(residentId);
+        if (resident == null) {
+          return const ActionOutcome(ok: false, message: '这个固定住民不在了');
+        }
+        final items = await stickers.taggedItems();
+        if (!items.any((item) => item.path == stickerPath)) {
+          return const ActionOutcome(ok: false, message: '这张表情不在素材库里');
+        }
+        await messages.scheduleIncoming(
+          personaId: residentId,
+          content: stickerPath,
+          mediaType: 'sticker',
           at: at ?? DateTime.now(),
         );
         return const ActionOutcome(ok: true, message: '已发出');
@@ -321,5 +435,6 @@ final actionRegistryProvider = Provider<ActionRegistry>(
     memories: ref.watch(residentMemoryRepositoryProvider),
     messages: ref.watch(privateMessageRepositoryProvider),
     posts: ref.watch(postRepositoryProvider),
+    stickers: ref.watch(stickerRepositoryProvider),
   ),
 );

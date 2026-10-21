@@ -69,7 +69,7 @@ FROM (
   FROM ai_interactions
   WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
   UNION ALL
-  SELECT id, post_id, NULL AS persona_id, content, 'text' AS media_type,
+  SELECT id, post_id, NULL AS persona_id, content, media_type,
          NULL AS voice_path, NULL AS transcript, NULL AS voice_duration_ms,
          parent_id, reply_to_name, 0 AS like_count,
          created_at AS at, 0 AS is_ai
@@ -186,19 +186,24 @@ ORDER BY at ASC
   }
 
   /// 我自己发一条评论；[parentId] 非空表示这是在回某一条。
-  Future<void> addMyComment({
+  ///
+  /// 返回这条评论的 id——楼主要接住你的话时，需要把回复挂在它下面。
+  Future<String> addMyComment({
     required String postId,
     required String content,
     String? parentId,
     String? replyToName,
+    String mediaType = 'text',
   }) async {
+    final id = _newId('uc');
     await _db
         .into(_db.userComments)
         .insert(
           UserCommentsCompanion.insert(
-            id: _newId('uc'),
+            id: id,
             postId: postId,
             content: content,
+            mediaType: Value(mediaType),
             parentId: Value(parentId),
             replyToName: Value(replyToName),
             createdAt: DateTime.now().millisecondsSinceEpoch,
@@ -206,6 +211,7 @@ ORDER BY at ASC
         );
     await _bumpCommentCount(postId);
     await _recordWithPostAuthor(postId);
+    return id;
   }
 
   /// 你主动接了住民的话，这是"你和他变熟"的另一半（B4）。

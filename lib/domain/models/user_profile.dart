@@ -5,10 +5,50 @@ import '../../core/constants/app_texts.dart';
 /// 头像存的是**引用**而不是路径本身：`asset:` / `file:` / 空字符串，
 /// 交给 [UserAvatar] 走「图片优先、文字兜底」那三级解析。
 class UserProfile {
-  const UserProfile({this.nickname = '', this.avatarRef = ''});
+  const UserProfile({
+    this.nickname = '',
+    this.avatarRef = '',
+    this.gender = '',
+    this.ageRange = '',
+    this.occupation = '',
+    this.city = '',
+    this.interests = '',
+    this.preferredName = '',
+    this.intro = '',
+  });
 
   final String nickname;
   final String avatarRef;
+
+  /// 身份资料（v24）。存稳定枚举/自由文本，空字符串 = 没填。
+  final String gender;
+  final String ageRange;
+  final String occupation;
+  final String city;
+  final String interests;
+
+  /// 希望 AI 怎么称呼你。
+  final String preferredName;
+  final String intro;
+
+  bool get hasIdentity =>
+      [
+        gender,
+        ageRange,
+        occupation,
+        city,
+        interests,
+        preferredName,
+        intro,
+      ].any((value) => value.trim().isNotEmpty);
+
+  String get genderLabel => switch (gender.trim()) {
+    'male' => '男',
+    'female' => '女',
+    'nonbinary' => '非二元',
+    'secret' => '不愿透露',
+    _ => '',
+  };
 
   /// 界面上一律用这个，而不是裸的 [nickname]。
   ///
@@ -25,8 +65,25 @@ class UserProfile {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  UserProfile copyWith({String? nickname, String? avatarRef}) => UserProfile(
+  UserProfile copyWith({
+    String? nickname,
+    String? avatarRef,
+    String? gender,
+    String? ageRange,
+    String? occupation,
+    String? city,
+    String? interests,
+    String? preferredName,
+    String? intro,
+  }) => UserProfile(
     nickname: nickname ?? this.nickname,
     avatarRef: avatarRef ?? this.avatarRef,
+    gender: gender ?? this.gender,
+    ageRange: ageRange ?? this.ageRange,
+    occupation: occupation ?? this.occupation,
+    city: city ?? this.city,
+    interests: interests ?? this.interests,
+    preferredName: preferredName ?? this.preferredName,
+    intro: intro ?? this.intro,
   );
 }

@@ -244,6 +244,27 @@ void main() {
       );
     });
   });
+
+  test('开场白只出现一次，重复进聊天页不会再说一遍', () async {
+    final residents = CustomResidentRepository(db);
+    await residents.upsert(
+      CustomResident(
+        id: 'resident_opening',
+        name: '小满',
+        firstMessage: '你来啦。',
+        createdAt: DateTime(2026, 10, 1),
+      ),
+    );
+
+    expect(await service.ensureOpening('resident_opening'), isTrue);
+    expect(await service.ensureOpening('resident_opening'), isFalse);
+
+    final thread = await messages.watchThread('resident_opening').first;
+    expect(
+      thread.where((message) => message.content == '你来啦。').length,
+      1,
+    );
+  });
 }
 
 /// 记录 `relations` 的生成器：用来验证记忆有没有真的进到提示词上下文。

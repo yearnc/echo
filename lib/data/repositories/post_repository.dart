@@ -102,6 +102,29 @@ class PostRepository {
     return rows.map(_toDomain).toList(growable: false);
   }
 
+  /// 最近需要“凑人”的帖子：用户自己发的 + 固定住民发的。
+  ///
+  /// v3.0 的临时网民只围着用户的帖子转，固定住民的帖子底下永远只有
+  /// 另外几个固定住民。这里把两种帖子一起交给 AudienceService。
+  Future<List<Post>> recentForAudience({
+    int limit = 10,
+    Duration window = const Duration(hours: 48),
+  }) async {
+    final cutoff = DateTime.now().subtract(window).millisecondsSinceEpoch;
+    final query = _db.select(_db.posts)
+      ..where(
+        (t) =>
+            t.authorPersonaId.isNull() &
+            t.deletedAt.isNull() &
+            t.scope.equals('echo') &
+            t.createdAt.isBiggerOrEqualValue(cutoff),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(limit);
+    final rows = await query.get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
   Stream<Post?> watchById(String id) {
     final query = _db.select(_db.posts)
       ..where((t) => t.id.equals(id) & t.deletedAt.isNull());

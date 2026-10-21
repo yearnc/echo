@@ -7,6 +7,7 @@ class CommunitySettings {
     this.allowResidentPosts = false,
     this.allowLurk = true,
     this.aiPeerInteractionLimit = 2,
+    this.sendPostImagesDirectly = false,
   });
 
   /// 固定住民要不要自己发动态。
@@ -23,15 +24,24 @@ class CommunitySettings {
   /// 每帖 AI 接 AI 的上限。0 表示不让他们互相说话。
   final int aiPeerInteractionLimit;
 
+  /// 帖子图片是“原图直接发给 AI”还是“先总结再发”。
+  ///
+  /// 默认总结：一帖只解析一次，所有网民共享；原图直发每次请求都要带图，
+  /// 有些服务商图片 token 不进缓存，成本会明显上去。
+  final bool sendPostImagesDirectly;
+
   CommunitySettings copyWith({
     bool? allowResidentPosts,
     bool? allowLurk,
     int? aiPeerInteractionLimit,
+    bool? sendPostImagesDirectly,
   }) => CommunitySettings(
     allowResidentPosts: allowResidentPosts ?? this.allowResidentPosts,
     allowLurk: allowLurk ?? this.allowLurk,
     aiPeerInteractionLimit:
         aiPeerInteractionLimit ?? this.aiPeerInteractionLimit,
+    sendPostImagesDirectly:
+        sendPostImagesDirectly ?? this.sendPostImagesDirectly,
   );
 
   static const CommunitySettings defaults = CommunitySettings();

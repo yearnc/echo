@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -7,12 +8,12 @@ import '../../domain/models/sticker.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
 import '../media/media_service.dart';
-import '../seed/builtin_stickers.dart';
 
 /// 素材（头像 / 表情包）的读写（规划书 §11）。
 ///
-/// 内置素材始终以 `assets/stickers.json` 为准、不落库；只有用户导入的才写表。
-/// 这样"删掉内置素材"这件事从根上不存在——不需要为它维护软删除状态。
+/// v3.2 起**不再带内置表情包**：素材全部由用户从相册导入。
+/// 这样"内置图全缺、点开全是占位符"这类问题从根上消失，
+/// 也让每张表情包的标签都能由用户自己定。
 class StickerRepository {
   const StickerRepository(this._db, this._media);
 
@@ -38,6 +39,7 @@ class StickerRepository {
   Future<String?> importFromGallery({
     required String name,
     String category = StickerCategory.customId,
+    List<String> tags = const [],
   }) async {
     final ref = await _media.pickFromGallery();
     if (ref == null) return null;
@@ -50,6 +52,7 @@ class StickerRepository {
             id: id,
             name: name.trim().isEmpty ? '我导入的' : name.trim(),
             category: category,
+            tags: Value(jsonEncode(_cleanTags(tags))),
             source: const Value('file'),
             path: ref,
             isUser: const Value(true),
@@ -57,6 +60,25 @@ class StickerRepository {
           ),
         );
     return id;
+  }
+
+  /// 补/改标签。标签是 AI 什么时候用这张图的唯一依据。
+  Future<void> updateTags(String id, List<String> tags) async {
+    await (_db.update(_db.stickers)..where((t) => t.id.equals(id))).write(
+      StickersCompanion(tags: Value(jsonEncode(_cleanTags(tags)))),
+    );
+  }
+
+  /// 带标签的素材：只有这些会进 AI 的目录。
+  Future<List<StickerItem>> taggedItems() async {
+    final query = _db.select(_db.stickers)
+      ..where((t) => t.deletedAt.isNull() & t.isUser.equals(true))
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
+    final rows = await query.get();
+    return [
+      for (final row in rows)
+        if (_tags(row.tags).isNotEmpty) _toItem(row),
+    ];
   }
 
   Future<int> countUserStickers() async {
@@ -86,9 +108,35 @@ class StickerRepository {
     name: row.name,
     category: row.category,
     path: row.path,
+    tags: _tags(row.tags),
     isUser: row.isUser,
     isBuiltin: row.isBuiltin,
   );
+
+  static List<String> _tags(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return _cleanTags([
+        for (final item in decoded)
+          if (item is String) item,
+      ]);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static List<String> _cleanTags(List<String> raw) {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final tag in raw) {
+      final value = tag.trim();
+      if (value.isEmpty || !seen.add(value)) continue;
+      result.add(value);
+      if (result.length >= 8) break;
+    }
+    return result;
+  }
 }
 
 final stickerRepositoryProvider = Provider<StickerRepository>(
@@ -103,15 +151,13 @@ final userStickersProvider = StreamProvider<List<StickerItem>>(
   (ref) => ref.watch(stickerRepositoryProvider).watchUserStickers(),
 );
 
-/// 整套素材：内置（assets）+ 用户导入（数据库）。
+/// 整套素材：只剩用户自己导入的那些。
 final stickerLibraryProvider = FutureProvider.autoDispose<StickerLibrary>((
   ref,
 ) async {
-  final builtin = await BuiltinStickers.load();
   final user = await ref.watch(userStickersProvider.future);
-
   return StickerLibrary(
-    categories: builtin.categories,
-    stickers: [...builtin.stickers, ...user],
+    categories: const [StickerCategory.custom],
+    stickers: user,
   );
 });

@@ -92,6 +92,7 @@ class ModelConfigRepository {
             createdAt: config.createdAt == 0 ? now : config.createdAt,
             updatedAt: now,
             kind: Value(config.kind.id),
+            supportsVision: Value(config.supportsVision),
             enabled: Value(config.enabled),
           ),
         );
@@ -138,6 +139,7 @@ class ModelConfigRepository {
     baseUrl: row.baseUrl,
     model: row.model,
     kind: ModelKind.fromId(row.kind),
+    supportsVision: row.supportsVision,
     enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

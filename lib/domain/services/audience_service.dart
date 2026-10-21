@@ -16,6 +16,7 @@ import '../models/model_config.dart';
 import '../models/post.dart';
 import '../models/post_understanding.dart';
 import '../models/post_voice.dart';
+import 'community_settings_controller.dart';
 import 'content_generator.dart';
 import 'interaction_planner.dart';
 import 'model_gateway.dart';
@@ -36,6 +37,7 @@ class AudienceService {
     required this.interactions,
     required this.generator,
     required this.activeConfig,
+    this.activeVisionConfig,
     this.analyzer,
     this.understandings,
     this.fixedPersonas,
@@ -44,6 +46,7 @@ class AudienceService {
     this.memories,
     this.contentGenerator,
     this.residentMemory,
+    this.readSendImagesDirectly,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -52,6 +55,9 @@ class AudienceService {
   final InteractionRepository interactions;
   final PostVoiceGenerator generator;
   final Future<ModelConfig?> Function() activeConfig;
+
+  /// 额外的图片理解配置；没配就看文字。
+  final Future<ModelConfig?> Function()? activeVisionConfig;
 
   /// 先看懂，再说话。可空：测试里不传就是不做解析。
   final PostAnalyzer? analyzer;
@@ -72,6 +78,9 @@ class AudienceService {
 
   /// 固定住民“记住这条帖子”的入口。
   final ResidentMemoryService? residentMemory;
+
+  /// 帖子图片是原图直发还是先总结（设置项）。
+  final bool Function()? readSendImagesDirectly;
 
   /// 连续几次生成失败才提醒一次；同一提醒 6 小时只出现一次。
   static const int failureThreshold = 3;
@@ -112,11 +121,18 @@ class AudienceService {
     final understanding = await _understand(post, config);
     var added = 0;
 
-    if (existing.isEmpty) {
+    // 固定住民的帖子在 WorldService 里已经排过几个固定住民，
+    // 但一个临时网民都还没有。所以判断“要不要首批”不能只看
+    // existing 是否为空，要看**有没有临时网民**。
+    final hasEphemeral = existing.any((voice) => voice.isEphemeral);
+    if (!hasEphemeral) {
       // 先把 A+B+C 写进服务端缓存，再要第一批人（§4.3）。
       // 必须等它回来：并发发出去的话，第一批并不会命中这次"预热"。
       // 五秒封顶，失败就当这家不缓存前缀。
-      await contentGenerator?.prewarm(post: post);
+      await contentGenerator?.prewarm(
+        post: post,
+        understanding: understanding,
+      );
       added += await _addBatch(
         post: post,
         config: config,
@@ -148,7 +164,14 @@ class AudienceService {
     final existing = await repo.find(post.id);
     if (existing != null) return existing;
 
-    final result = await analyzer?.analyze(config: config, post: post);
+    final result = await analyzer?.analyze(
+      config: config,
+      // 原图直发模式下不再额外做一次图片摘要；普通文字解析照常。
+      visionConfig: (readSendImagesDirectly?.call() ?? false)
+          ? null
+          : await activeVisionConfig?.call(),
+      post: post,
+    );
     if (result != null) await repo.upsert(result);
     return result;
   }
@@ -161,11 +184,12 @@ class AudienceService {
     final config = await activeConfig();
     if (config == null) return 0;
 
-    final mine = await posts.recentMine(limit: 10);
+    // 用户自己的帖子 + 固定住民的帖子都要继续来人。
+    final recent = await posts.recentForAudience(limit: 12);
     final now = DateTime.now();
     var added = 0;
 
-    for (final post in mine) {
+    for (final post in recent) {
       final age = now.difference(post.createdAt);
       if (age.isNegative || age > window) continue;
 
@@ -190,6 +214,70 @@ class AudienceService {
     return added;
   }
 
+  /// 一个人一次请求：比一批更容易出不同的网名、状态和角度。
+  ///
+  /// system（规则 + 帖子快照）逐字节不变，预热之后每次都能吃同一段前缀；
+  /// 当前时间、已出现名单、表情包目录全部放 user，不影响缓存。
+  /// 并发压到 3，避免服务商限流；重名就带着更新后的名单再要一次。
+  Future<List<PostVoiceDraft>> _draftOneByOne({
+    required ModelConfig config,
+    required Post post,
+    required int count,
+    required bool allowLurk,
+    PostUnderstanding? understanding,
+    required Set<String> takenNames,
+    required DateTime at,
+    required bool sendImagesDirectly,
+  }) async {
+    if (count <= 0) return const [];
+
+    final results = <PostVoiceDraft>[];
+    final reserved = {...takenNames};
+    final queue = <int>[for (var i = 0; i < count; i++) i];
+    final workerCount = count >= 3 ? 3 : 1;
+
+    Future<void> worker() async {
+      while (queue.isNotEmpty) {
+        queue.removeLast();
+
+        var drafts = await generator.draft(
+          config: config,
+          post: post,
+          count: 1,
+          allowLurk: allowLurk,
+          understanding: understanding,
+          at: at,
+          avoidNames: reserved,
+          sendImagesDirectly: sendImagesDirectly,
+        );
+        if (drafts.isEmpty) continue;
+        var draft = drafts.first;
+
+        // 并发请求互相看不见对方的名字，这里兜一次重名。
+        if (!reserved.add(draft.name)) {
+          drafts = await generator.draft(
+            config: config,
+            post: post,
+            count: 1,
+            allowLurk: allowLurk,
+            understanding: understanding,
+            at: at,
+            avoidNames: reserved,
+            sendImagesDirectly: sendImagesDirectly,
+          );
+          if (drafts.isEmpty || !reserved.add(drafts.first.name)) continue;
+          draft = drafts.first;
+        }
+        results.add(draft);
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < workerCount; i++) worker(),
+    ]);
+    return results;
+  }
+
   Duration _batchInterval(Duration age) {
     if (age < const Duration(minutes: 10)) return const Duration(seconds: 30);
     if (age < const Duration(hours: 1)) return const Duration(minutes: 5);
@@ -207,18 +295,6 @@ class AudienceService {
   }) async {
     var insertedIds = <String>[];
     try {
-      final drafts = await generator.draft(
-        config: config,
-        post: post,
-        count: count,
-        allowLurk: allowLurk,
-        understanding: understanding,
-      );
-      if (drafts.isEmpty) {
-        await _recordFailure('模型没生成出网民');
-        return 0;
-      }
-
       // 已来过的人名不重复：临时网民换了批次也不该撞名。
       // 再加上最近用过的名字和固定住民的出厂名单——模型很爱照抄示例，
       // 不拦一下，“老陈的键盘”会在每个人的帖子里反复出现。
@@ -235,12 +311,26 @@ class AudienceService {
         debugPrint('[围观] 这次没读到固定住民名单：$error');
       }
 
+      final now = DateTime.now();
+      final drafts = await _draftOneByOne(
+        config: config,
+        post: post,
+        count: count,
+        allowLurk: allowLurk,
+        understanding: understanding,
+        takenNames: takenNames,
+        at: now,
+        sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
+      );
+      if (drafts.isEmpty) {
+        await _recordFailure('模型没生成出网民');
+        return 0;
+      }
+
       final fresh = drafts
           .where((draft) => !takenNames.contains(draft.name))
           .toList(growable: false);
       if (fresh.isEmpty) return 0;
-
-      final now = DateTime.now();
       final built = <PostVoice>[];
       final usedAvatars = <int>{};
       for (final voice in existing) {
@@ -278,9 +368,21 @@ class AudienceService {
       insertedIds = [for (final voice in built) voice.id];
 
       final planned = <PlannedInteraction>[];
+      // 逐人生成时“只读四分之一”的批次约束在单条请求里看不到，
+      // 收到结果后再统一压一次。
+      final maxLurk = allowLurk ? (built.length / 4).ceil() : 0;
+      var lurkCount = 0;
       for (var i = 0; i < built.length; i++) {
         final draft = fresh[i];
         final voice = built[i];
+        var action = draft.action;
+        if (action == VoiceAction.view) {
+          if (lurkCount >= maxLurk) {
+            action = VoiceAction.like;
+          } else {
+            lurkCount++;
+          }
+        }
 
         // 浏览也排队：到点才写 post_views。否则帖子刚发出去，
         // 8 个人瞬间"同时看过"，数字一眼就是程序填的。
@@ -298,12 +400,12 @@ class AudienceService {
           ),
         );
 
-        if (draft.action == VoiceAction.view) continue;
+        if (action == VoiceAction.view) continue;
 
         final likeAt = arrival.add(
           Duration(seconds: 5 + _random.nextInt(31)),
         );
-        if (draft.action.wantsLike) {
+        if (action.wantsLike) {
           planned.add(
             PlannedInteraction(
               personaId: voice.id,
@@ -313,7 +415,9 @@ class AudienceService {
             ),
           );
         }
-        if (draft.action.wantsComment && draft.comment.trim().isNotEmpty) {
+        final sticker = draft.stickerRef;
+        final hasComment = draft.comment.trim().isNotEmpty;
+        if (action.wantsComment && (hasComment || sticker != null)) {
           planned.add(
             PlannedInteraction(
               personaId: voice.id,
@@ -321,8 +425,8 @@ class AudienceService {
               scheduledAt: likeAt.add(
                 Duration(seconds: 10 + _random.nextInt(61)),
               ),
-              content: draft.comment.trim(),
-              mediaType: 'text',
+              content: sticker ?? draft.comment.trim(),
+              mediaType: sticker == null ? 'text' : 'image',
             ),
           );
         }
@@ -377,6 +481,8 @@ class AudienceService {
 
     for (final resident in all.take(6)) {
       if (!resident.alwaysShow) continue;
+      // 楼主不用在自己的帖子底下再以“围观者”的身份出现一次。
+      if (resident.id == post.authorResidentId) continue;
       if (seen.contains(resident.id)) continue;
 
       try {
@@ -436,6 +542,8 @@ class AudienceService {
                   memorySummary: memory,
                 ),
               },
+              understanding: understanding,
+              sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
             );
             comment = (generated[voice.id] ?? '').trim();
           } catch (error) {
@@ -555,6 +663,8 @@ final audienceServiceProvider = Provider<AudienceService>(
     interactions: ref.watch(interactionRepositoryProvider),
     generator: ref.watch(modelPostVoiceGeneratorProvider),
     activeConfig: ref.watch(modelGatewayProvider).activeConfig,
+    activeVisionConfig: () =>
+        ref.watch(modelGatewayProvider).activeConfig(kind: ModelKind.vision),
     analyzer: ref.watch(postAnalyzerProvider),
     understandings: ref.watch(postUnderstandingRepositoryProvider),
     fixedPersonas: ref.watch(personaRepositoryProvider),
@@ -563,5 +673,7 @@ final audienceServiceProvider = Provider<AudienceService>(
     memories: ref.watch(residentMemoryRepositoryProvider),
     contentGenerator: ref.watch(contentSourceProvider),
     residentMemory: ref.watch(residentMemoryServiceProvider),
+    readSendImagesDirectly: () =>
+        ref.read(communitySettingsProvider).sendPostImagesDirectly,
   ),
 );

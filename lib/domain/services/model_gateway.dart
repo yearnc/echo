@@ -5,8 +5,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/model_config_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
 import '../models/model_config.dart';
 import 'model_call_common.dart';
+import 'user_identity_prompt.dart';
 
 /// 模型要调用一个工具。
 class ToolCallRequest {
@@ -49,10 +51,15 @@ class ModelCallException implements Exception {
 /// 审核遇到超时该放行、生成遇到超时该退回样本，两者的处置完全不同，
 /// 塞进网关只会让双方都难受。
 class ModelGateway {
-  ModelGateway(this._configs, {Dio? dio}) : _dio = dio ?? Dio();
+  ModelGateway(this._configs, {Dio? dio, this.profiles})
+    : _dio = dio ?? Dio();
 
   final ModelConfigRepository _configs;
   final Dio _dio;
+
+  /// 本机用户的身份资料。每次请求把它拼到 system 最前面——
+  /// 内容稳定，所以缓存前缀不会因为“这是哪一轮”而分叉。
+  final UserProfileRepository? profiles;
 
   /// 当前真正能用的那条配置：用途对得上、已启用、地址与模型名完整、密钥填过。
   ///
@@ -80,6 +87,40 @@ class ModelGateway {
     double temperature = 0.2,
     int? maxTokens,
     Duration timeout = const Duration(seconds: 20),
+  }) => _completeMessages(
+    config: config,
+    messages: [
+      for (final message in messages) Map<String, dynamic>.from(message),
+    ],
+    temperature: temperature,
+    maxTokens: maxTokens,
+    timeout: timeout,
+  );
+
+  /// 带图片的对话：messages 里可以放 `image_url` 内容块。
+  ///
+  /// 与 [complete] 分开是为了不破坏现有调用方的 `Map<String, String>`；
+  /// 图片只走需要它的解析/私信路径。
+  Future<String> completeRich({
+    required ModelConfig config,
+    required List<Map<String, dynamic>> messages,
+    double temperature = 0.2,
+    int? maxTokens,
+    Duration timeout = const Duration(seconds: 20),
+  }) => _completeMessages(
+    config: config,
+    messages: messages,
+    temperature: temperature,
+    maxTokens: maxTokens,
+    timeout: timeout,
+  );
+
+  Future<String> _completeMessages({
+    required ModelConfig config,
+    required List<Map<String, dynamic>> messages,
+    required double temperature,
+    required int? maxTokens,
+    required Duration timeout,
   }) async {
     final apiKey = (await _configs.readKey(config.id))?.trim() ?? '';
     if (apiKey.isEmpty) {
@@ -92,7 +133,7 @@ class ModelGateway {
 
     final body = <String, dynamic>{
       'model': config.model,
-      'messages': messages,
+      'messages': await _withIdentity(messages),
       'temperature': temperature,
     };
     if (maxTokens != null) body['max_tokens'] = maxTokens;
@@ -125,6 +166,47 @@ class ModelGateway {
     }
   }
 
+  /// 把身份块拼到 system 最前面。
+  ///
+  /// anthropic 风格要求 system 是独立块；OpenAI 兼容端则把 system 当普通
+  /// 消息。这里统一成“第一条消息是 system”，身份作为它的开头文本，
+  /// 后面的规则/帖子原样不动——共享前缀因此保持稳定。
+  Future<List<Map<String, dynamic>>> _withIdentity(
+    List<Map<String, dynamic>> raw,
+  ) async {
+    final messages = [
+      for (final message in raw) Map<String, dynamic>.from(message),
+    ];
+    final identity = UserIdentityPrompt.build(await profiles?.load());
+    if (identity.isEmpty) return messages;
+    if (messages.isEmpty) {
+      return [
+        {'role': 'system', 'content': identity},
+      ];
+    }
+
+    final first = messages.first;
+    if (first['role'] == 'system') {
+      final content = first['content'];
+      if (content is List) {
+        first['content'] = [
+          {'type': 'text', 'text': identity},
+          ...content,
+        ];
+      } else if (content is String) {
+        first['content'] = '$identity$content';
+      } else {
+        first['content'] = identity;
+      }
+      return messages;
+    }
+
+    return [
+      {'role': 'system', 'content': identity},
+      ...messages,
+    ];
+  }
+
   /// 带 tools 的一轮对话（OpenAI 兼容的 function calling）。
   ///
   /// 不支持 tools 的服务商会直接 400——调用方据此退回"本地预检索"，
@@ -148,7 +230,7 @@ class ModelGateway {
 
     final body = <String, dynamic>{
       'model': config.model,
-      'messages': messages,
+      'messages': await _withIdentity(messages),
       'temperature': temperature,
       'tools': tools,
       'tool_choice': 'auto',
@@ -369,7 +451,10 @@ class ModelGateway {
 }
 
 final modelGatewayProvider = Provider<ModelGateway>(
-  (ref) => ModelGateway(ref.watch(modelConfigRepositoryProvider)),
+  (ref) => ModelGateway(
+    ref.watch(modelConfigRepositoryProvider),
+    profiles: ref.watch(userProfileRepositoryProvider),
+  ),
 );
 
 /// 当前真正可用的云端 TTS 配置；没配就是 null。

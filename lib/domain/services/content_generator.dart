@@ -31,6 +31,8 @@ abstract interface class ContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   });
 
   /// 给一批「住民 + 时刻」生成他们**自己发的动态**（B3）。
@@ -70,7 +72,10 @@ abstract interface class ContentGenerator {
   ///
   /// 输出丢弃，只为了让紧随其后的第一批评论直接命中。
   /// 没有模型、或者服务商不做前缀缓存时，这就是一次可以忽略的小请求。
-  Future<void> prewarm({required Post post});
+  Future<void> prewarm({
+    required Post post,
+    PostUnderstanding? understanding,
+  });
 }
 
 /// AI 接 AI 的上文。
@@ -110,23 +115,38 @@ class ReplyThread {
 
 /// 一段私信的上下文：这个人，加上你们最近说的那几句。
 class DirectThread {
-  const DirectThread({required this.persona, this.recent = const []});
+  const DirectThread({
+    required this.persona,
+    this.recent = const [],
+    this.at,
+  });
 
   final AiPersona persona;
 
   /// 最近的往来，按时间正序。**空表示他先开口**——那是另一套口吻。
   final List<DirectTurn> recent;
 
+  /// 这一轮发生在什么时候。私信提示词要带上，别让模型写“这么晚还不睡”
+  /// 而实际上才下午三点。
+  final DateTime? at;
+
   bool get isOpening => recent.isEmpty;
 }
 
 /// 私信里的那一句是谁说的。
 class DirectTurn {
-  const DirectTurn({required this.fromMe, required this.text});
+  const DirectTurn({
+    required this.fromMe,
+    required this.text,
+    this.imageRef,
+  });
 
   /// true = 我（住民）说的，false = 他（用户）说的。
   final bool fromMe;
   final String text;
+
+  /// 用户发来的图片（`file:` 引用）。原样进对话历史，不摘要。
+  final String? imageRef;
 }
 
 /// 离线样本：从住民自己的预置台词里挑一条。
@@ -184,13 +204,18 @@ class SampleContentGenerator implements ContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async => commentsFor(personas: personas, relations: relations);
 
   @override
   Future<String?> peerReply({required PeerReplyThread thread}) async => null;
 
   @override
-  Future<void> prewarm({required Post post}) async {
+  Future<void> prewarm({
+    required Post post,
+    PostUnderstanding? understanding,
+  }) async {
     // 样本层没有服务端缓存这回事
   }
 
@@ -429,6 +454,8 @@ class ContentSource implements ContentGenerator {
     required List<AiPersona> personas,
     required Post post,
     Map<String, RelationshipState> relations = const {},
+    PostUnderstanding? understanding,
+    bool sendImagesDirectly = false,
   }) async {
     if (personas.isEmpty) return const {};
 
@@ -444,6 +471,8 @@ class ContentSource implements ContentGenerator {
         personas: personas,
         post: post,
         relations: relations,
+        understanding: understanding,
+        sendImagesDirectly: sendImagesDirectly,
       );
       return _merge(generated, personas);
     } catch (error) {
@@ -526,11 +555,18 @@ class ContentSource implements ContentGenerator {
   }
 
   @override
-  Future<void> prewarm({required Post post}) async {
+  Future<void> prewarm({
+    required Post post,
+    PostUnderstanding? understanding,
+  }) async {
     try {
       final config = await activeConfig();
       if (config == null) return;
-      await model.prewarm(config: config, post: post);
+      await model.prewarm(
+        config: config,
+        post: post,
+        understanding: understanding,
+      );
     } catch (error) {
       // 预热失败不影响发帖；它只是省钱的优化，不是功能
       debugPrint('[缓存] 预热没成：$error');

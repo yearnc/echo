@@ -105,6 +105,9 @@ class UserComments extends Table {
   TextColumn get postId => text().references(Posts, #id)();
   TextColumn get content => text()();
 
+  /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
+  TextColumn get mediaType => text().withDefault(const Constant('text'))();
+
   /// 这条是在回谁。指向的可能是住民的评论（在 `ai_interactions` 里），
   /// 也可能是别人回我的——跨两张表，所以这里不设外键。
   TextColumn get parentId => text().nullable()();

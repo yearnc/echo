@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,14 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
+import '../../data/media/media_service.dart';
 import '../../data/repositories/private_message_repository.dart';
-import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/direct_message_service.dart';
+import '../../domain/services/model_gateway.dart';
 import '../../domain/services/resident_memory_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/post_image.dart';
+import '../shared_widgets/sticker_picker_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 和某一位住民的会话（B5）。
@@ -34,6 +35,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage> {
   final TextEditingController _input = TextEditingController();
   Timer? _refresh;
+  bool _sending = false;
 
   @override
   void initState() {
@@ -66,74 +68,85 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   /// 固定住民的开场白：第一次进对话，他先说那句。
   ///
-  /// 这句话是用户自己在设定里写的，放在这里用最合适——它不是模型生成的
-  /// 对白，而是"这个人第一次给你发消息时会说什么"。
+  /// 判断与写入都交给 `DirectMessageService.ensureOpening`：它查的是
+  /// **包含未来排期在内**的整条会话，所以不会重复插第二条。
   Future<void> _maybeSayOpening() async {
-    // 直接查库：首帧时固定住民列表可能还没流到界面
-    final resident = await ref
-        .read(customResidentRepositoryProvider)
-        .findById(widget.personaId);
-    final opening = resident?.firstMessage.trim() ?? '';
-    if (opening.isEmpty) return;
-
-    final repo = ref.read(privateMessageRepositoryProvider);
-    final existing = await repo.watchThread(widget.personaId).first;
-    if (existing.isNotEmpty) return;
-
-    await repo.scheduleIncoming(
-      personaId: widget.personaId,
-      content: opening,
-      at: DateTime.now(),
-    );
+    await ref
+        .read(directMessageServiceProvider)
+        .ensureOpening(widget.personaId);
   }
 
   /// 我发一句。
   ///
   /// 发完顺手让私信服务排一条回应——**不 await**：排期是他那边的事，
   /// 跟"这句话已经发出去了"没关系，更不该让你等它。
-  Future<void> _send({String? text, StickerItem? sticker}) async {
-    final content = sticker?.path ?? (text ?? '').trim();
+  Future<void> _send({
+    String? text,
+    StickerItem? sticker,
+    String? imageRef,
+  }) async {
+    if (_sending) return;
+    final content = sticker?.path ?? imageRef ?? (text ?? '').trim();
     if (content.isEmpty) return;
+    final mediaType = sticker != null
+        ? 'sticker'
+        : (imageRef != null ? 'image' : 'text');
 
-    _input.clear();
-    await ref
-        .read(privateMessageRepositoryProvider)
-        .send(
-          personaId: widget.personaId,
-          content: content,
-          mediaType: sticker == null ? 'text' : 'sticker',
+    setState(() => _sending = true);
+    try {
+      _input.clear();
+      await ref
+          .read(privateMessageRepositoryProvider)
+          .send(
+            personaId: widget.personaId,
+            content: content,
+            mediaType: mediaType,
+          );
+
+      // 固定住民记得住你说过的话。表情包和图片不算一句话，不写进记忆。
+      final resident = ref.read(customResidentByIdProvider(widget.personaId));
+      if (resident != null && mediaType == 'text') {
+        unawaited(
+          ref
+              .read(residentMemoryServiceProvider)
+              .rememberUserReply(
+                residentId: resident.id,
+                reply: content,
+              ),
         );
+      }
 
-    // 固定住民记得住你说过的话。表情包不算一句话，不写进记忆。
-    final resident = ref.read(customResidentByIdProvider(widget.personaId));
-    if (resident != null && sticker == null) {
-      unawaited(
-        ref
-            .read(residentMemoryServiceProvider)
-            .rememberUserReply(
-              residentId: resident.id,
-              reply: content,
-            ),
-      );
+      unawaited(ref.read(directMessageServiceProvider).tick());
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('没发出去：$error')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
-
-    unawaited(ref.read(directMessageServiceProvider).tick());
   }
 
   Future<void> _pickSticker() async {
-    final library = await ref.read(stickerLibraryProvider.future);
-    if (!mounted) return;
-
-    final picked = await showModalBottomSheet<StickerItem>(
-      context: context,
-      backgroundColor: EchoColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (context) => _StickerSheet(library: library),
-    );
-
+    final picked = await showStickerPicker(context, ref);
     if (picked != null) await _send(sticker: picked);
+  }
+
+  Future<void> _pickImage() async {
+    final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
+    if (imageRef == null || !mounted) return;
+    await _send(imageRef: imageRef);
+
+    // 当前对话模型不支持看图时，至少别让用户以为对方真看见了。
+    final config = await ref.read(modelGatewayProvider).activeConfig();
+    if (!mounted) return;
+    if (config != null && !config.supportsVision) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('当前对话模型看不了图，TA 只会知道“对方发来一张图片”'),
+        ),
+      );
+    }
   }
 
   @override
@@ -192,8 +205,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
           _Composer(
             controller: _input,
+            sending: _sending,
             onSend: _send,
             onSticker: _pickSticker,
+            onImage: _pickImage,
           ),
         ],
       ),
@@ -252,12 +267,18 @@ class _Bubble extends StatelessWidget {
   }
 
   Widget _content(bool fromMe) {
-    // 表情包就是一张图，不套气泡——套上就像给图加了个相框
-    if (message.mediaType == 'sticker') {
+    // 表情包和图片就是一张图，不套气泡——套上就像给图加了个相框
+    if (message.mediaType == 'sticker' || message.mediaType == 'image') {
+      final isImage = message.mediaType == 'image';
+      final side = isImage ? 190.0 : 118.0;
       return SizedBox(
-        width: 118,
-        height: 118,
-        child: PostImage(ref: message.content, height: 118),
+        width: side,
+        height: isImage ? 170 : side,
+        child: PostImage(
+          ref: message.content,
+          height: isImage ? 170 : side,
+          borderRadius: 12,
+        ),
       );
     }
 
@@ -283,13 +304,21 @@ class _Bubble extends StatelessWidget {
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
+    required this.sending,
     required this.onSend,
     required this.onSticker,
+    required this.onImage,
   });
 
   final TextEditingController controller;
-  final Future<void> Function({String? text, StickerItem? sticker}) onSend;
+  final bool sending;
+  final Future<void> Function({
+    String? text,
+    StickerItem? sticker,
+    String? imageRef,
+  }) onSend;
   final VoidCallback onSticker;
+  final VoidCallback onImage;
 
   @override
   Widget build(BuildContext context) {
@@ -302,7 +331,16 @@ class _Composer extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: onSticker,
+            onPressed: sending ? null : onImage,
+            tooltip: '图片',
+            icon: Icon(
+              Icons.image_outlined,
+              color: EchoColors.textMuted,
+              size: 22,
+            ),
+          ),
+          IconButton(
+            onPressed: sending ? null : onSticker,
             tooltip: '表情包',
             icon: Icon(
               Icons.emoji_emotions_outlined,
@@ -316,7 +354,9 @@ class _Composer extends StatelessWidget {
               minLines: 1,
               maxLines: 4,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) => onSend(),
+              onSubmitted: (_) {
+                if (!sending) onSend();
+              },
               style: TextStyle(color: EchoColors.text, fontSize: 14),
               decoration: InputDecoration(
                 isDense: true,
@@ -337,92 +377,22 @@ class _Composer extends StatelessWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            onPressed: () => onSend(),
+            onPressed: sending ? null : () => onSend(),
             tooltip: '发送',
-            icon: Icon(Icons.send_rounded, color: EchoColors.primary, size: 22),
+            icon: sending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    Icons.send_rounded,
+                    color: EchoColors.primary,
+                    size: 22,
+                  ),
           ),
         ],
       ),
     );
-  }
-}
-
-/// 表情包选择：内置素材 + 自己存的那几张。
-class _StickerSheet extends StatelessWidget {
-  const _StickerSheet({required this.library});
-
-  final StickerLibrary library;
-
-  @override
-  Widget build(BuildContext context) {
-    final stickers = library.stickers;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '表情包',
-              style: TextStyle(
-                color: EchoColors.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (stickers.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Text(
-                  '还没有表情包素材。',
-                  style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
-                ),
-              )
-            else
-              SizedBox(
-                height: 220,
-                child: GridView.count(
-                  crossAxisCount: 4,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  children: [
-                    for (final sticker in stickers)
-                      InkWell(
-                        onTap: () => Navigator.of(context).pop(sticker),
-                        child: _StickerThumb(item: sticker),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StickerThumb extends StatelessWidget {
-  const _StickerThumb({required this.item});
-
-  final StickerItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!item.hasImage) {
-      return Center(
-        child: Text(
-          item.fallbackText,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: EchoColors.textMuted, fontSize: 12),
-        ),
-      );
-    }
-
-    return item.isAsset
-        ? Image.asset(item.rawPath, fit: BoxFit.contain)
-        : Image.file(File(item.rawPath), fit: BoxFit.contain);
   }
 }
