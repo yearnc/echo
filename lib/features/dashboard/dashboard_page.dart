@@ -402,7 +402,10 @@ final clearDashboardProvider = FutureProvider.autoDispose<ClearBoardData>((
   ).subtract(const Duration(days: _trendDays - 1));
   final weekAgo = now.subtract(const Duration(days: 7));
 
-  final posts = await dashboard.myPostTimes(since: trendSince);
+  final posts = await dashboard.myPostTimes(
+    since: trendSince,
+    scope: 'clear',
+  );
   final actions = await journal.watchActions().first;
   final values = await journal.listValues();
 

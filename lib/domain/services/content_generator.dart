@@ -139,6 +139,7 @@ class DirectTurn {
     required this.fromMe,
     required this.text,
     this.imageRef,
+    this.at,
   });
 
   /// true = 我（住民）说的，false = 他（用户）说的。
@@ -147,6 +148,10 @@ class DirectTurn {
 
   /// 用户发来的图片（`file:` 引用）。原样进对话历史，不摘要。
   final String? imageRef;
+
+  /// 这句话是什么时候说的。住民需要知道每条消息的时间，
+  /// 不然“昨天说的”和“刚说的”在它眼里一模一样。
+  final DateTime? at;
 }
 
 /// 离线样本：从住民自己的预置台词里挑一条。

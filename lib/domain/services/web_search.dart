@@ -109,17 +109,30 @@ class WebSearchService {
       return _searchDeepseek(text);
     }
 
+    // 智谱 / 百炼的搜索是**对话接口带的参数**，所以必须用同一家的配置：
+    // 拿 DeepSeek 的地址发智谱的 web_search 参数，只会换回一个 400。
+    final wanted = which == providerZhipu ? 'zhipu' : 'qwen';
+    final label = which == providerZhipu ? '智谱' : '百炼（通义千问）';
     final configsAll = await configs.findAll();
     ModelConfig? config;
+    ModelConfig? fallback;
     for (final item in configsAll) {
       if (item.kind != ModelKind.chat) continue;
-      if (item.enabled && item.isComplete && await configs.hasKey(item.id)) {
+      if (item.provider != wanted) continue;
+      if (!item.isComplete || !await configs.hasKey(item.id)) continue;
+      if (item.enabled) {
         config = item;
         break;
       }
+      fallback ??= item;
     }
+    config ??= fallback;
     if (config == null) {
-      return const WebSearchOutcome(ok: false, message: '还没配置可用的模型');
+      return WebSearchOutcome(
+        ok: false,
+        provider: which,
+        message: '选用 $label 搜索，但模型配置里没有可用的 $label 配置（填好地址和 Key 即可，不需要启用）',
+      );
     }
     final key = await configs.readKey(config.id);
     if (key == null || key.trim().isEmpty) {
@@ -197,20 +210,27 @@ class WebSearchService {
   /// 它和对话模型是两回事，所以这里只找一条启用的 DeepSeek 配置来取 Key 与
   /// 地址；返回的 `results` 已经是干净的来源列表，不需要再让模型“复述”。
   Future<WebSearchOutcome> _searchDeepseek(String text) async {
+    // DeepSeek 搜索 API 和对话模型是两回事：它只需要这个服务商的 Key。
+    // 所以这里**不要求那条配置处于启用状态**——用户完全可能日常用别的模型对话，
+    // 但在模型配置里留了一条 DeepSeek 专门给搜索用。
     ModelConfig? config;
+    ModelConfig? fallback;
     for (final item in await configs.findAll()) {
       if (item.provider != 'deepseek') continue;
-      if (!item.enabled || !item.isComplete) continue;
-      if (await configs.hasKey(item.id)) {
+      if (!item.isComplete) continue;
+      if (!await configs.hasKey(item.id)) continue;
+      if (item.enabled) {
         config = item;
         break;
       }
+      fallback ??= item;
     }
+    config ??= fallback;
     if (config == null) {
       return const WebSearchOutcome(
         ok: false,
         provider: providerDeepseek,
-        message: '需要一条启用的 DeepSeek 配置来取 API Key',
+        message: '选用 DeepSeek 搜索，但模型配置里没有可用的 DeepSeek 配置（填好地址和 Key 即可，不需要启用）',
       );
     }
 

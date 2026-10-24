@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/analysis_repository.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/persona_repository.dart';
@@ -55,6 +56,7 @@ class SchedulerService {
     required this.generator,
     required this.relationships,
     this.voiceRepo,
+    this.residents,
     this.understandings,
     this.readAiPeerLimit,
     this.readSendImagesDirectly,
@@ -82,6 +84,10 @@ class SchedulerService {
 
   /// 每帖的临时网民（v3.0）。可空：老测试和策划模式只认识固定住民。
   final PostVoiceRepository? voiceRepo;
+
+  /// 固定住民。策划脚本可以点名让某位固定住民来评论，
+  /// 这条事件执行时要给 TA 在本帖建一个 voice 快照。
+  final CustomResidentRepository? residents;
 
   /// 帖子解析结果（AI 接 AI 时带上，接得更准）。
   final PostUnderstandingRepository? understandings;
@@ -702,7 +708,6 @@ class SchedulerService {
     if (due.isEmpty) return 0;
 
     final pool = await personas.loadAll();
-    final nameById = {for (final p in pool) p.id: p.name};
     final byId = {for (final p in pool) p.id: p};
 
     for (final event in due) {
@@ -712,6 +717,13 @@ class SchedulerService {
         case PlanStepType.comment:
           final personaId = event.personaId;
           if (personaId == null) break;
+
+          // 新版评论区只认“这条帖子里出现过的人”（post_voices）。
+          // 旧脚本写的是内置住民 id，直接插进 ai_interactions 会让评论
+          // 没有名字和头像。这里先给 TA 在本帖落一个身份快照：
+          // - 固定住民 → custom voice，以后还能认回主页和记忆；
+          // - 内置住民 → 临时网友，复用它的名字、头像和音色。
+          final seat = await _planSeat(event.postId, personaId, byId);
 
           // 脚本里写死的语音素材不一定在仓库里（演示音频常由素材方另行提供）。
           // 找不到那段音频就**现合成一条**：声音还是这位住民的固定音色，
@@ -736,8 +748,8 @@ class SchedulerService {
               !await _voiceAssetAvailable(voicePath)) {
             final clip = await voice?.speak(
               text: event.content ?? '',
-              personaId: personaId,
-              voiceModel: byId[personaId]?.voiceModel ?? '',
+              personaId: seat.voiceId,
+              voiceModel: seat.voiceModel,
             );
             if (clip == null) {
               // 合成不出来就退回文字：脚本安排的是"收到一句回应"，
@@ -756,7 +768,7 @@ class SchedulerService {
           await interactions.insertExecutedComment(
             id: 'evt_${event.id}',
             postId: event.postId,
-            personaId: personaId,
+            personaId: seat.voiceId,
             mediaType: mediaType,
             content: event.content,
             voicePath: voicePath,
@@ -768,7 +780,7 @@ class SchedulerService {
             id: 'n_${event.id}',
             postId: event.postId,
             type: 'comment',
-            title: '${nameById[personaId] ?? '社区住民'} 评论了你的帖子',
+            title: '${seat.name} 评论了你的帖子',
             body: event.content ?? '',
           );
 
@@ -806,11 +818,92 @@ class SchedulerService {
     return due.length;
   }
 
+  /// 策划事件里的评论者，在这条帖子里是谁。
+  ///
+  /// 新版评论区只认 post_voices：所以先把“脚本写的那个 id”翻译成
+  /// “这条帖子里的一个身份”，再写互动。固定住民和内置住民分开处理——
+  /// 前者要能认回主页/记忆，后者只是路过的临时网友。
+  Future<_PlanSeat> _planSeat(
+    String postId,
+    String personaId,
+    Map<String, AiPersona> byId,
+  ) async {
+    final persona = byId[personaId];
+    final repo = voiceRepo;
+    if (repo == null) {
+      return _PlanSeat(
+        voiceId: personaId,
+        name: persona?.name ?? '社区住民',
+        voiceModel: persona?.voiceModel ?? '',
+      );
+    }
+
+    final custom = await residents?.findById(personaId);
+    if (custom != null) {
+      final voiceId = 'voice_${custom.id}_$postId';
+      if (await repo.findById(voiceId) == null) {
+        await repo.insertAll([
+          PostVoice(
+            id: voiceId,
+            postId: postId,
+            kind: PostVoiceKind.custom,
+            residentId: custom.id,
+            name: custom.name,
+            avatarAsset: custom.avatarAsset,
+            bio: custom.bio,
+            languageStyle: custom.languageStyle,
+            tone: custom.tone,
+            createdAt: DateTime.now(),
+          ),
+        ]);
+      }
+      return _PlanSeat(voiceId: voiceId, name: custom.name, voiceModel: '');
+    }
+
+    if (persona == null) {
+      return _PlanSeat(voiceId: personaId, name: '社区住民', voiceModel: '');
+    }
+    final voiceId = 'planvoice_${postId}_$personaId';
+    if (await repo.findById(voiceId) == null) {
+      await repo.insertAll([
+        PostVoice(
+          id: voiceId,
+          postId: postId,
+          kind: PostVoiceKind.ephemeral,
+          name: persona.name,
+          avatarAsset: persona.avatar,
+          bio: persona.bio,
+          languageStyle: persona.languageStyle,
+          tone: persona.tone,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+    }
+    return _PlanSeat(
+      voiceId: voiceId,
+      name: persona.name,
+      voiceModel: persona.voiceModel,
+    );
+  }
+
   /// 还剩多少条随机排期没到点（调试与"预告"用）。
   Future<int> pendingCount() => interactions.countPending();
 
   /// 还剩多少条策划事件没执行（心跳靠它决定要不要跑秒级）。
   Future<int> pendingPlanCount() => planEvents.countPending();
+}
+
+/// 策划事件里“这条评论由谁来说”的落点。
+class _PlanSeat {
+  const _PlanSeat({
+    required this.voiceId,
+    required this.name,
+    required this.voiceModel,
+  });
+
+  final String voiceId;
+  final String name;
+  final String voiceModel;
 }
 
 final schedulerServiceProvider = Provider<SchedulerService>(
@@ -824,6 +917,7 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     generator: ref.watch(contentSourceProvider),
     relationships: ref.watch(relationshipRepositoryProvider),
     voiceRepo: ref.watch(postVoiceRepositoryProvider),
+    residents: ref.watch(customResidentRepositoryProvider),
     understandings: ref.watch(postUnderstandingRepositoryProvider),
     readAiPeerLimit: () =>
         ref.read(communitySettingsProvider).aiPeerInteractionLimit,

@@ -14214,6 +14214,18 @@ class $CustomResidentsTable extends CustomResidents
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _modelConfigIdMeta = const VerificationMeta(
+    'modelConfigId',
+  );
+  @override
+  late final GeneratedColumn<String> modelConfigId = GeneratedColumn<String>(
+    'model_config_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -14255,6 +14267,7 @@ class $CustomResidentsTable extends CustomResidents
     memoryEnabled,
     memoryLimit,
     alwaysShow,
+    modelConfigId,
     createdAt,
     deletedAt,
   ];
@@ -14403,6 +14416,15 @@ class $CustomResidentsTable extends CustomResidents
         alwaysShow.isAcceptableOrUnknown(data['always_show']!, _alwaysShowMeta),
       );
     }
+    if (data.containsKey('model_config_id')) {
+      context.handle(
+        _modelConfigIdMeta,
+        modelConfigId.isAcceptableOrUnknown(
+          data['model_config_id']!,
+          _modelConfigIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -14494,6 +14516,10 @@ class $CustomResidentsTable extends CustomResidents
         DriftSqlType.bool,
         data['${effectivePrefix}always_show'],
       )!,
+      modelConfigId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_config_id'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -14550,6 +14576,9 @@ class CustomResidentRow extends DataClass
   /// null = 无上限。
   final int? memoryLimit;
   final bool alwaysShow;
+
+  /// 这个住民单独指定的对话模型配置 id（v30）。空 = 用当前启用的那条。
+  final String modelConfigId;
   final int createdAt;
   final int? deletedAt;
   const CustomResidentRow({
@@ -14570,6 +14599,7 @@ class CustomResidentRow extends DataClass
     required this.memoryEnabled,
     this.memoryLimit,
     required this.alwaysShow,
+    required this.modelConfigId,
     required this.createdAt,
     this.deletedAt,
   });
@@ -14595,6 +14625,7 @@ class CustomResidentRow extends DataClass
       map['memory_limit'] = Variable<int>(memoryLimit);
     }
     map['always_show'] = Variable<bool>(alwaysShow);
+    map['model_config_id'] = Variable<String>(modelConfigId);
     map['created_at'] = Variable<int>(createdAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<int>(deletedAt);
@@ -14623,6 +14654,7 @@ class CustomResidentRow extends DataClass
           ? const Value.absent()
           : Value(memoryLimit),
       alwaysShow: Value(alwaysShow),
+      modelConfigId: Value(modelConfigId),
       createdAt: Value(createdAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -14653,6 +14685,7 @@ class CustomResidentRow extends DataClass
       memoryEnabled: serializer.fromJson<bool>(json['memoryEnabled']),
       memoryLimit: serializer.fromJson<int?>(json['memoryLimit']),
       alwaysShow: serializer.fromJson<bool>(json['alwaysShow']),
+      modelConfigId: serializer.fromJson<String>(json['modelConfigId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
     );
@@ -14678,6 +14711,7 @@ class CustomResidentRow extends DataClass
       'memoryEnabled': serializer.toJson<bool>(memoryEnabled),
       'memoryLimit': serializer.toJson<int?>(memoryLimit),
       'alwaysShow': serializer.toJson<bool>(alwaysShow),
+      'modelConfigId': serializer.toJson<String>(modelConfigId),
       'createdAt': serializer.toJson<int>(createdAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
     };
@@ -14701,6 +14735,7 @@ class CustomResidentRow extends DataClass
     bool? memoryEnabled,
     Value<int?> memoryLimit = const Value.absent(),
     bool? alwaysShow,
+    String? modelConfigId,
     int? createdAt,
     Value<int?> deletedAt = const Value.absent(),
   }) => CustomResidentRow(
@@ -14721,6 +14756,7 @@ class CustomResidentRow extends DataClass
     memoryEnabled: memoryEnabled ?? this.memoryEnabled,
     memoryLimit: memoryLimit.present ? memoryLimit.value : this.memoryLimit,
     alwaysShow: alwaysShow ?? this.alwaysShow,
+    modelConfigId: modelConfigId ?? this.modelConfigId,
     createdAt: createdAt ?? this.createdAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
@@ -14765,6 +14801,9 @@ class CustomResidentRow extends DataClass
       alwaysShow: data.alwaysShow.present
           ? data.alwaysShow.value
           : this.alwaysShow,
+      modelConfigId: data.modelConfigId.present
+          ? data.modelConfigId.value
+          : this.modelConfigId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
@@ -14790,6 +14829,7 @@ class CustomResidentRow extends DataClass
           ..write('memoryEnabled: $memoryEnabled, ')
           ..write('memoryLimit: $memoryLimit, ')
           ..write('alwaysShow: $alwaysShow, ')
+          ..write('modelConfigId: $modelConfigId, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
@@ -14815,6 +14855,7 @@ class CustomResidentRow extends DataClass
     memoryEnabled,
     memoryLimit,
     alwaysShow,
+    modelConfigId,
     createdAt,
     deletedAt,
   );
@@ -14839,6 +14880,7 @@ class CustomResidentRow extends DataClass
           other.memoryEnabled == this.memoryEnabled &&
           other.memoryLimit == this.memoryLimit &&
           other.alwaysShow == this.alwaysShow &&
+          other.modelConfigId == this.modelConfigId &&
           other.createdAt == this.createdAt &&
           other.deletedAt == this.deletedAt);
 }
@@ -14861,6 +14903,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
   final Value<bool> memoryEnabled;
   final Value<int?> memoryLimit;
   final Value<bool> alwaysShow;
+  final Value<String> modelConfigId;
   final Value<int> createdAt;
   final Value<int?> deletedAt;
   final Value<int> rowid;
@@ -14882,6 +14925,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.memoryEnabled = const Value.absent(),
     this.memoryLimit = const Value.absent(),
     this.alwaysShow = const Value.absent(),
+    this.modelConfigId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -14904,6 +14948,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.memoryEnabled = const Value.absent(),
     this.memoryLimit = const Value.absent(),
     this.alwaysShow = const Value.absent(),
+    this.modelConfigId = const Value.absent(),
     required int createdAt,
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -14928,6 +14973,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Expression<bool>? memoryEnabled,
     Expression<int>? memoryLimit,
     Expression<bool>? alwaysShow,
+    Expression<String>? modelConfigId,
     Expression<int>? createdAt,
     Expression<int>? deletedAt,
     Expression<int>? rowid,
@@ -14950,6 +14996,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       if (memoryEnabled != null) 'memory_enabled': memoryEnabled,
       if (memoryLimit != null) 'memory_limit': memoryLimit,
       if (alwaysShow != null) 'always_show': alwaysShow,
+      if (modelConfigId != null) 'model_config_id': modelConfigId,
       if (createdAt != null) 'created_at': createdAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
@@ -14974,6 +15021,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Value<bool>? memoryEnabled,
     Value<int?>? memoryLimit,
     Value<bool>? alwaysShow,
+    Value<String>? modelConfigId,
     Value<int>? createdAt,
     Value<int?>? deletedAt,
     Value<int>? rowid,
@@ -14996,6 +15044,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       memoryEnabled: memoryEnabled ?? this.memoryEnabled,
       memoryLimit: memoryLimit ?? this.memoryLimit,
       alwaysShow: alwaysShow ?? this.alwaysShow,
+      modelConfigId: modelConfigId ?? this.modelConfigId,
       createdAt: createdAt ?? this.createdAt,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
@@ -15056,6 +15105,9 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     if (alwaysShow.present) {
       map['always_show'] = Variable<bool>(alwaysShow.value);
     }
+    if (modelConfigId.present) {
+      map['model_config_id'] = Variable<String>(modelConfigId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -15088,6 +15140,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
           ..write('memoryEnabled: $memoryEnabled, ')
           ..write('memoryLimit: $memoryLimit, ')
           ..write('alwaysShow: $alwaysShow, ')
+          ..write('modelConfigId: $modelConfigId, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -19911,6 +19964,1325 @@ class ActionLogsCompanion extends UpdateCompanion<ActionLogRow> {
   }
 }
 
+class $ClearPhotosTable extends ClearPhotos
+    with TableInfo<$ClearPhotosTable, ClearPhotoRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClearPhotosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clear'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    path,
+    caption,
+    createdAt,
+    deletedAt,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clear_photos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClearPhotoRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ClearPhotoRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClearPhotoRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $ClearPhotosTable createAlias(String alias) {
+    return $ClearPhotosTable(attachedDatabase, alias);
+  }
+}
+
+class ClearPhotoRow extends DataClass implements Insertable<ClearPhotoRow> {
+  final String id;
+  final String path;
+  final String caption;
+  final int createdAt;
+  final int? deletedAt;
+  final String scope;
+  const ClearPhotoRow({
+    required this.id,
+    required this.path,
+    required this.caption,
+    required this.createdAt,
+    this.deletedAt,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['path'] = Variable<String>(path);
+    map['caption'] = Variable<String>(caption);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  ClearPhotosCompanion toCompanion(bool nullToAbsent) {
+    return ClearPhotosCompanion(
+      id: Value(id),
+      path: Value(path),
+      caption: Value(caption),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      scope: Value(scope),
+    );
+  }
+
+  factory ClearPhotoRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClearPhotoRow(
+      id: serializer.fromJson<String>(json['id']),
+      path: serializer.fromJson<String>(json['path']),
+      caption: serializer.fromJson<String>(json['caption']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'path': serializer.toJson<String>(path),
+      'caption': serializer.toJson<String>(caption),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  ClearPhotoRow copyWith({
+    String? id,
+    String? path,
+    String? caption,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? scope,
+  }) => ClearPhotoRow(
+    id: id ?? this.id,
+    path: path ?? this.path,
+    caption: caption ?? this.caption,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    scope: scope ?? this.scope,
+  );
+  ClearPhotoRow copyWithCompanion(ClearPhotosCompanion data) {
+    return ClearPhotoRow(
+      id: data.id.present ? data.id.value : this.id,
+      path: data.path.present ? data.path.value : this.path,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClearPhotoRow(')
+          ..write('id: $id, ')
+          ..write('path: $path, ')
+          ..write('caption: $caption, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, path, caption, createdAt, deletedAt, scope);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClearPhotoRow &&
+          other.id == this.id &&
+          other.path == this.path &&
+          other.caption == this.caption &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt &&
+          other.scope == this.scope);
+}
+
+class ClearPhotosCompanion extends UpdateCompanion<ClearPhotoRow> {
+  final Value<String> id;
+  final Value<String> path;
+  final Value<String> caption;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const ClearPhotosCompanion({
+    this.id = const Value.absent(),
+    this.path = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClearPhotosCompanion.insert({
+    required String id,
+    required String path,
+    this.caption = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       path = Value(path),
+       createdAt = Value(createdAt);
+  static Insertable<ClearPhotoRow> custom({
+    Expression<String>? id,
+    Expression<String>? path,
+    Expression<String>? caption,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (path != null) 'path': path,
+      if (caption != null) 'caption': caption,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClearPhotosCompanion copyWith({
+    Value<String>? id,
+    Value<String>? path,
+    Value<String>? caption,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return ClearPhotosCompanion(
+      id: id ?? this.id,
+      path: path ?? this.path,
+      caption: caption ?? this.caption,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClearPhotosCompanion(')
+          ..write('id: $id, ')
+          ..write('path: $path, ')
+          ..write('caption: $caption, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ClearInsightsTable extends ClearInsights
+    with TableInfo<$ClearInsightsTable, ClearInsightRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClearInsightsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('overview'),
+  );
+  static const VerificationMeta _periodStartMeta = const VerificationMeta(
+    'periodStart',
+  );
+  @override
+  late final GeneratedColumn<int> periodStart = GeneratedColumn<int>(
+    'period_start',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _periodEndMeta = const VerificationMeta(
+    'periodEnd',
+  );
+  @override
+  late final GeneratedColumn<int> periodEnd = GeneratedColumn<int>(
+    'period_end',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generatedAtMeta = const VerificationMeta(
+    'generatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> generatedAt = GeneratedColumn<int>(
+    'generated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('real'),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clear'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    periodStart,
+    periodEnd,
+    generatedAt,
+    payload,
+    summary,
+    source,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clear_insights';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClearInsightRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('period_start')) {
+      context.handle(
+        _periodStartMeta,
+        periodStart.isAcceptableOrUnknown(
+          data['period_start']!,
+          _periodStartMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_periodStartMeta);
+    }
+    if (data.containsKey('period_end')) {
+      context.handle(
+        _periodEndMeta,
+        periodEnd.isAcceptableOrUnknown(data['period_end']!, _periodEndMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_periodEndMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+        _generatedAtMeta,
+        generatedAt.isAcceptableOrUnknown(
+          data['generated_at']!,
+          _generatedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ClearInsightRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClearInsightRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      periodStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}period_start'],
+      )!,
+      periodEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}period_end'],
+      )!,
+      generatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generated_at'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $ClearInsightsTable createAlias(String alias) {
+    return $ClearInsightsTable(attachedDatabase, alias);
+  }
+}
+
+class ClearInsightRow extends DataClass implements Insertable<ClearInsightRow> {
+  final String id;
+  final String kind;
+  final int periodStart;
+  final int periodEnd;
+  final int generatedAt;
+  final String payload;
+  final String summary;
+  final String source;
+  final String scope;
+  const ClearInsightRow({
+    required this.id,
+    required this.kind,
+    required this.periodStart,
+    required this.periodEnd,
+    required this.generatedAt,
+    required this.payload,
+    required this.summary,
+    required this.source,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['period_start'] = Variable<int>(periodStart);
+    map['period_end'] = Variable<int>(periodEnd);
+    map['generated_at'] = Variable<int>(generatedAt);
+    map['payload'] = Variable<String>(payload);
+    map['summary'] = Variable<String>(summary);
+    map['source'] = Variable<String>(source);
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  ClearInsightsCompanion toCompanion(bool nullToAbsent) {
+    return ClearInsightsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      periodStart: Value(periodStart),
+      periodEnd: Value(periodEnd),
+      generatedAt: Value(generatedAt),
+      payload: Value(payload),
+      summary: Value(summary),
+      source: Value(source),
+      scope: Value(scope),
+    );
+  }
+
+  factory ClearInsightRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClearInsightRow(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      periodStart: serializer.fromJson<int>(json['periodStart']),
+      periodEnd: serializer.fromJson<int>(json['periodEnd']),
+      generatedAt: serializer.fromJson<int>(json['generatedAt']),
+      payload: serializer.fromJson<String>(json['payload']),
+      summary: serializer.fromJson<String>(json['summary']),
+      source: serializer.fromJson<String>(json['source']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'periodStart': serializer.toJson<int>(periodStart),
+      'periodEnd': serializer.toJson<int>(periodEnd),
+      'generatedAt': serializer.toJson<int>(generatedAt),
+      'payload': serializer.toJson<String>(payload),
+      'summary': serializer.toJson<String>(summary),
+      'source': serializer.toJson<String>(source),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  ClearInsightRow copyWith({
+    String? id,
+    String? kind,
+    int? periodStart,
+    int? periodEnd,
+    int? generatedAt,
+    String? payload,
+    String? summary,
+    String? source,
+    String? scope,
+  }) => ClearInsightRow(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    periodStart: periodStart ?? this.periodStart,
+    periodEnd: periodEnd ?? this.periodEnd,
+    generatedAt: generatedAt ?? this.generatedAt,
+    payload: payload ?? this.payload,
+    summary: summary ?? this.summary,
+    source: source ?? this.source,
+    scope: scope ?? this.scope,
+  );
+  ClearInsightRow copyWithCompanion(ClearInsightsCompanion data) {
+    return ClearInsightRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      periodStart: data.periodStart.present
+          ? data.periodStart.value
+          : this.periodStart,
+      periodEnd: data.periodEnd.present ? data.periodEnd.value : this.periodEnd,
+      generatedAt: data.generatedAt.present
+          ? data.generatedAt.value
+          : this.generatedAt,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      source: data.source.present ? data.source.value : this.source,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClearInsightRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('periodStart: $periodStart, ')
+          ..write('periodEnd: $periodEnd, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('payload: $payload, ')
+          ..write('summary: $summary, ')
+          ..write('source: $source, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    periodStart,
+    periodEnd,
+    generatedAt,
+    payload,
+    summary,
+    source,
+    scope,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClearInsightRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.periodStart == this.periodStart &&
+          other.periodEnd == this.periodEnd &&
+          other.generatedAt == this.generatedAt &&
+          other.payload == this.payload &&
+          other.summary == this.summary &&
+          other.source == this.source &&
+          other.scope == this.scope);
+}
+
+class ClearInsightsCompanion extends UpdateCompanion<ClearInsightRow> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<int> periodStart;
+  final Value<int> periodEnd;
+  final Value<int> generatedAt;
+  final Value<String> payload;
+  final Value<String> summary;
+  final Value<String> source;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const ClearInsightsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.periodStart = const Value.absent(),
+    this.periodEnd = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.source = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClearInsightsCompanion.insert({
+    required String id,
+    this.kind = const Value.absent(),
+    required int periodStart,
+    required int periodEnd,
+    required int generatedAt,
+    required String payload,
+    this.summary = const Value.absent(),
+    this.source = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       periodStart = Value(periodStart),
+       periodEnd = Value(periodEnd),
+       generatedAt = Value(generatedAt),
+       payload = Value(payload);
+  static Insertable<ClearInsightRow> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<int>? periodStart,
+    Expression<int>? periodEnd,
+    Expression<int>? generatedAt,
+    Expression<String>? payload,
+    Expression<String>? summary,
+    Expression<String>? source,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (periodStart != null) 'period_start': periodStart,
+      if (periodEnd != null) 'period_end': periodEnd,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (payload != null) 'payload': payload,
+      if (summary != null) 'summary': summary,
+      if (source != null) 'source': source,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClearInsightsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? kind,
+    Value<int>? periodStart,
+    Value<int>? periodEnd,
+    Value<int>? generatedAt,
+    Value<String>? payload,
+    Value<String>? summary,
+    Value<String>? source,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return ClearInsightsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      periodStart: periodStart ?? this.periodStart,
+      periodEnd: periodEnd ?? this.periodEnd,
+      generatedAt: generatedAt ?? this.generatedAt,
+      payload: payload ?? this.payload,
+      summary: summary ?? this.summary,
+      source: source ?? this.source,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (periodStart.present) {
+      map['period_start'] = Variable<int>(periodStart.value);
+    }
+    if (periodEnd.present) {
+      map['period_end'] = Variable<int>(periodEnd.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<int>(generatedAt.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClearInsightsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('periodStart: $periodStart, ')
+          ..write('periodEnd: $periodEnd, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('payload: $payload, ')
+          ..write('summary: $summary, ')
+          ..write('source: $source, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UsageSessionsTable extends UsageSessions
+    with TableInfo<$UsageSessionsTable, UsageSessionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UsageSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endedAtMeta = const VerificationMeta(
+    'endedAt',
+  );
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+    'ended_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('shared'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    startedAt,
+    endedAt,
+    durationMs,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'usage_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UsageSessionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(
+        _endedAtMeta,
+        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endedAtMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_durationMsMeta);
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UsageSessionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UsageSessionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      )!,
+      endedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_at'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $UsageSessionsTable createAlias(String alias) {
+    return $UsageSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class UsageSessionRow extends DataClass implements Insertable<UsageSessionRow> {
+  final String id;
+  final int startedAt;
+  final int endedAt;
+  final int durationMs;
+  final String scope;
+  const UsageSessionRow({
+    required this.id,
+    required this.startedAt,
+    required this.endedAt,
+    required this.durationMs,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['started_at'] = Variable<int>(startedAt);
+    map['ended_at'] = Variable<int>(endedAt);
+    map['duration_ms'] = Variable<int>(durationMs);
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  UsageSessionsCompanion toCompanion(bool nullToAbsent) {
+    return UsageSessionsCompanion(
+      id: Value(id),
+      startedAt: Value(startedAt),
+      endedAt: Value(endedAt),
+      durationMs: Value(durationMs),
+      scope: Value(scope),
+    );
+  }
+
+  factory UsageSessionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UsageSessionRow(
+      id: serializer.fromJson<String>(json['id']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      endedAt: serializer.fromJson<int>(json['endedAt']),
+      durationMs: serializer.fromJson<int>(json['durationMs']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'endedAt': serializer.toJson<int>(endedAt),
+      'durationMs': serializer.toJson<int>(durationMs),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  UsageSessionRow copyWith({
+    String? id,
+    int? startedAt,
+    int? endedAt,
+    int? durationMs,
+    String? scope,
+  }) => UsageSessionRow(
+    id: id ?? this.id,
+    startedAt: startedAt ?? this.startedAt,
+    endedAt: endedAt ?? this.endedAt,
+    durationMs: durationMs ?? this.durationMs,
+    scope: scope ?? this.scope,
+  );
+  UsageSessionRow copyWithCompanion(UsageSessionsCompanion data) {
+    return UsageSessionRow(
+      id: data.id.present ? data.id.value : this.id,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UsageSessionRow(')
+          ..write('id: $id, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, startedAt, endedAt, durationMs, scope);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UsageSessionRow &&
+          other.id == this.id &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.durationMs == this.durationMs &&
+          other.scope == this.scope);
+}
+
+class UsageSessionsCompanion extends UpdateCompanion<UsageSessionRow> {
+  final Value<String> id;
+  final Value<int> startedAt;
+  final Value<int> endedAt;
+  final Value<int> durationMs;
+  final Value<String> scope;
+  final Value<int> rowid;
+  const UsageSessionsCompanion({
+    this.id = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UsageSessionsCompanion.insert({
+    required String id,
+    required int startedAt,
+    required int endedAt,
+    required int durationMs,
+    this.scope = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       startedAt = Value(startedAt),
+       endedAt = Value(endedAt),
+       durationMs = Value(durationMs);
+  static Insertable<UsageSessionRow> custom({
+    Expression<String>? id,
+    Expression<int>? startedAt,
+    Expression<int>? endedAt,
+    Expression<int>? durationMs,
+    Expression<String>? scope,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (scope != null) 'scope': scope,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UsageSessionsCompanion copyWith({
+    Value<String>? id,
+    Value<int>? startedAt,
+    Value<int>? endedAt,
+    Value<int>? durationMs,
+    Value<String>? scope,
+    Value<int>? rowid,
+  }) {
+    return UsageSessionsCompanion(
+      id: id ?? this.id,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      durationMs: durationMs ?? this.durationMs,
+      scope: scope ?? this.scope,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UsageSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -19964,6 +21336,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ResidentInboxItemsTable residentInboxItems =
       $ResidentInboxItemsTable(this);
   late final $ActionLogsTable actionLogs = $ActionLogsTable(this);
+  late final $ClearPhotosTable clearPhotos = $ClearPhotosTable(this);
+  late final $ClearInsightsTable clearInsights = $ClearInsightsTable(this);
+  late final $UsageSessionsTable usageSessions = $UsageSessionsTable(this);
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -20020,6 +21395,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'action_logs_actor',
     'CREATE INDEX action_logs_actor ON action_logs (actor_id, "action")',
   );
+  late final Index clearPhotosCreated = Index(
+    'clear_photos_created',
+    'CREATE INDEX clear_photos_created ON clear_photos (created_at)',
+  );
+  late final Index usageSessionsStarted = Index(
+    'usage_sessions_started',
+    'CREATE INDEX usage_sessions_started ON usage_sessions (started_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -20056,6 +21439,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     residentMemories,
     residentInboxItems,
     actionLogs,
+    clearPhotos,
+    clearInsights,
+    usageSessions,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
@@ -20070,6 +21456,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postViewsByPost,
     residentInboxPending,
     actionLogsActor,
+    clearPhotosCreated,
+    usageSessionsStarted,
   ];
 }
 
@@ -29013,6 +30401,7 @@ typedef $$CustomResidentsTableCreateCompanionBuilder =
       Value<bool> memoryEnabled,
       Value<int?> memoryLimit,
       Value<bool> alwaysShow,
+      Value<String> modelConfigId,
       required int createdAt,
       Value<int?> deletedAt,
       Value<int> rowid,
@@ -29036,6 +30425,7 @@ typedef $$CustomResidentsTableUpdateCompanionBuilder =
       Value<bool> memoryEnabled,
       Value<int?> memoryLimit,
       Value<bool> alwaysShow,
+      Value<String> modelConfigId,
       Value<int> createdAt,
       Value<int?> deletedAt,
       Value<int> rowid,
@@ -29184,6 +30574,11 @@ class $$CustomResidentsTableFilterComposer
 
   ColumnFilters<bool> get alwaysShow => $composableBuilder(
     column: $table.alwaysShow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelConfigId => $composableBuilder(
+    column: $table.modelConfigId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29342,6 +30737,11 @@ class $$CustomResidentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get modelConfigId => $composableBuilder(
+    column: $table.modelConfigId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -29432,6 +30832,11 @@ class $$CustomResidentsTableAnnotationComposer
 
   GeneratedColumn<bool> get alwaysShow => $composableBuilder(
     column: $table.alwaysShow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modelConfigId => $composableBuilder(
+    column: $table.modelConfigId,
     builder: (column) => column,
   );
 
@@ -29542,6 +30947,7 @@ class $$CustomResidentsTableTableManager
                 Value<bool> memoryEnabled = const Value.absent(),
                 Value<int?> memoryLimit = const Value.absent(),
                 Value<bool> alwaysShow = const Value.absent(),
+                Value<String> modelConfigId = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29563,6 +30969,7 @@ class $$CustomResidentsTableTableManager
                 memoryEnabled: memoryEnabled,
                 memoryLimit: memoryLimit,
                 alwaysShow: alwaysShow,
+                modelConfigId: modelConfigId,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 rowid: rowid,
@@ -29586,6 +30993,7 @@ class $$CustomResidentsTableTableManager
                 Value<bool> memoryEnabled = const Value.absent(),
                 Value<int?> memoryLimit = const Value.absent(),
                 Value<bool> alwaysShow = const Value.absent(),
+                Value<String> modelConfigId = const Value.absent(),
                 required int createdAt,
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29607,6 +31015,7 @@ class $$CustomResidentsTableTableManager
                 memoryEnabled: memoryEnabled,
                 memoryLimit: memoryLimit,
                 alwaysShow: alwaysShow,
+                modelConfigId: modelConfigId,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 rowid: rowid,
@@ -32887,6 +34296,734 @@ typedef $$ActionLogsTableProcessedTableManager =
       ActionLogRow,
       PrefetchHooks Function()
     >;
+typedef $$ClearPhotosTableCreateCompanionBuilder =
+    ClearPhotosCompanion Function({
+      required String id,
+      required String path,
+      Value<String> caption,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$ClearPhotosTableUpdateCompanionBuilder =
+    ClearPhotosCompanion Function({
+      Value<String> id,
+      Value<String> path,
+      Value<String> caption,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$ClearPhotosTableFilterComposer
+    extends Composer<_$AppDatabase, $ClearPhotosTable> {
+  $$ClearPhotosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ClearPhotosTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClearPhotosTable> {
+  $$ClearPhotosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ClearPhotosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClearPhotosTable> {
+  $$ClearPhotosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$ClearPhotosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClearPhotosTable,
+          ClearPhotoRow,
+          $$ClearPhotosTableFilterComposer,
+          $$ClearPhotosTableOrderingComposer,
+          $$ClearPhotosTableAnnotationComposer,
+          $$ClearPhotosTableCreateCompanionBuilder,
+          $$ClearPhotosTableUpdateCompanionBuilder,
+          (
+            ClearPhotoRow,
+            BaseReferences<_$AppDatabase, $ClearPhotosTable, ClearPhotoRow>,
+          ),
+          ClearPhotoRow,
+          PrefetchHooks Function()
+        > {
+  $$ClearPhotosTableTableManager(_$AppDatabase db, $ClearPhotosTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClearPhotosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClearPhotosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ClearPhotosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> caption = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClearPhotosCompanion(
+                id: id,
+                path: path,
+                caption: caption,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String path,
+                Value<String> caption = const Value.absent(),
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClearPhotosCompanion.insert(
+                id: id,
+                path: path,
+                caption: caption,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ClearPhotosTable, ClearPhotoRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ClearPhotosTable,
+                    ClearPhotoRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ClearPhotosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClearPhotosTable,
+      ClearPhotoRow,
+      $$ClearPhotosTableFilterComposer,
+      $$ClearPhotosTableOrderingComposer,
+      $$ClearPhotosTableAnnotationComposer,
+      $$ClearPhotosTableCreateCompanionBuilder,
+      $$ClearPhotosTableUpdateCompanionBuilder,
+      (
+        ClearPhotoRow,
+        BaseReferences<_$AppDatabase, $ClearPhotosTable, ClearPhotoRow>,
+      ),
+      ClearPhotoRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ClearInsightsTableCreateCompanionBuilder =
+    ClearInsightsCompanion Function({
+      required String id,
+      Value<String> kind,
+      required int periodStart,
+      required int periodEnd,
+      required int generatedAt,
+      required String payload,
+      Value<String> summary,
+      Value<String> source,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$ClearInsightsTableUpdateCompanionBuilder =
+    ClearInsightsCompanion Function({
+      Value<String> id,
+      Value<String> kind,
+      Value<int> periodStart,
+      Value<int> periodEnd,
+      Value<int> generatedAt,
+      Value<String> payload,
+      Value<String> summary,
+      Value<String> source,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$ClearInsightsTableFilterComposer
+    extends Composer<_$AppDatabase, $ClearInsightsTable> {
+  $$ClearInsightsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get periodStart => $composableBuilder(
+    column: $table.periodStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get periodEnd => $composableBuilder(
+    column: $table.periodEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ClearInsightsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClearInsightsTable> {
+  $$ClearInsightsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get periodStart => $composableBuilder(
+    column: $table.periodStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get periodEnd => $composableBuilder(
+    column: $table.periodEnd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ClearInsightsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClearInsightsTable> {
+  $$ClearInsightsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get periodStart => $composableBuilder(
+    column: $table.periodStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get periodEnd =>
+      $composableBuilder(column: $table.periodEnd, builder: (column) => column);
+
+  GeneratedColumn<int> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$ClearInsightsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClearInsightsTable,
+          ClearInsightRow,
+          $$ClearInsightsTableFilterComposer,
+          $$ClearInsightsTableOrderingComposer,
+          $$ClearInsightsTableAnnotationComposer,
+          $$ClearInsightsTableCreateCompanionBuilder,
+          $$ClearInsightsTableUpdateCompanionBuilder,
+          (
+            ClearInsightRow,
+            BaseReferences<_$AppDatabase, $ClearInsightsTable, ClearInsightRow>,
+          ),
+          ClearInsightRow,
+          PrefetchHooks Function()
+        > {
+  $$ClearInsightsTableTableManager(_$AppDatabase db, $ClearInsightsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClearInsightsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClearInsightsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ClearInsightsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int> periodStart = const Value.absent(),
+                Value<int> periodEnd = const Value.absent(),
+                Value<int> generatedAt = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClearInsightsCompanion(
+                id: id,
+                kind: kind,
+                periodStart: periodStart,
+                periodEnd: periodEnd,
+                generatedAt: generatedAt,
+                payload: payload,
+                summary: summary,
+                source: source,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String> kind = const Value.absent(),
+                required int periodStart,
+                required int periodEnd,
+                required int generatedAt,
+                required String payload,
+                Value<String> summary = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClearInsightsCompanion.insert(
+                id: id,
+                kind: kind,
+                periodStart: periodStart,
+                periodEnd: periodEnd,
+                generatedAt: generatedAt,
+                payload: payload,
+                summary: summary,
+                source: source,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ClearInsightsTable, ClearInsightRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ClearInsightsTable,
+                    ClearInsightRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ClearInsightsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClearInsightsTable,
+      ClearInsightRow,
+      $$ClearInsightsTableFilterComposer,
+      $$ClearInsightsTableOrderingComposer,
+      $$ClearInsightsTableAnnotationComposer,
+      $$ClearInsightsTableCreateCompanionBuilder,
+      $$ClearInsightsTableUpdateCompanionBuilder,
+      (
+        ClearInsightRow,
+        BaseReferences<_$AppDatabase, $ClearInsightsTable, ClearInsightRow>,
+      ),
+      ClearInsightRow,
+      PrefetchHooks Function()
+    >;
+typedef $$UsageSessionsTableCreateCompanionBuilder =
+    UsageSessionsCompanion Function({
+      required String id,
+      required int startedAt,
+      required int endedAt,
+      required int durationMs,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+typedef $$UsageSessionsTableUpdateCompanionBuilder =
+    UsageSessionsCompanion Function({
+      Value<String> id,
+      Value<int> startedAt,
+      Value<int> endedAt,
+      Value<int> durationMs,
+      Value<String> scope,
+      Value<int> rowid,
+    });
+
+class $$UsageSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $UsageSessionsTable> {
+  $$UsageSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UsageSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UsageSessionsTable> {
+  $$UsageSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UsageSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UsageSessionsTable> {
+  $$UsageSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$UsageSessionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UsageSessionsTable,
+          UsageSessionRow,
+          $$UsageSessionsTableFilterComposer,
+          $$UsageSessionsTableOrderingComposer,
+          $$UsageSessionsTableAnnotationComposer,
+          $$UsageSessionsTableCreateCompanionBuilder,
+          $$UsageSessionsTableUpdateCompanionBuilder,
+          (
+            UsageSessionRow,
+            BaseReferences<_$AppDatabase, $UsageSessionsTable, UsageSessionRow>,
+          ),
+          UsageSessionRow,
+          PrefetchHooks Function()
+        > {
+  $$UsageSessionsTableTableManager(_$AppDatabase db, $UsageSessionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UsageSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UsageSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UsageSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int> startedAt = const Value.absent(),
+                Value<int> endedAt = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UsageSessionsCompanion(
+                id: id,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                durationMs: durationMs,
+                scope: scope,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required int startedAt,
+                required int endedAt,
+                required int durationMs,
+                Value<String> scope = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UsageSessionsCompanion.insert(
+                id: id,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                durationMs: durationMs,
+                scope: scope,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$UsageSessionsTable, UsageSessionRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $UsageSessionsTable,
+                    UsageSessionRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UsageSessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UsageSessionsTable,
+      UsageSessionRow,
+      $$UsageSessionsTableFilterComposer,
+      $$UsageSessionsTableOrderingComposer,
+      $$UsageSessionsTableAnnotationComposer,
+      $$UsageSessionsTableCreateCompanionBuilder,
+      $$UsageSessionsTableUpdateCompanionBuilder,
+      (
+        UsageSessionRow,
+        BaseReferences<_$AppDatabase, $UsageSessionsTable, UsageSessionRow>,
+      ),
+      UsageSessionRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -32953,4 +35090,10 @@ class $AppDatabaseManager {
       $$ResidentInboxItemsTableTableManager(_db, _db.residentInboxItems);
   $$ActionLogsTableTableManager get actionLogs =>
       $$ActionLogsTableTableManager(_db, _db.actionLogs);
+  $$ClearPhotosTableTableManager get clearPhotos =>
+      $$ClearPhotosTableTableManager(_db, _db.clearPhotos);
+  $$ClearInsightsTableTableManager get clearInsights =>
+      $$ClearInsightsTableTableManager(_db, _db.clearInsights);
+  $$UsageSessionsTableTableManager get usageSessions =>
+      $$UsageSessionsTableTableManager(_db, _db.usageSessions);
 }

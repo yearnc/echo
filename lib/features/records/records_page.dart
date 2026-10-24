@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
@@ -10,6 +11,7 @@ import '../../data/repositories/clear_journal_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/clear_journal.dart';
 import '../../domain/models/post.dart';
+import '../../domain/services/clear_data_service.dart';
 import '../../domain/services/mode_switch_service.dart';
 import '../../domain/services/record_timeline.dart';
 import '../shared_widgets/post_image.dart';
@@ -138,6 +140,20 @@ class RecordsPage extends ConsumerWidget {
             subtitle: '记录今天做过的一件线下小事',
             route: RoutePaths.actions,
           ),
+          const SizedBox(height: 10),
+          const _EntryCard(
+            icon: Icons.photo_library_outlined,
+            title: '真实生活相册',
+            subtitle: '只收你主动选的、真实拍下的照片',
+            route: RoutePaths.album,
+          ),
+          const SizedBox(height: 10),
+          const _EntryCard(
+            icon: Icons.compare_arrows,
+            title: '数字关系',
+            subtitle: '线上投入与线下做过的事，并排看',
+            route: RoutePaths.reflection,
+          ),
           const SizedBox(height: 20),
           Text(
             '最近',
@@ -158,6 +174,182 @@ class RecordsPage extends ConsumerWidget {
             )
           else
             for (final entry in entries) _EntryTile(entry: entry),
+          const SizedBox(height: 20),
+          const _PrivacyCard(),
+        ],
+      ),
+    );
+  }
+}
+
+/// 清醒数据的导出与删除（v31）。
+///
+/// 隐私要求不是一句声明：用户得真的能把东西带走、也能真的删掉。
+/// 导出只含清醒侧记录；删除也只碰清醒侧，回响数据一条不动。
+class _PrivacyCard extends ConsumerStatefulWidget {
+  const _PrivacyCard();
+
+  @override
+  ConsumerState<_PrivacyCard> createState() => _PrivacyCardState();
+}
+
+class _PrivacyCardState extends ConsumerState<_PrivacyCard> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final path = await ref.read(clearDataServiceProvider).export();
+      if (!mounted) return;
+
+      // 先给系统分享面板：文件存在应用私有目录里，用户自己很难找到。
+      // 分享失败（比如没有可用的分享目标）不影响导出本身，下面仍显示路径。
+      try {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(path)],
+            text: '回响 · 清醒数据导出（只含本机真实记录）',
+          ),
+        );
+      } catch (error) {
+        debugPrint('[导出] 分享面板没打开：$error');
+      }
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: ClearColors.surface,
+          title: Text(
+            '已导出',
+            style: TextStyle(color: ClearColors.text, fontSize: 15),
+          ),
+          content: SelectableText(
+            '文件保存在：\n$path\n\n'
+            '内容只有清醒侧的真实记录，不含任何 AI 互动。',
+            style: TextStyle(
+              color: ClearColors.textMuted,
+              fontSize: 12.5,
+              height: 1.7,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导出没成：$error')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearAll() async {
+    if (_busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: ClearColors.surface,
+        title: Text(
+          '清除清醒数据？',
+          style: TextStyle(color: ClearColors.text, fontSize: 15),
+        ),
+        content: Text(
+          '会删掉价值澄清、真实行动、清醒记录、相册照片、分析快照和使用时长。\n'
+          '这一步不可撤销；回响侧的内容不受影响。',
+          style: TextStyle(
+            color: ClearColors.textMuted,
+            fontSize: 13,
+            height: 1.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('全部清除', style: TextStyle(color: ClearColors.like)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(clearDataServiceProvider).deleteAllClearData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('清醒数据已清除')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清除没成：$error')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ClearColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ClearColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '数据与隐私',
+            style: TextStyle(
+              color: ClearColors.text,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '清醒数据只在你这台设备上。可以随时导出，也可以随时删干净。',
+            style: TextStyle(
+              color: ClearColors.textMuted,
+              fontSize: 11.5,
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _export,
+                icon: const Icon(Icons.ios_share, size: 16),
+                label: const Text('导出'),
+              ),
+              const SizedBox(width: 10),
+              TextButton.icon(
+                onPressed: _busy ? null : _clearAll,
+                icon: Icon(Icons.delete_outline, size: 17, color: ClearColors.like),
+                label: Text(
+                  '清除清醒数据',
+                  style: TextStyle(color: ClearColors.like, fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

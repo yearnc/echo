@@ -2,11 +2,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/actions/actions_page.dart';
 import '../../features/analysis/analysis_page.dart';
+import '../../features/analysis/clear_album_page.dart';
+import '../../features/analysis/reflection_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
 import '../../features/feed/feed_page.dart';
 import '../../features/follows/follows_page.dart';
 import '../../features/help/help_page.dart';
+import '../../features/help/tutorial_page.dart';
 import '../../features/messages/chat_page.dart';
 import '../../features/messages/messages_page.dart';
 import '../../features/models/model_edit_page.dart';
@@ -88,6 +91,12 @@ class RoutePaths {
   /// 真实行动记录（清醒模式）。
   static const String actions = '/actions';
 
+  /// 数字关系反思（线上投入 vs 线下行动）。
+  static const String reflection = '/analysis/reflection';
+
+  /// 真实生活相册。
+  static const String album = '/analysis/album';
+
   /// 心理安全（冷静模式 / 援助入口）。
   static const String safety = '/settings/safety';
 
@@ -105,6 +114,9 @@ class RoutePaths {
 
   /// 帮助与常见问题。
   static const String help = '/help';
+
+  /// 新手教程。
+  static const String tutorial = '/tutorial';
 
   static String post(String id) => '/post/$id';
 
@@ -242,6 +254,14 @@ final appRouter = GoRouter(
       builder: (context, state) => const ActionsPage(),
     ),
     GoRoute(
+      path: RoutePaths.reflection,
+      builder: (context, state) => const ReflectionPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.album,
+      builder: (context, state) => const ClearAlbumPage(),
+    ),
+    GoRoute(
       path: RoutePaths.safety,
       builder: (context, state) => const SafetyPage(),
     ),
@@ -264,6 +284,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.help,
       builder: (context, state) => const HelpPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.tutorial,
+      builder: (context, state) => const TutorialPage(),
     ),
     GoRoute(
       path: RoutePaths.scripts,

@@ -10,6 +10,7 @@ class SafetySettings {
     this.coolDownMode = false,
     this.feedbackViewThreshold = 8,
     this.minorProtection = false,
+    this.dailyLimitMinutes = 0,
   });
 
   /// 防沉迷提醒总开关（规划书 §13「防沉迷默认开启」）。
@@ -28,15 +29,25 @@ class SafetySettings {
   /// 而勾选那一步每次都要重来，正好留给"临时借用手机"这类场景。
   final bool minorProtection;
 
+  /// 清醒模式每日使用上限（分钟）。0 = 关闭。
+  ///
+  /// 这是用户自己给自己设的，不是产品强加的。到点只提醒一次，
+  /// 不锁屏、不强制退出——“提醒”的目的是让人抬头看一眼。
+  final int dailyLimitMinutes;
+
+  bool get dailyLimitEnabled => dailyLimitMinutes > 0;
+
   SafetySettings copyWith({
     bool? addictionGuard,
     bool? coolDownMode,
     int? feedbackViewThreshold,
     bool? minorProtection,
+    int? dailyLimitMinutes,
   }) => SafetySettings(
     addictionGuard: addictionGuard ?? this.addictionGuard,
     coolDownMode: coolDownMode ?? this.coolDownMode,
     feedbackViewThreshold: feedbackViewThreshold ?? this.feedbackViewThreshold,
     minorProtection: minorProtection ?? this.minorProtection,
+    dailyLimitMinutes: dailyLimitMinutes ?? this.dailyLimitMinutes,
   );
 }

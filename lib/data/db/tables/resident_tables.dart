@@ -44,6 +44,9 @@ class CustomResidents extends Table {
   IntColumn get memoryLimit =>
       integer().nullable().withDefault(const Constant(400))();
   BoolColumn get alwaysShow => boolean().withDefault(const Constant(true))();
+
+  /// 这个住民单独指定的对话模型配置 id（v30）。空 = 用当前启用的那条。
+  TextColumn get modelConfigId => text().withDefault(const Constant(''))();
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();
 

@@ -77,6 +77,30 @@ class ModelGateway {
     return null;
   }
 
+  /// 某位固定住民该用哪条配置。
+  ///
+  /// [configId] 是住民自己指定的模型；它**不要求全局启用**——一个人用便宜快的、
+  /// 另一个人用会写长文的，正是“每个人有自己的模型”这个需求。
+  /// 指定的那条被删掉/没填 Key 时回落当前启用的那条，别让住民直接失声。
+  Future<ModelConfig?> configFor({
+    String? configId,
+    ModelKind kind = ModelKind.chat,
+  }) async {
+    final id = configId?.trim() ?? '';
+    if (id.isNotEmpty) {
+      for (final config in await _configs.findAll()) {
+        if (config.id != id) continue;
+        if (config.kind == kind &&
+            config.isComplete &&
+            await _configs.hasKey(config.id)) {
+          return config;
+        }
+        break;
+      }
+    }
+    return activeConfig(kind: kind);
+  }
+
   /// 发一轮对话，返回助手的回复文本。
   ///
   /// [maxTokens] 不设默认值：审核只要几十个字、生成评论要几百个，

@@ -108,11 +108,18 @@ WHERE pv.resident_id = ? AND uc.deleted_at IS NULL
       );
     }
 
-    // 3. 私信：用户最后说的一句，如果住民还没接，就是待办。
+    // 3. 私信：用户说的话，如果住民还没接，就是待办。
     //
     // direction 的口径：out = 我（用户）发出去的，in = 住民发来的。
     // 之前这里写反了，导致“用户发消息”永远进不了收件箱。
-    final dm = await _db.customSelect(
+    //
+    // 两个细节：
+    // - **只把已经到点的“in”当成已回复**。住民的回话是排到几秒之后的，
+    //   如果拿它当“已经回复了”，用户在等待窗口里再补一句就永远等不到回应。
+    // - 一次取最近几条（最多 6 条），用户连发两三句时模型能看到完整意思，
+    //   而不是只看到最后半句。
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final dmRows = await _db.customSelect(
       '''
 SELECT pm.id, pm.content, pm.media_type, pm.created_at
 FROM private_messages pm
@@ -120,15 +127,18 @@ WHERE pm.persona_id = ? AND pm.direction = 'out' AND pm.deleted_at IS NULL
   AND pm.created_at > COALESCE((
     SELECT MAX(reply.created_at) FROM private_messages reply
     WHERE reply.persona_id = pm.persona_id AND reply.direction = 'in'
-      AND reply.deleted_at IS NULL
+      AND reply.deleted_at IS NULL AND reply.created_at <= ?
   ), 0)
 ORDER BY pm.created_at DESC
-LIMIT 1
+LIMIT 6
 ''',
-      variables: [Variable<String>(residentId)],
+      variables: [
+        Variable<String>(residentId),
+        Variable<int>(now),
+      ],
       readsFrom: {_db.privateMessages},
-    ).getSingleOrNull();
-    if (dm != null) {
+    ).get();
+    for (final dm in dmRows.toList().reversed) {
       final media = dm.readNullable<String>('media_type') ?? 'text';
       rows.add(
         _item(

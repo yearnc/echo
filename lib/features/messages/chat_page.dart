@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/message_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/media/media_service.dart';
@@ -95,20 +96,42 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             mediaType: mediaType,
           );
 
-      // 固定住民记得住你说过的话。表情包和图片不算一句话，不写进记忆。
+      // 固定住民记得住你说过的话，也记得你发过图——
+      // 以前只写文字，翻记忆时会以为你们从没发过图片。
       final resident = ref.read(customResidentByIdProvider(widget.personaId));
-      if (resident != null && mediaType == 'text') {
-        unawaited(
-          ref
-              .read(residentMemoryServiceProvider)
-              .rememberUserReply(
-                residentId: resident.id,
-                reply: content,
-                source: 'dm',
-                sourceId: 'dm_${widget.personaId}_'
-                    '${DateTime.now().microsecondsSinceEpoch}',
-              ),
-        );
+      if (resident != null) {
+        final memory = ref.read(residentMemoryServiceProvider);
+        final sourceId = 'dm_${widget.personaId}_'
+            '${DateTime.now().microsecondsSinceEpoch}';
+        if (mediaType == 'text') {
+          unawaited(
+            memory.rememberUserReply(
+              residentId: resident.id,
+              reply: content,
+              source: 'dm',
+              sourceId: sourceId,
+            ),
+          );
+        } else if (mediaType == 'image') {
+          unawaited(
+            memory.rememberUserReply(
+              residentId: resident.id,
+              reply: '[发来一张图片]',
+              imageSummary: '对方发来一张图片',
+              source: 'dm',
+              sourceId: sourceId,
+            ),
+          );
+        } else if (mediaType == 'sticker') {
+          unawaited(
+            memory.rememberUserReply(
+              residentId: resident.id,
+              reply: '[发来一个表情包]',
+              source: 'dm',
+              sourceId: sourceId,
+            ),
+          );
+        }
       }
 
       // 固定住民要马上醒过来看这条消息：他这一轮可能回私信，
@@ -255,17 +278,35 @@ class _Bubble extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 5, 14, 5),
-      child: Row(
-        mainAxisAlignment: fromMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: fromMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
-          if (!fromMe) ...[
-            UserAvatar(name: name, avatarRef: avatarRef, size: 34),
-            const SizedBox(width: 8),
-          ],
-          Flexible(child: _content(fromMe)),
+          Row(
+            mainAxisAlignment: fromMe
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!fromMe) ...[
+                UserAvatar(name: name, avatarRef: avatarRef, size: 34),
+                const SizedBox(width: 8),
+              ],
+              Flexible(child: _content(fromMe)),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              top: 3,
+              left: fromMe ? 0 : 42,
+              right: fromMe ? 4 : 0,
+            ),
+            child: Text(
+              formatMessageTime(message.createdAt),
+              style: TextStyle(color: EchoColors.textFaint, fontSize: 10),
+            ),
+          ),
         ],
       ),
     );

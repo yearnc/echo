@@ -56,8 +56,10 @@ void main() {
     expect(await db.select(db.privateMessages).get(), hasLength(1));
   });
 
-  test('每天主动私信有上限', () async {
-    for (var i = 0; i < ActionRegistry.dailyDmLimit; i++) {
+  test('私信不再有每日额度', () async {
+    // 用户发来的消息要能被正常接住；额度只该防刷屏，
+    // 不该让住民回一句“今天额度满了”。
+    for (var i = 0; i < 20; i++) {
       final result = await actions.sendDirectMessage(
         residentId: 'resident_001',
         content: '第 $i 句',
@@ -65,17 +67,9 @@ void main() {
       );
       expect(result.ok, isTrue);
     }
-
-    final over = await actions.sendDirectMessage(
-      residentId: 'resident_001',
-      content: '超额度的一句',
-      idempotencyKey: 'dm:over',
-    );
-    expect(over.ok, isFalse);
-    expect(over.message, contains('额度'));
   });
 
-  test('固定住民每天最多发一条动态', () async {
+  test('固定住民发动态不再受每天一条的频率限制', () async {
     final first = await actions.createResidentPost(
       residentId: 'resident_001',
       content: '今天桂花开了',
@@ -88,8 +82,8 @@ void main() {
     );
 
     expect(first.ok, isTrue);
-    expect(second.ok, isFalse);
-    expect(await db.select(db.posts).get(), hasLength(1));
+    expect(second.ok, isTrue);
+    expect(await db.select(db.posts).get(), hasLength(2));
   });
 
   test('记忆写入后能检索到，并且重复来源不写第二次', () async {

@@ -17,9 +17,16 @@ class SafetyController extends Notifier<SafetySettings> {
   /// 而不是替所有人默认打开。
   static const String minorKey = 'safety.minorProtection';
 
+  /// 清醒模式每日使用上限（分钟）；0 = 关闭。
+  static const String dailyLimitKey = 'safety.clearDailyLimitMinutes';
+
   /// 阈值的合理区间：1 次太烦，50 次等于没有。
   static const int minThreshold = 3;
   static const int maxThreshold = 30;
+
+  /// 每日上限的合理区间：15 分钟以下是折磨，8 小时以上等于没设。
+  static const int minDailyLimit = 15;
+  static const int maxDailyLimit = 480;
 
   @override
   SafetySettings build() {
@@ -32,7 +39,13 @@ class SafetyController extends Notifier<SafetySettings> {
     final rows = await (db.select(db.appSettings)
           ..where(
             (t) =>
-                t.key.isIn([guardKey, coolDownKey, thresholdKey, minorKey]),
+                t.key.isIn([
+                  guardKey,
+                  coolDownKey,
+                  thresholdKey,
+                  minorKey,
+                  dailyLimitKey,
+                ]),
           ))
         .get();
     final map = {for (final row in rows) row.key: row.value};
@@ -44,6 +57,8 @@ class SafetyController extends Notifier<SafetySettings> {
           int.tryParse(map[thresholdKey] ?? '') ??
           const SafetySettings().feedbackViewThreshold,
       minorProtection: _readBool(map[minorKey], fallback: false),
+      dailyLimitMinutes:
+          int.tryParse(map[dailyLimitKey] ?? '') ?? 0,
     );
   }
 
@@ -60,6 +75,13 @@ class SafetyController extends Notifier<SafetySettings> {
   Future<void> setMinorProtection(bool enabled) async {
     state = state.copyWith(minorProtection: enabled);
     await _write(minorKey, enabled ? 'true' : 'false');
+  }
+
+  /// 设为 0 表示关闭；其余值夹在 15—480 分钟之间。
+  Future<void> setDailyLimitMinutes(int value) async {
+    final next = value <= 0 ? 0 : value.clamp(minDailyLimit, maxDailyLimit);
+    state = state.copyWith(dailyLimitMinutes: next);
+    await _write(dailyLimitKey, '$next');
   }
 
   Future<void> setFeedbackViewThreshold(int value) async {

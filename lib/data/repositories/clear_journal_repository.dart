@@ -24,7 +24,7 @@ class ClearJournalRepository {
   /// 列表按用户排的顺序来，不是按时间。同一顺序时再按创建时间兜底。
   Stream<List<ValueItem>> watchValues() {
     final query = _db.select(_db.valueClarifications)
-      ..where((t) => t.deletedAt.isNull())
+      ..where((t) => t.deletedAt.isNull() & t.scope.equals('clear'))
       ..orderBy([
         (t) => OrderingTerm.asc(t.sortOrder),
         (t) => OrderingTerm.asc(t.createdAt),
@@ -36,7 +36,7 @@ class ClearJournalRepository {
 
   Future<List<ValueItem>> listValues() async {
     final query = _db.select(_db.valueClarifications)
-      ..where((t) => t.deletedAt.isNull())
+      ..where((t) => t.deletedAt.isNull() & t.scope.equals('clear'))
       ..orderBy([
         (t) => OrderingTerm.asc(t.sortOrder),
         (t) => OrderingTerm.asc(t.createdAt),
@@ -108,7 +108,7 @@ class ClearJournalRepository {
   /// 最近记的排在最上面。
   Stream<List<RealAction>> watchActions() {
     final query = _db.select(_db.realActions)
-      ..where((t) => t.deletedAt.isNull())
+      ..where((t) => t.deletedAt.isNull() & t.scope.equals('clear'))
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
     return query.watch().map(
       (rows) => rows.map(_toRealAction).toList(growable: false),

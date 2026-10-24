@@ -60,6 +60,7 @@ class CustomResidentRepository {
             memoryEnabled: Value(resident.memoryEnabled),
             memoryLimit: Value(resident.memoryLimit),
             alwaysShow: Value(resident.alwaysShow),
+            modelConfigId: Value(resident.modelConfigId),
             createdAt: resident.createdAt.millisecondsSinceEpoch,
           ),
         );
@@ -95,6 +96,7 @@ class CustomResidentRepository {
     memoryEnabled: row.memoryEnabled,
     memoryLimit: row.memoryLimit,
     alwaysShow: row.alwaysShow,
+    modelConfigId: row.modelConfigId,
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
   );
 

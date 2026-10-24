@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
+import 'core/utils/app_session.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
+import 'data/repositories/usage_repository.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/audience_service.dart';
 import 'domain/services/direct_message_service.dart';
@@ -48,6 +50,10 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   Timer? _heartbeat;
   int _ticks = 0;
 
+  /// 本次前台会话的起点。用来给「今天用了多久」留证据——
+  /// 以前只有进程内的计时，APP 一关就什么都不剩。
+  DateTime? _sessionStart;
+
   /// 一批人正在生成时不重叠：模型一次可能要十几秒，心跳是一秒一拍。
   bool _audienceBusy = false;
 
@@ -55,6 +61,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _sessionStart = DateTime.now();
+    AppSession.markForeground();
     // 通知权限必须在前台要。之前只在后台补发时调用 ensureReady()，
     // 而 Android 13+ 的运行时授权弹窗在后台 isolate 里根本弹不出来——
     // 结果就是"永远没授权、永远没有系统通知"。
@@ -107,7 +115,25 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _heartbeat?.cancel();
+    _endSession();
     super.dispose();
+  }
+
+  /// 结束一段前台会话并落库。重复调用是安全的（起点会被清空）。
+  void _endSession() {
+    final start = _sessionStart;
+    _sessionStart = null;
+    AppSession.markBackground();
+    if (start == null) return;
+    final end = DateTime.now();
+    if (end.difference(start).inSeconds < 1) return;
+    try {
+      unawaited(
+        ref.read(usageRepositoryProvider).logSession(start: start, end: end),
+      );
+    } catch (error) {
+      debugPrint('[使用时长] 这段会话没记上：$error');
+    }
   }
 
   /// 前台不弹系统通知，后台才交给系统闹钟。
@@ -127,13 +153,18 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _sessionStart ??= DateTime.now();
+      AppSession.markForeground();
       final notifications = ref.read(systemNotificationProvider);
       // 人已经回到 APP 里了，通知栏里的旧提醒该收掉——留着只会让人
       // 以为自己还没看。未到点的预约也一并撤，前台不靠系统提醒。
       unawaited(notifications.cancelAllShown());
       unawaited(notifications.cancelAllScheduled());
     } else if (state == AppLifecycleState.paused) {
+      _endSession();
       unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
+    } else if (state == AppLifecycleState.detached) {
+      _endSession();
     }
   }
 

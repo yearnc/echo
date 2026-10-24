@@ -43,7 +43,19 @@ class StickerRepository {
   }) async {
     final ref = await _media.pickFromGallery();
     if (ref == null) return null;
+    return importRef(ref: ref, name: name, category: category, tags: tags);
+  }
 
+  /// 图片已经选好之后再落库。
+  ///
+  /// 导入流程现在先选图、看到预览再起名字贴标签——用户得先知道
+  /// 自己选中的是哪张图，才谈得上给它起一个贴切的名字。
+  Future<String> importRef({
+    required String ref,
+    required String name,
+    String category = StickerCategory.customId,
+    List<String> tags = const [],
+  }) async {
     final id = 'sticker_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
     await _db
         .into(_db.stickers)

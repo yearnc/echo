@@ -20,6 +20,7 @@ class CustomResident {
     this.memoryEnabled = true,
     this.memoryLimit = 400,
     this.alwaysShow = true,
+    this.modelConfigId = '',
     required this.createdAt,
   });
 
@@ -58,6 +59,9 @@ class CustomResident {
   /// null = 无上限。
   final int? memoryLimit;
   final bool alwaysShow;
+
+  /// 这个住民单独使用的对话模型配置 id。空 = 用当前启用的那条。
+  final String modelConfigId;
   final DateTime createdAt;
 
   /// 给现有内容生成层用的适配对象。
@@ -112,6 +116,7 @@ class CustomResident {
     bool? memoryEnabled,
     int? memoryLimit,
     bool? alwaysShow,
+    String? modelConfigId,
   }) => CustomResident(
     id: id,
     name: name ?? this.name,
@@ -130,6 +135,7 @@ class CustomResident {
     memoryEnabled: memoryEnabled ?? this.memoryEnabled,
     memoryLimit: memoryLimit ?? this.memoryLimit,
     alwaysShow: alwaysShow ?? this.alwaysShow,
+    modelConfigId: modelConfigId ?? this.modelConfigId,
     createdAt: createdAt,
   );
 }

@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/timezone.dart' as tz;
+
+import '../../core/router/app_router.dart';
 
 /// 系统通知（B10）。
 ///
@@ -43,9 +45,13 @@ class SystemNotificationService {
           ),
         ),
         onDidReceiveNotificationResponse: (response) {
-          // 目前只做"点开 APP"这一件事：深链到具体帖子要等路由参数
-          // 能携带通知 payload 再说，做一半的跳转比不跳更让人困惑。
-          debugPrint('[通知] 用户点了通知：${response.payload}');
+          final payload = response.payload ?? '';
+          debugPrint('[通知] 用户点了通知：$payload');
+          // 清醒分析生成后的那条通知直达分析页。
+          // 其它通知仍只做"点开 APP"——做一半的跳转比不跳更让人困惑。
+          if (payload == 'clear_insight') {
+            appRouter.go(RoutePaths.analysis);
+          }
         },
       );
 
@@ -55,6 +61,17 @@ class SystemNotificationService {
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.requestNotificationsPermission();
+
+      // APP 完全关着时点“分析已生成”的那条通知：启动后补一次跳转。
+      // 热启动由上面的回调负责，这里只管冷启动。
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      final launchPayload = launch?.notificationResponse?.payload;
+      if (launch?.didNotificationLaunchApp == true &&
+          launchPayload == 'clear_insight') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          appRouter.go(RoutePaths.analysis);
+        });
+      }
     } catch (error) {
       debugPrint('[通知] 系统通知起不来，提醒只留在应用内：$error');
     }

@@ -1,14 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/app_session.dart';
+import '../../data/db/app_database.dart';
+import '../../data/db/database_provider.dart';
+import '../../data/repositories/addiction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
+import '../../data/repositories/usage_repository.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/notification_service.dart';
+import '../../domain/services/safety_controller.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/permanent_notice_banner.dart';
 
@@ -16,10 +24,102 @@ import '../shared_widgets/permanent_notice_banner.dart';
 ///
 /// 合规模块挂在这一层而不是各页面里，是为了保证它"固定"——
 /// 无论用户切到哪个 tab、列表滚到哪，小字和永久提示都必须在。
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
+
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// 教程只在第一次进主界面时自动弹一次；之后从「帮助」里随时能重看。
+  static const String _guideKey = 'guide.tutorialShown';
+
+  /// 每日使用上限触发的日志类型。同一天只提醒一次。
+  static const String _usageLimitEvent = 'usage_limit';
+
+  Timer? _limitTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowGuide());
+    // 一分钟看一眼今日使用时长。只在清醒模式且用户设了上限时查库，
+    // 其余情况几乎不花什么。
+    _limitTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkDailyLimit(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _limitTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkDailyLimit() async {
+    if (!mounted) return;
+    if (!ref.read(modeControllerProvider).isClear) return;
+    final safety = ref.read(safetyControllerProvider);
+    if (!safety.dailyLimitEnabled) return;
+
+    final ms =
+        await ref.read(usageRepositoryProvider).todayMs() +
+        AppSession.foregroundMsToday;
+    final minutes = ms ~/ 60000;
+    if (minutes < safety.dailyLimitMinutes) return;
+
+    final addiction = ref.read(addictionRepositoryProvider);
+    final last = await addiction.lastEventAt(_usageLimitEvent);
+    final now = DateTime.now();
+    if (last != null) {
+      final at = DateTime.fromMillisecondsSinceEpoch(last);
+      final sameDay =
+          at.year == now.year && at.month == now.month && at.day == now.day;
+      if (sameDay) return;
+    }
+
+    await addiction.logEvent(_usageLimitEvent, value: minutes);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '今天在清醒模式里已经用了 $minutes 分钟，超过你设的 '
+          '${safety.dailyLimitMinutes} 分钟。要不下次再看？',
+        ),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '去看看记录',
+          onPressed: () => context.go(RoutePaths.records),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _maybeShowGuide() async {
+    if (!mounted) return;
+    final location = GoRouterState.of(context).uri.path;
+    // 已经在引导/教程里就不要再叠一层。
+    if (location == RoutePaths.onboarding ||
+        location == RoutePaths.tutorial) {
+      return;
+    }
+    final db = ref.read(databaseProvider);
+    final row = await (db.select(db.appSettings)
+          ..where((table) => table.key.equals(_guideKey)))
+        .getSingleOrNull();
+    if (row != null || !mounted) return;
+    // 先落标记再跳：用户直接返回时也算“看过”，不会每次启动都被拦一次。
+    await db
+        .into(db.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(key: _guideKey, value: 'shown'),
+        );
+    if (mounted) context.push(RoutePaths.tutorial);
+  }
 
   /// 回响模式导航：首页 / 发布 / 消息 / 通知 / 我的（规划书 §5.1）。
   ///
@@ -46,7 +146,7 @@ class AppShell extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
     final tabs = mode.isEcho ? _echoTabs : _clearTabs;
     final location = GoRouterState.of(context).uri.path;
@@ -84,7 +184,7 @@ class AppShell extends ConsumerWidget {
           children: [
             // 清醒模式的永久提示必须在最上方且不可关闭
             if (mode.isClear) const PermanentNoticeBanner(),
-            Expanded(child: child),
+            Expanded(child: widget.child),
             // 回响模式的合规小字同样固定挂在这一层：页面滚到哪它都在
             if (mode.isEcho) const AiDisclaimerBar(),
           ],

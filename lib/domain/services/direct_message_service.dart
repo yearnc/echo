@@ -141,6 +141,7 @@ class DirectMessageService {
                 imageRef: turn.mediaType == 'image' && turn.fromMe
                     ? turn.content
                     : null,
+                at: turn.createdAt,
               ),
           ],
         ),

@@ -507,11 +507,45 @@ ORDER BY at ASC
                 _db.aiInteractions.type.equals(typeComment)),
       );
     final rows = await query.get();
-    return {
+    final ids = {
       for (final row in rows)
         if (row.read(_db.aiInteractions.personaId) != null)
           row.read(_db.aiInteractions.personaId)!,
     };
+
+    // 固定住民的点赞走 ActionRegistry（只加计数，不写 ai_interactions），
+    // 所以浏览名单原来认不出“TA 赞过”。这里把动作日志也并进来，
+    // 再通过 post_voices 映射回这条帖子里 TA 的身份。
+    final likeRows = await _db.customSelect(
+      '''
+SELECT pv.id AS voice_id
+FROM action_logs al
+JOIN post_voices pv
+  ON pv.resident_id = al.actor_id AND pv.post_id = ?
+WHERE al.action = 'like_post' AND al.target_id = ?
+  AND al.result NOT LIKE 'error:%'
+''',
+      variables: [Variable<String>(postId), Variable<String>(postId)],
+      readsFrom: {_db.actionLogs, _db.postVoices},
+    ).get();
+    for (final row in likeRows) {
+      final id = row.readNullable<String>('voice_id');
+      if (id != null) ids.add(id);
+    }
+    return ids;
+  }
+
+  /// 我（用户）在这条帖子下留过言没有。
+  Future<bool> hasUserCommented(String postId) async {
+    final count = _db.userComments.id.count();
+    final query = _db.selectOnly(_db.userComments)
+      ..addColumns([count])
+      ..where(
+        _db.userComments.postId.equals(postId) &
+            _db.userComments.deletedAt.isNull(),
+      );
+    final row = await query.getSingle();
+    return (row.read(count) ?? 0) > 0;
   }
 
   /// 最近已经兑现的互动（信息流补发后给 UI 用）。
@@ -642,16 +676,6 @@ final commentsProvider = StreamProvider.autoDispose
     .family<List<PostComment>, String>(
       (ref, postId) =>
           ref.watch(interactionRepositoryProvider).watchComments(postId),
-    );
-
-/// 详情页的分页评论：先 20 条，点“加载更早”每次多 20 条。
-typedef CommentPageKey = ({String postId, int limit});
-
-final pagedCommentsProvider = StreamProvider.autoDispose
-    .family<List<PostComment>, CommentPageKey>(
-      (ref, page) => ref
-          .watch(interactionRepositoryProvider)
-          .watchComments(page.postId, limit: page.limit),
     );
 
 /// 我赞过的评论 id（评论列表靠它点亮心形）。

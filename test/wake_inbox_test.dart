@@ -86,6 +86,28 @@ void main() {
     expect(await inbox.pending(residentId), isEmpty);
   });
 
+  test('排到未来的回复，不会挡住用户新发的话', () async {
+    await messages.send(personaId: residentId, content: '在吗');
+    // 住民先排了一句“过一会儿才出现”的回复。
+    await messages.scheduleIncoming(
+      personaId: residentId,
+      content: '在的',
+      at: DateTime.now().add(const Duration(minutes: 1)),
+    );
+
+    // 用户在等待窗口里又补了一句：在它真正出现之前，仍算没回过。
+    await messages.send(personaId: residentId, content: '怎么不理我');
+
+    await inbox.sync(residentId);
+    final pending = await inbox.pending(residentId);
+    final dms = pending
+        .where((item) => item.kind == ResidentInboxRepository.kindDm)
+        .toList();
+
+    expect(dms, hasLength(2), reason: '两条用户消息都应该被看到');
+    expect(dms.map((item) => item.summary), containsAll(['在吗', '怎么不理我']));
+  });
+
   test('点赞通知合并成一行，人数累加', () async {
     final postId = await posts.create(content: '今天很累');
 

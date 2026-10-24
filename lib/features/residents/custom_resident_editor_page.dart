@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/model_config_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
+import '../../domain/models/model_config.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -38,6 +40,7 @@ class _CustomResidentEditorPageState
   final _memoryLimit = TextEditingController(text: '400');
 
   String _avatar = '';
+  String _modelConfigId = '';
   bool _memory = true;
   bool _alwaysShow = true;
   bool _loading = false;
@@ -78,6 +81,7 @@ class _CustomResidentEditorPageState
     _extraInstructions.text = resident.extraInstructions;
     _tags.text = resident.tags.join('，');
     _avatar = resident.avatarAsset;
+    _modelConfigId = resident.modelConfigId;
     _memory = resident.memoryEnabled;
     _alwaysShow = resident.alwaysShow;
     _memoryLimit.text = resident.memoryLimit?.toString() ?? '';
@@ -180,6 +184,7 @@ class _CustomResidentEditorPageState
       memoryEnabled: _memory,
       memoryLimit: newLimit,
       alwaysShow: _alwaysShow,
+      modelConfigId: _modelConfigId,
       createdAt: _createdAt ?? DateTime.now(),
     );
 
@@ -288,8 +293,13 @@ class _CustomResidentEditorPageState
                 ),
                 _Section(
                   title: '行为',
-                  subtitle: '记忆和出现频率',
+                  subtitle: '模型、记忆和出现频率',
                   children: [
+                    _ResidentModelField(
+                      value: _modelConfigId,
+                      onChanged: (value) =>
+                          setState(() => _modelConfigId = value),
+                    ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('长期记忆'),
@@ -317,6 +327,51 @@ class _CustomResidentEditorPageState
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// 给这一位住民单独选一个对话模型。
+///
+/// 模型配置中心里可能存了好几条对话模型（便宜的、会写长文的、看图能力强的），
+/// 这里让用户按住民分配。空值表示跟随“当前启用的那条”。
+class _ResidentModelField extends ConsumerWidget {
+  const _ResidentModelField({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final configs = ref.watch(modelConfigsProvider).value ?? const [];
+    final chats = [
+      for (final config in configs)
+        if (config.kind == ModelKind.chat && config.isComplete) config,
+    ];
+    final known = chats.any((config) => config.id == value);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DropdownButtonFormField<String>(
+        initialValue: known ? value : '',
+        decoration: const InputDecoration(
+          labelText: '对话模型',
+          helperText: '留空 = 跟随当前启用的模型',
+          helperMaxLines: 2,
+        ),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('跟随当前启用')),
+          for (final config in chats)
+            DropdownMenuItem(
+              value: config.id,
+              child: Text(
+                '${config.label} · ${config.model}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (picked) => onChanged(picked ?? ''),
+      ),
     );
   }
 }

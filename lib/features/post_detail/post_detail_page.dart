@@ -21,6 +21,7 @@ import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/resident_memory_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
@@ -60,18 +61,13 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Timer? _waitTimer;
 
-  /// 评论区先取最近 20 条，点“加载更多”每次多 20 条。
-  int _commentLimit = 20;
-
-  /// 上一帧已经拿到的评论。换分页 key 时先顶着，避免列表瞬间清空。
-  List<PostComment> _cachedComments = const [];
-
-  /// 评论排序：规划书定的默认是「最新」，用户可以自己切「热度」。
-  _CommentOrder _order = _CommentOrder.latest;
-
   /// 页面销毁时不能再碰 ref（ConsumerState 已经被判为 unmounted），
   /// 所以在 initState 里先把"停播放"这个动作存下来。
   Future<void> Function()? _stopPlayback;
+
+  /// 打开页面的时刻与防沉迷仓库：关页面时补上停留时长。
+  DateTime? _openedAt;
+  AddictionRepository? _addiction;
 
   /// 盯多久算"等了一会儿"。八秒是个大概：短于它，多半只是在读帖子。
   static const Duration _waitThreshold = Duration(seconds: 8);
@@ -79,6 +75,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   @override
   void initState() {
     super.initState();
+    _openedAt = DateTime.now();
+    _addiction = ref.read(addictionRepositoryProvider);
     // 首帧之后再记：showSnackBar 需要一个已经挂到树上的 context
     WidgetsBinding.instance.addPostFrameCallback((_) => _recordView());
     _waitTimer = Timer(_waitThreshold, _noteWaitIfNothingCame);
@@ -90,6 +88,13 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   @override
   void dispose() {
     _waitTimer?.cancel();
+    // 页面停留多久，是“等回应”这件事最直接的证据之一。
+    final openedAt = _openedAt;
+    final addiction = _addiction;
+    if (openedAt != null && addiction != null) {
+      final stayed = DateTime.now().difference(openedAt).inMilliseconds;
+      if (stayed > 500) unawaited(addiction.addStayDuration(stayed));
+    }
     // 播放器是全应用单例，页面走了它不会自己停——退出帖子页还响着，
     // 就是这里少了一句话。没播过就别把它建出来（AudioPlayer 也有开销）。
     final stop = _stopPlayback;
@@ -137,41 +142,6 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         .showSnackBar(SnackBar(content: Text(warning)));
   }
 
-  /// 切换评论排序。两个选项就够：想看新的，或者想看大家认同的。
-  Future<void> _pickCommentOrder() async {
-    final picked = await showModalBottomSheet<_CommentOrder>(
-      context: context,
-      backgroundColor: EchoColors.surface,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            for (final option in _CommentOrder.values)
-              ListTile(
-                dense: true,
-                title: Text(
-                  option.label,
-                  style: TextStyle(color: EchoColors.text, fontSize: 14),
-                ),
-                subtitle: Text(
-                  option.hint,
-                  style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
-                ),
-                trailing: option == _order
-                    ? Icon(Icons.check, size: 18, color: EchoColors.primary)
-                    : null,
-                onTap: () => Navigator.of(context).pop(option),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    if (picked == null || picked == _order) return;
-    setState(() => _order = picked);
-  }
-
   /// 开始回某一条。住民显示住民的名字，我自己的评论显示我的名字。
   void _startReply(PostComment comment) {
     final personaId = comment.personaId;
@@ -211,15 +181,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
     final postAsync = ref.watch(postByIdProvider(widget.postId));
-    final commentsAsync = ref.watch(
-      pagedCommentsProvider((postId: widget.postId, limit: _commentLimit)),
-    );
-    // “加载更多评论”会换一个 provider key，新流首帧还没有值。保留上一帧
-    // 的列表，等新数据回来再换，列表高度就不会瞬间缩成 0、把页面弹回顶部。
-    if (commentsAsync.hasValue) {
-      _cachedComments = commentsAsync.value ?? const <PostComment>[];
-    }
-    final comments = _cachedComments;
+    // 一次性把这条帖子的评论全部读完；provider 是 autoDispose，
+    // 退出页面订阅消失、缓存随之释放，不会把整库评论一直顶在内存里。
+    final comments =
+        ref.watch(commentsProvider(widget.postId)).value ??
+        const <PostComment>[];
     final voiceList =
         ref.watch(postVoicesProvider(widget.postId)).value ??
         const <PostVoice>[];
@@ -262,11 +228,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         children: [
                           _PostBody(post: post),
                           const SizedBox(height: 18),
-                          _CommentsHeader(
-                            count: comments.length,
-                            order: _order,
-                            onTap: _pickCommentOrder,
-                          ),
+                          _CommentsHeader(count: comments.length),
                           const SizedBox(height: 10),
                           if (mode.isClear)
                             const _ClearModeHint()
@@ -279,17 +241,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                               comments: comments,
                               voiceById: voiceById,
                               onReply: _startReply,
-                              order: _order,
                             ),
-                            if (comments.length >= _commentLimit)
-                              Center(
-                                child: TextButton(
-                                  onPressed: () => setState(
-                                    () => _commentLimit += 20,
-                                  ),
-                                  child: const Text('加载更多评论'),
-                                ),
-                              ),
                         ],
                       ),
                     ),
@@ -361,7 +313,40 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
   /// 表情包以前走单独的 `_sendSticker`，发完就结束了，所以住民永远不会
   /// 接表情包评论。现在统一走这里。
   void _kickReplies({required String commentId, required String myReply}) {
+    unawaited(_remember(commentId, myReply));
     unawaited(_notifyResident(commentId, myReply));
+  }
+
+  /// 用户在住民帖子下说的这句话，要进那位住民的长期记忆。
+  ///
+  /// 以前只记“私信说过什么”和住民自己做过什么；在帖子里回一句就只剩
+  /// 收件箱里的一次性摘要，醒来之后完全不记得。这里把两类关系都写上：
+  /// - 被回复的那位住民（如果那条评论是固定住民写的）；
+  /// - 帖子作者（如果是固定住民发的）。
+  Future<void> _remember(String commentId, String myReply) async {
+    final ids = <String>{};
+    final target = widget.replyTarget;
+    final personaId = target?.personaId;
+    if (personaId != null) {
+      final voice = await ref
+          .read(postVoiceRepositoryProvider)
+          .findById(personaId);
+      final targetResident = voice?.residentId;
+      if (targetResident != null) ids.add(targetResident);
+    }
+    final authorId = widget.post.authorResidentId;
+    if (authorId != null) ids.add(authorId);
+    if (ids.isEmpty) return;
+
+    final memory = ref.read(residentMemoryServiceProvider);
+    for (final residentId in ids) {
+      await memory.rememberUserReply(
+        residentId: residentId,
+        reply: myReply,
+        source: 'comment',
+        sourceId: commentId,
+      );
+    }
   }
 
   /// 叫醒该被叫醒的人。
@@ -777,6 +762,14 @@ Future<void> _showViewers(
   final interacted = await ref
       .read(interactionRepositoryProvider)
       .interactedPersonaIds(postId);
+  // 我自己的“互动过”不在 ai_interactions 里：点赞记在 posts.liked_at，
+  // 评论在 user_comments。之前没查这两处，所以给自己点过赞、留过言的帖子
+  // 打开浏览名单，永远显示“只看过”。
+  final mine = await ref.read(postRepositoryProvider).watchById(postId).first;
+  final myLiked = mine?.likedByMe ?? false;
+  final myCommented = await ref
+      .read(interactionRepositoryProvider)
+      .hasUserCommented(postId);
   final me = ref.read(userProfileProvider).value;
   if (!context.mounted) return;
 
@@ -810,7 +803,9 @@ Future<void> _showViewers(
                 separatorBuilder: (_, _) => const SizedBox(height: 14),
                 itemBuilder: (context, index) {
                   final viewer = viewers[index];
-                  final acted = interacted.contains(viewer.voice.id);
+                  final acted = viewer.isMe
+                      ? (myLiked || myCommented)
+                      : interacted.contains(viewer.voice.id);
                   return Row(
                     children: [
                       UserAvatar(
@@ -859,30 +854,17 @@ Future<void> _showViewers(
   );
 }
 
-/// 评论排序。
-enum _CommentOrder {
-  latest('最新', '刚说的话排在前面'),
-  hot('热度', '赞多的排在前面');
-
-  const _CommentOrder(this.label, this.hint);
-
-  final String label;
-  final String hint;
-}
-
 /// 评论区：默认只露两条回复，多的折起来（C3 的“展开评论”）。
 class _CommentThreadList extends StatefulWidget {
   const _CommentThreadList({
     required this.comments,
     required this.voiceById,
     required this.onReply,
-    this.order = _CommentOrder.latest,
   });
 
   final List<PostComment> comments;
   final Map<String, PostVoice> voiceById;
   final void Function(PostComment) onReply;
-  final _CommentOrder order;
 
   @override
   State<_CommentThreadList> createState() => _CommentThreadListState();
@@ -904,15 +886,9 @@ class _CommentThreadListState extends State<_CommentThreadList> {
       }
     }
 
-    // 排的是**顶层评论**；楼中楼始终按说话顺序跟在它父亲下面——
-    // 把回复也按热度重排，一段对话就读不通了。
-    threads.sort((a, b) {
-      if (widget.order == _CommentOrder.hot) {
-        final byLikes = b.root.likeCount.compareTo(a.root.likeCount);
-        if (byLikes != 0) return byLikes;
-      }
-      return b.root.createdAt.compareTo(a.root.createdAt);
-    });
+    // 固定按说话顺序：最早的在上。评论区是一段对话，不是排行榜；
+    // 按赞数重排会让“回应”跑到“原话”上面，读起来就断了。
+    threads.sort((a, b) => a.root.createdAt.compareTo(b.root.createdAt));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -972,15 +948,9 @@ class _CommentThread {
 }
 
 class _CommentsHeader extends StatelessWidget {
-  const _CommentsHeader({
-    required this.count,
-    required this.order,
-    required this.onTap,
-  });
+  const _CommentsHeader({required this.count});
 
   final int count;
-  final _CommentOrder order;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -990,29 +960,6 @@ class _CommentsHeader extends StatelessWidget {
           '评论 $count',
           style: Theme.of(context).textTheme.titleSmall
               ?.copyWith(color: EchoColors.text, fontWeight: FontWeight.w600),
-        ),
-        const Spacer(),
-        GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '按${order.label}',
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: EchoColors.textMuted),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 14,
-                  color: EchoColors.textMuted,
-                ),
-              ],
-            ),
-          ),
         ),
       ],
     );

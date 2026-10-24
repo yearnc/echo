@@ -58,6 +58,9 @@ part 'app_database.g.dart';
     ResidentMemories,
     ResidentInboxItems,
     ActionLogs,
+    ClearPhotos,
+    ClearInsights,
+    UsageSessions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -67,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 31;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -556,6 +559,36 @@ class AppDatabase extends _$AppDatabase {
             "WHERE source = 'comment' AND source_id LIKE 'reply_%'",
           );
         }
+      }
+      if (from < 30) {
+        // v30：固定住民可以单独指定对话模型。
+        // 用户可能给不同人设配不同的模型（一个人用便宜快的，一个人用会写长文的），
+        // 空值表示沿用“当前启用的那条”，所以加一列默认空即可。
+        final hasResidents = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'custom_residents'",
+        ).getSingleOrNull();
+        if (hasResidents != null) {
+          final columns = await customSelect(
+            'PRAGMA table_info(custom_residents)',
+          ).get();
+          final names = columns.map((row) => row.read<String>('name')).toSet();
+          if (!names.contains('model_config_id')) {
+            await customStatement(
+              "ALTER TABLE custom_residents ADD COLUMN model_config_id "
+              "TEXT NOT NULL DEFAULT ''",
+            );
+          }
+        }
+      }
+      if (from < 31) {
+        // v31：清醒侧的数据底座。
+        // - 相册：只存用户主动选的照片，scope=clear；
+        // - 分析快照：按维度落库，带生成区间与来源；
+        // - 使用会话：支撑“今日用了多久”和用户自设的上限。
+        await m.createTable(clearPhotos);
+        await m.createTable(clearInsights);
+        await m.createTable(usageSessions);
       }
     },
   );

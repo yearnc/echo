@@ -965,7 +965,7 @@ class _PlanModeCard extends StatelessWidget {
               style: TextStyle(color: EchoColors.text, fontSize: 13.5),
             ),
             subtitle: Text(
-              '精确到发帖后第几秒：谁点赞、谁评论',
+              '精确到发帖后第几秒：谁点赞、谁评论；评论者以固定住民或临时网友的身份出现',
               style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
             ),
           ),

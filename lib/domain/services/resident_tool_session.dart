@@ -96,6 +96,25 @@ class ResidentToolSession {
     '记得',
   ];
 
+  /// 这次回复排在什么时候。固定住民自己、以及给模型的提示词共用一份格式：
+  /// 年月日、周几、24 小时制精确到分钟。只写“10月24日”会让模型不知道今年是哪年。
+  static String timeLabel(DateTime at) {
+    final phase = switch (at.hour) {
+      >= 5 && < 8 => '清晨',
+      >= 8 && < 11 => '上午',
+      >= 11 && < 14 => '中午',
+      >= 14 && < 17 => '下午',
+      >= 17 && < 19 => '傍晚',
+      >= 19 && < 23 => '晚上',
+      _ => '深夜',
+    };
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final week = weekdays[at.weekday - 1];
+    return '${at.year}年${at.month}月${at.day}日 周$week $phase $hh:$mm';
+  }
+
   /// 这个模型能不能用工具。失败一次就降级——不反复试。
   Future<ResidentReply?> reply({
     required CustomResident resident,
@@ -236,15 +255,17 @@ class ResidentToolSession {
     required String situation,
     required ResidentWakeToolkit toolkit,
     DateTime? at,
+    List<DirectTurn> history = const [],
   }) async {
     final deadline = DateTime.now().add(totalTimeout);
     final memoryLines = await _prefetch(resident);
     final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': _wakeSystemPrompt(resident)},
+      ...await _timedHistory(history, supportsVision: config.supportsVision),
       {
         'role': 'user',
         'content': [
-          '现在：${_timeLabel(at ?? DateTime.now())}',
+          '现在：${timeLabel(at ?? DateTime.now())}',
           if (memoryLines.isNotEmpty) ...['你记得：$memoryLines'],
           situation,
         ].join('\n'),
@@ -373,9 +394,12 @@ $persona
 - 先看有没有人跟你说话：能回就回，不想回也可以已读不回（用 finish）。
 - 对方的评论可以用 reply_inbox 直接回在那条评论下面；
   如果更想私下说，用 send_dm 给他发私信——真人常这么干。
-- 一次醒来最多回三个人、最多发三段私信。话要短，像微信，10—60 字。
-- 没有待办时，可以自己发条动态（create_post，一天一条，用户关了开关就发不了）、
-  刷一刷别人发的帖子（browse_feed）、点个赞（like_post），或者什么都不做。
+- 收件箱里有人跟你说话就回，不限制人数；私信一次最多分三段说完
+  （真人也是一句一句敲），没有每日额度，回完了就停。话要短，像微信，10—60 字。
+- 没有待办时，可以自己发条动态（create_post，用户关了开关就发不了）、
+  刷一刷别人发的帖子（browse_feed）、点个赞（like_post），
+  或者给聊过的人发条私信（send_dm）——想分享点什么、想问问对方近况都可以；
+  也可以什么都不做。
 - 想给动态配图就先用 generate_image 把画面描述交出去，再 create_post；
   系统会把图等出来一起发，不需要你等。
 - 不要每次都说话。没有想说的就 finish。
@@ -386,6 +410,45 @@ $persona
   把年份写进搜索词（例如“2026年”），并检查结果里的日期：
   日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
 ''';
+  }
+
+  /// 唤醒时也把最近的私信带上，而且每句都标明时间。
+  ///
+  /// 以前醒来只有“收件箱摘要”，住民不知道前文，也不知道对方是什么时候说的；
+  /// 回出来的话就容易像第一次见面。历史放在 system 之后、本轮提示之前，
+  /// 内容稳定，不会把缓存前缀打碎。
+  Future<List<Map<String, dynamic>>> _timedHistory(
+    List<DirectTurn> history, {
+    required bool supportsVision,
+  }) async {
+    final messages = <Map<String, dynamic>>[];
+    for (final turn in history) {
+      final when = turn.at == null ? '' : '[${timeLabel(turn.at!)}] ';
+      if (turn.fromMe) {
+        messages.add({
+          'role': 'assistant',
+          'content':
+              '$when${turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim()}',
+        });
+        continue;
+      }
+
+      final text = turn.text.trim().isEmpty ? '[对方发来一张图片]' : turn.text.trim();
+      Map<String, dynamic>? image;
+      if (turn.imageRef != null && supportsVision) {
+        image = await ImagePayload.partFromRef(turn.imageRef!);
+      }
+      messages.add({
+        'role': 'user',
+        'content': image == null
+            ? '$when$text'
+            : [
+                {'type': 'text', 'text': '$when$text'},
+                image,
+              ],
+      });
+    }
+    return messages;
   }
 
   Future<String> _prefetch(CustomResident resident) async {
@@ -450,10 +513,13 @@ $persona
     final messages = <Map<String, dynamic>>[];
 
     for (final turn in recent) {
+      // 每条历史都带时间：住民要知道这句话是刚才说的，还是隔了一天。
+      final when = turn.at == null ? '' : '[${timeLabel(turn.at!)}] ';
       if (turn.fromMe) {
         messages.add({
           'role': 'assistant',
-          'content': turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim(),
+          'content':
+              '$when${turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim()}',
         });
         continue;
       }
@@ -468,16 +534,16 @@ $persona
       messages.add({
         'role': 'user',
         'content': image == null
-            ? text
+            ? '$when$text'
             : [
-                {'type': 'text', 'text': text},
+                {'type': 'text', 'text': '$when$text'},
                 image,
               ],
       });
     }
 
     final tail = StringBuffer()
-      ..writeln('现在：${_timeLabel(at ?? DateTime.now())}');
+      ..writeln('现在：${timeLabel(at ?? DateTime.now())}');
     if (memoryLines.isNotEmpty) {
       tail
         ..writeln('你们以前聊过（仅供参考）：')
@@ -503,25 +569,6 @@ $persona
       messages.add({'role': 'user', 'content': tailText});
     }
     return messages;
-  }
-
-  static String _timeLabel(DateTime at) {
-    final phase = switch (at.hour) {
-      >= 5 && < 8 => '清晨',
-      >= 8 && < 11 => '上午',
-      >= 11 && < 14 => '中午',
-      >= 14 && < 17 => '下午',
-      >= 17 && < 19 => '傍晚',
-      >= 19 && < 23 => '晚上',
-      _ => '深夜',
-    };
-    final hh = at.hour.toString().padLeft(2, '0');
-    final mm = at.minute.toString().padLeft(2, '0');
-    // 年份和星期必须带上：只写“10月24日”时，模型不知道今年是哪年，
-    // 搜“新版本什么时候上线”很容易把去年同期的旧闻当成最新的。
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    final week = weekdays[at.weekday - 1];
-    return '${at.year}年${at.month}月${at.day}日 周$week $phase $hh:$mm';
   }
 
   Future<ActionOutcome> _execute({
@@ -703,7 +750,8 @@ $persona
       'function': {
         'name': 'send_dm',
         'description':
-            '给对方发一条私信。可以连续调用多次，像真人把一句话分几段发。一次醒来最多三段。',
+            '给对方发一条私信。可以连续调用多次，像真人把一句话分几段发；'
+            '一次醒来最多三段。没有每日额度，想回就回。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -828,7 +876,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'create_post',
-        'description': '你自己想发一条动态时使用。一天最多一条，别频繁用。',
+        'description': '你自己想发一条动态时使用。别为了发而发。',
         'parameters': {
           'type': 'object',
           'properties': {

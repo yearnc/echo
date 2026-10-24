@@ -16,6 +16,7 @@ import '../models/model_config.dart';
 import '../models/resident_inbox.dart';
 import 'action_registry.dart';
 import 'comment_reply_service.dart';
+import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'resident_memory_service.dart';
 import 'resident_tool_session.dart';
@@ -29,6 +30,10 @@ enum WakeTrigger {
 
   /// 刚创建好这个住民，让他先开口。
   setup,
+
+  /// 系统后台任务（WorkManager）叫醒。只处理收件箱里已有的待办，
+  /// 不主动发帖、不主动私信——后台的时间预算和网络都不该拿来“创作”。
+  background,
 }
 
 /// 唤醒式交互（v3.3）。
@@ -101,6 +106,25 @@ class ResidentWakeService {
     return handled;
   }
 
+  /// 后台任务用：只叫醒**真的有待办**的人，而且限制人数。
+  ///
+  /// WorkManager 一轮只有有限的执行时间，串行叫醒六个人、每人再跑最多
+  /// 20 秒模型，很容易在这一轮里跑不完。没待办的人本来也不该被后台吵醒。
+  Future<int> wakePending({int maxResidents = 3}) async {
+    final pool = await residents.all();
+    var woken = 0;
+    var tried = 0;
+    for (final resident in pool) {
+      if (tried >= maxResidents) break;
+      await inbox.sync(resident.id);
+      final pending = await inbox.pending(resident.id);
+      if (pending.isEmpty) continue;
+      tried++;
+      woken += await wake(resident.id, trigger: WakeTrigger.background);
+    }
+    return woken;
+  }
+
   /// “上一次醒来”的水位必须落盘：只放内存的话，每次冷启动都算
   /// 从来没有醒过，所有住民会一起被叫醒。
   static String _idleKey(String residentId) => 'wake.idleAt.$residentId';
@@ -164,7 +188,12 @@ class ResidentWakeService {
 
     // 没有待办时，只有 setup 和“好久没动静了”才值得醒一次；
     // 否则住户每 15 分钟醒一次，醒来又没事干，只是白花钱。
-    if (pending.isEmpty && trigger != WakeTrigger.setup) {
+    // **用户主动发消息是例外**：他就在屏幕前等着，哪怕收件箱因为时序
+    // 没整理出待办，也得让住民看一眼最近的对话。
+    // 后台只做“把欠下的话补上”，没有待办就直接结束。
+    if (pending.isEmpty && trigger == WakeTrigger.background) return 0;
+
+    if (pending.isEmpty && trigger == WakeTrigger.heartbeat) {
       final idleAt = await _idleAt(residentId);
       if (idleAt != null && now.difference(idleAt) < idleGap) {
         return 0;
@@ -175,7 +204,7 @@ class ResidentWakeService {
       }
     }
 
-    final config = await gateway.activeConfig();
+    final config = await gateway.configFor(configId: resident.modelConfigId);
     if (config == null) {
       // 没配模型时待办必须留着：不能因为这次醒不成，就把消息标成已读。
       debugPrint('[唤醒] ${resident.name}：还没配置对话模型');
@@ -183,9 +212,10 @@ class ResidentWakeService {
     }
 
     final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
-    // 一次最多看十条。看不过来的留在收件箱，下次醒来继续——
+    // 一次最多看二十条。不按“最多回三个人”硬性截断——
+    // 积攒的评论该回就回；真的处理不完的留在收件箱，下次醒来继续。
     // 不能把没展示过的待办也标成“已读”，那等于替模型做了决定。
-    final visible = pending.take(10).toList(growable: false);
+    final visible = pending.take(20).toList(growable: false);
     final toolkit = _WakeToolkit(
       service: this,
       resident: resident,
@@ -195,12 +225,29 @@ class ResidentWakeService {
     );
 
     try {
+      final recent = await messages.recentTurns(residentId, limit: 10);
+      final history = [
+        for (final turn in recent)
+          DirectTurn(
+            fromMe: !turn.fromMe,
+            text: switch (turn.mediaType) {
+              'image' => turn.fromMe ? '' : '[发来一张图片]',
+              'sticker' => '[表情包]',
+              _ => turn.content,
+            },
+            imageRef: turn.mediaType == 'image' && turn.fromMe
+                ? turn.content
+                : null,
+            at: turn.createdAt,
+          ),
+      ];
       final said = await session.act(
         resident: resident,
         config: config,
         situation: _situation(resident, visible, trigger),
         toolkit: toolkit,
         at: now,
+        history: history,
       );
 
       // 模型没调工具、只回了一句话：当作私信发出去。
@@ -236,15 +283,23 @@ class ResidentWakeService {
     WakeTrigger trigger,
   ) {
     if (pending.isEmpty) {
-      return trigger == WakeTrigger.setup
-          ? '你刚住进这里，还没有人跟你说话。你可以主动给对方发一条私信，'
-                '像刚加了好友那样打个招呼；不想发也可以什么都不做。'
-          : '手机上没有新消息。你可以自己发条动态、刷一刷别人发的帖子、'
-                '点个赞，或者就搁着。';
+      return switch (trigger) {
+        WakeTrigger.setup =>
+          '你刚住进这里，还没有人跟你说话。你可以主动给对方发一条私信，'
+              '像刚加了好友那样打个招呼；不想发也可以什么都不做。',
+        WakeTrigger.userAction =>
+          '对方刚给你发了消息，你还没回。翻一翻你们最近的私信，'
+              '看看他说了什么、要不要接一句；也可以已读不回。',
+        WakeTrigger.heartbeat =>
+          '手机上没有新消息。你可以自己发条动态、刷一刷别人发的帖子、'
+              '点个赞，或者给聊过的人发条私信；也可以就搁着。',
+        WakeTrigger.background => '手机上没有新消息。',
+      };
     }
 
     final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
     for (final item in pending) {
+      final when = ResidentToolSession.timeLabel(item.createdAt);
       final line = switch (item.kind) {
         ResidentInboxRepository.kindCommentOnPost =>
           '有人在你的帖子下评论：「${item.summary}」',
@@ -253,7 +308,7 @@ class ResidentWakeService {
         ResidentInboxRepository.kindDm => '给你发了私信：「${item.summary}」',
         _ => '「${item.summary}」',
       };
-      buffer.writeln('- [${item.id}] $line');
+      buffer.writeln('- [${item.id}] [$when] $line');
     }
     buffer.writeln();
     buffer.writeln(

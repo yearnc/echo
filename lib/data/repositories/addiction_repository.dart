@@ -70,6 +70,43 @@ class AddictionRepository {
     return (await query.getSingle()).read(count) ?? 0;
   }
 
+  /// 给最近一次“打开帖子”补上停留时长。
+  ///
+  /// 打开时先记一条 viewedAt，页面关掉后才知道待了多久；这里只补最近那条
+  /// 还没计时的记录，不新增一条——否则“查看反馈次数”会被翻倍。
+  Future<void> addStayDuration(int durationMs) async {
+    if (durationMs <= 0) return;
+    final row =
+        await (_db.select(_db.feedbackViewLogs)
+              ..orderBy([(t) => OrderingTerm.desc(t.viewedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (row == null || row.durationMs > 0) return;
+    await (_db.update(
+      _db.feedbackViewLogs,
+    )..where((t) => t.id.equals(row.id))).write(
+      FeedbackViewLogsCompanion(durationMs: Value(durationMs)),
+    );
+  }
+
+  /// [sinceMs] 以来停留在帖子页的总时长（毫秒）。
+  Future<int> totalStayMsSince(int sinceMs) async {
+    final total = _db.feedbackViewLogs.durationMs.sum();
+    final query = _db.selectOnly(_db.feedbackViewLogs)
+      ..addColumns([total])
+      ..where(_db.feedbackViewLogs.viewedAt.isBiggerOrEqualValue(sinceMs));
+    return (await query.getSingle()).read(total) ?? 0;
+  }
+
+  /// [sinceMs] 之后查看了几次反馈（清醒分析/反思页用）。
+  Future<int> countFeedbackViewsSince(int sinceMs) async {
+    final count = _db.feedbackViewLogs.id.count();
+    final query = _db.selectOnly(_db.feedbackViewLogs)
+      ..addColumns([count])
+      ..where(_db.feedbackViewLogs.viewedAt.isBiggerOrEqualValue(sinceMs));
+    return (await query.getSingle()).read(count) ?? 0;
+  }
+
   Future<void> logEvent(String eventType, {int value = 0}) async {
     await _db
         .into(_db.addictionLogs)

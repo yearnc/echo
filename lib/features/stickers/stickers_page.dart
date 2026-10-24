@@ -8,6 +8,7 @@ import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_avatar_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/sticker.dart';
+import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 表情包管理页（规划书 §11）。
@@ -104,33 +105,36 @@ class StickersPage extends ConsumerWidget {
     );
     if (agreed != true || !context.mounted) return;
 
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => const _NameDialog(),
-    );
-    if (name == null || !context.mounted) return;
+    // 先选图，看到预览之后再起名字、贴标签——
+    // 用户得先知道选中的是哪张图，名字才起得贴切。
+    final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
+    if (imageRef == null || !context.mounted) return;
 
-    // 标签是 AI 什么时候用这张图的唯一依据；不强制，但要说清楚。
-    final tags = await showDialog<List<String>>(
+    final meta = await showDialog<_ImportMeta>(
       context: context,
-      builder: (_) => const _TagDialog(title: '给这张表情打标签'),
+      builder: (_) => _ImportDialog(imageRef: imageRef),
     );
-    if (tags == null || !context.mounted) return;
+    if (meta == null || !context.mounted) {
+      // 取消命名就顺手把刚拷进私有目录的图删掉，别留下孤儿文件。
+      await ref.read(mediaServiceProvider).deleteByRef(imageRef);
+      return;
+    }
 
     final id = await ref
         .read(stickerRepositoryProvider)
-        .importFromGallery(name: name, tags: tags);
+        .importRef(ref: imageRef, name: meta.name, tags: meta.tags);
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          id == null
-              ? '没有选择图片'
-              : (tags.isEmpty ? '已导入「$name」，补个标签 AI 才会用它' : '已导入「$name」'),
+          meta.tags.isEmpty
+              ? '已导入「${meta.name}」，补个标签 AI 才会用它'
+              : '已导入「${meta.name}」',
         ),
       ),
     );
+    debugPrint('[表情包] 已导入 $id');
   }
 
   Future<void> _editTags(
@@ -587,6 +591,102 @@ class _TagWarning extends StatelessWidget {
   }
 }
 
+/// 导入时确认的那两件事：叫什么、什么时候用。
+class _ImportMeta {
+  const _ImportMeta({required this.name, required this.tags});
+
+  final String name;
+  final List<String> tags;
+}
+
+/// 选完图之后的确认框：左边预览，右边命名 + 标签。
+///
+/// 顺序很重要：先看见图，再决定它叫什么、AI 什么时候该用它。
+class _ImportDialog extends StatefulWidget {
+  const _ImportDialog({required this.imageRef});
+
+  final String imageRef;
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  final _name = TextEditingController();
+  List<String> _tags = const [];
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: ClearColors.surface,
+      title: Text(
+        '导入表情包',
+        style: TextStyle(color: ClearColors.text, fontSize: 15),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: PostImage(
+                ref: widget.imageRef,
+                height: 130,
+                borderRadius: 12,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _name,
+              autofocus: true,
+              maxLength: 12,
+              style: TextStyle(color: ClearColors.text, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: '给它起个名字',
+                hintText: '比如：摸鱼猫猫',
+                hintStyle: TextStyle(
+                  color: ClearColors.textFaint,
+                  fontSize: 13,
+                ),
+                counterStyle: TextStyle(
+                  color: ClearColors.textFaint,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _TagEditor(
+              initial: const [],
+              onChanged: (tags) => _tags = tags,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(
+            _ImportMeta(
+              name: _name.text.trim().isEmpty ? '我导入的' : _name.text.trim(),
+              tags: _tags,
+            ),
+          ),
+          child: const Text('导入'),
+        ),
+      ],
+    );
+  }
+}
+
 /// 标签选择：预设 + 自定义。返回 null 表示取消。
 class _TagDialog extends StatefulWidget {
   const _TagDialog({required this.title, this.initial = const []});
@@ -599,6 +699,49 @@ class _TagDialog extends StatefulWidget {
 }
 
 class _TagDialogState extends State<_TagDialog> {
+  late List<String> _selected = [...widget.initial];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: ClearColors.surface,
+      title: Text(
+        widget.title,
+        style: TextStyle(color: ClearColors.text, fontSize: 15),
+      ),
+      content: SingleChildScrollView(
+        child: _TagEditor(
+          initial: widget.initial,
+          onChanged: (tags) => _selected = tags,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_selected),
+          child: const Text('保存标签'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 标签选择本体。导入确认和“编辑标签”共用这一个，
+/// 别在两个弹窗里各写一套预设和自定义输入。
+class _TagEditor extends StatefulWidget {
+  const _TagEditor({required this.initial, required this.onChanged});
+
+  final List<String> initial;
+  final ValueChanged<List<String>> onChanged;
+
+  @override
+  State<_TagEditor> createState() => _TagEditorState();
+}
+
+class _TagEditorState extends State<_TagEditor> {
   static const _presets = [
     '开心',
     '无语',
@@ -623,10 +766,13 @@ class _TagDialogState extends State<_TagDialog> {
     super.dispose();
   }
 
+  void _emit() => widget.onChanged(_selected.toList());
+
   void _toggle(String tag) {
     setState(() {
       if (!_selected.remove(tag)) _selected.add(tag);
     });
+    _emit();
   }
 
   void _addCustom() {
@@ -636,149 +782,81 @@ class _TagDialogState extends State<_TagDialog> {
       _selected.add(value);
       _custom.clear();
     });
+    _emit();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: ClearColors.surface,
-      title: Text(
-        widget.title,
-        style: TextStyle(color: ClearColors.text, fontSize: 15),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '标签决定 AI 什么时候用它。比如「安慰 / 抱抱」会被用在对方难过时，'
+          '「吐槽 / 看戏」不会。',
+          style: TextStyle(
+            color: ClearColors.textMuted,
+            fontSize: 12,
+            height: 1.6,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
           children: [
-            Text(
-              '标签决定 AI 什么时候用它。比如「安慰 / 抱抱」会被用在对方难过时，'
-              '「吐槽 / 看戏」不会。',
-              style: TextStyle(
-                color: ClearColors.textMuted,
-                fontSize: 12,
-                height: 1.6,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final tag in {..._presets, ..._selected})
-                  GestureDetector(
-                    onTap: () => _toggle(tag),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selected.contains(tag)
-                            ? ClearColors.accent.withValues(alpha: 0.16)
-                            : ClearColors.bg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _selected.contains(tag)
-                              ? ClearColors.accent
-                              : ClearColors.divider,
-                        ),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                          color: _selected.contains(tag)
-                              ? ClearColors.accent
-                              : ClearColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
+            for (final tag in {..._presets, ..._selected})
+              GestureDetector(
+                onTap: () => _toggle(tag),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _selected.contains(tag)
+                        ? ClearColors.accent.withValues(alpha: 0.16)
+                        : ClearColors.bg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _selected.contains(tag)
+                          ? ClearColors.accent
+                          : ClearColors.divider,
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _custom,
-                    onSubmitted: (_) => _addCustom(),
-                    style: TextStyle(color: ClearColors.text, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: '自定义标签',
-                      isDense: true,
-                      hintStyle: TextStyle(
-                        color: ClearColors.textFaint,
-                        fontSize: 12,
-                      ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      color: _selected.contains(tag)
+                          ? ClearColors.accent
+                          : ClearColors.textMuted,
+                      fontSize: 12,
                     ),
                   ),
                 ),
-                TextButton(onPressed: _addCustom, child: const Text('加上')),
-              ],
-            ),
+              ),
           ],
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_selected.toList()),
-          child: const Text('保存标签'),
-        ),
-      ],
-    );
-  }
-}
-
-class _NameDialog extends StatefulWidget {
-  const _NameDialog();
-
-  @override
-  State<_NameDialog> createState() => _NameDialogState();
-}
-
-class _NameDialogState extends State<_NameDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: ClearColors.surface,
-      title: Text(
-        '给它起个名字',
-        style: TextStyle(color: ClearColors.text, fontSize: 15),
-      ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        maxLength: 12,
-        style: TextStyle(color: ClearColors.text, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: '比如：摸鱼猫猫',
-          hintStyle: TextStyle(color: ClearColors.textFaint, fontSize: 13),
-          counterStyle: TextStyle(color: ClearColors.textFaint, fontSize: 11),
-        ),
-        onSubmitted: (value) => Navigator.of(context).pop(value),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('取消', style: TextStyle(color: ClearColors.textMuted)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: Text('选图', style: TextStyle(color: ClearColors.accent)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _custom,
+                onSubmitted: (_) => _addCustom(),
+                style: TextStyle(color: ClearColors.text, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: '自定义标签',
+                  isDense: true,
+                  hintStyle: TextStyle(
+                    color: ClearColors.textFaint,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+            TextButton(onPressed: _addCustom, child: const Text('加上')),
+          ],
         ),
       ],
     );

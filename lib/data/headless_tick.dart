@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/services/direct_message_service.dart';
 import '../domain/services/notification_service.dart';
+import '../domain/services/resident_wake_service.dart';
 import '../domain/services/scheduler_service.dart';
 import '../domain/services/world_service.dart';
 
@@ -25,6 +26,12 @@ Future<void> runHeadlessTick() async {
   try {
     await container.read(schedulerServiceProvider).flushDue();
     await container.read(worldServiceProvider).tick();
+    // 固定住民的待办也要在后台补上：以前只在前台心跳里唤醒，
+    // APP 一划掉，用户发的私信就一直没人接——直到他再打开 APP。
+    // 只叫醒真的有待办的人（最多 3 个），避免一轮后台任务跑不完。
+    await container
+        .read(residentWakeServiceProvider)
+        .wakePending(maxResidents: 3);
     await container.read(directMessageServiceProvider).tick();
   } catch (error) {
     // 后台任务失败没有人在场处理，也不该让系统把它标成"崩了"：

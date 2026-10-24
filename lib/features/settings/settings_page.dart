@@ -23,7 +23,8 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   /// 搜索能力来自服务商本身：智谱用 `web_search` 工具，百炼用 `enable_search`。
-  /// 两家都复用当前启用的对话模型与密钥，所以不需要再填一套配置。
+  /// DeepSeek 走独立搜索接口，只要模型配置里有它填好的 Key 就行，不需要切过去当对话模型；
+  /// 智谱/百炼则必须配一条对应服务商的配置（也不需要启用）。
   Future<void> _pickSearchProvider(BuildContext context, WidgetRef ref) async {
     final service = ref.read(webSearchServiceProvider);
     final current = await service.provider();
@@ -52,7 +53,8 @@ class SettingsPage extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Text(
-                'DeepSeek 走独立搜索接口；其余两家用当前对话模型。'
+                'DeepSeek 走独立搜索接口，只要模型配置里有它的 Key；'
+                '智谱 / 百炼用各自的服务商配置（都不需要设为当前对话模型）。'
                 '搜索失败会直说，不会拿记忆冒充。',
                 textAlign: TextAlign.center,
                 style: TextStyle(

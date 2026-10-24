@@ -37,11 +37,34 @@ class DashboardRepository {
   static const String statusDone = 'done';
 
   /// 我自己发的帖子（住民的动态不算——那不是我发的）。
-  Future<List<DateTime>> myPostTimes({required DateTime since}) async {
+  ///
+  /// [scope] 必须分开：回响看板只数社区帖子，清醒看板只数真实记录。
+  /// 混在一起的话，清醒侧“本周记录”会突然多出几条 AI 社区里的帖子。
+  Future<List<DateTime>> myPostTimes({
+    required DateTime since,
+    String scope = 'echo',
+  }) async {
     final query = _db.select(_db.posts)
       ..where(
         (t) =>
             t.authorPersonaId.isNull() &
+            t.authorResidentId.isNull() &
+            t.scope.equals(scope) &
+            t.deletedAt.isNull() &
+            t.createdAt.isBiggerOrEqualValue(since.millisecondsSinceEpoch),
+      );
+    final rows = await query.get();
+    return [
+      for (final row in rows)
+        DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+    ];
+  }
+
+  /// 我自己写下评论的时间（清醒分析的“主动表达”维度）。
+  Future<List<DateTime>> myCommentTimes({required DateTime since}) async {
+    final query = _db.select(_db.userComments)
+      ..where(
+        (t) =>
             t.deletedAt.isNull() &
             t.createdAt.isBiggerOrEqualValue(since.millisecondsSinceEpoch),
       );

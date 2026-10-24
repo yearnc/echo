@@ -1,35 +1,106 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_texts.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/relative_time.dart';
+import '../../data/repositories/clear_insight_repository.dart';
+import '../../domain/models/clear_insight.dart';
+import '../../domain/services/clear_insight_service.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/notification_service.dart';
+import '../../domain/services/tts_service.dart';
+import '../../domain/services/voice_playback.dart';
 
-/// 客观分析结果页（规划书 §6.8）。
+/// 客观分析页（v31 重做）。
 ///
-/// 清醒模式的全部产出都在这里：**只有描述、情绪、逻辑、事实、建议五件事**，
-/// 没有分数、没有排名、没有"你被多少人看过"。
-/// 阶段 A 用预置结果（对应演示模式第三幕），阶段 B 接真实模型。
-class AnalysisPage extends ConsumerWidget {
+/// 以前整页是预置文案：不管用户发了什么、做过什么，看到的都是同一段
+/// “天空照”的分析。现在这里只读**本机记录算出来的快照**——
+/// 发帖频率、互动构成、AI 占比、情绪走向、时间分布，每一项都能说清来源。
+///
+/// 分析不调用模型：清醒模式要的是“看清自己的记录”，
+/// 让另一个人（模型）来评价你，只会把评价权又交出去一次。
+class AnalysisPage extends ConsumerStatefulWidget {
   const AnalysisPage({super.key});
 
-  static const _PresetAnalysis _preset = _PresetAnalysis(
-    imageDescription:
-        '画面为中景天空，云层呈絮状分布，左侧偏暖色、右侧偏冷色；光来自画面右下方，属于逆光，主体无遮挡。画面内没有人物或建筑。',
-    emotionAnalysis: '文案为平淡陈述，含不确定语气（"好像有点"），情绪强度低，偏中性；没有明显的求助或负面表达。',
-    logicAnalysis: '陈述句 + 主观评价结构完整，未发现逻辑跳跃。',
-    factCheck: '"路上""天边"为个人经历描述，无法也无需外部核查。',
-    suggestions: '如果想要更准确的记录，可以补上拍摄时间与地点；若希望练习表达，可尝试用三个具体名词替代表容词。',
-  );
+  @override
+  ConsumerState<AnalysisPage> createState() => _AnalysisPageState();
+}
+
+class _AnalysisPageState extends ConsumerState<AnalysisPage> {
+  bool _generating = false;
+  bool _speaking = false;
+
+  Future<void> _generate() async {
+    if (_generating) return;
+    setState(() => _generating = true);
+    try {
+      final insight = await ref
+          .read(clearInsightServiceProvider)
+          .generate();
+      if (!mounted) return;
+      if (insight == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('这 7 天还没有可分析的记录。先写下一条，或做一件真实的小事。')),
+        );
+        return;
+      }
+
+      // 生成完成后发一条系统通知；点开直达这一页。
+      // 复用现有通知通道，不新开一套。
+      unawaited(
+        ref
+            .read(systemNotificationProvider)
+            .show(
+              key: 'clear_insight',
+              title: '清醒分析已生成',
+              body: insight.summary,
+            ),
+      );
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _speak(ClearInsight insight) async {
+    final playback = ref.read(voicePlaybackProvider.notifier);
+    if (ref.read(voicePlaybackProvider).playing) {
+      await playback.stop();
+      return;
+    }
+    if (_speaking) return;
+    setState(() => _speaking = true);
+    try {
+      final clip = await ref
+          .read(ttsServiceProvider)
+          .speak(text: insight.toSpeechText(), personaId: 'clear_analysis');
+      if (!mounted) return;
+      if (clip == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('这台设备暂时合成不了语音，文字版就在上面。')),
+        );
+        return;
+      }
+      await ref.read(voicePlaybackProvider.notifier).toggle(clip.ref);
+    } finally {
+      if (mounted) setState(() => _speaking = false);
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
+    final async = ref.watch(latestClearInsightProvider);
+    final playing = ref.watch(voicePlaybackProvider).playing;
 
     return Container(
       color: ClearColors.bg,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           Text(
             '客观分析',
@@ -38,59 +109,59 @@ class AnalysisPage extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '系统只描述它看到的东西，不评价你。',
+            '只根据你本机的记录算，不评价你。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: ClearColors.textMuted),
           ),
           const SizedBox(height: 16),
-          if (mode.isEcho) const _NeedClearMode(),
-          if (mode.isClear) ...[
-            const _AnalyzedPostPreview(),
-            const SizedBox(height: 16),
-            _AnalysisSection(
-              index: 1,
-              title: '图片客观描述',
-              icon: Icons.image_outlined,
-              content: _preset.imageDescription,
+          if (mode.isEcho)
+            const _NeedClearMode()
+          else ...[
+            async.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (error, _) => _ErrorCard(message: '$error'),
+              data: (insight) => insight == null
+                  ? _EmptyInsight(onGenerate: _generate, busy: _generating)
+                  : _InsightView(
+                      insight: insight,
+                      generating: _generating,
+                      speaking: _speaking,
+                      playing: playing,
+                      onGenerate: _generate,
+                      onSpeak: () => _speak(insight),
+                    ),
             ),
-            _AnalysisSection(
-              index: 2,
-              title: '文本情绪分析',
-              icon: Icons.mood_outlined,
-              content: _preset.emotionAnalysis,
+            const SizedBox(height: 14),
+            _EntryCard(
+              icon: Icons.compare_arrows,
+              title: '数字关系',
+              subtitle: '线上投入与线下做过的事，并排看',
+              onTap: () => context.push(RoutePaths.reflection),
             ),
-            _AnalysisSection(
-              index: 3,
-              title: '逻辑结构分析',
-              icon: Icons.account_tree_outlined,
-              content: _preset.logicAnalysis,
+            const SizedBox(height: 10),
+            _EntryCard(
+              icon: Icons.photo_library_outlined,
+              title: '真实生活相册',
+              subtitle: '只收你自己选的、真实拍下的照片',
+              onTap: () => context.push(RoutePaths.album),
             ),
-            _AnalysisSection(
-              index: 4,
-              title: '事实核查提示',
-              icon: Icons.fact_check_outlined,
-              content: _preset.factCheck,
-            ),
-            _AnalysisSection(
-              index: 5,
-              title: '改进建议',
-              icon: Icons.lightbulb_outline,
-              content: _preset.suggestions,
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
                 color: ClearColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ClearColors.divider),
               ),
               child: Text(
-                '阶段 A 展示的是预置分析结果；接入你自己的模型后，这里会由真实 API 生成。',
+                '本页数据来自本机真实记录，不含 AI 模拟反馈。\n'
+                '分析不调用模型，也不会上传任何内容。',
                 style: TextStyle(
                   color: ClearColors.textMuted,
                   fontSize: 11.5,
-                  height: 1.6,
+                  height: 1.7,
                 ),
               ),
             ),
@@ -109,92 +180,104 @@ class AnalysisPage extends ConsumerWidget {
   }
 }
 
-class _NeedClearMode extends StatelessWidget {
-  const _NeedClearMode();
+class _InsightView extends StatelessWidget {
+  const _InsightView({
+    required this.insight,
+    required this.generating,
+    required this.speaking,
+    required this.playing,
+    required this.onGenerate,
+    required this.onSpeak,
+  });
+
+  final ClearInsight insight;
+  final bool generating;
+  final bool speaking;
+  final bool playing;
+  final Future<void> Function() onGenerate;
+  final VoidCallback onSpeak;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: EchoColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EchoColors.divider),
-      ),
-      child: Text(
-        '客观分析属于清醒模式。\n切到清醒模式后，AI 互动会停止，这里只留下对内容的描述与分析。',
-        style: TextStyle(
-          color: EchoColors.textMuted,
-          height: 1.7,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-}
-
-class _AnalyzedPostPreview extends StatelessWidget {
-  const _AnalyzedPostPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ClearColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ClearColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '被分析的内容',
-            style: TextStyle(
-              color: ClearColors.textFaint,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: ClearColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ClearColors.divider),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '今天下班路上随手拍的天空，好像有点好看。',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: ClearColors.text),
-          ),
-          const SizedBox(height: 8),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.visibility_off_outlined,
-                size: 13,
-                color: ClearColors.textFaint,
+              Row(
+                children: [
+                  Icon(Icons.summarize_outlined, size: 16, color: ClearColors.primary),
+                  const SizedBox(width: 7),
+                  Text(
+                    '这 ${ClearInsightService.days} 天',
+                    style: TextStyle(
+                      color: ClearColors.text,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    RelativeTime.format(insight.generatedAt),
+                    style: TextStyle(color: ClearColors.textFaint, fontSize: 10.5),
+                  ),
+                ],
               ),
-              SizedBox(width: 5),
+              const SizedBox(height: 9),
               Text(
-                '点赞数与评论数已隐藏',
-                style: TextStyle(color: ClearColors.textFaint, fontSize: 11),
+                insight.summary,
+                style: TextStyle(
+                  color: ClearColors.text,
+                  fontSize: 14,
+                  height: 1.7,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: generating ? null : onGenerate,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: Text(generating ? '生成中…' : '重新生成'),
+                  ),
+                  const SizedBox(width: 6),
+                  TextButton.icon(
+                    onPressed: onSpeak,
+                    icon: Icon(
+                      playing ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
+                      size: 17,
+                    ),
+                    label: Text(
+                      speaking
+                          ? '合成中…'
+                          : (playing ? '停止朗读' : '朗读结论'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        for (final metric in insight.metrics) _MetricCard(metric: metric),
+      ],
     );
   }
 }
 
-class _AnalysisSection extends StatelessWidget {
-  const _AnalysisSection({
-    required this.index,
-    required this.title,
-    required this.icon,
-    required this.content,
-  });
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.metric});
 
-  final int index;
-  final String title;
-  final IconData icon;
-  final String content;
+  final ClearInsightMetric metric;
 
   @override
   Widget build(BuildContext context) {
@@ -209,33 +292,83 @@ class _AnalysisSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: ClearColors.primary),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: ClearColors.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$index',
-                style: TextStyle(
-                  color: ClearColors.divider,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
           Text(
-            content,
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: ClearColors.textMuted),
+            metric.label,
+            style: TextStyle(
+              color: ClearColors.textFaint,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            metric.value,
+            style: TextStyle(
+              color: ClearColors.text,
+              fontSize: 14.5,
+              height: 1.6,
+            ),
+          ),
+          if (metric.detail.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              metric.detail,
+              style: TextStyle(
+                color: ClearColors.textFaint,
+                fontSize: 11,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyInsight extends StatelessWidget {
+  const _EmptyInsight({required this.onGenerate, required this.busy});
+
+  final Future<void> Function() onGenerate;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: ClearColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ClearColors.divider),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.insights_outlined,
+            size: 26,
+            color: ClearColors.textFaint,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '还没有生成过分析。',
+            style: TextStyle(color: ClearColors.text, fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '先写下一条记录，或者做一件真实的小事，再回来生成。\n'
+            '这里不会用预置样例凑出一份“看起来像分析”的东西。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: ClearColors.textMuted,
+              fontSize: 12,
+              height: 1.7,
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton(
+            onPressed: busy ? null : onGenerate,
+            child: Text(busy ? '生成中…' : '生成本机分析'),
           ),
         ],
       ),
@@ -243,18 +376,108 @@ class _AnalysisSection extends StatelessWidget {
   }
 }
 
-class _PresetAnalysis {
-  const _PresetAnalysis({
-    required this.imageDescription,
-    required this.emotionAnalysis,
-    required this.logicAnalysis,
-    required this.factCheck,
-    required this.suggestions,
+class _EntryCard extends StatelessWidget {
+  const _EntryCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
   });
 
-  final String imageDescription;
-  final String emotionAnalysis;
-  final String logicAnalysis;
-  final String factCheck;
-  final String suggestions;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: ClearColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ClearColors.divider),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: ClearColors.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: ClearColors.text,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: ClearColors.textMuted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: ClearColors.textFaint, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NeedClearMode extends StatelessWidget {
+  const _NeedClearMode();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: EchoColors.divider),
+      ),
+      child: Text(
+        '客观分析属于清醒模式。\n切到清醒模式后，AI 互动会停止，这里只留下对你本机记录的统计。',
+        style: TextStyle(
+          color: EchoColors.textMuted,
+          height: 1.7,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ClearColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ClearColors.divider),
+      ),
+      child: Text(
+        '这次没读出来：$message',
+        style: TextStyle(color: ClearColors.textMuted, fontSize: 12.5),
+      ),
+    );
+  }
 }

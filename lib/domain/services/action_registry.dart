@@ -54,13 +54,6 @@ class ActionRegistry {
   final PostRepository posts;
   final StickerRepository stickers;
 
-  /// 每个固定住民每天最多主动发几条私信、几条动态。
-  ///
-  /// 私信一次唤醒可以分几段发（真人也是一句一句敲），所以上限从 3 提到 12；
-  /// 一次唤醒内部的段数由 `ResidentWakeService.maxDmSegments` 另管。
-  static const int dailyDmLimit = 12;
-  static const int dailyPostLimit = 1;
-
   /// 统一执行。任何异常都变成"动作失败"，不让它冒到心跳外面。
   Future<ActionOutcome> run({
     required String actorId,
@@ -144,9 +137,6 @@ class ActionRegistry {
         final text = content.trim();
         if (text.isEmpty) {
           return const ActionOutcome(ok: false, message: '消息是空的');
-        }
-        if (await _todayCount(residentId, 'send_dm') >= dailyDmLimit) {
-          return const ActionOutcome(ok: false, message: '今天的私信额度用完了');
         }
         await messages.scheduleIncoming(
           personaId: residentId,
@@ -319,9 +309,6 @@ class ActionRegistry {
         if (text.isEmpty) {
           return const ActionOutcome(ok: false, message: '动态是空的');
         }
-        if (await _todayCount(residentId, 'create_post') >= dailyPostLimit) {
-          return const ActionOutcome(ok: false, message: '今天已经发过一条了');
-        }
         final postId = await posts.createResidentPost(
           residentId: residentId,
           content: text,
@@ -430,21 +417,6 @@ class ActionRegistry {
         return const ActionOutcome(ok: true, message: '记住了');
       },
     );
-  }
-
-  Future<int> _todayCount(String actorId, String action) async {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
-    final count = db.actionLogs.id.count();
-    final query = db.selectOnly(db.actionLogs)
-      ..addColumns([count])
-      ..where(
-        db.actionLogs.actorId.equals(actorId) &
-            db.actionLogs.action.equals(action) &
-            db.actionLogs.createdAt.isBiggerOrEqualValue(start),
-      );
-    final row = await query.getSingle();
-    return row.read(count) ?? 0;
   }
 
   static Map<String, dynamic> _memoryJson(ResidentMemory memory) => {

@@ -7,6 +7,7 @@ import '../../core/constants/app_texts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/app_session.dart';
 import '../../data/repositories/addiction_repository.dart';
+import '../../data/repositories/usage_repository.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/safety_controller.dart';
 import '../shared_widgets/mode_switch_flow.dart';
@@ -55,6 +56,7 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
           _Group(
             title: '使用情况',
             children: [
+              const _TodayRow(),
               const _SessionRow(),
               _InfoRow(
                 icon: Icons.refresh,
@@ -89,6 +91,22 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
                     .read(safetyControllerProvider.notifier)
                     .setFeedbackViewThreshold(value),
               ),
+              _SwitchRow(
+                icon: Icons.timelapse,
+                title: '清醒模式每日上限',
+                subtitle: '到点提醒一次，不锁屏、不强制退出。',
+                value: safety.dailyLimitEnabled,
+                onChanged: (on) => ref
+                    .read(safetyControllerProvider.notifier)
+                    .setDailyLimitMinutes(on ? 60 : 0),
+              ),
+              if (safety.dailyLimitEnabled)
+                _LimitRow(
+                  value: safety.dailyLimitMinutes,
+                  onChanged: (value) => ref
+                      .read(safetyControllerProvider.notifier)
+                      .setDailyLimitMinutes(value),
+                ),
             ],
           ),
           _Group(
@@ -147,6 +165,119 @@ class _SafetyPageState extends ConsumerState<SafetyPage> {
             child: Text('知道了', style: TextStyle(color: ClearColors.accent)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 今天累计用了多久（来自落库的前台会话，跨重启也在）。
+class _TodayRow extends ConsumerStatefulWidget {
+  const _TodayRow();
+
+  @override
+  ConsumerState<_TodayRow> createState() => _TodayRowState();
+}
+
+class _TodayRowState extends ConsumerState<_TodayRow> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => ref.invalidate(todayUsageMinutesProvider),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = ref.watch(todayUsageMinutesProvider).value;
+    return _InfoRow(
+      icon: Icons.today_outlined,
+      title: '今天累计使用',
+      value: minutes == null
+          ? '—'
+          : (minutes < 1 ? '不到 1 分钟' : '$minutes 分钟'),
+      subtitle: 'APP 每次退出时记一笔，关掉再打开也累计。',
+    );
+  }
+}
+
+/// 每日上限的分钟数选择。
+class _LimitRow extends StatelessWidget {
+  const _LimitRow({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  static const List<int> _options = [30, 60, 90, 120, 180, 240, 360];
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showModalBottomSheet<int>(
+          context: context,
+          backgroundColor: ClearColors.surface,
+          builder: (sheetContext) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Text(
+                  '每天最多用多久',
+                  style: TextStyle(color: ClearColors.text, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                for (final minutes in _options)
+                  ListTile(
+                    dense: true,
+                    title: Text(
+                      minutes < 60 ? '$minutes 分钟' : '${minutes ~/ 60} 小时',
+                      style: TextStyle(color: ClearColors.text, fontSize: 14),
+                    ),
+                    trailing: minutes == value
+                        ? Icon(Icons.check, size: 18, color: ClearColors.primary)
+                        : null,
+                    onTap: () => Navigator.of(sheetContext).pop(minutes),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+        child: Row(
+          children: [
+            Icon(Icons.timer_outlined, size: 19, color: ClearColors.textMuted),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '上限',
+                style: TextStyle(color: ClearColors.text, fontSize: 13),
+              ),
+            ),
+            Text(
+              value < 60 ? '$value 分钟' : '${value ~/ 60} 小时',
+              style: TextStyle(
+                color: ClearColors.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: ClearColors.textFaint),
+          ],
+        ),
       ),
     );
   }

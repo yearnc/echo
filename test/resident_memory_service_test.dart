@@ -66,6 +66,30 @@ void main() {
     expect(list.single.tags, containsAll(['生活', '晚霞']));
   });
 
+  test('带图的帖子会把图片摘要一起记住', () async {
+    final postId = await posts.create(content: '今天的天空', scope: 'echo');
+    await posts.attachImages(postId, ['file:/tmp/sky.jpg']);
+    final post = (await posts.findById(postId))!;
+
+    await service.rememberPost(
+      residentId: 'r1',
+      post: post,
+      understanding: PostUnderstanding(
+        postId: postId,
+        tone: '分享',
+        domain: '生活',
+        point: '拍了天空',
+        imageSummary: '一片橘色晚霞，云层很薄',
+        confidence: 0.8,
+        updatedAt: DateTime(2026, 10, 24),
+      ),
+    );
+
+    final list = await memories.recent('r1');
+    expect(list.single.summary, contains('带图'));
+    expect(list.single.content, contains('橘色晚霞'));
+  });
+
   test('记忆关掉的住民不写', () async {
     await residents.upsert(
       CustomResident(
