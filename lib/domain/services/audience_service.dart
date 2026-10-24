@@ -25,6 +25,7 @@ import 'post_analyzer.dart';
 import 'post_voice_generator.dart';
 import 'relationship_rules.dart';
 import 'resident_memory_service.dart';
+import 'voice_name_generator.dart';
 
 /// 发帖之后，给这一帖凑一桌人（v3.0）。
 ///
@@ -49,8 +50,10 @@ class AudienceService {
     this.contentGenerator,
     this.residentMemory,
     this.readSendImagesDirectly,
+    VoiceNameGenerator? nameGenerator,
     Random? random,
-  }) : _random = random ?? Random();
+  }) : _random = random ?? Random(),
+       _nameGenerator = nameGenerator ?? VoiceNameGenerator(random: random);
 
   final PostRepository posts;
   final PostVoiceRepository voices;
@@ -95,6 +98,9 @@ class AudienceService {
   DateTime? _lastFailureNoticeAt;
 
   final Random _random;
+
+  /// 网名由本地词库分配，不再用模型起的名。
+  final VoiceNameGenerator _nameGenerator;
 
   /// 排期窗口与旧规划一致：0—48 小时摊开。
   static const Duration window = Duration(hours: 48);
@@ -332,39 +338,53 @@ class AudienceService {
         return 0;
       }
 
-      final fresh = drafts
-          .where((draft) => !takenNames.contains(draft.name))
-          .toList(growable: false);
-      if (fresh.isEmpty) return 0;
+      // 不再按模型给的名字过滤：那个名字只是占位，最终用哪个由下面决定。
+      final generated = drafts.toList(growable: false);
+      if (generated.isEmpty) return 0;
+
+      // 名字不用模型起的：模型起名会围着帖子内容打转，几批下来高度同质。
+      // 本地词库负责“这个人叫什么”，模型只负责“他说什么”。
+      final avoidNames = <String>{
+        ...takenNames,
+        for (final voice in existing) voice.name,
+      };
+      final fresh = <PostVoiceDraft>[];
+      for (final draft in generated) {
+        final name = _nameGenerator.next(avoid: avoidNames);
+        avoidNames.add(name);
+        fresh.add(
+          PostVoiceDraft(
+            name: name,
+            status: draft.status,
+            action: draft.action,
+            comment: draft.comment,
+            stickerId: draft.stickerId,
+            stickerRef: draft.stickerRef,
+          ),
+        );
+      }
+
       final built = <PostVoice>[];
-      final usedAvatars = <int>{};
       final usedPaths = <String>{};
       for (final voice in existing) {
-        final index = _avatarIndexOf(voice.avatarAsset);
-        if (index != null) usedAvatars.add(index);
         if (voice.avatarAsset.isNotEmpty) usedPaths.add(voice.avatarAsset);
       }
-      final userAvatarPool = <String>[
+
+      // 用户导入的头像和内置素材**一起**参与挑选：只用自己的图会让
+      // 一帖里翻来覆去就那几张，内置素材也不该因此“不能用”。
+      final avatarPool = <String>[
         for (final avatar
             in await customAvatars?.all() ?? const <CustomAvatar>[])
           avatar.path,
+        for (var index = 0; index < PostVoiceRepository.avatarCount; index++)
+          'asset:assets/avatars/avatar_'
+              '${(index + 1).toString().padLeft(3, '0')}.webp',
       ];
 
       for (var i = 0; i < fresh.length; i++) {
         final draft = fresh[i];
         final seed = (now.microsecondsSinceEpoch + i * 7919) % 100000;
-        final String avatar;
-        if (userAvatarPool.isNotEmpty) {
-          // 用户传了头像就先用他的，同一帖里尽量不重复。
-          avatar = _pickFromPool(userAvatarPool, seed, usedPaths);
-        } else {
-          avatar = PostVoiceRepository.avatarFor(
-            seed: seed,
-            used: usedAvatars,
-          );
-          final avatarIndex = _avatarIndexOf(avatar);
-          if (avatarIndex != null) usedAvatars.add(avatarIndex);
-        }
+        final avatar = _pickFromPool(avatarPool, seed, usedPaths);
         usedPaths.add(avatar);
 
         built.add(
@@ -657,14 +677,6 @@ class AudienceService {
       if (!used.contains(candidate)) return candidate;
     }
     return pool[start];
-  }
-
-  static int? _avatarIndexOf(String asset) {
-    if (asset.isEmpty) return null;
-    final name = asset.split('avatar_').last.replaceAll('.webp', '');
-    final index = int.tryParse(name);
-    if (index == null) return null;
-    return index - 1;
   }
 
   /// 这一批人陆续"刷到"的时间。

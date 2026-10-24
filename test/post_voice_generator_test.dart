@@ -24,7 +24,7 @@ void main() {
       expect(drafts[1].comment, isEmpty);
     });
 
-    test('名字太短、太长、重名的都丢掉', () {
+    test('名字只是占位：太短或重复都不会丢人', () {
       final drafts = ModelPostVoiceGenerator.parseDrafts(
         '''
         [
@@ -38,8 +38,11 @@ void main() {
         allowLurk: true,
       );
 
-      expect(drafts, hasLength(1));
-      expect(drafts.single.name, '大肥鱼');
+      // 真正的网名由 AudienceService 统一分配，这里只看条目有没有被留下。
+      expect(drafts, hasLength(4));
+      expect(drafts[0].name, '网友1');
+      expect(drafts[2].name, '大肥鱼');
+      expect(drafts[3].name, '大肥鱼');
     });
 
     test('不允许只读时，view 直接丢掉', () {

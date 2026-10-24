@@ -161,21 +161,20 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
   /// 系统提示词：只放**不变**的规则（后续 C2 会把它放进共享前缀）。
   static String systemPrompt({required bool allowLurk}) {
     final buffer = StringBuffer()
-      ..writeln('你是「回响」里刷到这条帖子的一群普通人。请为这次围观起网名，')
-      ..writeln('并决定每个人做什么。不是社区工作人员，也不是来开导谁的。')
+      ..writeln('你是「回响」里刷到这条帖子的一群普通人。请为每个人决定做什么，')
+      ..writeln('不是社区工作人员，也不是来开导谁的。')
+      ..writeln()
+      ..writeln('（name 字段只是占位，真正的网名由系统统一分配；不用在这上面花心思。）')
       ..writeln()
       ..writeln('规则：')
-      ..writeln('- 网名 2—6 个字，是**意象型**的昵称：一个名词、一个画面、一个私人的小东西')
-      ..writeln('  正例：半盏茶、第七码头、旧磁带、雨天不打伞、北窗、橘子汽水、未寄出的信')
-      ..writeln('  反例（不要这样）：公交站蹲会儿、下课铃没响、被窝拉锯战、今天很累、看帖不说话')
-      ..writeln('- 网名**与帖子内容无关**：不要描述此刻在做什么，不要摘抄帖子里的物件或动作')
-      ..writeln('- 每次起新的网名，不要重复固定住民或最近出现过的名字')
-      ..writeln('- 不要火星文、冒犯词；几个人之间不能重名')
+      ..writeln('- name 随便填一个 2—6 字的占位名即可，系统会覆盖它')
+      ..writeln('- 不要火星文、冒犯词')
       ..writeln('- 每人一句「此刻的状态」，10—20 字：刚下班、在等车、睡不着、吃完在阳台站着')
       ..writeln('- 动作三选一：view（只看看）/ like（只点赞）/ like_comment（点赞并评论）')
       ..writeln('- 动作大致比例：只读最多四分之一，至少一半的人要点赞或评论')
       ..writeln('- 评论 10—40 字，**必须接住帖子里的具体东西**（物件、动作、情绪、梗）')
-      ..writeln('- 可以顺手带一张表情包（sticker_id），但只在真的合适时；没有合适的就留空')
+      ..writeln('- 可以顺手带一张表情包（sticker_id）：既可以配一句话，也可以只发图；')
+      ..writeln('  只在真的合适时用，没有合适的就留空')
       ..writeln('- 评论可以从这些角度挑：共鸣 / 吐槽 / 好奇提问 / 玩梗 / 说自己也这样 / 一句短评')
       ..writeln('- 如果给了「这条帖子已经看懂了」，顺着它写：玩梗就接梗，感伤就接情绪，游戏/行业用圈内角度')
       ..writeln('- 理解不确定时，宁可提问或围观，不要装懂')
@@ -311,11 +310,16 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     var lurkCount = 0;
 
     for (final item in _parseItems(raw, max)) {
-      final name = _string(item['name']);
-      if (name == null || name.runes.length < 2 || name.runes.length > 6) {
-        continue;
-      }
-      if (!names.add(name)) continue;
+      // 名字只是占位：真正的网名由 AudienceService 用本地词库统一分配。
+      // 这里不再因为“名字太短/重复”丢掉一整条——那样会白白少一个网民。
+      final rawName = _string(item['name']);
+      final name =
+          (rawName == null ||
+              rawName.runes.length < 2 ||
+              rawName.runes.length > 8)
+          ? '网友${drafts.length + 1}'
+          : rawName;
+      names.add(name);
 
       var action = VoiceAction.fromKey(_string(item['action']));
       if (action == null) continue;
@@ -343,7 +347,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
         if (commentInvalid) comment = '';
         if (comment.isEmpty && sticker == null) {
           // 既没有能用的评论、也没有合适的表情，就退化成只点赞；
-          // 不拿别的句子顶上。
+          // 不拿别的句子顶上。纯表情评论是允许的——那是真实评论区常见的样子。
           action = VoiceAction.like;
         }
       } else {
