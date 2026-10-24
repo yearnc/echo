@@ -81,3 +81,9 @@ GoogleService-Info.plist
 
 # 临时放模型压缩包、验证脚本的地方（不属于项目内容）
 /.models-tmp/
+
+# 平台构建缓存（Flutter 模板的精简 .gitignore 没带这几条）
+/android/.gradle/
+/android/.kotlin/
+**/windows/flutter/ephemeral/
+**/ios/Flutter/ephemeral/
