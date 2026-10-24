@@ -21,9 +21,11 @@ import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/like_button.dart';
+import '../shared_widgets/post_delete.dart';
 import '../shared_widgets/post_image_grid.dart';
 import '../shared_widgets/sticker_picker_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -60,6 +62,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   /// 评论区先取最近 20 条，点“加载更多”每次多 20 条。
   int _commentLimit = 20;
+
+  /// 上一帧已经拿到的评论。换分页 key 时先顶着，避免列表瞬间清空。
+  List<PostComment> _cachedComments = const [];
 
   /// 评论排序：规划书定的默认是「最新」，用户可以自己切「热度」。
   _CommentOrder _order = _CommentOrder.latest;
@@ -206,16 +211,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
     final postAsync = ref.watch(postByIdProvider(widget.postId));
-    final comments =
-        ref
-            .watch(
-              pagedCommentsProvider((
-                postId: widget.postId,
-                limit: _commentLimit,
-              )),
-            )
-            .value ??
-        const <PostComment>[];
+    final commentsAsync = ref.watch(
+      pagedCommentsProvider((postId: widget.postId, limit: _commentLimit)),
+    );
+    // “加载更多评论”会换一个 provider key，新流首帧还没有值。保留上一帧
+    // 的列表，等新数据回来再换，列表高度就不会瞬间缩成 0、把页面弹回顶部。
+    if (commentsAsync.hasValue) {
+      _cachedComments = commentsAsync.value ?? const <PostComment>[];
+    }
+    final comments = _cachedComments;
     final voiceList =
         ref.watch(postVoicesProvider(widget.postId)).value ??
         const <PostVoice>[];
@@ -250,9 +254,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 )
               : Column(
                   children: [
-                    _TopBar(topicName: post.topicName),
+                    _TopBar(post: post),
                     Expanded(
                       child: ListView(
+                        key: const PageStorageKey('post_detail_list'),
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         children: [
                           _PostBody(post: post),
@@ -351,20 +356,69 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     if (picked != null) await _sendSticker(picked);
   }
 
+  /// 评论发出后该叫醒谁——文字和图共用这一份，别写成两套。
+  ///
+  /// 表情包以前走单独的 `_sendSticker`，发完就结束了，所以住民永远不会
+  /// 接表情包评论。现在统一走这里。
+  void _kickReplies({required String commentId, required String myReply}) {
+    unawaited(_notifyResident(commentId, myReply));
+  }
+
+  /// 叫醒该被叫醒的人。
+  ///
+  /// 固定住民走**唤醒**：醒来后看到的是整屏待办，回不回、在评论里回还是
+  /// 转去私信，由他自己决定。临时网民没有收件箱，仍然走原来的一问一答。
+  Future<void> _notifyResident(String commentId, String myReply) async {
+    final wake = ref.read(residentWakeServiceProvider);
+    final target = widget.replyTarget;
+
+    if (target != null) {
+      final voice = await ref
+          .read(postVoiceRepositoryProvider)
+          .findById(target.personaId ?? '');
+      final residentId = voice?.residentId;
+      if (residentId != null) {
+        await wake.wake(residentId, trigger: WakeTrigger.userAction);
+        return;
+      }
+      await ref
+          .read(commentReplyServiceProvider)
+          .maybeFollowUp(
+            postId: widget.postId,
+            parent: target,
+            myReply: myReply,
+          );
+      return;
+    }
+
+    final authorId = widget.post.authorResidentId ?? '';
+    if (authorId.isNotEmpty) {
+      await wake.wake(authorId, trigger: WakeTrigger.userAction);
+    }
+  }
+
   Future<void> _sendSticker(StickerItem sticker) async {
     if (_sending) return;
     setState(() => _sending = true);
     try {
-      await ref
+      // 图可以配一句话：表情包是内容，输入框里的话是“顺便说一句”。
+      final caption = _ctrl.text.trim();
+      final commentId = await ref
           .read(interactionRepositoryProvider)
           .addMyComment(
             postId: widget.postId,
             content: sticker.path,
+            caption: caption,
             mediaType: 'image',
             parentId: widget.replyToId,
             replyToName: widget.replyToName,
           );
+      _kickReplies(
+        commentId: commentId,
+        myReply: caption.isEmpty ? '[发了一个表情包]' : caption,
+      );
       if (!mounted) return;
+      _ctrl.clear();
       widget.onDone?.call();
       setState(() => _sending = false);
       FocusScope.of(context).unfocus();
@@ -394,34 +448,7 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
 
       // 接住你那句话（B7）：排一句追问，他过几分钟回来。
       // 不 await——它是"他那边的事"，跟你这句话发出去没有关系。
-      final target = widget.replyTarget;
-      if (target != null) {
-        unawaited(
-          ref
-              .read(commentReplyServiceProvider)
-              .maybeFollowUp(
-                postId: widget.postId,
-                parent: target,
-                myReply: text,
-              ),
-        );
-      } else {
-        // 直接在固定住民的帖子下面评论：楼主本人也接一句。
-        final authorId = widget.post.authorResidentId ?? '';
-        if (authorId.isNotEmpty) {
-          unawaited(
-            ref
-                .read(commentReplyServiceProvider)
-                .maybeAuthorReply(
-                  postId: widget.postId,
-                  residentId: authorId,
-                  postContent: widget.post.content,
-                  myCommentId: commentId,
-                  myReply: text,
-                ),
-          );
-        }
-      }
+      _kickReplies(commentId: commentId, myReply: text);
       if (!mounted) return;
       _ctrl.clear();
       widget.onDone?.call();
@@ -559,15 +586,18 @@ class _NoCommentsYet extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
-  const _TopBar({this.topicName});
+class _TopBar extends ConsumerWidget {
+  const _TopBar({required this.post});
 
-  final String? topicName;
+  final Post post;
+
+  bool get _isMine =>
+      post.authorPersonaId == null && post.authorResidentId == null;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(4, 6, 16, 6),
+      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: EchoColors.divider)),
       ),
@@ -579,13 +609,28 @@ class _TopBar extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              topicName ?? '帖子',
+              post.topicName ?? '帖子',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: EchoColors.text,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
+          if (_isMine)
+            IconButton(
+              tooltip: '删除帖子',
+              onPressed: () async {
+                final deleted = await confirmDeletePost(context, ref, post);
+                if (deleted && context.mounted) {
+                  Navigator.of(context).maybePop();
+                }
+              },
+              icon: Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: EchoColors.textMuted,
+              ),
+            ),
         ],
       ),
     );

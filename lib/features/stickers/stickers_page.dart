@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/media/media_service.dart';
+import '../../data/repositories/custom_avatar_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/sticker.dart';
+import '../shared_widgets/user_avatar.dart';
 
 /// 表情包管理页（规划书 §11）。
 ///
@@ -41,6 +44,8 @@ class StickersPage extends ConsumerWidget {
         data: (library) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
+            const _AudienceAvatars(),
+            const SizedBox(height: 18),
             _ImportCard(onImport: () => _import(context, ref)),
             if (library.stickers.any((item) => item.tags.isEmpty)) ...[
               const SizedBox(height: 12),
@@ -179,6 +184,144 @@ class StickersPage extends ConsumerWidget {
     );
     if (confirmed != true) return;
     await ref.read(stickerRepositoryProvider).deleteUserSticker(item.id);
+  }
+}
+
+/// 网友头像池：临时网民从这里挑头像。
+///
+/// 这里改的是“别人长什么样”，不是用户自己的头像（那个在「我的 → 编辑资料」）。
+/// 池子空着时回落到内置的 32 张素材。
+class _AudienceAvatars extends ConsumerWidget {
+  const _AudienceAvatars();
+
+  Future<void> _import(BuildContext context, WidgetRef ref) async {
+    final picked = await ref.read(mediaServiceProvider).pickFromGallery();
+    if (picked == null || !context.mounted) return;
+    await ref.read(customAvatarRepositoryProvider).add(picked);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已加入网友头像')));
+  }
+
+  Future<void> _remove(
+    BuildContext context,
+    WidgetRef ref,
+    CustomAvatar avatar,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: ClearColors.surface,
+        title: Text(
+          '移除这张头像？',
+          style: TextStyle(color: ClearColors.text, fontSize: 15),
+        ),
+        content: Text(
+          '以后新来的网友不再用它；已经发出去的帖子不受影响。',
+          style: TextStyle(
+            color: ClearColors.textMuted,
+            fontSize: 13,
+            height: 1.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('移除', style: TextStyle(color: ClearColors.like)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(customAvatarRepositoryProvider).remove(avatar.id);
+    await ref.read(mediaServiceProvider).deleteByRef(avatar.path);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final avatars = ref.watch(customAvatarsProvider).value ?? const [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '网友头像',
+                    style: TextStyle(
+                      color: ClearColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '临时网友会从这些图里挑头像；空着就用内置素材。',
+                    style: TextStyle(
+                      color: ClearColors.textFaint,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => _import(context, ref),
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 17),
+              label: const Text('导入'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (avatars.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            decoration: BoxDecoration(
+              color: ClearColors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '还没有自己的网友头像',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ClearColors.textFaint, fontSize: 12),
+            ),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final avatar in avatars)
+                GestureDetector(
+                  onLongPress: () => _remove(context, ref, avatar),
+                  child: UserAvatar(
+                    name: '网友',
+                    avatarRef: avatar.path,
+                    size: 54,
+                  ),
+                ),
+            ],
+          ),
+        if (avatars.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '长按可以移除。',
+              style: TextStyle(color: ClearColors.textFaint, fontSize: 10.5),
+            ),
+          ),
+      ],
+    );
   }
 }
 

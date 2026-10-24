@@ -16,7 +16,6 @@ import 'model_gateway.dart';
 enum VoiceAction {
   view('view'),
   like('like'),
-  comment('comment'),
   likeComment('like_comment');
 
   const VoiceAction(this.key);
@@ -25,15 +24,15 @@ enum VoiceAction {
   static VoiceAction? fromKey(String? raw) => switch (raw) {
     'view' => VoiceAction.view,
     'like' => VoiceAction.like,
-    'comment' => VoiceAction.comment,
-    'like_comment' => VoiceAction.likeComment,
+    // 旧提示词还会偶尔吐出只想评论不点赞的条目；说话的人顺手点个赞是常态，
+    // 这里直接归一到“点赞并评论”，不再留一个不点赞的旁路。
+    'comment' || 'like_comment' => VoiceAction.likeComment,
     _ => null,
   };
 
   bool get wantsLike =>
       this == VoiceAction.like || this == VoiceAction.likeComment;
-  bool get wantsComment =>
-      this == VoiceAction.comment || this == VoiceAction.likeComment;
+  bool get wantsComment => this == VoiceAction.likeComment;
 }
 
 /// 模型给这一帖想出来的一位网民。
@@ -166,11 +165,14 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       ..writeln('并决定每个人做什么。不是社区工作人员，也不是来开导谁的。')
       ..writeln()
       ..writeln('规则：')
-      ..writeln('- 网名 2—6 个字，像真人网名：具体、有画面感，不要符号堆砌')
+      ..writeln('- 网名 2—6 个字，是**意象型**的昵称：一个名词、一个画面、一个私人的小东西')
+      ..writeln('  正例：半盏茶、第七码头、旧磁带、雨天不打伞、北窗、橘子汽水、未寄出的信')
+      ..writeln('  反例（不要这样）：公交站蹲会儿、下课铃没响、被窝拉锯战、今天很累、看帖不说话')
+      ..writeln('- 网名**与帖子内容无关**：不要描述此刻在做什么，不要摘抄帖子里的物件或动作')
       ..writeln('- 每次起新的网名，不要重复固定住民或最近出现过的名字')
       ..writeln('- 不要火星文、冒犯词；几个人之间不能重名')
       ..writeln('- 每人一句「此刻的状态」，10—20 字：刚下班、在等车、睡不着、吃完在阳台站着')
-      ..writeln('- 动作四选一：view（只看看）/ like（只点赞）/ comment（只评论）/ like_comment（点赞并评论）')
+      ..writeln('- 动作三选一：view（只看看）/ like（只点赞）/ like_comment（点赞并评论）')
       ..writeln('- 动作大致比例：只读最多四分之一，至少一半的人要点赞或评论')
       ..writeln('- 评论 10—40 字，**必须接住帖子里的具体东西**（物件、动作、情绪、梗）')
       ..writeln('- 可以顺手带一张表情包（sticker_id），但只在真的合适时；没有合适的就留空')
@@ -188,7 +190,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       ..writeln()
       ..writeln('只输出一个 JSON 数组，不要代码块、不要任何解释：')
       ..writeln(
-        '[{"name":"网名","status":"此刻的状态","action":"view|like|comment|like_comment","comment":"评论，没评论就留空","sticker_id":"从给定列表里选，或留空"}]',
+        '[{"name":"网名","status":"此刻的状态","action":"view|like|like_comment","comment":"评论，没评论就留空","sticker_id":"从给定列表里选，或留空"}]',
       );
     return buffer.toString();
   }
@@ -205,6 +207,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     Set<String> avoidNames = const {},
     List<StickerItem> stickers = const [],
   }) {
+    final moment = at ?? DateTime.now();
     final buffer = StringBuffer()
       ..writeln('帖子正文：')
       ..writeln(post.content);
@@ -222,8 +225,9 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       );
     }
     buffer.writeln('（发帖人：这个社区里的一个普通用户）');
-
-    final moment = at ?? DateTime.now();
+    buffer.writeln(
+      '（发帖于：${_timeLabel(post.createdAt)}，距今约 ${_ageLabel(moment, post.createdAt)}）',
+    );
     buffer.writeln('（现在：${_timeLabel(moment)}）');
 
     if (understanding != null) {
@@ -262,6 +266,16 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     return buffer.toString();
   }
 
+  /// 帖子和“现在”的距离。绝对发帖时刻是恒定值，放帖子快照里不会破坏缓存；
+  /// 相对时长会随批次变化，所以只放在“现在”旁边，绝不进 system。
+  static String _ageLabel(DateTime now, DateTime postedAt) {
+    final gap = now.difference(postedAt);
+    if (gap.isNegative || gap.inMinutes < 1) return '刚刚';
+    if (gap.inMinutes < 60) return '${gap.inMinutes} 分钟前';
+    if (gap.inHours < 24) return '${gap.inHours} 小时前';
+    return '${gap.inDays} 天前';
+  }
+
   static String _timeLabel(DateTime at) {
     final phase = switch (at.hour) {
       >= 5 && < 8 => '清晨',
@@ -274,7 +288,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     };
     final hh = at.hour.toString().padLeft(2, '0');
     final mm = at.minute.toString().padLeft(2, '0');
-    return '${at.month}月${at.day}日 $phase $hh:$mm';
+    return '${at.year}年${at.month}月${at.day}日 $phase $hh:$mm';
   }
 
   /// 解析并做程序侧校验。

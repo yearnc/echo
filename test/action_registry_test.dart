@@ -68,8 +68,8 @@ void main() {
 
     final over = await actions.sendDirectMessage(
       residentId: 'resident_001',
-      content: '第 4 句',
-      idempotencyKey: 'dm:4',
+      content: '超额度的一句',
+      idempotencyKey: 'dm:over',
     );
     expect(over.ok, isFalse);
     expect(over.message, contains('额度'));

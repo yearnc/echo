@@ -55,7 +55,10 @@ class ActionRegistry {
   final StickerRepository stickers;
 
   /// 每个固定住民每天最多主动发几条私信、几条动态。
-  static const int dailyDmLimit = 3;
+  ///
+  /// 私信一次唤醒可以分几段发（真人也是一句一句敲），所以上限从 3 提到 12；
+  /// 一次唤醒内部的段数由 `ResidentWakeService.maxDmSegments` 另管。
+  static const int dailyDmLimit = 12;
   static const int dailyPostLimit = 1;
 
   /// 统一执行。任何异常都变成"动作失败"，不让它冒到心跳外面。
@@ -151,6 +154,31 @@ class ActionRegistry {
           at: at ?? DateTime.now(),
         );
         return const ActionOutcome(ok: true, message: '已发出');
+      },
+    );
+  }
+
+  /// 给一条帖子点赞（唤醒时刷帖子用）。
+  Future<ActionOutcome> likePost({
+    required String residentId,
+    required String postId,
+    required String idempotencyKey,
+    String source = 'wake',
+  }) async {
+    return run(
+      actorId: residentId,
+      actorKind: 'resident',
+      action: 'like_post',
+      idempotencyKey: idempotencyKey,
+      targetId: postId,
+      source: source,
+      body: () async {
+        final post = await posts.watchById(postId).first;
+        if (post == null) {
+          return const ActionOutcome(ok: false, message: '没有这条帖子');
+        }
+        await posts.addCounters(postId, likes: 1);
+        return const ActionOutcome(ok: true, message: '点了个赞');
       },
     );
   }

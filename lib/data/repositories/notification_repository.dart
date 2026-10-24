@@ -49,6 +49,9 @@ class NotificationRepository {
     String? postId,
     String scope = 'echo',
     DateTime? at,
+    String groupKey = '',
+    int actorCount = 1,
+    String actorNames = '',
   }) async {
     final moment = (at ?? DateTime.now()).millisecondsSinceEpoch;
     await _db
@@ -63,8 +66,89 @@ class NotificationRepository {
             scheduledAt: Value(moment),
             deliveredAt: Value(moment),
             scope: Value(scope),
+            groupKey: Value(groupKey),
+            actorCount: Value(actorCount),
+            actorNames: Value(actorNames),
           ),
+          // 合并组用固定 id：同一组再写一次是覆盖，不是主键冲突。
+          mode: InsertMode.insertOrReplace,
         );
+  }
+
+  /// 点赞合并：同一条帖子 + 同一窗口内只占一行通知。
+  ///
+  /// 以前每个人、每一批各写一条，用户点开通知页看到的是一屏
+  /// “某某赞了你的帖子”。现在人数累加、名字最多留三个，
+  /// 系统通知也用固定的 id 覆盖，不会叠一摞。
+  /// 返回最终显示的标题，调用方拿它推系统通知。
+  Future<String> mergeLike({
+    required String postId,
+    required String actorName,
+    int count = 1,
+    DateTime? at,
+    String scope = 'echo',
+    Duration window = const Duration(hours: 6),
+  }) async {
+    final moment = (at ?? DateTime.now()).millisecondsSinceEpoch;
+    final groupKey = 'like:$postId';
+    final existing =
+        await (_db.select(_db.notificationLogs)
+              ..where(
+                (t) =>
+                    t.groupKey.equals(groupKey) & t.isRead.equals(false),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.deliveredAt)])
+              ..limit(1))
+            .getSingleOrNull();
+
+    final lastAt =
+        existing?.deliveredAt ??
+        existing?.scheduledAt ??
+        0;
+    if (existing != null && moment - lastAt < window.inMilliseconds) {
+      final names = existing.actorNames
+          .split('|')
+          .where((name) => name.trim().isNotEmpty)
+          .toList();
+      if (!names.contains(actorName)) names.add(actorName);
+      final total = existing.actorCount + count;
+      final title = _likeTitle(names, total);
+      await (_db.update(
+        _db.notificationLogs,
+      )..where((t) => t.id.equals(existing.id))).write(
+        NotificationLogsCompanion(
+          title: Value(title),
+          actorCount: Value(total),
+          actorNames: Value(names.take(3).join('|')),
+          deliveredAt: Value(moment),
+          isRead: const Value(false),
+          body: const Value('你有一条社区互动通知'),
+        ),
+      );
+      return title;
+    }
+
+    final names = [actorName];
+    final title = _likeTitle(names, count);
+    await insert(
+      id: 'n_group_like_$postId',
+      type: 'like',
+      title: title,
+      body: '你有一条社区互动通知',
+      postId: postId,
+      scope: scope,
+      at: at,
+      groupKey: groupKey,
+      actorCount: count,
+      actorNames: names.join('|'),
+    );
+    return title;
+  }
+
+  static String _likeTitle(List<String> names, int total) {
+    final lead = names.isEmpty ? '有人' : names.first;
+    if (total <= 1) return '$lead 赞了你的帖子';
+    return '$lead 等 $total 人赞了你的帖子';
   }
 
   Future<void> markAllRead() async {

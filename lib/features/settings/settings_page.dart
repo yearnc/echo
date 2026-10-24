@@ -12,6 +12,7 @@ import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/voice_settings_controller.dart';
+import '../../domain/services/web_search.dart';
 import '../shared_widgets/mode_switch_flow.dart';
 
 /// 设置页（规划书 §2.3 的目录结构）。
@@ -20,6 +21,109 @@ import '../shared_widgets/mode_switch_flow.dart';
 /// 不是拿来解释产品的。心理援助这类必须被看见的提示不在压缩范围内。
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
+
+  /// 搜索能力来自服务商本身：智谱用 `web_search` 工具，百炼用 `enable_search`。
+  /// 两家都复用当前启用的对话模型与密钥，所以不需要再填一套配置。
+  Future<void> _pickSearchProvider(BuildContext context, WidgetRef ref) async {
+    final service = ref.read(webSearchServiceProvider);
+    final current = await service.provider();
+    if (!context.mounted) return;
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: EchoColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Text(
+              '联网搜索',
+              style: TextStyle(
+                color: EchoColors.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Text(
+                'DeepSeek 走独立搜索接口；其余两家用当前对话模型。'
+                '搜索失败会直说，不会拿记忆冒充。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  height: 1.6,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              title: Text(
+                '关闭',
+                style: TextStyle(color: EchoColors.text, fontSize: 14),
+              ),
+              trailing: current.isEmpty
+                  ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                  : null,
+              onTap: () => Navigator.of(sheetContext).pop(''),
+            ),
+            ListTile(
+              title: Text(
+                'DeepSeek（官方 Search API，推荐）',
+                style: TextStyle(color: EchoColors.text, fontSize: 14),
+              ),
+              subtitle: Text(
+                '用 DeepSeek 的 Key，按成功请求计费',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                ),
+              ),
+              trailing: current == WebSearchService.providerDeepseek
+                  ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                  : null,
+              onTap: () => Navigator.of(
+                sheetContext,
+              ).pop(WebSearchService.providerDeepseek),
+            ),
+            ListTile(
+              title: Text(
+                '智谱（web_search）',
+                style: TextStyle(color: EchoColors.text, fontSize: 14),
+              ),
+              trailing: current == WebSearchService.providerZhipu
+                  ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                  : null,
+              onTap: () => Navigator.of(
+                sheetContext,
+              ).pop(WebSearchService.providerZhipu),
+            ),
+            ListTile(
+              title: Text(
+                '百炼（enable_search）',
+                style: TextStyle(color: EchoColors.text, fontSize: 14),
+              ),
+              trailing: current == WebSearchService.providerDashscope
+                  ? Icon(Icons.check, size: 18, color: EchoColors.primary)
+                  : null,
+              onTap: () => Navigator.of(
+                sheetContext,
+              ).pop(WebSearchService.providerDashscope),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await service.setProvider(picked);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -101,6 +205,13 @@ class SettingsPage extends ConsumerWidget {
                 title: '模型配置',
                 subtitle: '对话 / 文生图 / 语音合成 / 图片理解',
                 onTap: () => context.push(RoutePaths.models),
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.travel_explore,
+                title: '联网搜索',
+                subtitle: '默认关闭；开启后住民能查实时信息',
+                onTap: () => _pickSearchProvider(context, ref),
               ),
             ],
           ),

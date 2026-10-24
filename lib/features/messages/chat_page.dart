@@ -13,6 +13,7 @@ import '../../domain/models/sticker.dart';
 import '../../domain/services/direct_message_service.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/resident_memory_service.dart';
+import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/sticker_picker_sheet.dart';
@@ -42,7 +43,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _markRead();
-      _maybeSayOpening();
+      // 不再播手写的“开场白”：住民醒来后自己开口。
+      // 新建住民时编辑页已经叫醒过他，这里不重复叫。
     });
     // 他不会秒回：回应排在几分钟之后，页面得自己隔一会儿重问一次，
     // 不然那句话要等你退出去再进来才看得见。
@@ -64,16 +66,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     unawaited(
       ref.read(privateMessageRepositoryProvider).markThreadRead(widget.personaId),
     );
-  }
-
-  /// 固定住民的开场白：第一次进对话，他先说那句。
-  ///
-  /// 判断与写入都交给 `DirectMessageService.ensureOpening`：它查的是
-  /// **包含未来排期在内**的整条会话，所以不会重复插第二条。
-  Future<void> _maybeSayOpening() async {
-    await ref
-        .read(directMessageServiceProvider)
-        .ensureOpening(widget.personaId);
   }
 
   /// 我发一句。
@@ -112,11 +104,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               .rememberUserReply(
                 residentId: resident.id,
                 reply: content,
+                source: 'dm',
+                sourceId: 'dm_${widget.personaId}_'
+                    '${DateTime.now().microsecondsSinceEpoch}',
               ),
         );
       }
 
-      unawaited(ref.read(directMessageServiceProvider).tick());
+      // 固定住民要马上醒过来看这条消息：他这一轮可能回私信，
+      // 也可能去帖子下面接话——那是他自己的选择，不该由发送方决定。
+      if (resident != null) {
+        unawaited(
+          ref
+              .read(residentWakeServiceProvider)
+              .wake(widget.personaId, trigger: WakeTrigger.userAction),
+        );
+      } else {
+        unawaited(ref.read(directMessageServiceProvider).tick());
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -355,7 +360,7 @@ class _Composer extends StatelessWidget {
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) {
-                if (!sending) onSend();
+                if (!sending) onSend(text: controller.text);
               },
               style: TextStyle(color: EchoColors.text, fontSize: 14),
               decoration: InputDecoration(
@@ -377,7 +382,7 @@ class _Composer extends StatelessWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            onPressed: sending ? null : () => onSend(),
+            onPressed: sending ? null : () => onSend(text: controller.text),
             tooltip: '发送',
             icon: sending
                 ? const SizedBox(

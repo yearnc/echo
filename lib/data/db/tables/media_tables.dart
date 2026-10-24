@@ -5,6 +5,21 @@ import 'package:drift/drift.dart';
 /// 内置素材（`source = asset`）与用户上传（`source = file`）统一登记在一张表里，
 /// UI 只认 `path` 这一个字段——所以"内置图换掉"和"用户自己传一张"
 /// 对页面来说是同一件事，不需要两套逻辑。
+/// 用户导入的“网友头像”池（v3.3）。
+///
+/// 临时网民的头像原来只能从内置的 32 张里挑；用户想用自己的图库时，
+/// 这一池优先于内置素材。只存引用，文件本身在 APP 私有目录。
+@DataClassName('CustomAvatarRow')
+class CustomAvatars extends Table {
+  TextColumn get id => text()();
+  TextColumn get path => text()();
+  IntColumn get createdAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DataClassName('StickerRow')
 class Stickers extends Table {
   TextColumn get id => text()();

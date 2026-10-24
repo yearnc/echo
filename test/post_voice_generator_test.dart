@@ -18,7 +18,7 @@ void main() {
 
       expect(drafts, hasLength(2));
       expect(drafts[0].name, '大肥鱼');
-      expect(drafts[0].action, VoiceAction.comment);
+      expect(drafts[0].action, VoiceAction.likeComment);
       expect(drafts[0].comment, '这颗钻石也太大了');
       expect(drafts[1].action, VoiceAction.like);
       expect(drafts[1].comment, isEmpty);

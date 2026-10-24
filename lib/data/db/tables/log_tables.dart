@@ -50,6 +50,17 @@ class NotificationLogs extends Table {
   IntColumn get scheduledAt => integer().nullable()();
   IntColumn get deliveredAt => integer().nullable()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
+
+  /// 同一类互动合并到哪一组。点赞用 `like:<postId>`：
+  /// 一条帖子的多个赞只留一行通知，人数累加，而不是刷屏。
+  TextColumn get groupKey => text().withDefault(const Constant(''))();
+
+  /// 这一组通知累计代表多少个人（一批 likeBatch 可能是 5 个人）。
+  IntColumn get actorCount => integer().withDefault(const Constant(1))();
+
+  /// 出现在标题里的名字，`|` 分隔，最多留三个。
+  TextColumn get actorNames => text().withDefault(const Constant(''))();
+
   TextColumn get scope => text().withDefault(const Constant('echo'))();
 
   @override

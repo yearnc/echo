@@ -157,20 +157,20 @@ class _IdentityPageState extends ConsumerState<IdentityPage> {
                 TextField(
                   controller: _occupation,
                   style: TextStyle(color: EchoColors.text, fontSize: 15),
-                  decoration: _decoration('例如：软件工程大三学生'),
+                  decoration: _decoration('填写你的身份或职业，可留空'),
                 ),
                 _Label('所在城市'),
                 TextField(
                   controller: _city,
                   style: TextStyle(color: EchoColors.text, fontSize: 15),
-                  decoration: _decoration('例如：大连'),
+                  decoration: _decoration('填写你所在的城市，可留空'),
                 ),
                 _Label('兴趣爱好'),
                 TextField(
                   controller: _interests,
                   maxLines: 2,
                   style: TextStyle(color: EchoColors.text, fontSize: 15),
-                  decoration: _decoration('例如：原神、跑步、看电影'),
+                  decoration: _decoration('填写你的兴趣，可留空'),
                 ),
                 _Label('一句话介绍'),
                 TextField(

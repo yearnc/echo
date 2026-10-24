@@ -157,7 +157,7 @@ void main() {
         PostVoiceDraft(
           name: '大肥鱼',
           status: '在等车',
-          action: VoiceAction.comment,
+          action: VoiceAction.likeComment,
           comment: '这颗钻石也太大了吧',
         ),
       ],
@@ -179,12 +179,17 @@ void main() {
     final rows = await db.select(db.aiInteractions).get();
     expect(
       rows,
-      hasLength(5),
-      reason: '三个人各一条浏览，另加一条点赞和一条评论',
+      hasLength(6),
+      reason: '三个人各一条浏览；评论的人也要点赞，所以点赞和评论各两条',
     );
     expect(rows.map((r) => r.type), containsAll(['view', 'like', 'comment']));
     final comment = rows.firstWhere((r) => r.type == 'comment');
     expect(comment.content, '这颗钻石也太大了吧');
+    expect(
+      rows.where((r) => r.type == 'like').map((r) => r.personaId),
+      contains(comment.personaId),
+      reason: '不再有“只评论不点赞”的旁路',
+    );
   });
 
   test('同一条帖子只准备一次', () async {

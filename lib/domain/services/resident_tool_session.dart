@@ -9,6 +9,7 @@ import '../models/model_config.dart';
 import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
+import 'web_search.dart';
 
 /// 这一轮选中的表情包。
 ///
@@ -34,16 +35,53 @@ class ResidentReply {
   final List<ResidentStickerChoice> stickers;
 }
 
+/// 唤醒这一轮能落到哪几张表。
+///
+/// 工具会话只负责"决定做什么"，真正的写入由唤醒服务实现——
+/// 它知道每条待办对应哪个帖子、哪条评论，工具本身不该知道这些。
+abstract class ResidentWakeToolkit {
+  Future<ActionOutcome> replyInbox(
+    String itemId,
+    String content,
+    String callId,
+  );
+
+  Future<ActionOutcome> sendDm(String content, String callId);
+
+  Future<ActionOutcome> finish();
+
+  Future<ActionOutcome> browseFeed();
+
+  Future<ActionOutcome> likePost(String postId, String callId);
+
+  Future<ActionOutcome> generateImage(String prompt, String callId);
+
+  /// 发一条动态。由 toolkit 实现是为了让“配图”和文字一起落库——
+  /// 发出去的帖子必须是完整的，不能先发文字再补图。
+  Future<ActionOutcome> createPost(
+    String content,
+    String? topic,
+    String callId,
+  );
+}
+
 /// 固定住民的"自主行为"会话：真正的 tool calling（v3.0 阶段三）。
 ///
 /// 和批量围观分开：一条帖子里十几个网民逐次调工具，请求数和费用都会翻十倍，
 /// 那种场景走一次结构化 JSON 就够。这里服务的是**一个人的一句话**——
 /// 他可以查记忆、记东西、发私信、发动态，最多八轮、总共二十秒。
 class ResidentToolSession {
-  ResidentToolSession({required this.gateway, required this.actions});
+  ResidentToolSession({
+    required this.gateway,
+    required this.actions,
+    this.search,
+  });
 
   final ModelGateway gateway;
   final ActionRegistry actions;
+
+  /// 用户开了联网搜索才注入；没开时 `web_search` 会明确说没开。
+  final WebSearchService? search;
 
   static const int maxRounds = 8;
   static const Duration totalTimeout = Duration(seconds: 20);
@@ -90,7 +128,7 @@ class ResidentToolSession {
       final result = await gateway.completeWithTools(
         config: config,
         messages: messages,
-        tools: tools,
+        tools: allTools,
         temperature: 0.85,
         maxTokens: 320,
         timeout: left > const Duration(seconds: 12)
@@ -185,6 +223,169 @@ class ResidentToolSession {
       debugPrint('[工具] 收尾也没成：$error');
       return ResidentReply(stickers: stickers);
     }
+  }
+
+  /// 唤醒式交互（v3.3）：一次醒来，先把收件箱里的待办处理掉。
+  ///
+  /// 和 [reply] 的区别是**上下文不同**：那里只有"对方刚说的一句话"，
+  /// 这里是一整屏待办——谁评论了我的帖子、谁回了我、谁发了私信。
+  /// 模型自己决定回谁、回什么，也可以 [ResidentWakeToolkit.finish] 已读不回。
+  Future<String> act({
+    required CustomResident resident,
+    required ModelConfig config,
+    required String situation,
+    required ResidentWakeToolkit toolkit,
+    DateTime? at,
+  }) async {
+    final deadline = DateTime.now().add(totalTimeout);
+    final memoryLines = await _prefetch(resident);
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': _wakeSystemPrompt(resident)},
+      {
+        'role': 'user',
+        'content': [
+          '现在：${_timeLabel(at ?? DateTime.now())}',
+          if (memoryLines.isNotEmpty) ...['你记得：$memoryLines'],
+          situation,
+        ].join('\n'),
+      },
+    ];
+
+    for (var round = 0; round < maxRounds; round++) {
+      final left = deadline.difference(DateTime.now());
+      if (left <= const Duration(seconds: 1)) break;
+
+      final result = await gateway.completeWithTools(
+        config: config,
+        messages: messages,
+        tools: wakeTools,
+        temperature: 0.85,
+        maxTokens: 420,
+        timeout: left > const Duration(seconds: 12)
+            ? const Duration(seconds: 12)
+            : left,
+      );
+
+      if (result.toolCalls.isEmpty) return result.content.trim();
+
+      messages.add({
+        'role': 'assistant',
+        'content': result.content,
+        'tool_calls': [
+          for (final call in result.toolCalls)
+            {
+              'id': call.id,
+              'type': 'function',
+              'function': {
+                'name': call.name,
+                'arguments': jsonEncode(call.arguments),
+              },
+            },
+        ],
+      });
+
+      for (final call in result.toolCalls) {
+        if (deadline.difference(DateTime.now()) <= Duration.zero) break;
+        final args = call.arguments;
+        final ActionOutcome outcome;
+        switch (call.name) {
+          case 'reply_inbox':
+            outcome = await toolkit.replyInbox(
+              (args['item_id'] as String?) ?? '',
+              (args['content'] as String?) ?? '',
+              call.id,
+            );
+          case 'send_dm':
+            outcome = await toolkit.sendDm(
+              (args['content'] as String?) ?? '',
+              call.id,
+            );
+          case 'finish':
+            outcome = await toolkit.finish();
+          case 'browse_feed':
+            outcome = await toolkit.browseFeed();
+          case 'like_post':
+            outcome = await toolkit.likePost(
+              (args['post_id'] as String?) ?? '',
+              call.id,
+            );
+          case 'generate_image':
+            outcome = await toolkit.generateImage(
+              (args['prompt'] as String?) ?? '',
+              call.id,
+            );
+          case 'create_post':
+            outcome = await toolkit.createPost(
+              (args['content'] as String?) ?? '',
+              args['topic'] as String?,
+              call.id,
+            );
+          default:
+            outcome = await _execute(
+              resident: resident,
+              call: call,
+              latestUserMessage: situation,
+            );
+        }
+        messages.add({
+          'role': 'tool',
+          'tool_call_id': call.id,
+          'content': outcome.toToolResult(),
+        });
+      }
+    }
+
+    try {
+      final left = deadline.difference(DateTime.now());
+      if (left <= const Duration(seconds: 1)) return '';
+      final finalResult = await gateway.completeWithTools(
+        config: config,
+        messages: [
+          ...messages,
+          {'role': 'user', 'content': '时间到了，这一轮就到这里，不要再调用工具。'},
+        ],
+        tools: const [],
+        temperature: 0.8,
+        maxTokens: 120,
+        timeout: left,
+      );
+      return finalResult.content.trim();
+    } catch (error) {
+      debugPrint('[唤醒] 收尾没成：$error');
+      return '';
+    }
+  }
+
+  String _wakeSystemPrompt(CustomResident resident) {
+    final persona = [
+      if (resident.description.trim().isNotEmpty) resident.description,
+      if (resident.personality.trim().isNotEmpty) resident.personality,
+      if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
+      if (resident.tone.trim().isNotEmpty) resident.tone,
+      if (resident.extraInstructions.trim().isNotEmpty)
+        resident.extraInstructions,
+    ].join('\n');
+    return '''
+你是「${resident.name}」，一个真实生活里的人，不是客服，也不是陪聊机器人。
+$persona
+
+你刚拿起手机，看到了一些消息和动静。像真人一样处理：
+- 先看有没有人跟你说话：能回就回，不想回也可以已读不回（用 finish）。
+- 对方的评论可以用 reply_inbox 直接回在那条评论下面；
+  如果更想私下说，用 send_dm 给他发私信——真人常这么干。
+- 一次醒来最多回三个人、最多发三段私信。话要短，像微信，10—60 字。
+- 没有待办时，可以自己发条动态（create_post，一天一条，用户关了开关就发不了）、
+  刷一刷别人发的帖子（browse_feed）、点个赞（like_post），或者什么都不做。
+- 想给动态配图就先用 generate_image 把画面描述交出去，再 create_post；
+  系统会把图等出来一起发，不需要你等。
+- 不要每次都说话。没有想说的就 finish。
+- 不要提自己是 AI，不要解释你在调用工具，不要总结流程。
+- 想发表情包先用 list_stickers，再 send_sticker；一次最多一张。
+- 对方难过、求助时，只选安慰/陪伴类标签。
+- 以“现在”那一行的年月日为准。搜实时信息（新版本、价格、新闻）时，
+  把年份写进搜索词（例如“2026年”），并检查结果里的日期：
+  日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
+''';
   }
 
   Future<String> _prefetch(CustomResident resident) async {
@@ -316,7 +517,11 @@ $persona
     };
     final hh = at.hour.toString().padLeft(2, '0');
     final mm = at.minute.toString().padLeft(2, '0');
-    return '${at.month}月${at.day}日 $phase $hh:$mm';
+    // 年份和星期必须带上：只写“10月24日”时，模型不知道今年是哪年，
+    // 搜“新版本什么时候上线”很容易把去年同期的旧闻当成最新的。
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final week = weekdays[at.weekday - 1];
+    return '${at.year}年${at.month}月${at.day}日 周$week $phase $hh:$mm';
   }
 
   Future<ActionOutcome> _execute({
@@ -371,9 +576,32 @@ $persona
           tag: (args['tag'] as String?) ?? '',
         );
       case 'web_search':
-        return const ActionOutcome(
-          ok: false,
-          message: '联网搜索没有开启，不要假装查过',
+        final service = search;
+        if (service == null) {
+          return const ActionOutcome(
+            ok: false,
+            message: '联网搜索没有开启，不要假装查过',
+          );
+        }
+        final outcome = await service.search((args['query'] as String?) ?? '');
+        if (!outcome.ok) {
+          return ActionOutcome(ok: false, message: outcome.message);
+        }
+        return ActionOutcome(
+          ok: true,
+          data: {
+            'results': [
+              for (final item in outcome.results)
+                {
+                  'title': item.title,
+                  'url': item.url,
+                  'snippet': item.snippet.length > 200
+                      ? '${item.snippet.substring(0, 200)}…'
+                      : item.snippet,
+                  'date': item.date,
+                },
+            ],
+          },
         );
       case 'send_dm':
         return actions.sendDirectMessage(
@@ -426,6 +654,112 @@ $persona
     }
     return '未知工具';
   }
+
+  /// 私信那套 + 联网搜索。搜索是否真的能用由服务判断，
+  /// 工具本身总是可见——模型搜不了时会得到明确失败，而不是编一个答案。
+  List<Map<String, dynamic>> get allTools => [...tools, _webSearchTool];
+
+  /// 唤醒时用的工具 = 私信那套 + 搜索 + 收件箱/刷帖子这一套。
+  List<Map<String, dynamic>> get wakeTools =>
+      [...tools, _webSearchTool, ..._wakeOnlyTools];
+
+  static const Map<String, dynamic> _webSearchTool = {
+    'type': 'function',
+    'function': {
+      'name': 'web_search',
+      'description':
+          '联网搜索。只在真的需要实时信息时用（新闻、价格、最近发生的事）。'
+          '搜索词里带上当前年份，并看结果里的 date 判断新旧；'
+          '搜索失败或只搜到旧消息就直说，不要凭记忆补。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'query': {'type': 'string'},
+        },
+        'required': ['query'],
+      },
+    },
+  };
+
+  static const List<Map<String, dynamic>> _wakeOnlyTools = [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'reply_inbox',
+        'description':
+            '回复收件箱里的一条评论（item_id 来自待办清单）。回复会排在这条评论下面。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'item_id': {'type': 'string', 'description': '待办条目的 id'},
+            'content': {'type': 'string', 'description': '要回的话，10—60 字'},
+          },
+          'required': ['item_id', 'content'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'send_dm',
+        'description':
+            '给对方发一条私信。可以连续调用多次，像真人把一句话分几段发。一次醒来最多三段。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'content': {'type': 'string'},
+          },
+          'required': ['content'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'finish',
+        'description':
+            '这一轮不回了。已读不回也是回应；剩下的待办会被标成已看。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'browse_feed',
+        'description': '刷一刷最近别人发的帖子，看看有什么可接的话。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'like_post',
+        'description': '给一条帖子点个赞（post_id 来自 browse_feed）。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'post_id': {'type': 'string'},
+          },
+          'required': ['post_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'generate_image',
+        'description':
+            '生成一张图，用来配自己下面要发的动态。返回要等一会儿，先继续做别的事。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'prompt': {'type': 'string', 'description': '画面描述，不要写文字在图上'},
+          },
+          'required': ['prompt'],
+        },
+      },
+    },
+  ];
 
   /// 给模型看的工具定义。默认不包含联网搜索——它需要用户单独配置。
   static const List<Map<String, dynamic>> tools = [
@@ -549,5 +883,6 @@ final residentToolSessionProvider = Provider<ResidentToolSession>(
   (ref) => ResidentToolSession(
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
+    search: ref.watch(webSearchServiceProvider),
   ),
 );

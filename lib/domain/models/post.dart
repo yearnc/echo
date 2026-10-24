@@ -87,6 +87,7 @@ class PostComment {
     this.personaId,
     this.content,
     this.mediaType = CommentMedia.text,
+    this.caption = '',
     this.voiceAsset,
     this.transcript,
     this.voiceDurationMs,
@@ -106,6 +107,9 @@ class PostComment {
   /// 文本评论正文；语音评论也保留文本（作为转写稿）。
   final String? content;
   final CommentMedia mediaType;
+
+  /// 图片/表情包评论附带的文字，可以为空。
+  final String caption;
   final String? voiceAsset;
   final String? transcript;
   final int? voiceDurationMs;

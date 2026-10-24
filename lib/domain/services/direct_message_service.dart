@@ -13,7 +13,6 @@ import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../models/ai_persona.dart';
 import '../models/app_mode.dart';
-import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import 'action_registry.dart';
 import 'content_generator.dart';
@@ -119,7 +118,10 @@ class DirectMessageService {
     final threadRelations = <String, RelationshipState>{};
     for (final id in awaiting.take(maxRepliesPerTick)) {
       final resident = residentById[id];
-      final persona = resident?.toPersona() ?? byId[id];
+      // 固定住民已经交给唤醒服务：醒来先看收件箱，回不回由模型决定。
+      // 这里再生成一条会变成“两条回复”，而且两边都不知道对方的存在。
+      if (resident != null) continue;
+      final persona = byId[id];
       if (persona == null) continue;
 
       final turns = await messages.recentTurns(id);
@@ -250,75 +252,10 @@ class DirectMessageService {
     return written;
   }
 
-  /// 第一次进对话时调用：让固定住民把开场白说出来。
-  ///
-  /// **幂等**：只要这个会话里已经有任何一条消息（包括还没到点的排期），
-  /// 就什么都不做。以前聊天页用"过滤后的会话是否为空"判断，看不到
-  /// 已排期但未到点的那条，于是又插一条，最后收到两句一模一样的开场白。
-  Future<bool> ensureOpening(String residentId) async {
-    final resident = await residents.findById(residentId);
-    final opening = resident?.firstMessage.trim() ?? '';
-    if (resident == null || opening.isEmpty) return false;
-    if (await messages.lastAt(residentId) != null) return false;
-
-    final now = DateTime.now();
-    await messages.scheduleIncoming(
-      personaId: residentId,
-      content: opening,
-      at: now,
-    );
-    await _saveOpenedAt(residentId, now);
-    return true;
-  }
-
-  /// 固定住民先来敲门：不靠关系门槛，靠用户自己配置。
-  ///
-  /// 配了开场白就用那句原话——它是用户替 TA 写的，模型再润色就变味了；
-  /// 没配才让模型按人设起个头。
-  Future<int> _maybeOpenResident() async {
-    final now = DateTime.now();
-    final all = await residents.all();
-    if (all.isEmpty) return 0;
-
-    final candidates = <CustomResident>[];
-    for (final resident in all) {
-      if (await messages.lastAt(resident.id) != null) continue;
-      if (await _openedRecently(resident.id, now)) continue;
-      candidates.add(resident);
-    }
-    if (candidates.isEmpty) return 0;
-
-    final resident = candidates[_random.nextInt(candidates.length)];
-    var line = resident.firstMessage.trim();
-    if (line.isEmpty) {
-      try {
-        final lines = await generator.directMessages(
-          threads: [
-            DirectThread(persona: resident.toPersona(), at: now),
-          ],
-        );
-        line = lines[resident.id]?.trim() ?? '';
-      } catch (error) {
-        debugPrint('[私信] ${resident.name} 的开场白没写出来：$error');
-        return 0;
-      }
-    }
-    if (line.isEmpty) return 0;
-
-    await messages.scheduleIncoming(
-      personaId: resident.id,
-      content: line,
-      at: now.add(_randomDuration(minOpeningDelay, maxOpeningDelay)),
-    );
-    await _saveOpenedAt(resident.id, now);
-    return 1;
-  }
-
   /// 关系够近、又还没聊过的人，可能来敲你的门。
   Future<int> _maybeOpen() async {
     final now = DateTime.now();
-    if (await _maybeOpenResident() > 0) return 1;
-
+    // 固定住民的“主动开口”也归唤醒服务：没有待办时它可能自己发私信。
     final last = await _lastProactiveAt();
     if (last != null && now.difference(last) < proactiveGap) return 0;
 
@@ -367,29 +304,6 @@ class DirectMessageService {
     final high = max.inSeconds;
     if (high <= low) return min;
     return Duration(seconds: low + _random.nextInt(high - low));
-  }
-
-  Future<bool> _openedRecently(String residentId, DateTime now) async {
-    final row =
-        await (db.select(db.appSettings)
-              ..where((t) => t.key.equals('$residentOpenedPrefix$residentId')))
-            .getSingleOrNull();
-    final raw = int.tryParse(row?.value ?? '');
-    if (raw == null) return false;
-    return now.difference(DateTime.fromMillisecondsSinceEpoch(raw)) <
-        proactiveGap;
-  }
-
-  Future<void> _saveOpenedAt(String residentId, DateTime at) async {
-    await db
-        .into(db.appSettings)
-        .insertOnConflictUpdate(
-          AppSettingsCompanion.insert(
-            key: '$residentOpenedPrefix$residentId',
-            value: '${at.millisecondsSinceEpoch}',
-            scope: const Value('echo'),
-          ),
-        );
   }
 
   /// 固定住民的记忆摘要：最多 5 条、300 字，只放这次对话里用得到的那几段。

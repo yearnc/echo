@@ -68,6 +68,15 @@ class CustomResidentsPage extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        tooltip: '私信',
+                        icon: const Icon(
+                          Icons.chat_bubble_outline,
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            context.push(RoutePaths.chat(resident.id)),
+                      ),
+                      IconButton(
                         tooltip: '记忆',
                         icon: const Icon(Icons.psychology_outlined, size: 20),
                         onPressed: () => context.push(

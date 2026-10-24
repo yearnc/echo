@@ -6175,6 +6175,18 @@ class $UserCommentsTable extends UserComments
     requiredDuringInsert: false,
     defaultValue: const Constant('text'),
   );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _parentIdMeta = const VerificationMeta(
     'parentId',
   );
@@ -6225,6 +6237,7 @@ class $UserCommentsTable extends UserComments
     postId,
     content,
     mediaType,
+    caption,
     parentId,
     replyToName,
     createdAt,
@@ -6267,6 +6280,12 @@ class $UserCommentsTable extends UserComments
       context.handle(
         _mediaTypeMeta,
         mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
       );
     }
     if (data.containsKey('parent_id')) {
@@ -6323,6 +6342,10 @@ class $UserCommentsTable extends UserComments
         DriftSqlType.string,
         data['${effectivePrefix}media_type'],
       )!,
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      )!,
       parentId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}parent_id'],
@@ -6356,6 +6379,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
   /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
   final String mediaType;
 
+  /// 图片评论配的文字。图是内容、字是“顺便说一句”，两者可以一起发；
+  /// 以前只有一个 content 字段，发图就必须把输入框里的话丢掉。
+  final String caption;
+
   /// 这条是在回谁。指向的可能是住民的评论（在 `ai_interactions` 里），
   /// 也可能是别人回我的——跨两张表，所以这里不设外键。
   final String? parentId;
@@ -6370,6 +6397,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     required this.postId,
     required this.content,
     required this.mediaType,
+    required this.caption,
     this.parentId,
     this.replyToName,
     required this.createdAt,
@@ -6382,6 +6410,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     map['post_id'] = Variable<String>(postId);
     map['content'] = Variable<String>(content);
     map['media_type'] = Variable<String>(mediaType);
+    map['caption'] = Variable<String>(caption);
     if (!nullToAbsent || parentId != null) {
       map['parent_id'] = Variable<String>(parentId);
     }
@@ -6401,6 +6430,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: Value(postId),
       content: Value(content),
       mediaType: Value(mediaType),
+      caption: Value(caption),
       parentId: parentId == null && nullToAbsent
           ? const Value.absent()
           : Value(parentId),
@@ -6424,6 +6454,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: serializer.fromJson<String>(json['postId']),
       content: serializer.fromJson<String>(json['content']),
       mediaType: serializer.fromJson<String>(json['mediaType']),
+      caption: serializer.fromJson<String>(json['caption']),
       parentId: serializer.fromJson<String?>(json['parentId']),
       replyToName: serializer.fromJson<String?>(json['replyToName']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -6438,6 +6469,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       'postId': serializer.toJson<String>(postId),
       'content': serializer.toJson<String>(content),
       'mediaType': serializer.toJson<String>(mediaType),
+      'caption': serializer.toJson<String>(caption),
       'parentId': serializer.toJson<String?>(parentId),
       'replyToName': serializer.toJson<String?>(replyToName),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -6450,6 +6482,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     String? postId,
     String? content,
     String? mediaType,
+    String? caption,
     Value<String?> parentId = const Value.absent(),
     Value<String?> replyToName = const Value.absent(),
     int? createdAt,
@@ -6459,6 +6492,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     postId: postId ?? this.postId,
     content: content ?? this.content,
     mediaType: mediaType ?? this.mediaType,
+    caption: caption ?? this.caption,
     parentId: parentId.present ? parentId.value : this.parentId,
     replyToName: replyToName.present ? replyToName.value : this.replyToName,
     createdAt: createdAt ?? this.createdAt,
@@ -6470,6 +6504,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: data.postId.present ? data.postId.value : this.postId,
       content: data.content.present ? data.content.value : this.content,
       mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
+      caption: data.caption.present ? data.caption.value : this.caption,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
       replyToName: data.replyToName.present
           ? data.replyToName.value
@@ -6486,6 +6521,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           ..write('postId: $postId, ')
           ..write('content: $content, ')
           ..write('mediaType: $mediaType, ')
+          ..write('caption: $caption, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
           ..write('createdAt: $createdAt, ')
@@ -6500,6 +6536,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     postId,
     content,
     mediaType,
+    caption,
     parentId,
     replyToName,
     createdAt,
@@ -6513,6 +6550,7 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           other.postId == this.postId &&
           other.content == this.content &&
           other.mediaType == this.mediaType &&
+          other.caption == this.caption &&
           other.parentId == this.parentId &&
           other.replyToName == this.replyToName &&
           other.createdAt == this.createdAt &&
@@ -6524,6 +6562,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
   final Value<String> postId;
   final Value<String> content;
   final Value<String> mediaType;
+  final Value<String> caption;
   final Value<String?> parentId;
   final Value<String?> replyToName;
   final Value<int> createdAt;
@@ -6534,6 +6573,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     this.postId = const Value.absent(),
     this.content = const Value.absent(),
     this.mediaType = const Value.absent(),
+    this.caption = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -6545,6 +6585,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     required String postId,
     required String content,
     this.mediaType = const Value.absent(),
+    this.caption = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
     required int createdAt,
@@ -6559,6 +6600,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Expression<String>? postId,
     Expression<String>? content,
     Expression<String>? mediaType,
+    Expression<String>? caption,
     Expression<String>? parentId,
     Expression<String>? replyToName,
     Expression<int>? createdAt,
@@ -6570,6 +6612,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       if (postId != null) 'post_id': postId,
       if (content != null) 'content': content,
       if (mediaType != null) 'media_type': mediaType,
+      if (caption != null) 'caption': caption,
       if (parentId != null) 'parent_id': parentId,
       if (replyToName != null) 'reply_to_name': replyToName,
       if (createdAt != null) 'created_at': createdAt,
@@ -6583,6 +6626,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Value<String>? postId,
     Value<String>? content,
     Value<String>? mediaType,
+    Value<String>? caption,
     Value<String?>? parentId,
     Value<String?>? replyToName,
     Value<int>? createdAt,
@@ -6594,6 +6638,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       postId: postId ?? this.postId,
       content: content ?? this.content,
       mediaType: mediaType ?? this.mediaType,
+      caption: caption ?? this.caption,
       parentId: parentId ?? this.parentId,
       replyToName: replyToName ?? this.replyToName,
       createdAt: createdAt ?? this.createdAt,
@@ -6616,6 +6661,9 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     }
     if (mediaType.present) {
       map['media_type'] = Variable<String>(mediaType.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
     }
     if (parentId.present) {
       map['parent_id'] = Variable<String>(parentId.value);
@@ -6642,6 +6690,7 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
           ..write('postId: $postId, ')
           ..write('content: $content, ')
           ..write('mediaType: $mediaType, ')
+          ..write('caption: $caption, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
           ..write('createdAt: $createdAt, ')
@@ -8528,6 +8577,42 @@ class $NotificationLogsTable extends NotificationLogs
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _groupKeyMeta = const VerificationMeta(
+    'groupKey',
+  );
+  @override
+  late final GeneratedColumn<String> groupKey = GeneratedColumn<String>(
+    'group_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _actorCountMeta = const VerificationMeta(
+    'actorCount',
+  );
+  @override
+  late final GeneratedColumn<int> actorCount = GeneratedColumn<int>(
+    'actor_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _actorNamesMeta = const VerificationMeta(
+    'actorNames',
+  );
+  @override
+  late final GeneratedColumn<String> actorNames = GeneratedColumn<String>(
+    'actor_names',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
   @override
   late final GeneratedColumn<String> scope = GeneratedColumn<String>(
@@ -8548,6 +8633,9 @@ class $NotificationLogsTable extends NotificationLogs
     scheduledAt,
     deliveredAt,
     isRead,
+    groupKey,
+    actorCount,
+    actorNames,
     scope,
   ];
   @override
@@ -8619,6 +8707,24 @@ class $NotificationLogsTable extends NotificationLogs
         isRead.isAcceptableOrUnknown(data['is_read']!, _isReadMeta),
       );
     }
+    if (data.containsKey('group_key')) {
+      context.handle(
+        _groupKeyMeta,
+        groupKey.isAcceptableOrUnknown(data['group_key']!, _groupKeyMeta),
+      );
+    }
+    if (data.containsKey('actor_count')) {
+      context.handle(
+        _actorCountMeta,
+        actorCount.isAcceptableOrUnknown(data['actor_count']!, _actorCountMeta),
+      );
+    }
+    if (data.containsKey('actor_names')) {
+      context.handle(
+        _actorNamesMeta,
+        actorNames.isAcceptableOrUnknown(data['actor_names']!, _actorNamesMeta),
+      );
+    }
     if (data.containsKey('scope')) {
       context.handle(
         _scopeMeta,
@@ -8666,6 +8772,18 @@ class $NotificationLogsTable extends NotificationLogs
         DriftSqlType.bool,
         data['${effectivePrefix}is_read'],
       )!,
+      groupKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_key'],
+      )!,
+      actorCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}actor_count'],
+      )!,
+      actorNames: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}actor_names'],
+      )!,
       scope: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}scope'],
@@ -8691,6 +8809,16 @@ class NotificationLogRow extends DataClass
   final int? scheduledAt;
   final int? deliveredAt;
   final bool isRead;
+
+  /// 同一类互动合并到哪一组。点赞用 `like:<postId>`：
+  /// 一条帖子的多个赞只留一行通知，人数累加，而不是刷屏。
+  final String groupKey;
+
+  /// 这一组通知累计代表多少个人（一批 likeBatch 可能是 5 个人）。
+  final int actorCount;
+
+  /// 出现在标题里的名字，`|` 分隔，最多留三个。
+  final String actorNames;
   final String scope;
   const NotificationLogRow({
     required this.id,
@@ -8701,6 +8829,9 @@ class NotificationLogRow extends DataClass
     this.scheduledAt,
     this.deliveredAt,
     required this.isRead,
+    required this.groupKey,
+    required this.actorCount,
+    required this.actorNames,
     required this.scope,
   });
   @override
@@ -8720,6 +8851,9 @@ class NotificationLogRow extends DataClass
       map['delivered_at'] = Variable<int>(deliveredAt);
     }
     map['is_read'] = Variable<bool>(isRead);
+    map['group_key'] = Variable<String>(groupKey);
+    map['actor_count'] = Variable<int>(actorCount);
+    map['actor_names'] = Variable<String>(actorNames);
     map['scope'] = Variable<String>(scope);
     return map;
   }
@@ -8740,6 +8874,9 @@ class NotificationLogRow extends DataClass
           ? const Value.absent()
           : Value(deliveredAt),
       isRead: Value(isRead),
+      groupKey: Value(groupKey),
+      actorCount: Value(actorCount),
+      actorNames: Value(actorNames),
       scope: Value(scope),
     );
   }
@@ -8758,6 +8895,9 @@ class NotificationLogRow extends DataClass
       scheduledAt: serializer.fromJson<int?>(json['scheduledAt']),
       deliveredAt: serializer.fromJson<int?>(json['deliveredAt']),
       isRead: serializer.fromJson<bool>(json['isRead']),
+      groupKey: serializer.fromJson<String>(json['groupKey']),
+      actorCount: serializer.fromJson<int>(json['actorCount']),
+      actorNames: serializer.fromJson<String>(json['actorNames']),
       scope: serializer.fromJson<String>(json['scope']),
     );
   }
@@ -8773,6 +8913,9 @@ class NotificationLogRow extends DataClass
       'scheduledAt': serializer.toJson<int?>(scheduledAt),
       'deliveredAt': serializer.toJson<int?>(deliveredAt),
       'isRead': serializer.toJson<bool>(isRead),
+      'groupKey': serializer.toJson<String>(groupKey),
+      'actorCount': serializer.toJson<int>(actorCount),
+      'actorNames': serializer.toJson<String>(actorNames),
       'scope': serializer.toJson<String>(scope),
     };
   }
@@ -8786,6 +8929,9 @@ class NotificationLogRow extends DataClass
     Value<int?> scheduledAt = const Value.absent(),
     Value<int?> deliveredAt = const Value.absent(),
     bool? isRead,
+    String? groupKey,
+    int? actorCount,
+    String? actorNames,
     String? scope,
   }) => NotificationLogRow(
     id: id ?? this.id,
@@ -8796,6 +8942,9 @@ class NotificationLogRow extends DataClass
     scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
     deliveredAt: deliveredAt.present ? deliveredAt.value : this.deliveredAt,
     isRead: isRead ?? this.isRead,
+    groupKey: groupKey ?? this.groupKey,
+    actorCount: actorCount ?? this.actorCount,
+    actorNames: actorNames ?? this.actorNames,
     scope: scope ?? this.scope,
   );
   NotificationLogRow copyWithCompanion(NotificationLogsCompanion data) {
@@ -8812,6 +8961,13 @@ class NotificationLogRow extends DataClass
           ? data.deliveredAt.value
           : this.deliveredAt,
       isRead: data.isRead.present ? data.isRead.value : this.isRead,
+      groupKey: data.groupKey.present ? data.groupKey.value : this.groupKey,
+      actorCount: data.actorCount.present
+          ? data.actorCount.value
+          : this.actorCount,
+      actorNames: data.actorNames.present
+          ? data.actorNames.value
+          : this.actorNames,
       scope: data.scope.present ? data.scope.value : this.scope,
     );
   }
@@ -8827,6 +8983,9 @@ class NotificationLogRow extends DataClass
           ..write('scheduledAt: $scheduledAt, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('isRead: $isRead, ')
+          ..write('groupKey: $groupKey, ')
+          ..write('actorCount: $actorCount, ')
+          ..write('actorNames: $actorNames, ')
           ..write('scope: $scope')
           ..write(')'))
         .toString();
@@ -8842,6 +9001,9 @@ class NotificationLogRow extends DataClass
     scheduledAt,
     deliveredAt,
     isRead,
+    groupKey,
+    actorCount,
+    actorNames,
     scope,
   );
   @override
@@ -8856,6 +9018,9 @@ class NotificationLogRow extends DataClass
           other.scheduledAt == this.scheduledAt &&
           other.deliveredAt == this.deliveredAt &&
           other.isRead == this.isRead &&
+          other.groupKey == this.groupKey &&
+          other.actorCount == this.actorCount &&
+          other.actorNames == this.actorNames &&
           other.scope == this.scope);
 }
 
@@ -8868,6 +9033,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
   final Value<int?> scheduledAt;
   final Value<int?> deliveredAt;
   final Value<bool> isRead;
+  final Value<String> groupKey;
+  final Value<int> actorCount;
+  final Value<String> actorNames;
   final Value<String> scope;
   final Value<int> rowid;
   const NotificationLogsCompanion({
@@ -8879,6 +9047,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     this.scheduledAt = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.isRead = const Value.absent(),
+    this.groupKey = const Value.absent(),
+    this.actorCount = const Value.absent(),
+    this.actorNames = const Value.absent(),
     this.scope = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -8891,6 +9062,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     this.scheduledAt = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.isRead = const Value.absent(),
+    this.groupKey = const Value.absent(),
+    this.actorCount = const Value.absent(),
+    this.actorNames = const Value.absent(),
     this.scope = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -8905,6 +9079,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     Expression<int>? scheduledAt,
     Expression<int>? deliveredAt,
     Expression<bool>? isRead,
+    Expression<String>? groupKey,
+    Expression<int>? actorCount,
+    Expression<String>? actorNames,
     Expression<String>? scope,
     Expression<int>? rowid,
   }) {
@@ -8917,6 +9094,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
       if (isRead != null) 'is_read': isRead,
+      if (groupKey != null) 'group_key': groupKey,
+      if (actorCount != null) 'actor_count': actorCount,
+      if (actorNames != null) 'actor_names': actorNames,
       if (scope != null) 'scope': scope,
       if (rowid != null) 'rowid': rowid,
     });
@@ -8931,6 +9111,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     Value<int?>? scheduledAt,
     Value<int?>? deliveredAt,
     Value<bool>? isRead,
+    Value<String>? groupKey,
+    Value<int>? actorCount,
+    Value<String>? actorNames,
     Value<String>? scope,
     Value<int>? rowid,
   }) {
@@ -8943,6 +9126,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
       scheduledAt: scheduledAt ?? this.scheduledAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       isRead: isRead ?? this.isRead,
+      groupKey: groupKey ?? this.groupKey,
+      actorCount: actorCount ?? this.actorCount,
+      actorNames: actorNames ?? this.actorNames,
       scope: scope ?? this.scope,
       rowid: rowid ?? this.rowid,
     );
@@ -8975,6 +9161,15 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
     if (isRead.present) {
       map['is_read'] = Variable<bool>(isRead.value);
     }
+    if (groupKey.present) {
+      map['group_key'] = Variable<String>(groupKey.value);
+    }
+    if (actorCount.present) {
+      map['actor_count'] = Variable<int>(actorCount.value);
+    }
+    if (actorNames.present) {
+      map['actor_names'] = Variable<String>(actorNames.value);
+    }
     if (scope.present) {
       map['scope'] = Variable<String>(scope.value);
     }
@@ -8995,6 +9190,9 @@ class NotificationLogsCompanion extends UpdateCompanion<NotificationLogRow> {
           ..write('scheduledAt: $scheduledAt, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('isRead: $isRead, ')
+          ..write('groupKey: $groupKey, ')
+          ..write('actorCount: $actorCount, ')
+          ..write('actorNames: $actorNames, ')
           ..write('scope: $scope, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -10002,6 +10200,315 @@ class StickersCompanion extends UpdateCompanion<StickerRow> {
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('scope: $scope, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CustomAvatarsTable extends CustomAvatars
+    with TableInfo<$CustomAvatarsTable, CustomAvatarRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CustomAvatarsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, path, createdAt, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'custom_avatars';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CustomAvatarRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CustomAvatarRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CustomAvatarRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $CustomAvatarsTable createAlias(String alias) {
+    return $CustomAvatarsTable(attachedDatabase, alias);
+  }
+}
+
+class CustomAvatarRow extends DataClass implements Insertable<CustomAvatarRow> {
+  final String id;
+  final String path;
+  final int createdAt;
+  final int? deletedAt;
+  const CustomAvatarRow({
+    required this.id,
+    required this.path,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['path'] = Variable<String>(path);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  CustomAvatarsCompanion toCompanion(bool nullToAbsent) {
+    return CustomAvatarsCompanion(
+      id: Value(id),
+      path: Value(path),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory CustomAvatarRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CustomAvatarRow(
+      id: serializer.fromJson<String>(json['id']),
+      path: serializer.fromJson<String>(json['path']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'path': serializer.toJson<String>(path),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  CustomAvatarRow copyWith({
+    String? id,
+    String? path,
+    int? createdAt,
+    Value<int?> deletedAt = const Value.absent(),
+  }) => CustomAvatarRow(
+    id: id ?? this.id,
+    path: path ?? this.path,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  CustomAvatarRow copyWithCompanion(CustomAvatarsCompanion data) {
+    return CustomAvatarRow(
+      id: data.id.present ? data.id.value : this.id,
+      path: data.path.present ? data.path.value : this.path,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CustomAvatarRow(')
+          ..write('id: $id, ')
+          ..write('path: $path, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, path, createdAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CustomAvatarRow &&
+          other.id == this.id &&
+          other.path == this.path &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class CustomAvatarsCompanion extends UpdateCompanion<CustomAvatarRow> {
+  final Value<String> id;
+  final Value<String> path;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const CustomAvatarsCompanion({
+    this.id = const Value.absent(),
+    this.path = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CustomAvatarsCompanion.insert({
+    required String id,
+    required String path,
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       path = Value(path),
+       createdAt = Value(createdAt);
+  static Insertable<CustomAvatarRow> custom({
+    Expression<String>? id,
+    Expression<String>? path,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (path != null) 'path': path,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CustomAvatarsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? path,
+    Value<int>? createdAt,
+    Value<int?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return CustomAvatarsCompanion(
+      id: id ?? this.id,
+      path: path ?? this.path,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CustomAvatarsCompanion(')
+          ..write('id: $id, ')
+          ..write('path: $path, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -18141,6 +18648,660 @@ class ResidentMemoriesCompanion extends UpdateCompanion<ResidentMemoryRow> {
   }
 }
 
+class $ResidentInboxItemsTable extends ResidentInboxItems
+    with TableInfo<$ResidentInboxItemsTable, ResidentInboxRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentInboxItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _refIdMeta = const VerificationMeta('refId');
+  @override
+  late final GeneratedColumn<String> refId = GeneratedColumn<String>(
+    'ref_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+    'post_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _actorNameMeta = const VerificationMeta(
+    'actorName',
+  );
+  @override
+  late final GeneratedColumn<String> actorName = GeneratedColumn<String>(
+    'actor_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _handledAtMeta = const VerificationMeta(
+    'handledAt',
+  );
+  @override
+  late final GeneratedColumn<int> handledAt = GeneratedColumn<int>(
+    'handled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _decisionMeta = const VerificationMeta(
+    'decision',
+  );
+  @override
+  late final GeneratedColumn<String> decision = GeneratedColumn<String>(
+    'decision',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _wakeIdMeta = const VerificationMeta('wakeId');
+  @override
+  late final GeneratedColumn<String> wakeId = GeneratedColumn<String>(
+    'wake_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    kind,
+    refId,
+    postId,
+    actorName,
+    summary,
+    createdAt,
+    handledAt,
+    decision,
+    wakeId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_inbox_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentInboxRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('ref_id')) {
+      context.handle(
+        _refIdMeta,
+        refId.isAcceptableOrUnknown(data['ref_id']!, _refIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_refIdMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(
+        _postIdMeta,
+        postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta),
+      );
+    }
+    if (data.containsKey('actor_name')) {
+      context.handle(
+        _actorNameMeta,
+        actorName.isAcceptableOrUnknown(data['actor_name']!, _actorNameMeta),
+      );
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('handled_at')) {
+      context.handle(
+        _handledAtMeta,
+        handledAt.isAcceptableOrUnknown(data['handled_at']!, _handledAtMeta),
+      );
+    }
+    if (data.containsKey('decision')) {
+      context.handle(
+        _decisionMeta,
+        decision.isAcceptableOrUnknown(data['decision']!, _decisionMeta),
+      );
+    }
+    if (data.containsKey('wake_id')) {
+      context.handle(
+        _wakeIdMeta,
+        wakeId.isAcceptableOrUnknown(data['wake_id']!, _wakeIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResidentInboxRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentInboxRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      refId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ref_id'],
+      )!,
+      postId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}post_id'],
+      ),
+      actorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}actor_name'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      handledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}handled_at'],
+      ),
+      decision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision'],
+      )!,
+      wakeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wake_id'],
+      ),
+    );
+  }
+
+  @override
+  $ResidentInboxItemsTable createAlias(String alias) {
+    return $ResidentInboxItemsTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentInboxRow extends DataClass
+    implements Insertable<ResidentInboxRow> {
+  final String id;
+  final String residentId;
+
+  /// comment_on_post / reply_to_comment / dm
+  final String kind;
+  final String refId;
+  final String? postId;
+  final String actorName;
+
+  /// 对方具体说了什么（评论正文或私信内容，截断到两百字）。
+  final String summary;
+  final int createdAt;
+  final int? handledAt;
+
+  /// replied / ignored / merged
+  final String decision;
+  final String? wakeId;
+  const ResidentInboxRow({
+    required this.id,
+    required this.residentId,
+    required this.kind,
+    required this.refId,
+    this.postId,
+    required this.actorName,
+    required this.summary,
+    required this.createdAt,
+    this.handledAt,
+    required this.decision,
+    this.wakeId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['kind'] = Variable<String>(kind);
+    map['ref_id'] = Variable<String>(refId);
+    if (!nullToAbsent || postId != null) {
+      map['post_id'] = Variable<String>(postId);
+    }
+    map['actor_name'] = Variable<String>(actorName);
+    map['summary'] = Variable<String>(summary);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || handledAt != null) {
+      map['handled_at'] = Variable<int>(handledAt);
+    }
+    map['decision'] = Variable<String>(decision);
+    if (!nullToAbsent || wakeId != null) {
+      map['wake_id'] = Variable<String>(wakeId);
+    }
+    return map;
+  }
+
+  ResidentInboxItemsCompanion toCompanion(bool nullToAbsent) {
+    return ResidentInboxItemsCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      kind: Value(kind),
+      refId: Value(refId),
+      postId: postId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(postId),
+      actorName: Value(actorName),
+      summary: Value(summary),
+      createdAt: Value(createdAt),
+      handledAt: handledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(handledAt),
+      decision: Value(decision),
+      wakeId: wakeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wakeId),
+    );
+  }
+
+  factory ResidentInboxRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentInboxRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      refId: serializer.fromJson<String>(json['refId']),
+      postId: serializer.fromJson<String?>(json['postId']),
+      actorName: serializer.fromJson<String>(json['actorName']),
+      summary: serializer.fromJson<String>(json['summary']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      handledAt: serializer.fromJson<int?>(json['handledAt']),
+      decision: serializer.fromJson<String>(json['decision']),
+      wakeId: serializer.fromJson<String?>(json['wakeId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'kind': serializer.toJson<String>(kind),
+      'refId': serializer.toJson<String>(refId),
+      'postId': serializer.toJson<String?>(postId),
+      'actorName': serializer.toJson<String>(actorName),
+      'summary': serializer.toJson<String>(summary),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'handledAt': serializer.toJson<int?>(handledAt),
+      'decision': serializer.toJson<String>(decision),
+      'wakeId': serializer.toJson<String?>(wakeId),
+    };
+  }
+
+  ResidentInboxRow copyWith({
+    String? id,
+    String? residentId,
+    String? kind,
+    String? refId,
+    Value<String?> postId = const Value.absent(),
+    String? actorName,
+    String? summary,
+    int? createdAt,
+    Value<int?> handledAt = const Value.absent(),
+    String? decision,
+    Value<String?> wakeId = const Value.absent(),
+  }) => ResidentInboxRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    kind: kind ?? this.kind,
+    refId: refId ?? this.refId,
+    postId: postId.present ? postId.value : this.postId,
+    actorName: actorName ?? this.actorName,
+    summary: summary ?? this.summary,
+    createdAt: createdAt ?? this.createdAt,
+    handledAt: handledAt.present ? handledAt.value : this.handledAt,
+    decision: decision ?? this.decision,
+    wakeId: wakeId.present ? wakeId.value : this.wakeId,
+  );
+  ResidentInboxRow copyWithCompanion(ResidentInboxItemsCompanion data) {
+    return ResidentInboxRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      refId: data.refId.present ? data.refId.value : this.refId,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      actorName: data.actorName.present ? data.actorName.value : this.actorName,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      handledAt: data.handledAt.present ? data.handledAt.value : this.handledAt,
+      decision: data.decision.present ? data.decision.value : this.decision,
+      wakeId: data.wakeId.present ? data.wakeId.value : this.wakeId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentInboxRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('kind: $kind, ')
+          ..write('refId: $refId, ')
+          ..write('postId: $postId, ')
+          ..write('actorName: $actorName, ')
+          ..write('summary: $summary, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('handledAt: $handledAt, ')
+          ..write('decision: $decision, ')
+          ..write('wakeId: $wakeId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    residentId,
+    kind,
+    refId,
+    postId,
+    actorName,
+    summary,
+    createdAt,
+    handledAt,
+    decision,
+    wakeId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentInboxRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.kind == this.kind &&
+          other.refId == this.refId &&
+          other.postId == this.postId &&
+          other.actorName == this.actorName &&
+          other.summary == this.summary &&
+          other.createdAt == this.createdAt &&
+          other.handledAt == this.handledAt &&
+          other.decision == this.decision &&
+          other.wakeId == this.wakeId);
+}
+
+class ResidentInboxItemsCompanion extends UpdateCompanion<ResidentInboxRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<String> kind;
+  final Value<String> refId;
+  final Value<String?> postId;
+  final Value<String> actorName;
+  final Value<String> summary;
+  final Value<int> createdAt;
+  final Value<int?> handledAt;
+  final Value<String> decision;
+  final Value<String?> wakeId;
+  final Value<int> rowid;
+  const ResidentInboxItemsCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.refId = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.actorName = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.handledAt = const Value.absent(),
+    this.decision = const Value.absent(),
+    this.wakeId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResidentInboxItemsCompanion.insert({
+    required String id,
+    required String residentId,
+    required String kind,
+    required String refId,
+    this.postId = const Value.absent(),
+    this.actorName = const Value.absent(),
+    this.summary = const Value.absent(),
+    required int createdAt,
+    this.handledAt = const Value.absent(),
+    this.decision = const Value.absent(),
+    this.wakeId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       kind = Value(kind),
+       refId = Value(refId),
+       createdAt = Value(createdAt);
+  static Insertable<ResidentInboxRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<String>? kind,
+    Expression<String>? refId,
+    Expression<String>? postId,
+    Expression<String>? actorName,
+    Expression<String>? summary,
+    Expression<int>? createdAt,
+    Expression<int>? handledAt,
+    Expression<String>? decision,
+    Expression<String>? wakeId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (kind != null) 'kind': kind,
+      if (refId != null) 'ref_id': refId,
+      if (postId != null) 'post_id': postId,
+      if (actorName != null) 'actor_name': actorName,
+      if (summary != null) 'summary': summary,
+      if (createdAt != null) 'created_at': createdAt,
+      if (handledAt != null) 'handled_at': handledAt,
+      if (decision != null) 'decision': decision,
+      if (wakeId != null) 'wake_id': wakeId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResidentInboxItemsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<String>? kind,
+    Value<String>? refId,
+    Value<String?>? postId,
+    Value<String>? actorName,
+    Value<String>? summary,
+    Value<int>? createdAt,
+    Value<int?>? handledAt,
+    Value<String>? decision,
+    Value<String?>? wakeId,
+    Value<int>? rowid,
+  }) {
+    return ResidentInboxItemsCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      kind: kind ?? this.kind,
+      refId: refId ?? this.refId,
+      postId: postId ?? this.postId,
+      actorName: actorName ?? this.actorName,
+      summary: summary ?? this.summary,
+      createdAt: createdAt ?? this.createdAt,
+      handledAt: handledAt ?? this.handledAt,
+      decision: decision ?? this.decision,
+      wakeId: wakeId ?? this.wakeId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (refId.present) {
+      map['ref_id'] = Variable<String>(refId.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (actorName.present) {
+      map['actor_name'] = Variable<String>(actorName.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (handledAt.present) {
+      map['handled_at'] = Variable<int>(handledAt.value);
+    }
+    if (decision.present) {
+      map['decision'] = Variable<String>(decision.value);
+    }
+    if (wakeId.present) {
+      map['wake_id'] = Variable<String>(wakeId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentInboxItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('kind: $kind, ')
+          ..write('refId: $refId, ')
+          ..write('postId: $postId, ')
+          ..write('actorName: $actorName, ')
+          ..write('summary: $summary, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('handledAt: $handledAt, ')
+          ..write('decision: $decision, ')
+          ..write('wakeId: $wakeId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ActionLogsTable extends ActionLogs
     with TableInfo<$ActionLogsTable, ActionLogRow> {
   @override
@@ -18781,6 +19942,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $StickersTable stickers = $StickersTable(this);
+  late final $CustomAvatarsTable customAvatars = $CustomAvatarsTable(this);
   late final $PlanScriptsTable planScripts = $PlanScriptsTable(this);
   late final $PlanEventsTable planEvents = $PlanEventsTable(this);
   late final $ModelConfigsTable modelConfigs = $ModelConfigsTable(this);
@@ -18799,6 +19961,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ResidentMemoriesTable residentMemories = $ResidentMemoriesTable(
     this,
   );
+  late final $ResidentInboxItemsTable residentInboxItems =
+      $ResidentInboxItemsTable(this);
   late final $ActionLogsTable actionLogs = $ActionLogsTable(this);
   late final Index postsCreatedAt = Index(
     'posts_created_at',
@@ -18848,6 +20012,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'post_views_by_post',
     'CREATE INDEX post_views_by_post ON post_views (post_id, last_viewed_at)',
   );
+  late final Index residentInboxPending = Index(
+    'resident_inbox_pending',
+    'CREATE INDEX resident_inbox_pending ON resident_inbox_items (resident_id, handled_at)',
+  );
   late final Index actionLogsActor = Index(
     'action_logs_actor',
     'CREATE INDEX action_logs_actor ON action_logs (actor_id, "action")',
@@ -18873,6 +20041,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     notificationLogs,
     feedbackViewLogs,
     stickers,
+    customAvatars,
     planScripts,
     planEvents,
     modelConfigs,
@@ -18885,6 +20054,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postViews,
     postUnderstandings,
     residentMemories,
+    residentInboxItems,
     actionLogs,
     postsCreatedAt,
     aiInteractionsLookup,
@@ -18898,6 +20068,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postVoicesByPost,
     aiThreadsByPost,
     postViewsByPost,
+    residentInboxPending,
     actionLogsActor,
   ];
 }
@@ -23374,6 +24545,7 @@ typedef $$UserCommentsTableCreateCompanionBuilder =
       required String postId,
       required String content,
       Value<String> mediaType,
+      Value<String> caption,
       Value<String?> parentId,
       Value<String?> replyToName,
       required int createdAt,
@@ -23386,6 +24558,7 @@ typedef $$UserCommentsTableUpdateCompanionBuilder =
       Value<String> postId,
       Value<String> content,
       Value<String> mediaType,
+      Value<String> caption,
       Value<String?> parentId,
       Value<String?> replyToName,
       Value<int> createdAt,
@@ -23436,6 +24609,11 @@ class $$UserCommentsTableFilterComposer
 
   ColumnFilters<String> get mediaType => $composableBuilder(
     column: $table.mediaType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23507,6 +24685,11 @@ class $$UserCommentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get parentId => $composableBuilder(
     column: $table.parentId,
     builder: (column) => ColumnOrderings(column),
@@ -23568,6 +24751,9 @@ class $$UserCommentsTableAnnotationComposer
 
   GeneratedColumn<String> get mediaType =>
       $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
 
   GeneratedColumn<String> get parentId =>
       $composableBuilder(column: $table.parentId, builder: (column) => column);
@@ -23639,6 +24825,7 @@ class $$UserCommentsTableTableManager
                 Value<String> postId = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<String> mediaType = const Value.absent(),
+                Value<String> caption = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
@@ -23649,6 +24836,7 @@ class $$UserCommentsTableTableManager
                 postId: postId,
                 content: content,
                 mediaType: mediaType,
+                caption: caption,
                 parentId: parentId,
                 replyToName: replyToName,
                 createdAt: createdAt,
@@ -23661,6 +24849,7 @@ class $$UserCommentsTableTableManager
                 required String postId,
                 required String content,
                 Value<String> mediaType = const Value.absent(),
+                Value<String> caption = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
                 required int createdAt,
@@ -23671,6 +24860,7 @@ class $$UserCommentsTableTableManager
                 postId: postId,
                 content: content,
                 mediaType: mediaType,
+                caption: caption,
                 parentId: parentId,
                 replyToName: replyToName,
                 createdAt: createdAt,
@@ -24831,6 +26021,9 @@ typedef $$NotificationLogsTableCreateCompanionBuilder =
       Value<int?> scheduledAt,
       Value<int?> deliveredAt,
       Value<bool> isRead,
+      Value<String> groupKey,
+      Value<int> actorCount,
+      Value<String> actorNames,
       Value<String> scope,
       Value<int> rowid,
     });
@@ -24844,6 +26037,9 @@ typedef $$NotificationLogsTableUpdateCompanionBuilder =
       Value<int?> scheduledAt,
       Value<int?> deliveredAt,
       Value<bool> isRead,
+      Value<String> groupKey,
+      Value<int> actorCount,
+      Value<String> actorNames,
       Value<String> scope,
       Value<int> rowid,
     });
@@ -24894,6 +26090,21 @@ class $$NotificationLogsTableFilterComposer
 
   ColumnFilters<bool> get isRead => $composableBuilder(
     column: $table.isRead,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupKey => $composableBuilder(
+    column: $table.groupKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get actorCount => $composableBuilder(
+    column: $table.actorCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actorNames => $composableBuilder(
+    column: $table.actorNames,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24952,6 +26163,21 @@ class $$NotificationLogsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get groupKey => $composableBuilder(
+    column: $table.groupKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get actorCount => $composableBuilder(
+    column: $table.actorCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actorNames => $composableBuilder(
+    column: $table.actorNames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get scope => $composableBuilder(
     column: $table.scope,
     builder: (column) => ColumnOrderings(column),
@@ -24994,6 +26220,19 @@ class $$NotificationLogsTableAnnotationComposer
 
   GeneratedColumn<bool> get isRead =>
       $composableBuilder(column: $table.isRead, builder: (column) => column);
+
+  GeneratedColumn<String> get groupKey =>
+      $composableBuilder(column: $table.groupKey, builder: (column) => column);
+
+  GeneratedColumn<int> get actorCount => $composableBuilder(
+    column: $table.actorCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get actorNames => $composableBuilder(
+    column: $table.actorNames,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get scope =>
       $composableBuilder(column: $table.scope, builder: (column) => column);
@@ -25044,6 +26283,9 @@ class $$NotificationLogsTableTableManager
                 Value<int?> scheduledAt = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<bool> isRead = const Value.absent(),
+                Value<String> groupKey = const Value.absent(),
+                Value<int> actorCount = const Value.absent(),
+                Value<String> actorNames = const Value.absent(),
                 Value<String> scope = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotificationLogsCompanion(
@@ -25055,6 +26297,9 @@ class $$NotificationLogsTableTableManager
                 scheduledAt: scheduledAt,
                 deliveredAt: deliveredAt,
                 isRead: isRead,
+                groupKey: groupKey,
+                actorCount: actorCount,
+                actorNames: actorNames,
                 scope: scope,
                 rowid: rowid,
               ),
@@ -25068,6 +26313,9 @@ class $$NotificationLogsTableTableManager
                 Value<int?> scheduledAt = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<bool> isRead = const Value.absent(),
+                Value<String> groupKey = const Value.absent(),
+                Value<int> actorCount = const Value.absent(),
+                Value<String> actorNames = const Value.absent(),
                 Value<String> scope = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotificationLogsCompanion.insert(
@@ -25079,6 +26327,9 @@ class $$NotificationLogsTableTableManager
                 scheduledAt: scheduledAt,
                 deliveredAt: deliveredAt,
                 isRead: isRead,
+                groupKey: groupKey,
+                actorCount: actorCount,
+                actorNames: actorNames,
                 scope: scope,
                 rowid: rowid,
               ),
@@ -25661,6 +26912,196 @@ typedef $$StickersTableProcessedTableManager =
       $$StickersTableUpdateCompanionBuilder,
       (StickerRow, BaseReferences<_$AppDatabase, $StickersTable, StickerRow>),
       StickerRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CustomAvatarsTableCreateCompanionBuilder =
+    CustomAvatarsCompanion Function({
+      required String id,
+      required String path,
+      required int createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$CustomAvatarsTableUpdateCompanionBuilder =
+    CustomAvatarsCompanion Function({
+      Value<String> id,
+      Value<String> path,
+      Value<int> createdAt,
+      Value<int?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$CustomAvatarsTableFilterComposer
+    extends Composer<_$AppDatabase, $CustomAvatarsTable> {
+  $$CustomAvatarsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CustomAvatarsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CustomAvatarsTable> {
+  $$CustomAvatarsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CustomAvatarsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CustomAvatarsTable> {
+  $$CustomAvatarsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$CustomAvatarsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CustomAvatarsTable,
+          CustomAvatarRow,
+          $$CustomAvatarsTableFilterComposer,
+          $$CustomAvatarsTableOrderingComposer,
+          $$CustomAvatarsTableAnnotationComposer,
+          $$CustomAvatarsTableCreateCompanionBuilder,
+          $$CustomAvatarsTableUpdateCompanionBuilder,
+          (
+            CustomAvatarRow,
+            BaseReferences<_$AppDatabase, $CustomAvatarsTable, CustomAvatarRow>,
+          ),
+          CustomAvatarRow,
+          PrefetchHooks Function()
+        > {
+  $$CustomAvatarsTableTableManager(_$AppDatabase db, $CustomAvatarsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CustomAvatarsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CustomAvatarsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CustomAvatarsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CustomAvatarsCompanion(
+                id: id,
+                path: path,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String path,
+                required int createdAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CustomAvatarsCompanion.insert(
+                id: id,
+                path: path,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CustomAvatarsTable, CustomAvatarRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CustomAvatarsTable,
+                    CustomAvatarRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CustomAvatarsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CustomAvatarsTable,
+      CustomAvatarRow,
+      $$CustomAvatarsTableFilterComposer,
+      $$CustomAvatarsTableOrderingComposer,
+      $$CustomAvatarsTableAnnotationComposer,
+      $$CustomAvatarsTableCreateCompanionBuilder,
+      $$CustomAvatarsTableUpdateCompanionBuilder,
+      (
+        CustomAvatarRow,
+        BaseReferences<_$AppDatabase, $CustomAvatarsTable, CustomAvatarRow>,
+      ),
+      CustomAvatarRow,
       PrefetchHooks Function()
     >;
 typedef $$PlanScriptsTableCreateCompanionBuilder =
@@ -30802,6 +32243,346 @@ typedef $$ResidentMemoriesTableProcessedTableManager =
       ResidentMemoryRow,
       PrefetchHooks Function({bool residentId})
     >;
+typedef $$ResidentInboxItemsTableCreateCompanionBuilder =
+    ResidentInboxItemsCompanion Function({
+      required String id,
+      required String residentId,
+      required String kind,
+      required String refId,
+      Value<String?> postId,
+      Value<String> actorName,
+      Value<String> summary,
+      required int createdAt,
+      Value<int?> handledAt,
+      Value<String> decision,
+      Value<String?> wakeId,
+      Value<int> rowid,
+    });
+typedef $$ResidentInboxItemsTableUpdateCompanionBuilder =
+    ResidentInboxItemsCompanion Function({
+      Value<String> id,
+      Value<String> residentId,
+      Value<String> kind,
+      Value<String> refId,
+      Value<String?> postId,
+      Value<String> actorName,
+      Value<String> summary,
+      Value<int> createdAt,
+      Value<int?> handledAt,
+      Value<String> decision,
+      Value<String?> wakeId,
+      Value<int> rowid,
+    });
+
+class $$ResidentInboxItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentInboxItemsTable> {
+  $$ResidentInboxItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get refId => $composableBuilder(
+    column: $table.refId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get postId => $composableBuilder(
+    column: $table.postId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actorName => $composableBuilder(
+    column: $table.actorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get handledAt => $composableBuilder(
+    column: $table.handledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decision => $composableBuilder(
+    column: $table.decision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get wakeId => $composableBuilder(
+    column: $table.wakeId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ResidentInboxItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentInboxItemsTable> {
+  $$ResidentInboxItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get refId => $composableBuilder(
+    column: $table.refId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get postId => $composableBuilder(
+    column: $table.postId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actorName => $composableBuilder(
+    column: $table.actorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get handledAt => $composableBuilder(
+    column: $table.handledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decision => $composableBuilder(
+    column: $table.decision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get wakeId => $composableBuilder(
+    column: $table.wakeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ResidentInboxItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentInboxItemsTable> {
+  $$ResidentInboxItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get refId =>
+      $composableBuilder(column: $table.refId, builder: (column) => column);
+
+  GeneratedColumn<String> get postId =>
+      $composableBuilder(column: $table.postId, builder: (column) => column);
+
+  GeneratedColumn<String> get actorName =>
+      $composableBuilder(column: $table.actorName, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get handledAt =>
+      $composableBuilder(column: $table.handledAt, builder: (column) => column);
+
+  GeneratedColumn<String> get decision =>
+      $composableBuilder(column: $table.decision, builder: (column) => column);
+
+  GeneratedColumn<String> get wakeId =>
+      $composableBuilder(column: $table.wakeId, builder: (column) => column);
+}
+
+class $$ResidentInboxItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentInboxItemsTable,
+          ResidentInboxRow,
+          $$ResidentInboxItemsTableFilterComposer,
+          $$ResidentInboxItemsTableOrderingComposer,
+          $$ResidentInboxItemsTableAnnotationComposer,
+          $$ResidentInboxItemsTableCreateCompanionBuilder,
+          $$ResidentInboxItemsTableUpdateCompanionBuilder,
+          (
+            ResidentInboxRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ResidentInboxItemsTable,
+              ResidentInboxRow
+            >,
+          ),
+          ResidentInboxRow,
+          PrefetchHooks Function()
+        > {
+  $$ResidentInboxItemsTableTableManager(
+    _$AppDatabase db,
+    $ResidentInboxItemsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentInboxItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResidentInboxItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ResidentInboxItemsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> refId = const Value.absent(),
+                Value<String?> postId = const Value.absent(),
+                Value<String> actorName = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> handledAt = const Value.absent(),
+                Value<String> decision = const Value.absent(),
+                Value<String?> wakeId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentInboxItemsCompanion(
+                id: id,
+                residentId: residentId,
+                kind: kind,
+                refId: refId,
+                postId: postId,
+                actorName: actorName,
+                summary: summary,
+                createdAt: createdAt,
+                handledAt: handledAt,
+                decision: decision,
+                wakeId: wakeId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                required String kind,
+                required String refId,
+                Value<String?> postId = const Value.absent(),
+                Value<String> actorName = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                required int createdAt,
+                Value<int?> handledAt = const Value.absent(),
+                Value<String> decision = const Value.absent(),
+                Value<String?> wakeId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentInboxItemsCompanion.insert(
+                id: id,
+                residentId: residentId,
+                kind: kind,
+                refId: refId,
+                postId: postId,
+                actorName: actorName,
+                summary: summary,
+                createdAt: createdAt,
+                handledAt: handledAt,
+                decision: decision,
+                wakeId: wakeId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ResidentInboxItemsTable, ResidentInboxRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ResidentInboxItemsTable,
+                    ResidentInboxRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ResidentInboxItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentInboxItemsTable,
+      ResidentInboxRow,
+      $$ResidentInboxItemsTableFilterComposer,
+      $$ResidentInboxItemsTableOrderingComposer,
+      $$ResidentInboxItemsTableAnnotationComposer,
+      $$ResidentInboxItemsTableCreateCompanionBuilder,
+      $$ResidentInboxItemsTableUpdateCompanionBuilder,
+      (
+        ResidentInboxRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ResidentInboxItemsTable,
+          ResidentInboxRow
+        >,
+      ),
+      ResidentInboxRow,
+      PrefetchHooks Function()
+    >;
 typedef $$ActionLogsTableCreateCompanionBuilder = ActionLogsCompanion Function({
   required String id,
   required String actorId,
@@ -31142,6 +32923,8 @@ class $AppDatabaseManager {
       $$FeedbackViewLogsTableTableManager(_db, _db.feedbackViewLogs);
   $$StickersTableTableManager get stickers =>
       $$StickersTableTableManager(_db, _db.stickers);
+  $$CustomAvatarsTableTableManager get customAvatars =>
+      $$CustomAvatarsTableTableManager(_db, _db.customAvatars);
   $$PlanScriptsTableTableManager get planScripts =>
       $$PlanScriptsTableTableManager(_db, _db.planScripts);
   $$PlanEventsTableTableManager get planEvents =>
@@ -31166,6 +32949,8 @@ class $AppDatabaseManager {
       $$PostUnderstandingsTableTableManager(_db, _db.postUnderstandings);
   $$ResidentMemoriesTableTableManager get residentMemories =>
       $$ResidentMemoriesTableTableManager(_db, _db.residentMemories);
+  $$ResidentInboxItemsTableTableManager get residentInboxItems =>
+      $$ResidentInboxItemsTableTableManager(_db, _db.residentInboxItems);
   $$ActionLogsTableTableManager get actionLogs =>
       $$ActionLogsTableTableManager(_db, _db.actionLogs);
 }

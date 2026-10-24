@@ -8,7 +8,6 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
-import '../../domain/models/custom_resident.dart';
 import '../../domain/models/private_message.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -22,7 +21,6 @@ class MessagesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationsProvider);
-    final residents = ref.watch(customResidentsProvider).value ?? const [];
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -37,18 +35,6 @@ class MessagesPage extends ConsumerWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          // 关注与粉丝（B5）：它和私信是一类东西——都是"你和某个人的一对一"
-          IconButton(
-            onPressed: () => context.push(RoutePaths.follows),
-            tooltip: '关注与粉丝',
-            icon: Icon(
-              Icons.people_alt_outlined,
-              color: EchoColors.textMuted,
-              size: 20,
-            ),
-          ),
-        ],
       ),
       body: conversations.when(
         loading: () =>
@@ -60,13 +46,8 @@ class MessagesPage extends ConsumerWidget {
           ),
         ),
         data: (list) {
-          // 还没聊过的固定住民单独列在下面：设置完就能直接开聊，
-          // 不用等关系升温，也不用等他先来敲门。
-          final started = {for (final item in list) item.personaId};
-          final fresh = residents
-              .where((resident) => !started.contains(resident.id))
-              .toList(growable: false);
-
+          // 不再单列“还没聊过的固定住民”：新建完就直接进他的私信页，
+          // 他醒来后会自己发出第一条消息，会话自然出现在这个列表里。
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 4),
             children: [
@@ -80,84 +61,9 @@ class MessagesPage extends ConsumerWidget {
                   indent: 74,
                 ),
               ],
-              if (fresh.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
-                  child: Text(
-                    '固定住民',
-                    style: TextStyle(
-                      color: EchoColors.textFaint,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ),
-                for (final resident in fresh)
-                  _ResidentEntry(resident: resident),
-              ],
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-/// 还没开过口的固定住民：点一下就能开始一段私信。
-class _ResidentEntry extends StatelessWidget {
-  const _ResidentEntry({required this.resident});
-
-  final CustomResident resident;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push(RoutePaths.chat(resident.id)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
-        child: Row(
-          children: [
-            UserAvatar(
-              name: resident.name,
-              avatarRef: resident.avatarAsset,
-              size: 46,
-              showRing: true,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    resident.name,
-                    style: TextStyle(
-                      color: EchoColors.text,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    resident.bio.trim().isEmpty
-                        ? '点开说第一句话'
-                        : resident.bio,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: EchoColors.textFaint,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: EchoColors.textFaint,
-            ),
-          ],
-        ),
       ),
     );
   }

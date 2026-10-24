@@ -14,8 +14,8 @@ import 'domain/services/audience_service.dart';
 import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
+import 'domain/services/resident_wake_service.dart';
 import 'domain/services/scheduler_service.dart';
-import 'domain/services/world_service.dart';
 
 /// 应用根组件。
 ///
@@ -79,11 +79,12 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
         if (_ticks >= _idleFlushEveryTicks) {
           _ticks = 0;
           await scheduler.flushDue();
-          // "社区该不该有新内容"也在这一档检查：它的门槛是两小时，
-          // 三十秒的粒度完全够，没必要每一拍都去问一次
-          await ref.read(worldServiceProvider).tick();
-          // 私信：一是接住你刚说的那句，二是关系够近的人来敲门。
-          // 它自己带门槛（二十小时一次主动开口），这一档频率够用
+          // 固定住民的行为统一走“唤醒”：醒来先看收件箱，没有待办才考虑
+          // 自己发帖/刷帖子。这里不再单独跑世界 tick，否则同一件事会有
+          // 两套排期（一套预生成、一套模型决定），迟早打架。
+          // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时三小时才醒一次。
+          await ref.read(residentWakeServiceProvider).wakeAll();
+          // 旧住民（数据还留着，但不再进信息流）的私信仍走老 tick。
           await ref.read(directMessageServiceProvider).tick();
 
           // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。

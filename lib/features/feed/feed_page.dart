@@ -16,6 +16,7 @@ import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/models/post_voice.dart';
 import '../shared_widgets/like_button.dart';
+import '../shared_widgets/post_delete.dart';
 import '../shared_widgets/post_image_grid.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -55,6 +56,9 @@ class FeedPage extends ConsumerWidget {
     return Container(
       color: EchoColors.bg,
       child: posts.when(
+        // “加载更多”只是换了 limit，数据源没有换。保留旧列表可以避免
+        // 整页先闪成 spinner、再重建 ListView 把滚动位置丢回顶部。
+        skipLoadingOnReload: true,
         loading: () =>
             Center(child: CircularProgressIndicator(color: EchoColors.primary)),
         error: (error, _) => Center(
@@ -81,6 +85,7 @@ class FeedPage extends ConsumerWidget {
           };
 
           return ListView(
+            key: const PageStorageKey('feed_list'),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               const _PlazaHeader(),
@@ -479,10 +484,43 @@ class _PostFooter extends ConsumerWidget {
           color: EchoColors.textMuted,
         ),
         const Spacer(),
-        Icon(Icons.more_horiz, size: 18, color: EchoColors.textFaint),
+        _PostMenu(post: post),
       ],
     );
   }
+}
+
+/// 自己发的帖子才有菜单；别人的帖子保留原来的灰点，不假装能操作。
+class _PostMenu extends ConsumerWidget {
+  const _PostMenu({required this.post});
+
+  final Post post;
+
+  bool get _isMine =>
+      post.authorPersonaId == null && post.authorResidentId == null;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!_isMine) {
+      return Icon(Icons.more_horiz, size: 18, color: EchoColors.textFaint);
+    }
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      iconSize: 18,
+      icon: Icon(Icons.more_horiz, color: EchoColors.textMuted),
+      onSelected: (_) => confirmDeletePost(context, ref, post),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'delete',
+          child: Text(
+            '删除帖子',
+            style: TextStyle(color: EchoColors.like, fontSize: 13.5),
+          ),
+        ),
+      ],
+    );
+  }
+
 }
 
 class _IconStat extends StatelessWidget {

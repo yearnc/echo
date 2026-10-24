@@ -51,6 +51,36 @@ class CustomResidents extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// 固定住民的收件箱（v3.3）。
+///
+/// 唤醒式交互的地基：每次醒来先看这里有什么没处理，由模型决定
+/// 回谁、回什么、或者干脆已读不回。`handledAt` 必须有——否则
+/// “选择不回”会和“还没看到”混在一起，永远算待办。
+@DataClassName('ResidentInboxRow')
+@TableIndex(name: 'resident_inbox_pending', columns: {#residentId, #handledAt})
+class ResidentInboxItems extends Table {
+  TextColumn get id => text()();
+  TextColumn get residentId => text()();
+
+  /// comment_on_post / reply_to_comment / dm
+  TextColumn get kind => text()();
+  TextColumn get refId => text()();
+  TextColumn get postId => text().nullable()();
+  TextColumn get actorName => text().withDefault(const Constant(''))();
+
+  /// 对方具体说了什么（评论正文或私信内容，截断到两百字）。
+  TextColumn get summary => text().withDefault(const Constant(''))();
+  IntColumn get createdAt => integer()();
+  IntColumn get handledAt => integer().nullable()();
+
+  /// replied / ignored / merged
+  TextColumn get decision => text().withDefault(const Constant(''))();
+  TextColumn get wakeId => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// 固定住民的长期记忆（v3.0）。
 ///
 /// 只写用户明确表达的事实/偏好/事件；删除条目不删对话原文。

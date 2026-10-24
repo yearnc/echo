@@ -456,9 +456,11 @@ class _MemoryTile extends StatelessWidget {
   }
 
   static String _sourceLabel(String source) => switch (source) {
-    'post' => '来自你的帖子',
-    'comment' => '来自评论',
-    'dm' => '来自私信',
+    // 标签只回答“这条记忆从哪个渠道来”。谁说的、怎么说的，摘要里已经写了，
+    // 不必在同一个角标里再分一层“TA 发的 / 你发的”。
+    'post' || 'self_post' => '来自帖子',
+    'comment' || 'self_comment' => '来自评论',
+    'dm' || 'self_dm' => '来自私信',
     'manual' => '手动添加',
     _ => '记忆',
   };

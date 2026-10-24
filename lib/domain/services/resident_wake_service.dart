@@ -1,0 +1,604 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../data/db/app_database.dart';
+import '../../data/db/database_provider.dart';
+import '../../data/media/media_service.dart';
+import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/interaction_repository.dart';
+import '../../data/repositories/post_repository.dart';
+import '../../data/repositories/post_voice_repository.dart';
+import '../../data/repositories/private_message_repository.dart';
+import '../../data/repositories/resident_inbox_repository.dart';
+import '../../data/repositories/user_profile_repository.dart';
+import '../models/custom_resident.dart';
+import '../models/model_config.dart';
+import '../models/resident_inbox.dart';
+import 'action_registry.dart';
+import 'comment_reply_service.dart';
+import 'model_gateway.dart';
+import 'resident_memory_service.dart';
+import 'resident_tool_session.dart';
+
+enum WakeTrigger {
+  /// 用户刚发了私信/评论，马上叫醒。
+  userAction,
+
+  /// 心跳周期性看一眼。
+  heartbeat,
+
+  /// 刚创建好这个住民，让他先开口。
+  setup,
+}
+
+/// 唤醒式交互（v3.3）。
+///
+/// 以前固定住民是被"排期"驱动的：世界 tick 到点让它发帖，私信队列到点
+/// 让它回一句，评论回复另开一条链路。它们彼此不知道对方存在，所以会出现
+/// "帖子里不回你、私信里却回得很勤"这种分裂。
+///
+/// 现在统一成：**醒来 → 看收件箱 → 用工具决定回谁、怎么回、或者不回**。
+/// 没有待办时，才允许它自己发帖、刷帖子、点赞、主动发私信。
+class ResidentWakeService {
+  ResidentWakeService({
+    required this.db,
+    required this.residents,
+    required this.inbox,
+    required this.gateway,
+    required this.session,
+    required this.actions,
+    required this.posts,
+    required this.voices,
+    required this.interactions,
+    required this.profiles,
+    required this.messages,
+    required this.memories,
+    required this.media,
+    required this.commentReplies,
+  });
+
+  final AppDatabase db;
+  final CustomResidentRepository residents;
+  final ResidentInboxRepository inbox;
+  final ModelGateway gateway;
+  final ResidentToolSession session;
+  final ActionRegistry actions;
+  final PostRepository posts;
+  final PostVoiceRepository voices;
+  final InteractionRepository interactions;
+  final UserProfileRepository profiles;
+  final PrivateMessageRepository messages;
+  final ResidentMemoryService memories;
+  final MediaService media;
+  final CommentReplyService commentReplies;
+
+  /// 同一个人不要被同时叫醒两次（用户点发送 + 心跳撞在一起）。
+  final Set<String> _running = {};
+
+  /// 心跳唤醒的水位：每人每 15 分钟最多一次。
+  final Map<String, DateTime> _lastWake = {};
+
+  /// 没有待办时，主动找点事做的间隔。
+  static const Duration idleGap = Duration(hours: 3);
+
+  /// 心跳唤醒的最小间隔。
+  static const Duration heartbeatGap = Duration(minutes: 15);
+
+  /// 文生图单独的超时。发出去的帖子必须图文完整，所以这里等得起；
+  /// 90 秒是画一张图的正常上限，超过就退回纯文字，不把帖子卡死。
+  static const Duration imageTimeout = Duration(seconds: 90);
+
+  /// 一次唤醒最多发几段私信。
+  static const int maxDmSegments = 3;
+
+  /// 所有固定住民都看一眼（心跳用）。
+  Future<int> wakeAll({WakeTrigger trigger = WakeTrigger.heartbeat}) async {
+    final pool = await residents.all();
+    var handled = 0;
+    for (final resident in pool) {
+      handled += await wake(resident.id, trigger: trigger);
+    }
+    return handled;
+  }
+
+  /// “上一次醒来”的水位必须落盘：只放内存的话，每次冷启动都算
+  /// 从来没有醒过，所有住民会一起被叫醒。
+  static String _idleKey(String residentId) => 'wake.idleAt.$residentId';
+
+  Future<DateTime?> _idleAt(String residentId) async {
+    final query = db.select(db.appSettings)
+      ..where((t) => t.key.equals(_idleKey(residentId)));
+    final row = await query.getSingleOrNull();
+    final raw = int.tryParse(row?.value ?? '');
+    return raw == null ? null : DateTime.fromMillisecondsSinceEpoch(raw);
+  }
+
+  /// 设置页里的「固定住民动态」开关，默认关。唤醒时也要认它——
+  /// 不认的话，用户关了开关，住民照样在信息流里发帖。
+  Future<bool> _residentPostsAllowed() async {
+    const key = 'community.allowResidentPosts';
+    final query = db.select(db.appSettings)
+      ..where((t) => t.key.equals(key));
+    final row = await query.getSingleOrNull();
+    return row?.value == 'true';
+  }
+
+  Future<void> _touchIdle(String residentId) async {
+    await db
+        .into(db.appSettings)
+        .insertOnConflictUpdate(
+          AppSettingsCompanion.insert(
+            key: _idleKey(residentId),
+            value: DateTime.now().millisecondsSinceEpoch.toString(),
+          ),
+        );
+  }
+
+  Future<int> wake(
+    String residentId, {
+    WakeTrigger trigger = WakeTrigger.heartbeat,
+  }) async {
+    if (_running.contains(residentId)) return 0;
+    _running.add(residentId);
+    try {
+      return await _wake(residentId, trigger);
+    } finally {
+      _running.remove(residentId);
+    }
+  }
+
+  Future<int> _wake(String residentId, WakeTrigger trigger) async {
+    final last = _lastWake[residentId];
+    final now = DateTime.now();
+    if (trigger == WakeTrigger.heartbeat &&
+        last != null &&
+        now.difference(last) < heartbeatGap) {
+      return 0;
+    }
+
+    final resident = await residents.findById(residentId);
+    if (resident == null) return 0;
+
+    await inbox.sync(residentId);
+    final pending = await inbox.pending(residentId);
+
+    // 没有待办时，只有 setup 和“好久没动静了”才值得醒一次；
+    // 否则住户每 15 分钟醒一次，醒来又没事干，只是白花钱。
+    if (pending.isEmpty && trigger != WakeTrigger.setup) {
+      final idleAt = await _idleAt(residentId);
+      if (idleAt != null && now.difference(idleAt) < idleGap) {
+        return 0;
+      }
+      // 内存里的冷却只防同一进程内的心跳扎堆；落盘的水位防冷启动扎堆。
+      if (last != null && now.difference(last) < heartbeatGap) {
+        return 0;
+      }
+    }
+
+    final config = await gateway.activeConfig();
+    if (config == null) {
+      // 没配模型时待办必须留着：不能因为这次醒不成，就把消息标成已读。
+      debugPrint('[唤醒] ${resident.name}：还没配置对话模型');
+      return 0;
+    }
+
+    final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
+    // 一次最多看十条。看不过来的留在收件箱，下次醒来继续——
+    // 不能把没展示过的待办也标成“已读”，那等于替模型做了决定。
+    final visible = pending.take(10).toList(growable: false);
+    final toolkit = _WakeToolkit(
+      service: this,
+      resident: resident,
+      wakeId: wakeId,
+      pending: visible,
+      now: now,
+    );
+
+    try {
+      final said = await session.act(
+        resident: resident,
+        config: config,
+        situation: _situation(resident, visible, trigger),
+        toolkit: toolkit,
+        at: now,
+      );
+
+      // 模型没调工具、只回了一句话：当作私信发出去。
+      // 这既兜住了不支持 tool calling 的模型，也兜住“它就是想直接说话”。
+      if (said.trim().isNotEmpty && !toolkit.spokePrivately) {
+        await toolkit.sendDm(said.trim(), 'fallback');
+      }
+
+      // 这一轮结束了，剩下的都是“看过了但没回”。必须落一个 handled，
+      // 否则下次醒来又是同一批，永远处理不完。
+      if (!toolkit.finished) {
+        await inbox.markHandled(
+          visible.map((item) => item.id),
+          decision: 'skipped',
+          wakeId: wakeId,
+        );
+      }
+      await toolkit.flushImage();
+      _lastWake[residentId] = DateTime.now();
+      await _touchIdle(residentId);
+      return pending.length;
+    } catch (error) {
+      // 失败不标记：留着待办，下个心跳再试。
+      debugPrint('[唤醒] ${resident.name} 这次没醒成：$error');
+      await toolkit.flushImage();
+      return 0;
+    }
+  }
+
+  String _situation(
+    CustomResident resident,
+    List<ResidentInboxItem> pending,
+    WakeTrigger trigger,
+  ) {
+    if (pending.isEmpty) {
+      return trigger == WakeTrigger.setup
+          ? '你刚住进这里，还没有人跟你说话。你可以主动给对方发一条私信，'
+                '像刚加了好友那样打个招呼；不想发也可以什么都不做。'
+          : '手机上没有新消息。你可以自己发条动态、刷一刷别人发的帖子、'
+                '点个赞，或者就搁着。';
+    }
+
+    final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
+    for (final item in pending) {
+      final line = switch (item.kind) {
+        ResidentInboxRepository.kindCommentOnPost =>
+          '有人在你的帖子下评论：「${item.summary}」',
+        ResidentInboxRepository.kindReplyToComment =>
+          '有人回了你的评论：「${item.summary}」',
+        ResidentInboxRepository.kindDm => '给你发了私信：「${item.summary}」',
+        _ => '「${item.summary}」',
+      };
+      buffer.writeln('- [${item.id}] $line');
+    }
+    buffer.writeln();
+    buffer.writeln(
+      '评论类用 reply_inbox 回在评论下面；私信类用 send_dm 回。'
+      '也可以只读不回：最后调用 finish。',
+    );
+    return buffer.toString();
+  }
+
+  /// 把一条评论回复排进发送队列。
+  Future<ActionOutcome> _replyComment(
+    ResidentInboxItem item,
+    String content,
+    String callId,
+  ) async {
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '回复是空的');
+    }
+    final postId = item.postId;
+    if (postId == null) {
+      return const ActionOutcome(ok: false, message: '这条待办没有对应的帖子');
+    }
+
+    final resident = await residents.findById(item.residentId);
+    if (resident == null) {
+      return const ActionOutcome(ok: false, message: '住民不在了');
+    }
+    final voice = await commentReplies.ensureVoice(
+      postId: postId,
+      resident: resident,
+    );
+    if (voice == null) {
+      return const ActionOutcome(ok: false, message: '没能在这条帖子里找到身份');
+    }
+
+    final me = (await profiles.load())?.displayName ?? '我';
+    await interactions.insertFollowUp(
+      postId: postId,
+      personaId: voice.id,
+      content: text,
+      parentId: item.refId,
+      replyToName: me,
+      scheduledAt: DateTime.now().add(
+        Duration(seconds: 20 + (callId.hashCode.abs() % 100)),
+      ),
+    );
+    await inbox.markHandled([item.id], decision: 'replied');
+    await memories.rememberOwnAction(
+      residentId: item.residentId,
+      summary: '我在帖子下回了「$text」',
+      sourceId: 'own_comment_${item.id}',
+      source: 'self_comment',
+    );
+    return const ActionOutcome(ok: true, message: '已排在评论下面');
+  }
+
+  Future<ActionOutcome> _sendDm(
+    CustomResident resident,
+    String content,
+    String wakeId,
+    String callId,
+    int segment,
+    Duration baseDelay,
+    List<ResidentInboxItem> pending,
+    Set<String> alreadyRepliedDm,
+    int segmentGapSeconds,
+  ) async {
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '消息是空的');
+    }
+    if (segment >= maxDmSegments) {
+      return const ActionOutcome(ok: false, message: '一次醒来最多发三段');
+    }
+
+    final at = DateTime.now().add(
+      baseDelay + Duration(seconds: segment * segmentGapSeconds),
+    );
+    final outcome = await actions.sendDirectMessage(
+      residentId: resident.id,
+      content: text,
+      at: at,
+      idempotencyKey: 'dm:$wakeId:$callId',
+      source: 'wake',
+    );
+    if (!outcome.ok) return outcome;
+
+    // 这一轮已经回了私信，就把私信待办标掉，别让下一轮又看到它。
+    final dmIds = [
+      for (final item in pending)
+        if (item.kind == ResidentInboxRepository.kindDm &&
+            alreadyRepliedDm.add(item.id))
+          item.id,
+    ];
+    if (dmIds.isNotEmpty) {
+      await inbox.markHandled(dmIds, decision: 'replied');
+    }
+    await memories.rememberOwnAction(
+      residentId: resident.id,
+      summary: '我给对方发了私信「$text」',
+      sourceId: 'own_dm_${wakeId}_$callId',
+      source: 'self_dm',
+    );
+    return outcome;
+  }
+
+  Future<ActionOutcome> _createPost(
+    CustomResident resident,
+    String content,
+    String? topic,
+    String callId,
+    Future<Uint8List?>? image,
+  ) async {
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '动态是空的');
+    }
+    if (!await _residentPostsAllowed()) {
+      return const ActionOutcome(
+        ok: false,
+        message: '用户关掉了“固定住民动态”，别发帖',
+      );
+    }
+
+    Uint8List? bytes;
+    if (image != null) {
+      try {
+        // 发出去的帖子就是完整的：宁可多等这一会儿，也不发完再补图。
+        bytes = await image.timeout(imageTimeout);
+      } catch (error) {
+        debugPrint('[唤醒] 配图没生成出来，这条发纯文字：$error');
+      }
+    }
+
+    final outcome = await actions.createResidentPost(
+      residentId: resident.id,
+      content: text,
+      topicName: topic,
+      idempotencyKey: 'post:${resident.id}:$callId',
+      source: 'wake',
+    );
+    if (!outcome.ok) return outcome;
+
+    if (bytes != null) {
+      final postId = outcome.data['postId'];
+      if (postId is String) {
+        try {
+          final ref = await media.saveBytes(bytes);
+          final attached = await posts.attachImages(postId, [ref]);
+          if (attached == 0) await media.deleteByRef(ref);
+        } catch (error) {
+          debugPrint('[唤醒] 图存下来了但没挂上：$error');
+        }
+      }
+    }
+
+    await memories.rememberOwnAction(
+      residentId: resident.id,
+      summary: '我发了一条动态「$text」',
+      sourceId: 'own_post_$callId',
+      source: 'self_post',
+    );
+    return outcome;
+  }
+}
+
+/// 一次唤醒的工具实现。它知道每条待办背后的表，工具定义本身不知道。
+class _WakeToolkit implements ResidentWakeToolkit {
+  _WakeToolkit({
+    required this.service,
+    required this.resident,
+    required this.wakeId,
+    required this.pending,
+    required this.now,
+  });
+
+  final ResidentWakeService service;
+  final CustomResident resident;
+  final String wakeId;
+  final List<ResidentInboxItem> pending;
+  final DateTime now;
+
+  bool finished = false;
+  bool spokePrivately = false;
+  int _dmSegments = 0;
+  final Set<String> _repliedDm = {};
+  Future<Uint8List?>? _image;
+
+  Future<void> flushImage() async {
+    final image = _image;
+    _image = null;
+    if (image == null) return;
+    try {
+      await image.timeout(ResidentWakeService.imageTimeout);
+    } catch (_) {
+      // 没用来配帖的图直接丢掉，不落盘。
+    }
+  }
+
+  @override
+  Future<ActionOutcome> replyInbox(
+    String itemId,
+    String content,
+    String callId,
+  ) async {
+    ResidentInboxItem? item;
+    for (final candidate in pending) {
+      if (candidate.id == itemId) {
+        item = candidate;
+        break;
+      }
+    }
+    if (item == null) {
+      return const ActionOutcome(ok: false, message: '没有这条待办，先看清单里的 id');
+    }
+    if (item.kind == ResidentInboxRepository.kindDm) {
+      return const ActionOutcome(ok: false, message: '私信请用 send_dm');
+    }
+    return service._replyComment(item, content, callId);
+  }
+
+  @override
+  Future<ActionOutcome> sendDm(String content, String callId) async {
+    final outcome = await service._sendDm(
+      resident,
+      content,
+      wakeId,
+      callId,
+      _dmSegments,
+      // 用户刚发来消息——他就在屏幕前等着。别学批量私信那样等 40 秒：
+      // 8 秒起步、每多一段再加 12 秒，既像真人打字，也不让人干等。
+      const Duration(seconds: 8),
+      pending,
+      _repliedDm,
+      12,
+    );
+    if (outcome.ok) {
+      _dmSegments++;
+      spokePrivately = true;
+    }
+    return outcome;
+  }
+
+  @override
+  Future<ActionOutcome> finish() async {
+    finished = true;
+    await service.inbox.markAllHandled(
+      resident.id,
+      decision: 'ignored',
+      wakeId: wakeId,
+    );
+    return const ActionOutcome(ok: true, message: '已读不回');
+  }
+
+  @override
+  Future<ActionOutcome> browseFeed() async {
+    final recent = await service.posts.recentForAudience(limit: 6);
+    if (recent.isEmpty) {
+      return const ActionOutcome(ok: true, message: '最近没什么新帖子');
+    }
+    return ActionOutcome(
+      ok: true,
+      data: {
+        'posts': [
+          for (final post in recent)
+            {
+              'id': post.id,
+              'content': post.content.length > 80
+                  ? '${post.content.substring(0, 80)}…'
+                  : post.content,
+              'comments': post.commentCount,
+            },
+        ],
+      },
+    );
+  }
+
+  @override
+  Future<ActionOutcome> likePost(String postId, String callId) async {
+    final post = await service.posts.watchById(postId).first;
+    if (post == null) {
+      return const ActionOutcome(ok: false, message: '没有这条帖子');
+    }
+    final outcome = await service.actions.likePost(
+      residentId: resident.id,
+      postId: postId,
+      idempotencyKey: 'like:${resident.id}:$callId',
+    );
+    return outcome;
+  }
+
+  @override
+  Future<ActionOutcome> generateImage(String prompt, String callId) async {
+    final clean = prompt.trim();
+    if (clean.isEmpty) {
+      return const ActionOutcome(ok: false, message: '画面描述是空的');
+    }
+    if (_image != null) {
+      return const ActionOutcome(ok: false, message: '这一轮已经有一张图在画了');
+    }
+    final config = await service.gateway.activeConfig(kind: ModelKind.image);
+    if (config == null) {
+      return const ActionOutcome(ok: false, message: '还没配置文生图模型');
+    }
+    _image = service.gateway.generateImage(config: config, prompt: clean);
+    return const ActionOutcome(
+      ok: true,
+      message: '已在后台开始画，继续做别的事；发动态时会带上这张图',
+    );
+  }
+
+  @override
+  Future<ActionOutcome> createPost(
+    String content,
+    String? topic,
+    String callId,
+  ) async {
+    final outcome = await service._createPost(
+      resident,
+      content,
+      topic,
+      callId,
+      _image,
+    );
+    if (outcome.ok) _image = null;
+    return outcome;
+  }
+}
+
+final residentWakeServiceProvider = Provider<ResidentWakeService>(
+  (ref) => ResidentWakeService(
+    db: ref.watch(databaseProvider),
+    residents: ref.watch(customResidentRepositoryProvider),
+    inbox: ref.watch(residentInboxRepositoryProvider),
+    gateway: ref.watch(modelGatewayProvider),
+    session: ref.watch(residentToolSessionProvider),
+    actions: ref.watch(actionRegistryProvider),
+    posts: ref.watch(postRepositoryProvider),
+    voices: ref.watch(postVoiceRepositoryProvider),
+    interactions: ref.watch(interactionRepositoryProvider),
+    profiles: ref.watch(userProfileRepositoryProvider),
+    messages: ref.watch(privateMessageRepositoryProvider),
+    memories: ref.watch(residentMemoryServiceProvider),
+    media: ref.watch(mediaServiceProvider),
+    commentReplies: ref.watch(commentReplyServiceProvider),
+  ),
+);

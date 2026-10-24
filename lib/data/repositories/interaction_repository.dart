@@ -60,16 +60,17 @@ class InteractionRepository {
   /// `executed_at` 是"打开 APP 的这一刻"，拿它显示会让评论区出现"刚刚"、
   /// 通知里却是"10 分钟前"——同一个事件两套时间。
   static const String _commentsSql = '''
-SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
-       voice_duration_ms, parent_id, reply_to_name, like_count, at, is_ai
+SELECT id, post_id, persona_id, content, media_type, caption, voice_path,
+       transcript, voice_duration_ms, parent_id, reply_to_name, like_count,
+       at, is_ai
 FROM (
-  SELECT id, post_id, persona_id, content, media_type, voice_path, transcript,
-         voice_duration_ms, parent_id, reply_to_name, like_count,
-         scheduled_at AS at, is_ai
+  SELECT id, post_id, persona_id, content, media_type, '' AS caption,
+         voice_path, transcript, voice_duration_ms, parent_id, reply_to_name,
+         like_count, scheduled_at AS at, is_ai
   FROM ai_interactions
   WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
   UNION ALL
-  SELECT id, post_id, NULL AS persona_id, content, media_type,
+  SELECT id, post_id, NULL AS persona_id, content, media_type, caption,
          NULL AS voice_path, NULL AS transcript, NULL AS voice_duration_ms,
          parent_id, reply_to_name, 0 AS like_count,
          created_at AS at, 0 AS is_ai
@@ -191,6 +192,7 @@ ORDER BY at ASC
   Future<String> addMyComment({
     required String postId,
     required String content,
+    String caption = '',
     String? parentId,
     String? replyToName,
     String mediaType = 'text',
@@ -203,6 +205,7 @@ ORDER BY at ASC
             id: id,
             postId: postId,
             content: content,
+            caption: Value(caption),
             mediaType: Value(mediaType),
             parentId: Value(parentId),
             replyToName: Value(replyToName),
@@ -608,6 +611,7 @@ ORDER BY at ASC
       personaId: row.readNullable<String>('persona_id'),
       content: row.readNullable<String>('content'),
       mediaType: _parseMedia(row.readNullable<String>('media_type')),
+      caption: row.readNullable<String>('caption') ?? '',
       voiceAsset: row.readNullable<String>('voice_path'),
       transcript: row.readNullable<String>('transcript'),
       voiceDurationMs: row.readNullable<int>('voice_duration_ms'),

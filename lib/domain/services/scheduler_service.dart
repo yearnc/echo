@@ -329,19 +329,16 @@ class SchedulerService {
       if (item.isLike) {
         await posts.addCounters(item.postId, likes: item.likeBatch);
         if (!isMyPost) continue;
-        final likeTitle = item.likeBatch > 1
-            ? '$name 等 ${item.likeBatch} 人赞了你的帖子'
-            : '$name 赞了你的帖子';
-        await notifications.insert(
-          id: 'n_${item.id}',
+        // 同一条帖子的赞合并成一行（“某某等 N 人赞了你的帖子”），
+        // 不要每来一个人就插一条。
+        final likeTitle = await notifications.mergeLike(
           postId: item.postId,
-          type: 'like',
-          title: likeTitle,
-          body: '你有一条社区互动通知',
+          actorName: name,
+          count: item.likeBatch,
           at: item.scheduledAt,
         );
         // 锁屏上不会露内容（渠道设了 secret），所以正文写具体点没关系。
-        notify?.call('n_${item.id}', likeTitle, '你有一条社区互动通知');
+        notify?.call('n_group_like_${item.postId}', likeTitle, '你有一条社区互动通知');
       } else if (item.isComment) {
         final content = (item.content ?? '').trim();
         // 内容没写出来的评论不该兑现：不计评论数、不发通知、不推进关系。

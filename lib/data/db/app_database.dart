@@ -43,6 +43,7 @@ part 'app_database.g.dart';
     NotificationLogs,
     FeedbackViewLogs,
     Stickers,
+    CustomAvatars,
     PlanScripts,
     PlanEvents,
     ModelConfigs,
@@ -55,6 +56,7 @@ part 'app_database.g.dart';
     PostUnderstandings,
     CustomResidents,
     ResidentMemories,
+    ResidentInboxItems,
     ActionLogs,
   ],
 )
@@ -65,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -470,6 +472,88 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'CREATE INDEX IF NOT EXISTS post_views_by_post '
             'ON post_views (post_id, last_viewed_at)',
+          );
+        }
+      }
+      if (from < 25) {
+        // v25：评论可以“图 + 一句话”。以前一条评论只有一个 content，
+        // 发图就得把输入框里的文字丢掉；caption 专门放那句话。
+        final hasUserComments = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'user_comments'",
+        ).getSingleOrNull();
+        if (hasUserComments != null) {
+          final columns = await customSelect(
+            'PRAGMA table_info(user_comments)',
+          ).get();
+          final hasCaption = columns.any(
+            (row) => row.read<String>('name') == 'caption',
+          );
+          if (!hasCaption) {
+            await customStatement(
+              "ALTER TABLE user_comments ADD COLUMN caption "
+              "TEXT NOT NULL DEFAULT ''",
+            );
+          }
+        }
+      }
+      if (from < 26) {
+        // v26：点赞通知合并。同一条帖子只留一行，人数累加。
+        final hasNotifications = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'notification_logs'",
+        ).getSingleOrNull();
+        if (hasNotifications != null) {
+          final columns = await customSelect(
+            'PRAGMA table_info(notification_logs)',
+          ).get();
+          final names = columns
+              .map((row) => row.read<String>('name'))
+              .toSet();
+          if (!names.contains('group_key')) {
+            await customStatement(
+              "ALTER TABLE notification_logs ADD COLUMN group_key "
+              "TEXT NOT NULL DEFAULT ''",
+            );
+          }
+          if (!names.contains('actor_count')) {
+            await customStatement(
+              'ALTER TABLE notification_logs ADD COLUMN actor_count '
+              'INTEGER NOT NULL DEFAULT 1',
+            );
+          }
+          if (!names.contains('actor_names')) {
+            await customStatement(
+              "ALTER TABLE notification_logs ADD COLUMN actor_names "
+              "TEXT NOT NULL DEFAULT ''",
+            );
+          }
+        }
+      }
+      if (from < 27) {
+        // v27：固定住民的收件箱。唤醒式交互靠它记住
+        // “这条看过没有、怎么处理的”——没有它，“已读不回”会永远算待办。
+        await m.createTable(residentInboxItems);
+      }
+      if (from < 28) {
+        // v28：用户导入的网友头像池。临时网民优先从这里挑头像。
+        await m.createTable(customAvatars);
+      }
+      if (from < 29) {
+        // v29：把旧私信记忆的来源改对。
+        //
+        // v3.3 之前 `rememberUserReply` 把来源写死成 comment，于是私信内容
+        // 在记忆页显示“来自评论”。当时私信调用的 sourceId 是 `reply_<时间>`
+        // （评论回复传的是评论 id，不是这个格式），所以能可靠区分并回填。
+        final hasMemories = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'resident_memories'",
+        ).getSingleOrNull();
+        if (hasMemories != null) {
+          await customStatement(
+            "UPDATE resident_memories SET source = 'dm', "
+            "summary = REPLACE(summary, '他回我：', '他私信你：') "
+            "WHERE source = 'comment' AND source_id LIKE 'reply_%'",
           );
         }
       }

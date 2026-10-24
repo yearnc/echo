@@ -151,7 +151,7 @@ class CommentReplyService {
       final resident = await residents?.findById(residentId);
       if (resident == null) return false;
 
-      final voice = await _ensureVoice(postId: postId, resident: resident);
+      final voice = await ensureVoice(postId: postId, resident: resident);
       final persona = voice?.toPersona() ?? resident.toPersona();
 
       final lines = await generator.replies(
@@ -192,7 +192,7 @@ class CommentReplyService {
   ///
   /// 老帖子可能是在 v3.0 之前发的，作者没进 post_voices；
   /// 补一条之后，评论区的名字/头像、以及后续的追问都能认出来。
-  Future<PostVoice?> _ensureVoice({
+  Future<PostVoice?> ensureVoice({
     required String postId,
     required CustomResident resident,
   }) async {

@@ -108,6 +108,10 @@ class UserComments extends Table {
   /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
   TextColumn get mediaType => text().withDefault(const Constant('text'))();
 
+  /// 图片评论配的文字。图是内容、字是“顺便说一句”，两者可以一起发；
+  /// 以前只有一个 content 字段，发图就必须把输入框里的话丢掉。
+  TextColumn get caption => text().withDefault(const Constant(''))();
+
   /// 这条是在回谁。指向的可能是住民的评论（在 `ai_interactions` 里），
   /// 也可能是别人回我的——跨两张表，所以这里不设外键。
   TextColumn get parentId => text().nullable()();

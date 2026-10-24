@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
+import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 固定住民的完整编辑页。
@@ -28,7 +32,6 @@ class _CustomResidentEditorPageState
   final _description = TextEditingController();
   final _languageStyle = TextEditingController();
   final _tone = TextEditingController();
-  final _firstMessage = TextEditingController();
   final _exampleDialogue = TextEditingController();
   final _extraInstructions = TextEditingController();
   final _tags = TextEditingController();
@@ -71,7 +74,6 @@ class _CustomResidentEditorPageState
     ].where((part) => part.trim().isNotEmpty).join('\n\n');
     _languageStyle.text = resident.languageStyle;
     _tone.text = resident.tone;
-    _firstMessage.text = resident.firstMessage;
     _exampleDialogue.text = resident.exampleDialogue;
     _extraInstructions.text = resident.extraInstructions;
     _tags.text = resident.tags.join('，');
@@ -91,7 +93,6 @@ class _CustomResidentEditorPageState
       _description,
       _languageStyle,
       _tone,
-      _firstMessage,
       _exampleDialogue,
       _extraInstructions,
       _tags,
@@ -168,7 +169,8 @@ class _CustomResidentEditorPageState
       scenario: '',
       languageStyle: _languageStyle.text.trim(),
       tone: _tone.text.trim(),
-      firstMessage: _firstMessage.text.trim(),
+      // 开场白这个设置已经去掉：第一句话由住民醒来后自己说。
+      firstMessage: '',
       exampleDialogue: _exampleDialogue.text.trim(),
       extraInstructions: _extraInstructions.text.trim(),
       tags: _tags.text
@@ -189,6 +191,19 @@ class _CustomResidentEditorPageState
             .archiveOverflow(resident.id, newLimit);
       }
       if (!mounted) return;
+
+      // 刚建好的住民直接进私信页，并且马上叫醒他：
+      // 没有手写开场白了，第一句话得他自己看着你说。
+      if (widget.residentId == null) {
+        unawaited(
+          ref
+              .read(residentWakeServiceProvider)
+              .wake(resident.id, trigger: WakeTrigger.setup),
+        );
+        context.go('/chat/${resident.id}');
+        return;
+      }
+
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
@@ -262,12 +277,6 @@ class _CustomResidentEditorPageState
                       label: '示例对话',
                       hint: '3—5 组短对话，教 TA 怎么接话；用 <START> 分组',
                       maxLines: 6,
-                    ),
-                    _Field(
-                      controller: _firstMessage,
-                      label: '开场白（私信用）',
-                      hint: 'TA 第一次私信你会说什么',
-                      maxLines: 3,
                     ),
                     _Field(
                       controller: _extraInstructions,

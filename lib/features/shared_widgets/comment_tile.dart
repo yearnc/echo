@@ -208,7 +208,7 @@ class CommentTile extends ConsumerWidget {
                   ],
                   if (comment.isVoice)
                     VoiceBubble(comment: comment)
-                  else if (comment.mediaType == CommentMedia.image)
+                  else if (comment.mediaType == CommentMedia.image) ...[
                     SizedBox(
                       width: 132,
                       height: 132,
@@ -217,8 +217,16 @@ class CommentTile extends ConsumerWidget {
                         height: 132,
                         borderRadius: 10,
                       ),
-                    )
-                  else
+                    ),
+                    if (comment.caption.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        comment.caption,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: EchoColors.text, height: 1.6),
+                      ),
+                    ],
+                  ] else
                     Text(
                       comment.content ?? '',
                       style: Theme.of(context).textTheme.bodyMedium

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/custom_avatar_repository.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -43,6 +44,7 @@ class AudienceService {
     this.fixedPersonas,
     this.notifications,
     this.customResidents,
+    this.customAvatars,
     this.memories,
     this.contentGenerator,
     this.residentMemory,
@@ -72,6 +74,9 @@ class AudienceService {
   /// 用户自己配置的固定住民（阶段三）。
   final CustomResidentRepository? customResidents;
   final ResidentMemoryRepository? memories;
+
+  /// 用户导入的网友头像池；有图就优先用它，空池回落到内置素材。
+  final CustomAvatarRepository? customAvatars;
 
   /// 固定住民的评论走它；与临时网民的“起名字+动作”分开。
   final ContentGenerator? contentGenerator;
@@ -333,20 +338,34 @@ class AudienceService {
       if (fresh.isEmpty) return 0;
       final built = <PostVoice>[];
       final usedAvatars = <int>{};
+      final usedPaths = <String>{};
       for (final voice in existing) {
         final index = _avatarIndexOf(voice.avatarAsset);
         if (index != null) usedAvatars.add(index);
+        if (voice.avatarAsset.isNotEmpty) usedPaths.add(voice.avatarAsset);
       }
+      final userAvatarPool = <String>[
+        for (final avatar
+            in await customAvatars?.all() ?? const <CustomAvatar>[])
+          avatar.path,
+      ];
 
       for (var i = 0; i < fresh.length; i++) {
         final draft = fresh[i];
         final seed = (now.microsecondsSinceEpoch + i * 7919) % 100000;
-        final avatar = PostVoiceRepository.avatarFor(
-          seed: seed,
-          used: usedAvatars,
-        );
-        final avatarIndex = _avatarIndexOf(avatar);
-        if (avatarIndex != null) usedAvatars.add(avatarIndex);
+        final String avatar;
+        if (userAvatarPool.isNotEmpty) {
+          // 用户传了头像就先用他的，同一帖里尽量不重复。
+          avatar = _pickFromPool(userAvatarPool, seed, usedPaths);
+        } else {
+          avatar = PostVoiceRepository.avatarFor(
+            seed: seed,
+            used: usedAvatars,
+          );
+          final avatarIndex = _avatarIndexOf(avatar);
+          if (avatarIndex != null) usedAvatars.add(avatarIndex);
+        }
+        usedPaths.add(avatar);
 
         built.add(
           PostVoice(
@@ -626,6 +645,20 @@ class AudienceService {
     }
   }
 
+  /// 从用户头像池里挑一张，尽量避开这一帖已经用过的。
+  static String _pickFromPool(
+    List<String> pool,
+    int seed,
+    Set<String> used,
+  ) {
+    final start = seed.abs() % pool.length;
+    for (var step = 0; step < pool.length; step++) {
+      final candidate = pool[(start + step) % pool.length];
+      if (!used.contains(candidate)) return candidate;
+    }
+    return pool[start];
+  }
+
   static int? _avatarIndexOf(String asset) {
     if (asset.isEmpty) return null;
     final name = asset.split('avatar_').last.replaceAll('.webp', '');
@@ -670,6 +703,7 @@ final audienceServiceProvider = Provider<AudienceService>(
     fixedPersonas: ref.watch(personaRepositoryProvider),
     notifications: ref.watch(notificationRepositoryProvider),
     customResidents: ref.watch(customResidentRepositoryProvider),
+    customAvatars: ref.watch(customAvatarRepositoryProvider),
     memories: ref.watch(residentMemoryRepositoryProvider),
     contentGenerator: ref.watch(contentSourceProvider),
     residentMemory: ref.watch(residentMemoryServiceProvider),

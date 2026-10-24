@@ -312,10 +312,29 @@ class PostRepository {
   }
 
   /// 软删除：保留 `deletedAt` 供日后恢复与审计。
+  ///
+  /// 删除一条帖子会牵扯到四张表：还在路上的互动、通知、策划事件、
+  /// 以及条帖子自己的评论。只写 posts.deleted_at 的话，用户会看到
+  /// “帖没了，但通知还在点得进去、两分钟后还有人给空气点赞”。
   Future<void> softDelete(String id) async {
-    await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(
-      PostsCompanion(deletedAt: Value(DateTime.now().millisecondsSinceEpoch)),
-    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.transaction(() async {
+      await (_db.update(_db.posts)..where((t) => t.id.equals(id))).write(
+        PostsCompanion(deletedAt: Value(now)),
+      );
+      await (_db.update(_db.aiInteractions)
+            ..where((t) => t.postId.equals(id) & t.status.equals('pending')))
+          .write(const AiInteractionsCompanion(status: Value('cancelled')));
+      await (_db.delete(
+        _db.planEvents,
+      )..where((t) => t.postId.equals(id))).go();
+      await (_db.delete(
+        _db.notificationLogs,
+      )..where((t) => t.postId.equals(id))).go();
+      await (_db.update(_db.userComments)
+            ..where((t) => t.postId.equals(id) & t.deletedAt.isNull()))
+          .write(UserCommentsCompanion(deletedAt: Value(now)));
+    });
   }
 
   /// 计数由互动执行时回写（M3），这里只做展示层需要的映射。
