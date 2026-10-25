@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,43 +8,69 @@ import '../domain/services/scheduler_service.dart';
 import '../domain/services/world_service.dart';
 import 'db/database_provider.dart';
 
-/// 启动引导：开库 → 首次播种 → **补发离线期间到点的互动** → 给社区添上
-/// 这段离线时间里发生过的事。
+/// 启动引导：开库 → 首次播种（**只等这一段**）→ 补发与世界里发生的事。
 ///
-/// 第三步是调度器方案的关键：APP 被系统杀掉、手机重启、关机几天，
-/// 都不影响排期——因为它们本来就写在磁盘上，回来时扫一遍就补上了。
+/// 首屏只依赖数据库和播种；后面的补发、世界 tick、私信 tick 都可能联网，
+/// 模型慢的时候能拖上半分钟。以前它们串在同一条 await 链上，于是
+/// “APP 一直在加载、超时后说开库失败”，而退出重进（网络缓存/模型刚好回完）
+/// 又正常了——这是等待，不是数据库坏了。
 ///
-/// 第四步是它的人文版本：用户不在的时候，社区也该有自己的动静。
-/// 少了它，隔几天回来看到的信息流永远停在离开那一刻。
+/// 现在把后半段放到后台跑：界面立刻可用，补出来的内容由 Drift 的
+/// 表更新通知自己冒出来。三条补发路径（冷启动 / 回前台 / 心跳）都还在。
 final appBootstrapProvider = FutureProvider<void>((ref) async {
   await _bootstrapStep(
     '打开本地数据库并播种',
     () => ref.watch(seedServiceProvider).seedIfNeeded(),
+    // 播种只是本地写入。真卡住时给一次明确失败，而不是无限转圈。
+    timeout: const Duration(seconds: 30),
   );
-  await _bootstrapStep(
-    '补发离线期间到点的互动',
-    () => ref.watch(schedulerServiceProvider).flushDue(),
-  );
-  await _bootstrapStep(
-    '补上社区这段时间的动静',
-    () => ref.watch(worldServiceProvider).tick(),
-  );
-  // 私信排在最后：它要读刚更新的关系（谁到了互关、谁该来敲你的门），
-  // 也要看有没有你说了话、他还欠着一句的会话
-  await _bootstrapStep(
-    '处理私信',
-    () => ref.watch(directMessageServiceProvider).tick(),
-  );
+
+  // 先把服务对象取出来：后台任务不应该在 provider 结束后还攥着 ref。
+  final scheduler = ref.watch(schedulerServiceProvider);
+  final world = ref.watch(worldServiceProvider);
+  final directMessages = ref.watch(directMessageServiceProvider);
+  unawaited(_catchUp(scheduler, world, directMessages));
 });
+
+/// 离线期间该补的东西。失败只记日志——这一轮没补上，
+/// 下一次回前台或 30 秒心跳还会再补。
+Future<void> _catchUp(
+  SchedulerService scheduler,
+  WorldService world,
+  DirectMessageService directMessages,
+) async {
+  final steps = <(String, Future<void> Function())>[
+    ('补发离线期间到点的互动', scheduler.flushDue),
+    ('补上社区这段时间的动静', world.tick),
+    // 私信排在最后：它要读刚更新的关系，也要看有没有人欠着一句回话
+    ('处理私信', directMessages.tick),
+  ];
+
+  for (final (label, run) in steps) {
+    try {
+      await _bootstrapStep(
+        label,
+        run,
+        timeout: const Duration(seconds: 60),
+      );
+    } catch (error) {
+      debugPrint('[启动] $error');
+    }
+  }
+}
 
 /// 跑一步，失败时把**是哪一步**记下来再往外抛。
 ///
 /// 启动失败页原本只会说一句"本地数据库启动失败"，可真正炸的可能是后面
 /// 任意一步——2026-10-14 真机上报过一次，重装才好、也复现不出来，
 /// 就是因为现场只剩那句笼统的话。带上步骤名（和一条日志），下次能一眼看出断在哪。
-Future<void> _bootstrapStep(String label, Future<void> Function() run) async {
+Future<void> _bootstrapStep(
+  String label,
+  Future<void> Function() run, {
+  Duration timeout = const Duration(seconds: 60),
+}) async {
   try {
-    await run();
+    await run().timeout(timeout);
   } catch (error, stack) {
     debugPrint('[启动] $label 失败：$error\n$stack');
     throw BootstrapStepFailure(label, error);

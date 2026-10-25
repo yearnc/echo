@@ -27,6 +27,21 @@ class MediaService {
     return _persist(picked);
   }
 
+  /// 现场拍一张。
+  ///
+  /// 相机把照片先放在系统缓存里；这里只把它**复制进 APP 私有目录**，
+  /// 不调用任何“保存到相册”的接口——应用内拍的照片不该出现在系统相册里。
+  /// 缓存文件由系统自己回收，不额外处理。
+  Future<String?> pickFromCamera() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+      maxWidth: 2000,
+    );
+    if (picked == null) return null;
+    return _persist(picked);
+  }
+
   Future<String?> _persist(XFile picked) async {
     final mediaDir = await _mediaDir();
 

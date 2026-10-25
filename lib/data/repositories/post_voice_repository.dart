@@ -13,8 +13,11 @@ class PostVoiceRepository {
 
   final AppDatabase _db;
 
-  /// 内置头像池的尺寸（`assets/avatars/avatar_001~032.webp`）。
-  static const int avatarCount = 32;
+  /// 内置头像池的尺寸（`assets/avatars/avatar_001~110.webp`）。
+  ///
+  /// 前 32 张是 v3.0 的原始素材；033 之后是本地文生图扩的一批，
+  /// 题材更杂（古风、赛博、动物、机器人），一个帖子里不容易“撞脸”。
+  static const int avatarCount = 110;
 
   /// “我自己”的浏览记录用这个保留 id。它不在 post_voices 里，
   /// 所以 post_views.voice_id 不能有外键（v24 已重建）。
@@ -221,7 +224,7 @@ class PostVoiceRepository {
 
   /// 从内置池里挑一个没被同帖用过的头像。
   ///
-  /// 池子只有 32 张，人多了就从头再来；同帖内尽量不撞。
+  /// 池子见 [avatarCount]；人多了就从头再来，同帖内尽量不撞。
   static String avatarFor({required int seed, Set<int> used = const {}}) {
     var index = seed.abs() % avatarCount;
     for (var step = 0; step < avatarCount; step++) {

@@ -111,8 +111,9 @@ class CustomResidentsPage extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: const Text('删除固定住民？'),
         content: Text(
-          '「${resident.name}」以后不会再出现在新帖子里。'
-          '历史评论和记忆会保留。',
+          '「${resident.name}」以后不会再出现在新帖子里，'
+          '也不会再回复你。你们的私信会保留在消息页，只能回看；'
+          '历史评论和记忆也会保留。',
         ),
         actions: [
           TextButton(

@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 34;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -590,6 +590,29 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(clearInsights);
         await m.createTable(usageSessions);
       }
+      // v32 曾经建过群聊两张表；该功能已在 v34 下线，这里不再创建。
+      // 老库里留下的表会由 v34 的 DROP IF EXISTS 清掉。
+      if (from < 33) {
+        // v33：删固定住民不再连带删私信。把 v3.6.1 那版级联软删的对话
+        // 恢复回来——私信没有别的软删入口，所以这里可以安全地全部恢复。
+        // v9 之前根本没有这张表，先确认它存在。
+        final hasPrivateMessages = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = 'private_messages'",
+        ).getSingleOrNull();
+        if (hasPrivateMessages != null) {
+          await customStatement(
+            'UPDATE private_messages SET deleted_at = NULL '
+            'WHERE deleted_at IS NOT NULL',
+          );
+        }
+      }
+      if (from < 34) {
+        // v34：群聊功能下线。v32 建的两张表在这里删掉——
+        // 历史迁移链保持原样（老库升上来会先建再删），新库则完全不建。
+        await customStatement('DROP TABLE IF EXISTS group_messages');
+        await customStatement('DROP TABLE IF EXISTS group_chats');
+      }
     },
   );
 }
@@ -598,6 +621,17 @@ QueryExecutor _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'echo.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (db) {
+        // 后台 isolate（WorkManager）和前台可能同时打开同一个库。
+        // 默认的 busy_timeout 是 0：撞上锁会立刻抛 SQLITE_BUSY，
+        // 冷启动就变成“开库失败，退出重进又好了”。给锁一点耐心。
+        db.execute('PRAGMA busy_timeout = 15000');
+        // WAL 让读写互不阻塞，两个进程同时在线时也不会因为写锁互相等死。
+        db.execute('PRAGMA journal_mode = WAL');
+        db.execute('PRAGMA synchronous = NORMAL');
+      },
+    );
   });
 }

@@ -629,10 +629,11 @@ class _PostBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"
+    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"。
+    // 作者删掉之后仍要显示他的名字，不能回落到“我”。
     final resident = post.authorResidentId == null
         ? null
-        : ref.watch(customResidentByIdProvider(post.authorResidentId!));
+        : ref.watch(customResidentAnyByIdProvider(post.authorResidentId!));
     final author = post.authorPersonaId == null
         ? null
         : ref.watch(personaByIdProvider(post.authorPersonaId!));

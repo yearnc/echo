@@ -15,6 +15,8 @@ import '../shared_widgets/user_avatar.dart';
 ///
 /// 列表上只有**聊过的人**，不是全部住民——私信是一段已经发生的关系，
 /// 不是一份通讯录。想开一段新的，去他的主页点「发消息」。
+///
+/// 固定住民被删掉之后，对话仍然留在这里（只能回看），名字和头像照旧。
 class MessagesPage extends ConsumerWidget {
   const MessagesPage({super.key});
 
@@ -26,7 +28,9 @@ class MessagesPage extends ConsumerWidget {
       backgroundColor: EchoColors.bg,
       appBar: AppBar(
         backgroundColor: EchoColors.surface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(
           '消息',
           style: TextStyle(
@@ -55,11 +59,7 @@ class MessagesPage extends ConsumerWidget {
                 const SizedBox(height: 260, child: _Empty()),
               for (final conversation in list) ...[
                 _ConversationTile(conversation: conversation),
-                Divider(
-                  height: 1,
-                  color: EchoColors.divider,
-                  indent: 74,
-                ),
+                Divider(height: 1, color: EchoColors.divider, indent: 74),
               ],
             ],
           );
@@ -76,9 +76,18 @@ class _ConversationTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 已删除的固定住民也要显示原来的名字和头像：这段会话是历史，
+    // 不能因为“人走了”就变成没有面孔的“社区住民”。
     final resident = ref.watch(customResidentByIdProvider(conversation.personaId));
+    final storedResident = ref.watch(
+      customResidentAnyByIdProvider(conversation.personaId),
+    );
     final persona = ref.watch(personaByIdProvider(conversation.personaId));
-    final name = resident?.name ?? persona?.name ?? '社区住民';
+    final name =
+        storedResident?.name ?? persona?.name ?? '社区住民';
+    final avatarRef = storedResident?.avatarAsset ?? persona?.avatar;
+    final departed =
+        resident == null && persona == null && storedResident != null;
     final unread = conversation.unreadCount > 0;
 
     return InkWell(
@@ -89,7 +98,7 @@ class _ConversationTile extends ConsumerWidget {
           children: [
             UserAvatar(
               name: name,
-              avatarRef: resident?.avatarAsset ?? persona?.avatar,
+              avatarRef: avatarRef,
               size: 46,
               showRing: true,
             ),
@@ -101,15 +110,41 @@ class _ConversationTile extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: EchoColors.text,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: EchoColors.text,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (departed) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: EchoColors.surfaceHigh,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  '已离开',
+                                  style: TextStyle(
+                                    color: EchoColors.textFaint,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),

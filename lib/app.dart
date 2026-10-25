@@ -13,6 +13,7 @@ import 'data/bootstrap_provider.dart';
 import 'data/repositories/usage_repository.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/audience_service.dart';
+import 'domain/services/background_worker.dart';
 import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
@@ -56,6 +57,9 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
 
   /// 一批人正在生成时不重叠：模型一次可能要十几秒，心跳是一秒一拍。
   bool _audienceBusy = false;
+
+  /// 后台任务等本地库打开完再注册（见 build）。
+  bool _backgroundRegistered = false;
 
   @override
   void initState() {
@@ -173,6 +177,16 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
     final mode = ref.watch(modeControllerProvider);
     final appearance = ref.watch(appearanceControllerProvider);
     final bootstrap = ref.watch(appBootstrapProvider);
+
+    // 冷启动时不要把 WorkManager 和前台一起放进来：系统可能正好在这时
+    // 唤起周期任务，两个 isolate 同时开库，前台就会卡在“一直在加载”。
+    // 库打开完再注册，之后各走各的。
+    if (bootstrap.hasValue && !_backgroundRegistered) {
+      _backgroundRegistered = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(BackgroundWorker.start());
+      });
+    }
 
     if (bootstrap.isLoading) {
       return const _Splash();

@@ -11,6 +11,9 @@ import '../db/database_provider.dart';
 class CustomResidentRepository {
   const CustomResidentRepository(this._db);
 
+  /// 内置固定住民的 id。播种时按它判断“有没有”，用户改过也不覆盖。
+  static const String builtinResidentId = 'resident_builtin_dafeiyu';
+
   final AppDatabase _db;
 
   Stream<List<CustomResident>> watchAll() {
@@ -28,6 +31,18 @@ class CustomResidentRepository {
       ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]);
     final rows = await query.get();
     return rows.map(_toDomain).toList(growable: false);
+  }
+
+  /// 包括已经删掉的住民。
+  ///
+  /// 只用来**显示历史**：老帖子的作者、旧私信会话的名字和头像。
+  /// 行为判断（能不能唤醒、能不能继续发私信）一律用 [all]。
+  Stream<List<CustomResident>> watchAllIncludingDeleted() {
+    final query = _db.select(_db.customResidents)
+      ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]);
+    return query.watch().map(
+      (rows) => rows.map(_toDomain).toList(growable: false),
+    );
   }
 
   Future<CustomResident?> findById(String id) async {
@@ -66,14 +81,27 @@ class CustomResidentRepository {
         );
   }
 
-  Future<int> softDelete(String id) {
-    return (_db.update(
-      _db.customResidents,
-    )..where((t) => t.id.equals(id))).write(
-      CustomResidentsCompanion(
-        deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ),
-    );
+  /// 删除一位固定住民。
+  ///
+  /// 只动“这个人还在不在”和运行期队列：
+  /// - 本人软删除：不再进帖子、唤醒名单；
+  /// - 待办清掉：以后不会再醒，留着也没人处理；
+  /// - **私信原样保留**。过去的对话是发生过的事，可以回看，但页面会变成只读；
+  ///   评论、动态、记忆同样保留。
+  Future<int> softDelete(String id) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final affected =
+        await (_db.update(
+          _db.customResidents,
+        )..where((t) => t.id.equals(id))).write(
+          CustomResidentsCompanion(deletedAt: Value(now)),
+        );
+
+    await (_db.delete(
+      _db.residentInboxItems,
+    )..where((t) => t.residentId.equals(id))).go();
+
+    return affected;
   }
 
   static String newId() => 'resident_${DateTime.now().microsecondsSinceEpoch}';
@@ -135,13 +163,33 @@ final customResidentsProvider = StreamProvider<List<CustomResident>>(
   (ref) => ref.watch(customResidentRepositoryProvider).watchAll(),
 );
 
-/// 按 id 找一位固定住民（信息流、帖子详情显示作者用）。
+final customResidentsIncludingDeletedProvider =
+    StreamProvider<List<CustomResident>>(
+      (ref) =>
+          ref.watch(customResidentRepositoryProvider).watchAllIncludingDeleted(),
+    );
+
+/// 按 id 找一位还在社区里的固定住民（行为判断用）。
 ///
 /// 固定住民数量很少（建议上限六个），从列表里找比每条动态各开一次
 /// 数据库查询更省事，也和列表的刷新天然同步。
 final customResidentByIdProvider = Provider.autoDispose
     .family<CustomResident?, String>((ref, id) {
       final all = ref.watch(customResidentsProvider).value ?? const [];
+      for (final resident in all) {
+        if (resident.id == id) return resident;
+      }
+      return null;
+    });
+
+/// 按 id 找一位固定住民，**包括已经删掉的**。
+///
+/// 只给“显示历史”用：旧帖子的作者、旧私信的名字和头像。
+/// 已删除的人不该被唤醒，也不该再收到新私信。
+final customResidentAnyByIdProvider = Provider.autoDispose
+    .family<CustomResident?, String>((ref, id) {
+      final all =
+          ref.watch(customResidentsIncludingDeletedProvider).value ?? const [];
       for (final resident in all) {
         if (resident.id == id) return resident;
       }

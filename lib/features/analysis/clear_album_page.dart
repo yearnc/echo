@@ -7,6 +7,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/db/app_database.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/clear_photo_repository.dart';
+import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/post_image.dart';
 
 /// 真实生活相册（v31）。
@@ -97,7 +98,7 @@ class ClearAlbumPage extends ConsumerWidget {
   }
 
   Future<void> _add(BuildContext context, WidgetRef ref) async {
-    final path = await ref.read(mediaServiceProvider).pickFromGallery();
+    final path = await pickImageWithSource(context, ref);
     if (path == null || !context.mounted) return;
 
     final caption = await showDialog<String>(

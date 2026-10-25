@@ -26,7 +26,13 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final resident = ref.watch(customResidentByIdProvider(widget.residentId));
+    // 显示用（含已删除，名字不能丢）；改开关用“还在社区里的”。
+    final resident = ref.watch(
+      customResidentAnyByIdProvider(widget.residentId),
+    );
+    final activeResident = ref.watch(
+      customResidentByIdProvider(widget.residentId),
+    );
     final active = ref.watch(activeMemoriesProvider(widget.residentId));
     final archived = ref.watch(archivedMemoriesProvider(widget.residentId));
 
@@ -48,11 +54,11 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
             enabled: resident?.memoryEnabled ?? true,
             activeCount: active.value?.length ?? 0,
             limit: resident?.memoryLimit,
-            onToggle: resident == null
+            onToggle: activeResident == null
                 ? null
                 : (value) => ref
                       .read(customResidentRepositoryProvider)
-                      .upsert(resident.copyWith(memoryEnabled: value)),
+                      .upsert(activeResident.copyWith(memoryEnabled: value)),
           ),
           const SizedBox(height: 12),
           Row(

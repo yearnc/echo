@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/model_config_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/model_config.dart';
 import '../../domain/services/resident_wake_service.dart';
+import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 固定住民的完整编辑页。
@@ -108,7 +108,7 @@ class _CustomResidentEditorPageState
   }
 
   Future<void> _pickAvatar() async {
-    final picked = await ref.read(mediaServiceProvider).pickFromGallery();
+    final picked = await pickImageWithSource(context, ref);
     if (picked == null || !mounted) return;
     setState(() => _avatar = picked);
   }

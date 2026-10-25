@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 编辑我的资料：昵称 + 头像。
@@ -58,7 +59,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   }
 
   Future<void> _pickAvatar() async {
-    final picked = await ref.read(mediaServiceProvider).pickFromGallery();
+    final picked = await pickImageWithSource(context, ref);
     if (picked == null || !mounted) return;
     setState(() => _avatarRef = picked);
   }

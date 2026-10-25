@@ -19,6 +19,7 @@ import '../../domain/services/content_moderator.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/scheduler_service.dart';
+import '../shared_widgets/image_source_sheet.dart';
 
 /// 发布页（规划书 §6.1）。
 ///
@@ -171,7 +172,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
   Future<void> _pickImage() async {
     try {
-      final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
+      final imageRef = await pickImageWithSource(context, ref);
       if (imageRef == null || !mounted) return;
       setState(() => _imageRefs.add(imageRef));
     } catch (error) {

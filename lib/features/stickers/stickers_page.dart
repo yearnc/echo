@@ -8,6 +8,7 @@ import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_avatar_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/sticker.dart';
+import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -107,7 +108,7 @@ class StickersPage extends ConsumerWidget {
 
     // 先选图，看到预览之后再起名字、贴标签——
     // 用户得先知道选中的是哪张图，名字才起得贴切。
-    final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
+    final imageRef = await pickImageWithSource(context, ref);
     if (imageRef == null || !context.mounted) return;
 
     final meta = await showDialog<_ImportMeta>(
@@ -194,12 +195,12 @@ class StickersPage extends ConsumerWidget {
 /// 网友头像池：临时网民从这里挑头像。
 ///
 /// 这里改的是“别人长什么样”，不是用户自己的头像（那个在「我的 → 编辑资料」）。
-/// 池子空着时回落到内置的 32 张素材。
+/// 池子空着时回落到内置的 110 张素材。
 class _AudienceAvatars extends ConsumerWidget {
   const _AudienceAvatars();
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
-    final picked = await ref.read(mediaServiceProvider).pickFromGallery();
+    final picked = await pickImageWithSource(context, ref);
     if (picked == null || !context.mounted) return;
     await ref.read(customAvatarRepositoryProvider).add(picked);
     if (!context.mounted) return;

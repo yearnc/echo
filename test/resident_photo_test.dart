@@ -74,6 +74,9 @@ class _FakeMedia implements MediaService {
   Future<String?> pickFromGallery() async => null;
 
   @override
+  Future<String?> pickFromCamera() async => null;
+
+  @override
   Future<void> deleteByRef(String ref) async {
     deleted.add(ref);
   }

@@ -189,9 +189,11 @@ class _PostCard extends ConsumerWidget {
             .toList(growable: false);
     // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"。
     // 三种动态躺在同一张表里，靠两个作者列区分。
+    // 作者已经删掉时也要认出来——用“含已删除”的查询，否则会一路回落到
+    // 我自己的名字和头像，看起来就像这条帖子是我发的。
     final resident = post.authorResidentId == null
         ? null
-        : ref.watch(customResidentByIdProvider(post.authorResidentId!));
+        : ref.watch(customResidentAnyByIdProvider(post.authorResidentId!));
     final author = post.authorPersonaId == null
         ? null
         : ref.watch(personaByIdProvider(post.authorPersonaId!));

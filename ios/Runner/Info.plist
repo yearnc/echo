@@ -21,6 +21,11 @@
 	<!-- 语音输入要录音：声音只在本机转成文字，不上传 -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>录一段话转成文字，录音不会离开这台设备。</string>
+	<!-- 拍照只存进 APP 自己的目录，不写入系统相册 -->
+	<key>NSCameraUsageDescription</key>
+	<string>拍一张照片发到社区里。照片只保存在这台设备上，不会自动存进系统相册。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>从相册挑一张图片发到社区里。原图不会被上传。</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>

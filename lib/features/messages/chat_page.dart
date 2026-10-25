@@ -4,27 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/message_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/persona_repository.dart';
-import '../../data/media/media_service.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/direct_message_service.dart';
-import '../../domain/services/model_gateway.dart';
+import '../../domain/services/photo_describer.dart';
 import '../../domain/services/resident_memory_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
-import '../shared_widgets/post_image.dart';
-import '../shared_widgets/sticker_picker_sheet.dart';
+import '../shared_widgets/chat_bubble.dart';
+import '../shared_widgets/chat_composer.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 和某一位住民的会话（B5）。
 ///
-/// 这里的节奏是**故意的**：你发一句，他过几分钟才回。真人不会秒回，
-/// 而这个 APP 本来就在做一件事——让人不那么在意"回应要立刻有"。
-/// 所以没有"对方正在输入…"（规划书 §3.5 明确删掉了它）。
+/// 节奏是故意的：你发一句，他过几分钟才回。真人不会秒回，
+/// 而这个 APP 本来就在做一件事——让人不那么在意“回应要立刻有”。
+/// 所以没有“对方正在输入…”（规划书 §3.5 明确删掉了它）。
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key, required this.personaId});
 
@@ -72,7 +70,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 我发一句。
   ///
   /// 发完顺手让私信服务排一条回应——**不 await**：排期是他那边的事，
-  /// 跟"这句话已经发出去了"没关系，更不该让你等它。
+  /// 跟“这句话已经发出去了”没关系，更不该让你等它。
   Future<void> _send({
     String? text,
     StickerItem? sticker,
@@ -96,42 +94,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             mediaType: mediaType,
           );
 
-      // 固定住民记得住你说过的话，也记得你发过图——
-      // 以前只写文字，翻记忆时会以为你们从没发过图片。
       final resident = ref.read(customResidentByIdProvider(widget.personaId));
       if (resident != null) {
-        final memory = ref.read(residentMemoryServiceProvider);
-        final sourceId = 'dm_${widget.personaId}_'
-            '${DateTime.now().microsecondsSinceEpoch}';
-        if (mediaType == 'text') {
-          unawaited(
-            memory.rememberUserReply(
-              residentId: resident.id,
-              reply: content,
-              source: 'dm',
-              sourceId: sourceId,
-            ),
-          );
-        } else if (mediaType == 'image') {
-          unawaited(
-            memory.rememberUserReply(
-              residentId: resident.id,
-              reply: '[发来一张图片]',
-              imageSummary: '对方发来一张图片',
-              source: 'dm',
-              sourceId: sourceId,
-            ),
-          );
-        } else if (mediaType == 'sticker') {
-          unawaited(
-            memory.rememberUserReply(
-              residentId: resident.id,
-              reply: '[发来一个表情包]',
-              source: 'dm',
-              sourceId: sourceId,
-            ),
-          );
-        }
+        // 记忆写在后台：图片要先让视觉模型看一眼，可能要几秒。
+        unawaited(_remember(resident.id, content, mediaType));
       }
 
       // 固定住民要马上醒过来看这条消息：他这一轮可能回私信，
@@ -155,88 +121,243 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  Future<void> _pickSticker() async {
-    final picked = await showStickerPicker(context, ref);
-    if (picked != null) await _send(sticker: picked);
-  }
+  /// 把这次发送写进固定住民的记忆。
+  ///
+  /// 图片不再只记“收到一张图片”：先用视觉模型描述画面，再把描述写进记忆。
+  /// 没配看图模型时退回原来那句——至少不会因为描述失败而记不上。
+  Future<void> _remember(
+    String residentId,
+    String content,
+    String mediaType,
+  ) async {
+    final memory = ref.read(residentMemoryServiceProvider);
+    final sourceId =
+        'dm_${widget.personaId}_${DateTime.now().microsecondsSinceEpoch}';
 
-  Future<void> _pickImage() async {
-    final imageRef = await ref.read(mediaServiceProvider).pickFromGallery();
-    if (imageRef == null || !mounted) return;
-    await _send(imageRef: imageRef);
-
-    // 当前对话模型不支持看图时，至少别让用户以为对方真看见了。
-    final config = await ref.read(modelGatewayProvider).activeConfig();
-    if (!mounted) return;
-    if (config != null && !config.supportsVision) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('当前对话模型看不了图，TA 只会知道“对方发来一张图片”'),
-        ),
+    if (mediaType == 'text') {
+      await memory.rememberUserReply(
+        residentId: residentId,
+        reply: content,
+        source: 'dm',
+        sourceId: sourceId,
       );
+      return;
     }
+    if (mediaType == 'sticker') {
+      await memory.rememberUserReply(
+        residentId: residentId,
+        reply: '[发来一个表情包]',
+        source: 'dm',
+        sourceId: sourceId,
+      );
+      return;
+    }
+
+    final description = await ref.read(photoDescriberProvider).describe(content);
+    await memory.rememberUserReply(
+      residentId: residentId,
+      reply: '[发来一张图片]',
+      imageSummary: description.isEmpty ? '对方发来一张图片' : description,
+      source: 'dm',
+      sourceId: sourceId,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // 行为判断用“还在社区里的”；显示名字/头像用“含已删除的”——
+    // 删掉的住民仍然是一段历史，不该在会话里变成“社区住民”。
     final resident = ref.watch(customResidentByIdProvider(widget.personaId));
+    final storedResident = ref.watch(
+      customResidentAnyByIdProvider(widget.personaId),
+    );
     final persona = ref.watch(personaByIdProvider(widget.personaId));
     final thread = ref.watch(privateThreadProvider(widget.personaId));
-    final name = resident?.name ?? persona?.name ?? '社区住民';
-    final avatarRef = resident?.avatarAsset ?? persona?.avatar;
+    final name =
+        storedResident?.name ?? persona?.name ?? '社区住民';
+    final avatarRef = storedResident?.avatarAsset ?? persona?.avatar;
+    // 没有人能接话了：固定住民已删除，或者这条线指向一个已经不存在的账号。
+    // 保留历史，但不能再发。
+    final canSend = resident != null || persona != null;
+    final departed = resident == null && persona == null;
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
       appBar: AppBar(
         backgroundColor: EchoColors.surface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         iconTheme: IconThemeData(color: EchoColors.text),
-        title: Text(
-          name,
-          style: TextStyle(
-            color: EchoColors.text,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            UserAvatar(name: name, avatarRef: avatarRef, size: 32),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: EchoColors.text,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    departed
+                        ? '已离开社区'
+                        : (resident != null ? '固定住民' : '社区住民'),
+                    style: TextStyle(
+                      color: EchoColors.textFaint,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: const SafeArea(child: AiDisclaimerBar()),
-      body: Column(
-        children: [
-          Expanded(
-            child: thread.when(
-              loading: () => Center(
-                child: CircularProgressIndicator(color: EchoColors.primary),
-              ),
-              error: (error, _) => Center(
-                child: Text(
-                  '读不到会话：$error',
-                  style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
-                ),
-              ),
-              data: (list) => list.isEmpty
-                  ? _Opening(name: name)
-                  : ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final message = list[list.length - 1 - index];
-                        return _Bubble(
-                          message: message,
-                          name: name,
-                          avatarRef: avatarRef,
-                        );
-                      },
-                    ),
-            ),
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              EchoColors.bg,
+              Color.lerp(EchoColors.bg, EchoColors.primary, 0.035) ??
+                  EchoColors.bg,
+            ],
           ),
-          _Composer(
-            controller: _input,
-            sending: _sending,
-            onSend: _send,
-            onSticker: _pickSticker,
-            onImage: _pickImage,
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: thread.when(
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: EchoColors.primary),
+                ),
+                error: (error, _) => Center(
+                  child: Text(
+                    '读不到会话：$error',
+                    style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+                  ),
+                ),
+                data: (list) => list.isEmpty
+                    ? _Opening(name: name, avatarRef: avatarRef)
+                    : _MessageList(
+                        messages: list,
+                        name: name,
+                        avatarRef: avatarRef,
+                      ),
+              ),
+            ),
+            if (canSend)
+              ChatComposer(
+                controller: _input,
+                sending: _sending,
+                onSend: _send,
+              )
+            else
+              const _DepartedNotice(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageList extends StatelessWidget {
+  const _MessageList({
+    required this.messages,
+    required this.name,
+    required this.avatarRef,
+  });
+
+  final List<PrivateMessage> messages;
+  final String name;
+  final String? avatarRef;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    DateTime? day;
+    String? previousSender;
+
+    for (var index = 0; index < messages.length; index++) {
+      final message = messages[index];
+      final sender = message.fromMe ? 'me' : 'them';
+
+      if (day == null || !ChatDayDivider.sameDay(day, message.createdAt)) {
+        rows.add(ChatDayDivider(day: message.createdAt));
+        day = message.createdAt;
+        previousSender = null;
+      }
+
+      final next = index + 1 < messages.length ? messages[index + 1] : null;
+      final sameAsNext =
+          next != null &&
+          (next.fromMe ? 'me' : 'them') == sender &&
+          ChatDayDivider.sameDay(next.createdAt, message.createdAt) &&
+          next.createdAt.difference(message.createdAt).inMinutes < 5;
+
+      rows.add(
+        ChatBubble(
+          content: message.content,
+          mediaType: message.mediaType,
+          fromMe: message.fromMe,
+          senderName: name,
+          avatarRef: avatarRef,
+          createdAt: message.createdAt,
+          showAvatar: previousSender != sender,
+          showTime: !sameAsNext,
+        ),
+      );
+      previousSender = sender;
+    }
+
+    return ListView.builder(
+      reverse: true,
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[rows.length - 1 - index],
+    );
+  }
+}
+
+/// 对方已经不在社区里：这段对话变成只读，历史还在。
+class _DepartedNotice extends StatelessWidget {
+  const _DepartedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 13, 18, 13),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        border: Border(top: BorderSide(color: EchoColors.divider, width: 0.8)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.lock_outline,
+            size: 15,
+            color: EchoColors.textFaint,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'TA 已经离开社区，这段对话只能回看。',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -246,198 +367,37 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
 /// 会话还是空的——他还没开口，而你已经在门口了。
 class _Opening extends StatelessWidget {
-  const _Opening({required this.name});
+  const _Opening({required this.name, this.avatarRef});
 
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 44),
-        child: Text(
-          '你们还没聊过。说句话试试？',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: EchoColors.textFaint, fontSize: 13),
-        ),
-      ),
-    );
-  }
-}
-
-class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.name, this.avatarRef});
-
-  final PrivateMessage message;
   final String name;
   final String? avatarRef;
 
   @override
   Widget build(BuildContext context) {
-    final fromMe = message.fromMe;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 5, 14, 5),
-      child: Column(
-        crossAxisAlignment: fromMe
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: fromMe
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!fromMe) ...[
-                UserAvatar(name: name, avatarRef: avatarRef, size: 34),
-                const SizedBox(width: 8),
-              ],
-              Flexible(child: _content(fromMe)),
-            ],
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              top: 3,
-              left: fromMe ? 0 : 42,
-              right: fromMe ? 4 : 0,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            UserAvatar(
+              name: name,
+              avatarRef: avatarRef,
+              size: 64,
+              showRing: true,
             ),
-            child: Text(
-              formatMessageTime(message.createdAt),
-              style: TextStyle(color: EchoColors.textFaint, fontSize: 10),
+            const SizedBox(height: 14),
+            Text(
+              '你们还没聊过。',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 14),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _content(bool fromMe) {
-    // 表情包和图片就是一张图，不套气泡——套上就像给图加了个相框
-    if (message.mediaType == 'sticker' || message.mediaType == 'image') {
-      final isImage = message.mediaType == 'image';
-      final side = isImage ? 190.0 : 118.0;
-      return SizedBox(
-        width: side,
-        height: isImage ? 170 : side,
-        child: PostImage(
-          ref: message.content,
-          height: isImage ? 170 : side,
-          borderRadius: 12,
+            const SizedBox(height: 5),
+            Text(
+              '说句话试试？',
+              style: TextStyle(color: EchoColors.textFaint, fontSize: 12.5),
+            ),
+          ],
         ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      decoration: BoxDecoration(
-        color: fromMe ? EchoColors.primary : EchoColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: fromMe ? null : Border.all(color: EchoColors.divider),
-      ),
-      child: Text(
-        message.content,
-        style: TextStyle(
-          color: fromMe ? Colors.white : EchoColors.text,
-          fontSize: 14,
-          height: 1.55,
-        ),
-      ),
-    );
-  }
-}
-
-class _Composer extends StatelessWidget {
-  const _Composer({
-    required this.controller,
-    required this.sending,
-    required this.onSend,
-    required this.onSticker,
-    required this.onImage,
-  });
-
-  final TextEditingController controller;
-  final bool sending;
-  final Future<void> Function({
-    String? text,
-    StickerItem? sticker,
-    String? imageRef,
-  }) onSend;
-  final VoidCallback onSticker;
-  final VoidCallback onImage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: EchoColors.surface,
-        border: Border(top: BorderSide(color: EchoColors.divider)),
-      ),
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: sending ? null : onImage,
-            tooltip: '图片',
-            icon: Icon(
-              Icons.image_outlined,
-              color: EchoColors.textMuted,
-              size: 22,
-            ),
-          ),
-          IconButton(
-            onPressed: sending ? null : onSticker,
-            tooltip: '表情包',
-            icon: Icon(
-              Icons.emoji_emotions_outlined,
-              color: EchoColors.textMuted,
-              size: 22,
-            ),
-          ),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) {
-                if (!sending) onSend(text: controller.text);
-              },
-              style: TextStyle(color: EchoColors.text, fontSize: 14),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '说点什么…',
-                hintStyle: TextStyle(color: EchoColors.textFaint, fontSize: 14),
-                filled: true,
-                fillColor: EchoColors.bg,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            onPressed: sending ? null : () => onSend(text: controller.text),
-            tooltip: '发送',
-            icon: sending
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    Icons.send_rounded,
-                    color: EchoColors.primary,
-                    size: 22,
-                  ),
-          ),
-        ],
       ),
     );
   }

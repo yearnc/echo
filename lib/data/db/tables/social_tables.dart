@@ -64,7 +64,7 @@ class PersonaRoutines extends Table {
 
 /// 私信（规划书 §3.5 / §6.2）。
 ///
-/// 一句话一对一会话：一个住民一条线，不做群聊。
+/// 一对一会话：一个住民一条线。
 @DataClassName('PrivateMessageRow')
 @TableIndex(name: 'private_messages_persona', columns: {#personaId})
 class PrivateMessages extends Table {
