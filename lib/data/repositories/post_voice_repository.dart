@@ -42,7 +42,6 @@ class PostVoiceRepository {
             model: Value(voice.model),
             memoryEnabled: Value(voice.memoryEnabled),
             memoryLimit: Value(voice.memoryLimit),
-            alwaysShow: Value(voice.alwaysShow),
             createdAt: voice.createdAt.millisecondsSinceEpoch,
           ),
       ]);
@@ -250,7 +249,6 @@ class PostVoiceRepository {
     model: row.model,
     memoryEnabled: row.memoryEnabled,
     memoryLimit: row.memoryLimit,
-    alwaysShow: row.alwaysShow,
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
   );
 }

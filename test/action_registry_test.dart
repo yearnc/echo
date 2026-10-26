@@ -112,6 +112,59 @@ void main() {
     expect((list.single as Map)['summary'], contains('做菜'));
   });
 
+  test('固定住民能自己改、自己删记忆', () async {
+    final repo = ResidentMemoryRepository(db);
+    await actions.writeMemory(
+      residentId: 'resident_001',
+      summary: '他喜欢喝热可可',
+      idempotencyKey: 'mem:1',
+    );
+    final original = (await repo.recent('resident_001')).single;
+
+    final updated = await actions.updateMemory(
+      residentId: 'resident_001',
+      memoryId: original.id,
+      summary: '他更喜欢茉莉花茶，热可可是备选',
+      idempotencyKey: 'memup:1',
+    );
+    expect(updated.ok, isTrue);
+    expect((await repo.recent('resident_001')).single.summary, contains('茉莉花茶'));
+
+    final deleted = await actions.deleteMemory(
+      residentId: 'resident_001',
+      memoryId: original.id,
+      idempotencyKey: 'memdel:1',
+    );
+    expect(deleted.ok, isTrue);
+    expect(await repo.recent('resident_001'), isEmpty);
+  });
+
+  test('不能改别人的记忆', () async {
+    await CustomResidentRepository(db).upsert(
+      CustomResident(
+        id: 'resident_002',
+        name: '阿岚',
+        createdAt: DateTime(2026, 10, 1),
+      ),
+    );
+    final repo = ResidentMemoryRepository(db);
+    await actions.writeMemory(
+      residentId: 'resident_002',
+      summary: '他养了一只猫',
+      idempotencyKey: 'mem:1',
+    );
+    final item = (await repo.recent('resident_002')).single;
+
+    final outcome = await actions.updateMemory(
+      residentId: 'resident_001',
+      memoryId: item.id,
+      summary: '被改掉了',
+      idempotencyKey: 'memup:1',
+    );
+    expect(outcome.ok, isFalse);
+    expect((await repo.recent('resident_002')).single.summary, contains('猫'));
+  });
+
   test('关掉记忆的人不写也不查', () async {
     await CustomResidentRepository(db).upsert(
       CustomResident(

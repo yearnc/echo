@@ -50,7 +50,6 @@ class ClearDataService {
             (t) =>
                 t.deletedAt.isNull() &
                 t.scope.equals('clear') &
-                t.authorPersonaId.isNull() &
                 t.authorResidentId.isNull(),
           )
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))

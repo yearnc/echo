@@ -8,15 +8,15 @@ import 'package:echo/data/media/voice_wave_store.dart';
 import 'package:echo/data/repositories/analysis_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/notification_repository.dart';
-import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
-import 'package:echo/data/repositories/relationship_repository.dart';
-import 'package:echo/domain/models/ai_persona.dart';
+import 'package:echo/data/repositories/post_voice_repository.dart';
+import 'package:echo/domain/models/custom_resident.dart';
+import 'package:echo/domain/models/post_voice.dart';
 import 'package:echo/domain/models/resident_voice.dart';
 import 'package:echo/domain/models/voice_settings.dart';
 import 'package:echo/domain/services/content_generator.dart';
-import 'package:echo/domain/services/interaction_planner.dart';
+import 'package:echo/domain/models/planned_interaction.dart';
 import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:echo/domain/services/tts_service.dart';
 import 'package:echo/domain/services/voice_waveform.dart';
@@ -108,6 +108,38 @@ void main() {
       expect(a, greaterThanOrEqualTo(0));
     });
 
+    test('同一段音色描述固定到同一个本机音色', () {
+      final first = ResidentVoice.sidForDescription('低沉温柔的男声，语速偏慢');
+      for (var i = 0; i < 10; i++) {
+        expect(
+          ResidentVoice.sidForDescription('低沉温柔的男声，语速偏慢'),
+          first,
+        );
+      }
+      expect(first, greaterThanOrEqualTo(0));
+    });
+
+    test('固定住民的音色引用会传给评论和私信', () {
+      final resident = CustomResident(
+        id: 'resident_001',
+        name: '小满',
+        voiceEnabled: true,
+        voiceRef: 'local:42',
+        createdAt: DateTime(2026, 10, 1),
+      );
+      expect(resident.toPersona().voiceModel, 'local:42');
+
+      final voice = PostVoice(
+        id: 'voice_1',
+        postId: 'post_1',
+        kind: PostVoiceKind.custom,
+        model: 'cloud:speech:abc',
+        name: '小满',
+        createdAt: DateTime(2026, 10, 1),
+      );
+      expect(voice.toPersona().voiceModel, 'cloud:speech:abc');
+    });
+
     test('懒得打字的人说话慢一点', () {
       expect(ResidentVoice.speedFor('voice_male_lazy'), lessThan(1.0));
       expect(ResidentVoice.speedFor('voice_bright'), greaterThan(1.0));
@@ -175,16 +207,6 @@ void main() {
       posts = PostRepository(db);
       interactions = InteractionRepository(db);
 
-      // 住民得先入库：ai_interactions.persona_id 有外键。
-      final real = await const PersonaRepository().loadAll();
-      await db.batch((batch) {
-        batch.insertAll(
-          db.aiPersonas,
-          real
-              .map((p) => AiPersonasCompanion.insert(id: p.id, name: p.name))
-              .toList(growable: false),
-        );
-      });
     });
 
     tearDown(() => db.close());
@@ -195,9 +217,19 @@ void main() {
       VoiceSettings Function()? readVoiceSettings,
     }) async {
       final postId = await posts.create(content: '今天楼下桂花开了', scope: 'echo');
+      await PostVoiceRepository(db).insertAll([
+        PostVoice(
+          id: 'voice_1',
+          postId: postId,
+          kind: PostVoiceKind.ephemeral,
+          name: '三楼的灯',
+          model: 'voice_soft_female',
+          createdAt: DateTime.now(),
+        ),
+      ]);
       await interactions.insertPlanned(postId, [
         PlannedInteraction(
-          personaId: 'persona_001',
+          personaId: 'voice_1',
           type: 'comment',
           scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
           content: '桂花一开，整条街都是甜的。',
@@ -210,10 +242,9 @@ void main() {
         planEvents: PlanEventRepository(db),
         posts: posts,
         notifications: NotificationRepository(db),
-        personas: const PersonaRepository(),
         analyses: AnalysisRepository(db),
         generator: SampleContentGenerator(),
-        relationships: RelationshipRepository(db),
+        voiceRepo: PostVoiceRepository(db),
         voice: voice,
         readVoiceSettings: readVoiceSettings,
         // 概率那一关直接放行：这条用例要验的是接线，不是随机。
@@ -303,24 +334,6 @@ void main() {
     });
   });
 
-  group('谁爱用语音说话', () {
-    AiPersona personaWith(String voiceModel) => AiPersona(
-      id: 'p',
-      name: '某人',
-      voiceModel: voiceModel,
-    );
-
-    test('懒得打字的人比一般人多发语音', () {
-      final lazy = InteractionPlanner.voiceChance(personaWith('voice_male_lazy'));
-      final plain = InteractionPlanner.voiceChance(personaWith('voice_male_calm'));
-      expect(lazy, greaterThan(plain));
-    });
-
-    test('语音条数有上限', () {
-      expect(InteractionPlanner.maxVoicesPerPost, greaterThan(0));
-      expect(InteractionPlanner.maxVoicesPerPost, lessThan(4));
-    });
-  });
 }
 
 /// 造一个最简 WAV（mono / 16 位 / 给定的采样值）。

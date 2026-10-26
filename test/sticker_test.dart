@@ -63,6 +63,16 @@ void main() {
       expect(list.map((item) => item.name), ['我导入的']);
     });
 
+    test('按图片引用能找回名字和标签，私信 caption 要用', () async {
+      await seed(id: 's1', name: '安慰·摸摸头', path: 'file:/tmp/head.png');
+      await stickers.updateTags('s1', ['安慰', '抱抱']);
+
+      final found = await stickers.findByPath('file:/tmp/head.png');
+
+      expect(found?.name, '安慰·摸摸头');
+      expect(found?.tags, ['安慰', '抱抱']);
+    });
+
     test('软删除后不再出现在列表里，也不计数', () async {
       await seed(id: 's1', name: '要删的');
       expect(await stickers.countUserStickers(), 1);

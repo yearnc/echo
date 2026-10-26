@@ -2,16 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_texts.dart';
-import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/addiction_repository.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
@@ -21,7 +18,6 @@ import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
-import '../../domain/services/resident_memory_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
@@ -164,7 +160,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       _replyToName = personaId == null
           ? (ref.read(userProfileProvider).value?.displayName ??
                 AppTexts.defaultNickname)
-          : (voiceName ?? ref.read(personaNameProvider(personaId)));
+          : (voiceName ?? '路过的网友');
     });
   }
 
@@ -313,40 +309,8 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
   /// 表情包以前走单独的 `_sendSticker`，发完就结束了，所以住民永远不会
   /// 接表情包评论。现在统一走这里。
   void _kickReplies({required String commentId, required String myReply}) {
-    unawaited(_remember(commentId, myReply));
+    // 记忆交给住民醒来后自己判断；这里只负责把待办送到他面前。
     unawaited(_notifyResident(commentId, myReply));
-  }
-
-  /// 用户在住民帖子下说的这句话，要进那位住民的长期记忆。
-  ///
-  /// 以前只记“私信说过什么”和住民自己做过什么；在帖子里回一句就只剩
-  /// 收件箱里的一次性摘要，醒来之后完全不记得。这里把两类关系都写上：
-  /// - 被回复的那位住民（如果那条评论是固定住民写的）；
-  /// - 帖子作者（如果是固定住民发的）。
-  Future<void> _remember(String commentId, String myReply) async {
-    final ids = <String>{};
-    final target = widget.replyTarget;
-    final personaId = target?.personaId;
-    if (personaId != null) {
-      final voice = await ref
-          .read(postVoiceRepositoryProvider)
-          .findById(personaId);
-      final targetResident = voice?.residentId;
-      if (targetResident != null) ids.add(targetResident);
-    }
-    final authorId = widget.post.authorResidentId;
-    if (authorId != null) ids.add(authorId);
-    if (ids.isEmpty) return;
-
-    final memory = ref.read(residentMemoryServiceProvider);
-    for (final residentId in ids) {
-      await memory.rememberUserReply(
-        residentId: residentId,
-        reply: myReply,
-        source: 'comment',
-        sourceId: commentId,
-      );
-    }
   }
 
   /// 叫醒该被叫醒的人。
@@ -576,8 +540,7 @@ class _TopBar extends ConsumerWidget {
 
   final Post post;
 
-  bool get _isMine =>
-      post.authorPersonaId == null && post.authorResidentId == null;
+  bool get _isMine => post.authorResidentId == null;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -629,24 +592,16 @@ class _PostBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"。
+    // 谁发的：固定住民显示本人，用户自己发的才显示"我"。
     // 作者删掉之后仍要显示他的名字，不能回落到“我”。
     final resident = post.authorResidentId == null
         ? null
         : ref.watch(customResidentAnyByIdProvider(post.authorResidentId!));
-    final author = post.authorPersonaId == null
-        ? null
-        : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final name = resident?.name ??
-        author?.name ??
-        me?.displayName ??
-        AppTexts.defaultNickname;
-    final avatarRef =
-        resident?.avatarAsset ?? author?.avatar ?? me?.avatarOrNull;
-    final openAuthor = author == null
-        ? null
-        : () => context.push(RoutePaths.resident(author.id));
+    final name =
+        resident?.name ?? me?.displayName ?? AppTexts.defaultNickname;
+    final avatarRef = resident?.avatarAsset ?? me?.avatarOrNull;
+    const VoidCallback? openAuthor = null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

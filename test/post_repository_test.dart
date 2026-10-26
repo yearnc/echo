@@ -97,9 +97,6 @@ void main() {
       final postId = await posts.create(content: '被评论的帖子');
 
       await db
-          .into(db.aiPersonas)
-          .insert(AiPersonasCompanion.insert(id: 'persona_test', name: '测试住民'));
-      await db
           .into(db.aiInteractions)
           .insert(
             AiInteractionsCompanion.insert(
@@ -145,11 +142,6 @@ void main() {
 
     test('同一人格可以对同一帖子评论多次（连续回复/追问）', () async {
       final postId = await posts.create(content: '被连续回复的帖子');
-      await db
-          .into(db.aiPersonas)
-          .insert(
-            AiPersonasCompanion.insert(id: 'persona_chatty', name: '话痨住民'),
-          );
 
       for (var i = 0; i < 3; i++) {
         await db
@@ -186,16 +178,13 @@ void main() {
 
   group('住民靠它记住你（B4）', () {
     setUp(() async {
-      await db
-          .into(db.aiPersonas)
-          .insert(AiPersonasCompanion.insert(id: 'persona_001', name: '住民'));
     });
 
     test('只给回响模式里我自己发的', () async {
       await posts.create(content: '回响里的帖子', scope: 'echo');
       await posts.create(content: '清醒模式的记录', scope: 'clear');
       await posts.createResidentPost(
-        personaId: 'persona_001',
+        residentId: 'resident_001',
         content: '住民的动态',
       );
 
@@ -226,16 +215,13 @@ void main() {
 
   group('「我的」页的统计', () {
     setUp(() async {
-      await db
-          .into(db.aiPersonas)
-          .insert(AiPersonasCompanion.insert(id: 'persona_001', name: '住民'));
     });
 
     test('帖子只算自己发的，住民的动态不算', () async {
       await posts.create(content: '回响里发的', scope: 'echo');
       await posts.create(content: '清醒里记的', scope: 'clear');
       await posts.createResidentPost(
-        personaId: 'persona_001',
+        residentId: 'resident_001',
         content: '住民的动态',
       );
 
@@ -251,7 +237,7 @@ void main() {
     test('获赞只算自己帖子上的', () async {
       final mineId = await posts.create(content: '我的帖子', scope: 'echo');
       final residentId = await posts.createResidentPost(
-        personaId: 'persona_001',
+        residentId: 'resident_001',
         content: '住民的动态',
       );
 

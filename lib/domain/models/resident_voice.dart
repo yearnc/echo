@@ -14,7 +14,7 @@ class ResidentVoice {
 
   /// 每位住民的专属说话人编号。
   ///
-  /// 编号来自 `assets/personas/personas.json` 的 `voiceModel` 语气标签：
+  /// 编号来自旧住民内容资产里的 `voiceModel` 语气标签：
   /// 先按性别分池（男声只挑男声、女声只挑女声），再在池子里顺序取一个，
   /// 于是 32 个人各有各的嗓子，同语气标签的人也不会撞声。
   ///
@@ -124,6 +124,26 @@ class ResidentVoice {
       return even ? 'onyx' : 'echo';
     }
     return female ? 'nova' : 'onyx';
+  }
+
+  /// 用一段文字描述挑一个本机音色。
+  ///
+  /// AISHELL-3 只有固定说话人，不能真的“按描述生成声音”；这里做的是
+  /// **稳定映射**：同一段描述永远落到同一个 sid，用户改描述才会换声。
+  /// 男/女先粗分，再按描述散列到对应池子里。
+  static int sidForDescription(String description) {
+    final text = description.trim();
+    final male = RegExp(r'男|大叔|磁性|低沉|醇厚|浑厚|青年音|少年音').hasMatch(text);
+    final female = RegExp(
+      r'女|少女|御姐|萝莉|甜|软糯|清亮|细腻|温柔',
+    ).hasMatch(text);
+    final pool = male && !female ? _malePool : _femalePool;
+
+    var hash = 0;
+    for (final code in text.codeUnits) {
+      hash = (hash * 31 + code) & 0x7fffffff;
+    }
+    return pool[hash % pool.length];
   }
 
   /// 住民说话的语速。

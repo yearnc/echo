@@ -5,17 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
-import '../../data/repositories/relationship_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
-import '../models/ai_persona.dart';
 import '../models/custom_resident.dart';
 import '../models/post.dart';
 import '../models/post_voice.dart';
 import 'content_generator.dart';
-import 'relationship_rules.dart';
-import 'resident_memory_service.dart';
 
 /// 住民接住你那句话（B7）。
 ///
@@ -28,19 +23,14 @@ import 'resident_memory_service.dart';
 class CommentReplyService {
   CommentReplyService({
     required this.interactions,
-    required this.personas,
-    required this.relationships,
     required this.generator,
     required this.userProfiles,
     this.residents,
     this.voiceRepo,
-    this.residentMemory,
     Random? random,
   }) : _random = random ?? Random();
 
   final InteractionRepository interactions;
-  final PersonaRepository personas;
-  final RelationshipRepository relationships;
   final UserProfileRepository userProfiles;
 
   /// 固定住民：楼主接住你的评论时要用他的人设。
@@ -49,9 +39,6 @@ class CommentReplyService {
 
   /// 临时网民（v3.0）。可空：老测试和固定住民只走 personas。
   final PostVoiceRepository? voiceRepo;
-
-  /// 固定住民记住“他回了我什么”。
-  final ResidentMemoryService? residentMemory;
 
   final Random _random;
 
@@ -77,15 +64,9 @@ class CommentReplyService {
     if (reply.isEmpty) return false;
 
     try {
-      // 先看这是不是这一帖的临时网民；不是再回固定住民里找。
+      // 评论区只认这一帖里的 post_voice 快照（临时网民或固定住民）。
       final voice = await voiceRepo?.findById(personaId);
-      AiPersona? persona = voice?.toPersona();
-      if (persona == null) {
-        final pool = await personas.loadAll();
-        for (final item in pool) {
-          if (item.id == personaId) persona = item;
-        }
-      }
+      final persona = voice?.toPersona();
       if (persona == null) return false;
 
       final lines = await generator.replies(
@@ -96,7 +77,6 @@ class CommentReplyService {
             yours: reply,
           ),
         ],
-        relations: await _relations(),
       );
 
       final line = lines[personaId]?.trim() ?? '';
@@ -114,15 +94,7 @@ class CommentReplyService {
         scheduledAt: DateTime.now().add(_delay()),
       );
 
-      // 固定住民把“他回了我这句”记下来；临时网民不记。
-      final residentId = voice?.residentId;
-      if (residentId != null) {
-        await residentMemory?.rememberUserReply(
-          residentId: residentId,
-          reply: reply,
-          sourceId: parent.id,
-        );
-      }
+      // 记忆不在这里写：固定住民醒来后会自己判断这句话值不值得记。
       return true;
     } catch (error) {
       // 排不上就排不上：你那条回复已经发出去了，社区少一句追问不算塌天
@@ -176,11 +148,6 @@ class CommentReplyService {
         scheduledAt: DateTime.now().add(_delay()),
       );
 
-      await residentMemory?.rememberUserReply(
-        residentId: residentId,
-        reply: reply,
-        sourceId: myCommentId,
-      );
       return true;
     } catch (error) {
       debugPrint('[楼主回复] 这次没排上：$error');
@@ -219,6 +186,7 @@ class CommentReplyService {
       tone: [resident.tone, resident.extraInstructions]
           .where((part) => part.trim().isNotEmpty)
           .join('；'),
+      model: resident.toPersona().voiceModel,
       createdAt: DateTime.now(),
     );
     await repo.insertAll([voice]);
@@ -231,25 +199,14 @@ class CommentReplyService {
     return Duration(seconds: low + _random.nextInt(high - low));
   }
 
-  Future<Map<String, RelationshipState>> _relations() async {
-    try {
-      return await relationships.loadAll();
-    } catch (error) {
-      debugPrint('[追问] 这次没读到关系：$error');
-      return const {};
-    }
-  }
 }
 
 final commentReplyServiceProvider = Provider<CommentReplyService>(
   (ref) => CommentReplyService(
     interactions: ref.watch(interactionRepositoryProvider),
-    personas: ref.watch(personaRepositoryProvider),
-    relationships: ref.watch(relationshipRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
     userProfiles: ref.watch(userProfileRepositoryProvider),
     residents: ref.watch(customResidentRepositoryProvider),
     voiceRepo: ref.watch(postVoiceRepositoryProvider),
-    residentMemory: ref.watch(residentMemoryServiceProvider),
   ),
 );

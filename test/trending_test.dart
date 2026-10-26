@@ -19,7 +19,7 @@ void main() {
     likeCount: likes,
     commentCount: comments,
     topicName: topic,
-    authorPersonaId: author,
+    authorResidentId: author,
   );
 
   group('一条帖子的热度', () {

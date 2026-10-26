@@ -14,7 +14,6 @@ import 'data/repositories/usage_repository.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/audience_service.dart';
 import 'domain/services/background_worker.dart';
-import 'domain/services/direct_message_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
 import 'domain/services/resident_wake_service.dart';
@@ -96,8 +95,6 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           // 两套排期（一套预生成、一套模型决定），迟早打架。
           // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时三小时才醒一次。
           await ref.read(residentWakeServiceProvider).wakeAll();
-          // 旧住民（数据还留着，但不再进信息流）的私信仍走老 tick。
-          await ref.read(directMessageServiceProvider).tick();
 
           // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。
           if (!_audienceBusy) {

@@ -6,6 +6,7 @@ import '../../data/db/database_provider.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
+import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
@@ -17,8 +18,9 @@ import '../models/resident_inbox.dart';
 import 'action_registry.dart';
 import 'comment_reply_service.dart';
 import 'content_generator.dart';
+import 'dm_voice_service.dart';
 import 'model_gateway.dart';
-import 'resident_memory_service.dart';
+import 'tts_service.dart';
 import 'resident_tool_session.dart';
 
 enum WakeTrigger {
@@ -55,11 +57,12 @@ class ResidentWakeService {
     required this.posts,
     required this.voices,
     required this.interactions,
+    required this.notifications,
     required this.profiles,
     required this.messages,
-    required this.memories,
     required this.media,
     required this.commentReplies,
+    this.dmVoice,
   });
 
   final AppDatabase db;
@@ -71,14 +74,20 @@ class ResidentWakeService {
   final PostRepository posts;
   final PostVoiceRepository voices;
   final InteractionRepository interactions;
+  final NotificationRepository notifications;
   final UserProfileRepository profiles;
   final PrivateMessageRepository messages;
-  final ResidentMemoryService memories;
   final MediaService media;
   final CommentReplyService commentReplies;
 
+  /// 私信回复可以变成语音条（可空：测试或关掉语音时保持文字）。
+  final DmVoiceService? dmVoice;
+
   /// 同一个人不要被同时叫醒两次（用户点发送 + 心跳撞在一起）。
   final Set<String> _running = {};
+
+  /// 一轮 wakeAll 没跑完时，下一拍心跳不要再叠一轮。
+  bool _wakingAll = false;
 
   /// 心跳唤醒的水位：每人每 15 分钟最多一次。
   final Map<String, DateTime> _lastWake = {};
@@ -98,12 +107,18 @@ class ResidentWakeService {
 
   /// 所有固定住民都看一眼（心跳用）。
   Future<int> wakeAll({WakeTrigger trigger = WakeTrigger.heartbeat}) async {
-    final pool = await residents.all();
-    var handled = 0;
-    for (final resident in pool) {
-      handled += await wake(resident.id, trigger: trigger);
+    if (_wakingAll) return 0;
+    _wakingAll = true;
+    try {
+      final pool = await residents.all();
+      var handled = 0;
+      for (final resident in pool) {
+        handled += await wake(resident.id, trigger: trigger);
+      }
+      return handled;
+    } finally {
+      _wakingAll = false;
     }
-    return handled;
   }
 
   /// 后台任务用：只叫醒**真的有待办**的人，而且限制人数。
@@ -222,6 +237,7 @@ class ResidentWakeService {
       wakeId: wakeId,
       pending: visible,
       now: now,
+      allowProactive: trigger != WakeTrigger.background,
     );
 
     try {
@@ -235,19 +251,29 @@ class ResidentWakeService {
               'sticker' => '[表情包]',
               _ => turn.content,
             },
+            caption: turn.caption,
             imageRef: turn.mediaType == 'image' && turn.fromMe
                 ? turn.content
                 : null,
             at: turn.createdAt,
           ),
       ];
+      // 把它自己最近做过的事告诉它——这是信息，不是决定。
+      // 要不要记进记忆、要不要接着说，由它自己判断。
+      final ownActivity = await _recentOwnActivity(residentId);
       final said = await session.act(
         resident: resident,
         config: config,
-        situation: _situation(resident, visible, trigger),
+        situation: _situation(
+          resident,
+          visible,
+          trigger,
+          ownActivity: ownActivity,
+        ),
         toolkit: toolkit,
         at: now,
         history: history,
+        allowProactive: trigger != WakeTrigger.background,
       );
 
       // 模型没调工具、只回了一句话：当作私信发出去。
@@ -280,10 +306,12 @@ class ResidentWakeService {
   String _situation(
     CustomResident resident,
     List<ResidentInboxItem> pending,
-    WakeTrigger trigger,
-  ) {
+    WakeTrigger trigger, {
+    String ownActivity = '',
+  }) {
+    final String base;
     if (pending.isEmpty) {
-      return switch (trigger) {
+      base = switch (trigger) {
         WakeTrigger.setup =>
           '你刚住进这里，还没有人跟你说话。你可以主动给对方发一条私信，'
               '像刚加了好友那样打个招呼；不想发也可以什么都不做。',
@@ -295,27 +323,60 @@ class ResidentWakeService {
               '点个赞，或者给聊过的人发条私信；也可以就搁着。',
         WakeTrigger.background => '手机上没有新消息。',
       };
+    } else {
+      final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
+      for (final item in pending) {
+        final when = ResidentToolSession.timeLabel(item.createdAt);
+        final line = switch (item.kind) {
+          ResidentInboxRepository.kindCommentOnPost =>
+            '有人在你的帖子下评论：「${item.summary}」',
+          ResidentInboxRepository.kindReplyToComment =>
+            '有人回了你的评论：「${item.summary}」',
+          ResidentInboxRepository.kindDm => '给你发了私信：「${item.summary}」',
+          _ => '「${item.summary}」',
+        };
+        buffer.writeln('- [${item.id}] [$when] $line');
+      }
+      buffer.writeln();
+      buffer.writeln(
+        '评论类用 reply_inbox 回在评论下面；私信类用 send_dm 回。'
+        '也可以只读不回：最后调用 finish。',
+      );
+      base = buffer.toString();
     }
 
-    final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
-    for (final item in pending) {
-      final when = ResidentToolSession.timeLabel(item.createdAt);
-      final line = switch (item.kind) {
-        ResidentInboxRepository.kindCommentOnPost =>
-          '有人在你的帖子下评论：「${item.summary}」',
-        ResidentInboxRepository.kindReplyToComment =>
-          '有人回了你的评论：「${item.summary}」',
-        ResidentInboxRepository.kindDm => '给你发了私信：「${item.summary}」',
-        _ => '「${item.summary}」',
-      };
-      buffer.writeln('- [${item.id}] [$when] $line');
+    if (ownActivity.trim().isEmpty) return base;
+    return '$base\n你最近做过的事（只是给你回忆，记不记由你）：\n$ownActivity';
+  }
+
+  /// 它自己最近发过的动态。只读，不替它写记忆。
+  Future<String> _recentOwnActivity(String residentId) async {
+    try {
+      final list = await posts.watchByResident(residentId).first;
+      if (list.isEmpty) return '';
+      return list
+          .take(3)
+          .map(
+            (post) =>
+                '- ${_shortWhen(post.createdAt)} 发过动态：${_clip(post.content, 60)}',
+          )
+          .join('\n');
+    } catch (error) {
+      debugPrint('[唤醒] 这次没读到它自己的动态：$error');
+      return '';
     }
-    buffer.writeln();
-    buffer.writeln(
-      '评论类用 reply_inbox 回在评论下面；私信类用 send_dm 回。'
-      '也可以只读不回：最后调用 finish。',
-    );
-    return buffer.toString();
+  }
+
+  static String _shortWhen(DateTime at) {
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${at.month}月${at.day}日 $hh:$mm';
+  }
+
+  static String _clip(String text, int length) {
+    final clean = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (clean.length <= length) return clean;
+    return '${clean.substring(0, length)}…';
   }
 
   /// 把一条评论回复排进发送队列。
@@ -357,12 +418,8 @@ class ResidentWakeService {
       ),
     );
     await inbox.markHandled([item.id], decision: 'replied');
-    await memories.rememberOwnAction(
-      residentId: item.residentId,
-      summary: '我在帖子下回了「$text」',
-      sourceId: 'own_comment_${item.id}',
-      source: 'self_comment',
-    );
+    // 记忆不替它写：这条工具结果已经回到它手里，
+    // 要不要记、记成什么，由它自己用 memory_write 决定。
     return const ActionOutcome(ok: true, message: '已排在评论下面');
   }
 
@@ -375,14 +432,50 @@ class ResidentWakeService {
     Duration baseDelay,
     List<ResidentInboxItem> pending,
     Set<String> alreadyRepliedDm,
-    int segmentGapSeconds,
-  ) async {
+    int segmentGapSeconds, {
+    bool asVoice = false,
+  }) async {
     final text = content.trim();
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '消息是空的');
     }
     if (segment >= maxDmSegments) {
       return const ActionOutcome(ok: false, message: '一次醒来最多发三段');
+    }
+    final speech = dmVoice;
+    final wantsVoice = asVoice;
+    if (wantsVoice) {
+      if (speech == null || !speech.enabled) {
+        return const ActionOutcome(
+          ok: false,
+          message: '语音没有开启，改用 send_dm 发文字',
+        );
+      }
+      if (!resident.voiceEnabled) {
+        return const ActionOutcome(
+          ok: false,
+          message: '你还没有配置音色，改用 send_dm 发文字',
+        );
+      }
+    }
+
+    // 语音必须**先合成成功再落库**：不能让用户先看到一行文字，
+    // 再悄悄变成语音。失败时把原因原样交回给模型，让它自己决定
+    // 是改用文字、换句话再试，还是先解释一下。
+    VoiceClip? clip;
+    if (wantsVoice) {
+      final result = await speech!.synthesize(
+        resident: resident,
+        text: text,
+      );
+      if (result.clip == null) {
+        return ActionOutcome(
+          ok: false,
+          message: '语音没合成出来：${result.error}。'
+              '你可以先用 send_dm 发文字，或者换个说法再试一次。',
+        );
+      }
+      clip = result.clip;
     }
 
     final at = DateTime.now().add(
@@ -394,6 +487,9 @@ class ResidentWakeService {
       at: at,
       idempotencyKey: 'dm:$wakeId:$callId',
       source: 'wake',
+      mediaType: wantsVoice ? 'voice' : 'text',
+      voicePath: clip?.ref ?? '',
+      transcript: clip?.transcript ?? '',
     );
     if (!outcome.ok) return outcome;
 
@@ -407,13 +503,15 @@ class ResidentWakeService {
     if (dmIds.isNotEmpty) {
       await inbox.markHandled(dmIds, decision: 'replied');
     }
-    await memories.rememberOwnAction(
-      residentId: resident.id,
-      summary: '我给对方发了私信「$text」',
-      sourceId: 'own_dm_${wakeId}_$callId',
-      source: 'self_dm',
-    );
-    return outcome;
+    // 记忆不替它写：工具结果已经告诉它“发出去了”，
+    // 要不要把这句话记进长期记忆，由它自己决定。
+    return wantsVoice
+        ? ActionOutcome(
+            ok: true,
+            message: '语音已经发出，转写稿也一起显示了',
+            data: outcome.data,
+          )
+        : outcome;
   }
 
   Future<ActionOutcome> _createPost(
@@ -466,12 +564,7 @@ class ResidentWakeService {
       }
     }
 
-    await memories.rememberOwnAction(
-      residentId: resident.id,
-      summary: '我发了一条动态「$text」',
-      sourceId: 'own_post_$callId',
-      source: 'self_post',
-    );
+    // 记忆不替它写：动态已经发出，它可以在同一轮里自己用 memory_write 记。
     return outcome;
   }
 }
@@ -484,6 +577,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     required this.wakeId,
     required this.pending,
     required this.now,
+    required this.allowProactive,
   });
 
   final ResidentWakeService service;
@@ -491,6 +585,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
   final String wakeId;
   final List<ResidentInboxItem> pending;
   final DateTime now;
+  final bool allowProactive;
 
   bool finished = false;
   bool spokePrivately = false;
@@ -554,10 +649,73 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
+  Future<ActionOutcome> sendVoice(String content, String callId) async {
+    final outcome = await service._sendDm(
+      resident,
+      content,
+      wakeId,
+      callId,
+      _dmSegments,
+      const Duration(seconds: 8),
+      pending,
+      _repliedDm,
+      12,
+      asVoice: true,
+    );
+    if (outcome.ok) {
+      _dmSegments++;
+      spokePrivately = true;
+    }
+    return outcome;
+  }
+
+  @override
+  Future<ActionOutcome> sendSticker(
+    String stickerId,
+    String tag,
+    String callId,
+  ) async {
+    if (_dmSegments >= ResidentWakeService.maxDmSegments) {
+      return const ActionOutcome(ok: false, message: '一次醒来最多发三段');
+    }
+    final chosen = await service.actions.chooseSticker(id: stickerId, tag: tag);
+    if (!chosen.ok) return chosen;
+    final path = chosen.data['path'];
+    if (path is! String || path.isEmpty) {
+      return const ActionOutcome(ok: false, message: '没有选中表情包');
+    }
+
+    final at = DateTime.now().add(
+      const Duration(seconds: 8) +
+          Duration(seconds: 12 * _dmSegments),
+    );
+    final outcome = await service.actions.sendStickerMessage(
+      residentId: resident.id,
+      stickerPath: path,
+      at: at,
+      idempotencyKey: 'sticker:${resident.id}:$callId',
+    );
+    if (!outcome.ok) return outcome;
+
+    _dmSegments++;
+    spokePrivately = true;
+    final dmIds = [
+      for (final item in pending)
+        if (item.kind == ResidentInboxRepository.kindDm &&
+            _repliedDm.add(item.id))
+          item.id,
+    ];
+    if (dmIds.isNotEmpty) {
+      await service.inbox.markHandled(dmIds, decision: 'replied');
+    }
+    return const ActionOutcome(ok: true, message: '表情包已发出');
+  }
+
+  @override
   Future<ActionOutcome> finish() async {
     finished = true;
-    await service.inbox.markAllHandled(
-      resident.id,
+    await service.inbox.markHandled(
+      pending.map((item) => item.id),
       decision: 'ignored',
       wakeId: wakeId,
     );
@@ -566,6 +724,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> browseFeed() async {
+    if (!allowProactive) {
+      return const ActionOutcome(ok: false, message: '后台唤醒不主动刷帖子');
+    }
     final recent = await service.posts.recentForAudience(limit: 6);
     if (recent.isEmpty) {
       return const ActionOutcome(ok: true, message: '最近没什么新帖子');
@@ -588,7 +749,69 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
+  Future<ActionOutcome> commentPost(
+    String postId,
+    String content,
+    String callId,
+  ) async {
+    if (!allowProactive) {
+      return const ActionOutcome(ok: false, message: '后台唤醒不主动评论');
+    }
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '评论是空的');
+    }
+    final post = await service.posts.watchById(postId).first;
+    if (post == null) {
+      return const ActionOutcome(ok: false, message: '没有这条帖子');
+    }
+    if (post.authorResidentId == resident.id) {
+      return const ActionOutcome(
+        ok: false,
+        message: '这是你自己的帖子，回评论请用 reply_inbox',
+      );
+    }
+
+    final voice = await service.commentReplies.ensureVoice(
+      postId: postId,
+      resident: resident,
+    );
+    if (voice == null) {
+      return const ActionOutcome(ok: false, message: '没能在这条帖子里找到身份');
+    }
+
+    await service.interactions.insertExecutedComment(
+      id: 'wake_comment_${resident.id}_'
+          '${DateTime.now().microsecondsSinceEpoch}',
+      postId: postId,
+      personaId: voice.id,
+      mediaType: 'text',
+      content: text,
+    );
+    await service.posts.addCounters(postId, comments: 1);
+    if (post.authorResidentId == null) {
+      try {
+        await service.notifications.insert(
+          id: 'n_wake_${resident.id}_'
+              '${DateTime.now().microsecondsSinceEpoch}',
+          postId: postId,
+          type: 'comment',
+          title: '${resident.name} 评论了你的帖子',
+          body: text,
+          at: DateTime.now(),
+        );
+      } catch (error) {
+        debugPrint('[唤醒] 评论通知没写进去：$error');
+      }
+    }
+    return const ActionOutcome(ok: true, message: '评论已发出');
+  }
+
+  @override
   Future<ActionOutcome> likePost(String postId, String callId) async {
+    if (!allowProactive) {
+      return const ActionOutcome(ok: false, message: '后台唤醒不主动点赞');
+    }
     final post = await service.posts.watchById(postId).first;
     if (post == null) {
       return const ActionOutcome(ok: false, message: '没有这条帖子');
@@ -596,13 +819,17 @@ class _WakeToolkit implements ResidentWakeToolkit {
     final outcome = await service.actions.likePost(
       residentId: resident.id,
       postId: postId,
-      idempotencyKey: 'like:${resident.id}:$callId',
+      // 同一个人对同一条帖子只能点一次；跨唤醒也去重。
+      idempotencyKey: 'like:${resident.id}:$postId',
     );
     return outcome;
   }
 
   @override
   Future<ActionOutcome> generateImage(String prompt, String callId) async {
+    if (!allowProactive) {
+      return const ActionOutcome(ok: false, message: '后台唤醒不主动画图');
+    }
     final clean = prompt.trim();
     if (clean.isEmpty) {
       return const ActionOutcome(ok: false, message: '画面描述是空的');
@@ -627,6 +854,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
     String? topic,
     String callId,
   ) async {
+    if (!allowProactive) {
+      return const ActionOutcome(ok: false, message: '后台唤醒不主动发帖');
+    }
     final outcome = await service._createPost(
       resident,
       content,
@@ -650,10 +880,11 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     posts: ref.watch(postRepositoryProvider),
     voices: ref.watch(postVoiceRepositoryProvider),
     interactions: ref.watch(interactionRepositoryProvider),
+    notifications: ref.watch(notificationRepositoryProvider),
     profiles: ref.watch(userProfileRepositoryProvider),
     messages: ref.watch(privateMessageRepositoryProvider),
-    memories: ref.watch(residentMemoryServiceProvider),
     media: ref.watch(mediaServiceProvider),
     commentReplies: ref.watch(commentReplyServiceProvider),
+    dmVoice: ref.watch(dmVoiceServiceProvider),
   ),
 );

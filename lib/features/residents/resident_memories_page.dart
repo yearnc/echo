@@ -467,6 +467,7 @@ class _MemoryTile extends StatelessWidget {
     'post' || 'self_post' => '来自帖子',
     'comment' || 'self_comment' => '来自评论',
     'dm' || 'self_dm' => '来自私信',
+    'wake' => '来自互动',
     'manual' => '手动添加',
     _ => '记忆',
   };

@@ -160,6 +160,19 @@ class ResidentMemoryRepository {
     return row != null;
   }
 
+  /// 按 id 找一条还在生效的记忆。
+  Future<ResidentMemory?> findActive(String id) async {
+    final row =
+        await (_db.select(_db.residentMemories)..where(
+              (t) =>
+                  t.id.equals(id) &
+                  t.archivedAt.isNull() &
+                  t.deletedAt.isNull(),
+            ))
+            .getSingleOrNull();
+    return row == null ? null : _toDomain(row);
+  }
+
   Future<int> count(String residentId) async {
     final count = _db.residentMemories.id.count();
     final query = _db.selectOnly(_db.residentMemories)

@@ -9,6 +9,7 @@ import '../models/model_config.dart';
 import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
+import 'voice_settings_controller.dart';
 import 'web_search.dart';
 
 /// 这一轮选中的表情包。
@@ -48,6 +49,23 @@ abstract class ResidentWakeToolkit {
 
   Future<ActionOutcome> sendDm(String content, String callId);
 
+  /// 发一条语音私信。文字会作为转写稿。
+  Future<ActionOutcome> sendVoice(String content, String callId);
+
+  /// 在一条帖子下面留句话。
+  Future<ActionOutcome> commentPost(
+    String postId,
+    String content,
+    String callId,
+  );
+
+  /// 发一张表情包私信。
+  Future<ActionOutcome> sendSticker(
+    String stickerId,
+    String tag,
+    String callId,
+  );
+
   Future<ActionOutcome> finish();
 
   Future<ActionOutcome> browseFeed();
@@ -75,6 +93,7 @@ class ResidentToolSession {
     required this.gateway,
     required this.actions,
     this.search,
+    this.voiceAvailable,
   });
 
   final ModelGateway gateway;
@@ -83,18 +102,15 @@ class ResidentToolSession {
   /// 用户开了联网搜索才注入；没开时 `web_search` 会明确说没开。
   final WebSearchService? search;
 
+  /// 语音总开关。关着时 `send_voice` 工具不出现。
+  final bool Function()? voiceAvailable;
+
   static const int maxRounds = 8;
   static const Duration totalTimeout = Duration(seconds: 20);
 
-  /// 只有用户明确说"记住"时才允许写下新记忆。
-  static const List<String> rememberKeywords = [
-    '记住',
-    '记一下',
-    '记着',
-    '别忘了',
-    '帮我记',
-    '记得',
-  ];
+  /// 有 send_voice 时多给一点：云端 TTS 一句话可能要几十秒，
+  /// 而失败原因必须有机会回到模型手里，不能跑一半就被总超时掐断。
+  static const Duration voiceTimeout = Duration(seconds: 80);
 
   /// 这次回复排在什么时候。固定住民自己、以及给模型的提示词共用一份格式：
   /// 年月日、周几、24 小时制精确到分钟。只写“10月24日”会让模型不知道今年是哪年。
@@ -192,6 +208,7 @@ class ResidentToolSession {
             call: call,
             latestUserMessage: latestUserMessage,
           );
+
           if (call.name == 'send_sticker' && outcome.ok) {
             final id = outcome.data['sticker_id'];
             final path = outcome.data['path'];
@@ -256,8 +273,11 @@ class ResidentToolSession {
     required ResidentWakeToolkit toolkit,
     DateTime? at,
     List<DirectTurn> history = const [],
+    bool allowProactive = true,
   }) async {
-    final deadline = DateTime.now().add(totalTimeout);
+    final deadline = DateTime.now().add(
+      _voiceToolAvailable(resident) ? voiceTimeout : totalTimeout,
+    );
     final memoryLines = await _prefetch(resident);
     final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': _wakeSystemPrompt(resident)},
@@ -276,16 +296,37 @@ class ResidentToolSession {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
 
-      final result = await gateway.completeWithTools(
-        config: config,
-        messages: messages,
-        tools: wakeTools,
-        temperature: 0.85,
-        maxTokens: 420,
-        timeout: left > const Duration(seconds: 12)
-            ? const Duration(seconds: 12)
-            : left,
-      );
+      ToolChatResult result;
+      try {
+        result = await gateway.completeWithTools(
+          config: config,
+          messages: messages,
+          tools: _wakeToolsFor(resident, allowProactive: allowProactive),
+          temperature: 0.85,
+          maxTokens: 420,
+          timeout: left > const Duration(seconds: 12)
+              ? const Duration(seconds: 12)
+              : left,
+        );
+      } catch (error) {
+        // 模型不支持 tool calling 时，至少让它还能说一句话。
+        // 只兜第一轮：已经调过工具之后再失败，说明不是“不支持 tools”。
+        if (round == 0) {
+          try {
+            final text = await gateway.completeRich(
+              config: config,
+              messages: messages,
+              temperature: 0.8,
+              maxTokens: 320,
+              timeout: left,
+            );
+            if (text.trim().isNotEmpty) return text.trim();
+          } catch (_) {
+            // 兜底也失败，把原始错误抛给唤醒服务，保留待办。
+          }
+        }
+        rethrow;
+      }
 
       if (result.toolCalls.isEmpty) return result.content.trim();
 
@@ -321,6 +362,23 @@ class ResidentToolSession {
               (args['content'] as String?) ?? '',
               call.id,
             );
+          case 'send_voice':
+            outcome = await toolkit.sendVoice(
+              (args['content'] as String?) ?? '',
+              call.id,
+            );
+          case 'comment_post':
+            outcome = await toolkit.commentPost(
+              (args['post_id'] as String?) ?? '',
+              (args['content'] as String?) ?? '',
+              call.id,
+            );
+          case 'send_sticker':
+            outcome = await toolkit.sendSticker(
+              (args['sticker_id'] as String?) ?? '',
+              (args['tag'] as String?) ?? '',
+              call.id,
+            );
           case 'finish':
             outcome = await toolkit.finish();
           case 'browse_feed':
@@ -341,11 +399,23 @@ class ResidentToolSession {
               args['topic'] as String?,
               call.id,
             );
+          case 'list_tools':
+            final available = _wakeToolsFor(
+              resident,
+              allowProactive: allowProactive,
+            );
+            outcome = ActionOutcome(
+              ok: true,
+              data: {
+                'tools': [for (final tool in available) _toolName(tool)],
+              },
+            );
           default:
             outcome = await _execute(
               resident: resident,
               call: call,
               latestUserMessage: situation,
+              memorySource: 'wake',
             );
         }
         messages.add({
@@ -378,6 +448,12 @@ class ResidentToolSession {
   }
 
   String _wakeSystemPrompt(CustomResident resident) {
+    final voiceLine = _voiceToolAvailable(resident)
+        ? '- 想用声音说就用 send_voice；普通说话用 send_dm。语音合成要几十秒，\n'
+              '  先 send_dm 说一句“等我一下，我录段语音”，别让对方干等。\n'
+              '  失败会告诉你原因，你自己决定改用文字还是换句话再试。\n'
+              '  语音和文字共用“一次醒来最多三段”的上限。\n'
+        : '';
     final persona = [
       if (resident.description.trim().isNotEmpty) resident.description,
       if (resident.personality.trim().isNotEmpty) resident.personality,
@@ -391,16 +467,27 @@ class ResidentToolSession {
 $persona
 
 你刚拿起手机，看到了一些消息和动静。像真人一样处理：
+- 你有一本自己的记忆。先看一眼最近记得什么（memory_list_recent /
+  memory_search），再决定这次怎么做；别凭空编以前的事。
+- 值得记的才记：对方说过的偏好、经历、约定、情绪变化，以及图片里是什么、
+  表情包表达的是什么。不要写“他发来一张图片 / 一个表情包”这种空话。
+- 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
+  寒暄、客套、你自己的推测不要写进记忆。
+- 你自己刚做过的事（发动态、回评论、发私信）如果值得留，自己用
+  memory_write 记下来；平台不会再替你写“我做过什么”。
 - 先看有没有人跟你说话：能回就回，不想回也可以已读不回（用 finish）。
 - 对方的评论可以用 reply_inbox 直接回在那条评论下面；
   如果更想私下说，用 send_dm 给他发私信——真人常这么干。
 - 收件箱里有人跟你说话就回，不限制人数；私信一次最多分三段说完
   （真人也是一句一句敲），没有每日额度，回完了就停。话要短，像微信，10—60 字。
 - 没有待办时，可以自己发条动态（create_post，用户关了开关就发不了）、
-  刷一刷别人发的帖子（browse_feed）、点个赞（like_post），
+  刷一刷别人发的帖子（browse_feed）、点个赞（like_post）、
+  在别人的帖子下留句话（comment_post，post_id 来自 browse_feed），
   或者给聊过的人发条私信（send_dm）——想分享点什么、想问问对方近况都可以；
-  也可以什么都不做。
-- 想给动态配图就先用 generate_image 把画面描述交出去，再 create_post；
+  也可以什么都不做。自己的帖子下面回评论用 reply_inbox，不要用 comment_post。
+- 你最近做过的事会写在“现在”那一行下面，只是给你回忆；要不要记进长期记忆、
+  要不要接着说，都由你自己判断。
+$voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去，再 create_post；
   系统会把图等出来一起发，不需要你等。
 - 不要每次都说话。没有想说的就 finish。
 - 不要提自己是 AI，不要解释你在调用工具，不要总结流程。
@@ -433,7 +520,7 @@ $persona
         continue;
       }
 
-      final text = turn.text.trim().isEmpty ? '[对方发来一张图片]' : turn.text.trim();
+      final text = turn.displayText;
       Map<String, dynamic>? image;
       if (turn.imageRef != null && supportsVision) {
         image = await ImagePayload.partFromRef(turn.imageRef!);
@@ -488,7 +575,12 @@ $persona
 - 每条 10—40 字，像在微信上随手打的；不要小作文，不要客套结尾。
 - 不要提自己是 AI，不要解释你在调用工具。
 - 你们以前聊过的事，先查记忆再说，别凭空编。
-- 用户明确说"记住……"时，才用 memory_write 记下来；别自己往记忆里写推测。
+- 记忆由你自己判断：对方的偏好、经历、约定、情绪变化值得记；图片要记
+  “图里是什么”，表情包要记“它表达什么”，不要只写“发来一张图片”。
+- 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
+  寒暄、客套、你自己的推测不要写进记忆。
+- 你自己刚做过的事（发动态、回评论、发私信）如果值得留，自己用
+  memory_write 记下来；平台不会再替你写“我做过什么”。
 - 没什么可查的就直接说话，不要为了让流程好看而调用工具。
 - 一次回复里最多调用两个工具。
 - 想发表情包时，先用 list_stickers 看目录，再用 send_sticker 选一张；
@@ -524,9 +616,7 @@ $persona
         continue;
       }
 
-      final text = turn.text.trim().isEmpty
-          ? '[对方发来一张图片]'
-          : turn.text.trim();
+      final text = turn.displayText;
       Map<String, dynamic>? image;
       if (turn.imageRef != null && config.supportsVision) {
         image = await ImagePayload.partFromRef(turn.imageRef!);
@@ -575,6 +665,7 @@ $persona
     required CustomResident resident,
     required ToolCallRequest call,
     required String latestUserMessage,
+    String memorySource = 'dm',
   }) async {
     final args = call.arguments;
     switch (call.name) {
@@ -595,20 +686,32 @@ $persona
           limit: _limit(args['limit']),
         );
       case 'memory_write':
-        if (!rememberKeywords.any(latestUserMessage.contains)) {
-          return const ActionOutcome(
-            ok: false,
-            message: '用户这句话没有明确让你记住，不要写记忆',
-          );
-        }
         return actions.writeMemory(
           residentId: resident.id,
           summary: (args['summary'] as String?) ?? '',
           content: (args['content'] as String?) ?? '',
           tags: _tags(args['tags']),
-          sourceId: 'dm_${DateTime.now().millisecondsSinceEpoch}',
+          source: memorySource,
+          sourceId: 'mem_${resident.id}_${call.id}',
           idempotencyKey:
               'mem:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
+        );
+      case 'memory_update':
+        return actions.updateMemory(
+          residentId: resident.id,
+          memoryId: (args['memory_id'] as String?) ?? '',
+          summary: args['summary'] as String?,
+          content: args['content'] as String?,
+          tags: args.containsKey('tags') ? _tags(args['tags']) : null,
+          idempotencyKey:
+              'memup:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
+        );
+      case 'memory_delete':
+        return actions.deleteMemory(
+          residentId: resident.id,
+          memoryId: (args['memory_id'] as String?) ?? '',
+          idempotencyKey:
+              'memdel:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
         );
       case 'list_tools':
         return ActionOutcome(
@@ -690,6 +793,15 @@ $persona
     return const [];
   }
 
+  static String _functionName(Map<String, dynamic> tool) {
+    final function = tool['function'];
+    if (function is Map) {
+      final name = function['name'];
+      if (name is String) return name;
+    }
+    return '';
+  }
+
   static String _toolName(Map<String, dynamic> tool) {
     final function = tool['function'];
     if (function is Map) {
@@ -707,8 +819,38 @@ $persona
   List<Map<String, dynamic>> get allTools => [...tools, _webSearchTool];
 
   /// 唤醒时用的工具 = 私信那套 + 搜索 + 收件箱/刷帖子这一套。
-  List<Map<String, dynamic>> get wakeTools =>
-      [...tools, _webSearchTool, ..._wakeOnlyTools];
+  ///
+  /// `send_voice` 只在语音开关打开、且这位住民自己配了音色时出现。
+  /// 没配 TTS 或模型不支持 tools 时，这条不会走到这里。
+  List<Map<String, dynamic>> _wakeToolsFor(
+    CustomResident resident, {
+    bool allowProactive = true,
+  }) {
+    final base = [
+      for (final tool in tools)
+        if (allowProactive || _functionName(tool) != 'create_post') tool,
+    ];
+    final wakeOnly = [
+      for (final tool in _wakeOnlyTools)
+        if (allowProactive ||
+            !const {
+              'browse_feed',
+              'like_post',
+              'comment_post',
+              'generate_image',
+            }.contains(_functionName(tool)))
+          tool,
+    ];
+    return [
+      ...base,
+      _webSearchTool,
+      ...wakeOnly,
+      if (_voiceToolAvailable(resident)) _voiceTool,
+    ];
+  }
+
+  bool _voiceToolAvailable(CustomResident resident) =>
+      (voiceAvailable?.call() ?? false) && resident.voiceEnabled;
 
   static const Map<String, dynamic> _webSearchTool = {
     'type': 'function',
@@ -724,6 +866,26 @@ $persona
           'query': {'type': 'string'},
         },
         'required': ['query'],
+      },
+    },
+  };
+
+  /// 私有语音工具。只在住民自己开了语音、且全局语音开关也开着时出现。
+  static const Map<String, dynamic> _voiceTool = {
+    'type': 'function',
+    'function': {
+      'name': 'send_voice',
+      'description':
+          '发一条语音私信（你说的字会作为转写稿一起显示）。'
+          '合成要几十秒：先 send_dm 跟对方说一句“等我一下，我录段语音”，'
+          '再调用它。失败会返回原因，你自己决定改用文字还是换句话再试。'
+          '一次醒来最多三段，和 send_dm 共用上限。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'content': {'type': 'string', 'description': '要说的话，10—60 字'},
+        },
+        'required': ['content'],
       },
     },
   };
@@ -795,6 +957,23 @@ $persona
     {
       'type': 'function',
       'function': {
+        'name': 'comment_post',
+        'description':
+            '在别人的帖子下面留一句话（post_id 来自 browse_feed）。'
+            '自己的帖子下回评论请用 reply_inbox。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'post_id': {'type': 'string'},
+            'content': {'type': 'string', 'description': '10—60 字'},
+          },
+          'required': ['post_id', 'content'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
         'name': 'generate_image',
         'description':
             '生成一张图，用来配自己下面要发的动态。返回要等一会儿，先继续做别的事。',
@@ -844,7 +1023,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'memory_list_recent',
-        'description': '看看最近记下的几件事。',
+        'description': '看看你最近记得什么。每次醒来先看一眼。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -857,11 +1036,13 @@ $persona
       'type': 'function',
       'function': {
         'name': 'memory_write',
-        'description': '当用户明确说"记住……"时，把这件事记下来。',
+        'description':
+            '把值得记住的事写下来：对方的偏好、经历、约定、情绪变化，'
+            '以及图片里是什么、表情包表达什么。不要记寒暄和推测。',
         'parameters': {
           'type': 'object',
           'properties': {
-            'summary': {'type': 'string', 'description': '一句话摘要'},
+            'summary': {'type': 'string', 'description': '一句话摘要，写具体'},
             'content': {'type': 'string', 'description': '原话或更多细节'},
             'tags': {
               'type': 'array',
@@ -869,6 +1050,43 @@ $persona
             },
           },
           'required': ['summary'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'memory_update',
+        'description': '改正一条记错了或过时的记忆。只传要改的字段。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'memory_id': {
+              'type': 'string',
+              'description': 'memory_list_recent / memory_search 返回的 id',
+            },
+            'summary': {'type': 'string'},
+            'content': {'type': 'string'},
+            'tags': {
+              'type': 'array',
+              'items': {'type': 'string'},
+            },
+          },
+          'required': ['memory_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'memory_delete',
+        'description': '删掉一条不再成立、或者本来就不该记的记忆。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'memory_id': {'type': 'string'},
+          },
+          'required': ['memory_id'],
         },
       },
     },
@@ -932,5 +1150,7 @@ final residentToolSessionProvider = Provider<ResidentToolSession>(
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
     search: ref.watch(webSearchServiceProvider),
+    voiceAvailable: () =>
+        ref.read(voiceSettingsControllerProvider).enabled,
   ),
 );

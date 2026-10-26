@@ -1,12 +1,26 @@
-import 'package:echo/domain/models/ai_persona.dart';
+import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/services/community_search.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final personas = [
-    const AiPersona(id: 'p1', name: '听你说完', bio: '便利店值夜班', circle: '树洞'),
-    const AiPersona(id: 'p2', name: '追光的K', bio: '下班后扫街拍照', circle: '摄影'),
+  final residents = [
+    CustomResident(
+      id: 'r1',
+      name: '听你说完',
+      bio: '便利店值夜班',
+      description: '住在街角，喜欢听人说话',
+      tags: const ['树洞'],
+      createdAt: DateTime(2026, 10, 12),
+    ),
+    CustomResident(
+      id: 'r2',
+      name: '追光的K',
+      bio: '下班后扫街拍照',
+      description: '摄影爱好者',
+      tags: const ['摄影'],
+      createdAt: DateTime(2026, 10, 12),
+    ),
   ];
   final posts = [
     Post(
@@ -19,15 +33,16 @@ void main() {
   ];
 
   SearchResult search(String query) => CommunitySearch.run(
-    personas: personas,
+    residents: residents,
     posts: posts,
     query: query,
   );
 
-  test('名字、简介、圈子都算"他是谁"的一部分', () {
-    expect(search('听').personas.single.id, 'p1');
-    expect(search('拍照').personas.single.id, 'p2', reason: '简介里的话也算');
-    expect(search('树洞').personas.single.id, 'p1', reason: '圈子也算');
+  test('名字、简介、设定、标签都算"他是谁"的一部分', () {
+    expect(search('听').residents.single.id, 'r1');
+    expect(search('拍照').residents.single.id, 'r2', reason: '简介里的话也算');
+    expect(search('树洞').residents.single.id, 'r1', reason: '标签也算');
+    expect(search('街角').residents.single.id, 'r1', reason: '详细设定也算');
   });
 
   test('帖子搜正文，也搜话题', () {
@@ -55,7 +70,7 @@ void main() {
     ];
 
     final result = CommunitySearch.run(
-      personas: const [],
+      residents: const [],
       posts: many,
       query: '一样',
       limit: 10,

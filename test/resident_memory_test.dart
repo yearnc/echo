@@ -68,7 +68,6 @@ void main() {
         description: '住楼下，和用户认识三个月',
         personality: '不舒服时先用冷幽默',
         scenario: '小区门口的便利店',
-        firstMessage: '这么晚才回来？',
         exampleDialogue: '用户：今天好累\n小满：那别说话了，先坐会儿',
         extraInstructions: '不要用感叹号',
         tags: const ['夜猫子', '便利店'],
@@ -80,7 +79,6 @@ void main() {
     expect(resident.description, contains('认识三个月'));
     expect(resident.personality, contains('冷幽默'));
     expect(resident.scenario, contains('便利店'));
-    expect(resident.firstMessage, '这么晚才回来？');
     expect(resident.exampleDialogue, contains('先坐会儿'));
     expect(resident.extraInstructions, contains('感叹号'));
     expect(resident.tags, containsAll(['夜猫子', '便利店']));

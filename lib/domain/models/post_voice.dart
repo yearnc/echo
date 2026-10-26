@@ -42,7 +42,6 @@ class PostVoice {
     this.model = '',
     this.memoryEnabled = true,
     this.memoryLimit = 400,
-    this.alwaysShow = true,
     required this.createdAt,
   });
 
@@ -63,7 +62,6 @@ class PostVoice {
   final String model;
   final bool memoryEnabled;
   final int? memoryLimit;
-  final bool alwaysShow;
   final DateTime createdAt;
 
   bool get isEphemeral => kind == PostVoiceKind.ephemeral;
@@ -85,7 +83,12 @@ class PostVoice {
     likeProbability: 0.6,
     commentProbability: 0.7,
     replyLength: 'medium',
-    voiceModel: '',
+    // 固定住民的嗓子存在 model 里（`local:<sid>` / `cloud:<voice>`）；
+    // 空表示这个人没开语音，别拿默认嗓子替他说话。
+    // 旧内置住民没有这一层设置，仍给默认嗓子；临时网民只发文字。
+    voiceModel: model.isNotEmpty
+        ? model
+        : (kind == PostVoiceKind.builtin ? 'voice_warm_default' : ''),
     level: 0,
     badges: const [],
     followers: 0,
@@ -116,7 +119,6 @@ class PostVoice {
     model: model,
     memoryEnabled: memoryEnabled,
     memoryLimit: memoryLimit,
-    alwaysShow: alwaysShow,
     createdAt: createdAt,
   );
 }

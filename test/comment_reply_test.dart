@@ -3,31 +3,17 @@ import 'dart:math';
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
-import 'package:echo/data/repositories/persona_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
-import 'package:echo/data/repositories/relationship_repository.dart';
+import 'package:echo/data/repositories/post_voice_repository.dart';
 import 'package:echo/data/repositories/user_profile_repository.dart';
-import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/post.dart';
+import 'package:echo/domain/models/post_voice.dart';
 import 'package:echo/domain/services/comment_reply_service.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FixedPersonas implements PersonaRepository {
-  _FixedPersonas(this.pool);
-
-  final List<AiPersona> pool;
-
-  @override
-  Future<List<AiPersona>> loadAll() async => pool;
-}
-
 void main() {
-  const persona = AiPersona(
-    id: 'persona_001',
-    name: '住民一',
-    commentSamples: ['台词'],
-  );
+  const voiceId = 'voice_1';
 
   late AppDatabase db;
   late PostRepository posts;
@@ -41,17 +27,22 @@ void main() {
     interactions = InteractionRepository(db);
     service = CommentReplyService(
       interactions: interactions,
-      personas: _FixedPersonas(const [persona]),
-      relationships: RelationshipRepository(db),
       userProfiles: UserProfileRepository(db),
       generator: SampleContentGenerator(random: Random(5)),
+      voiceRepo: PostVoiceRepository(db),
       random: Random(5),
     );
 
-    await db
-        .into(db.aiPersonas)
-        .insert(AiPersonasCompanion.insert(id: persona.id, name: persona.name));
     postId = await posts.create(content: '帖子', scope: 'echo');
+    await PostVoiceRepository(db).insertAll([
+      PostVoice(
+        id: voiceId,
+        postId: postId,
+        kind: PostVoiceKind.ephemeral,
+        name: '住民一',
+        createdAt: DateTime.now(),
+      ),
+    ]);
   });
 
   tearDown(() async => db.close());
@@ -59,7 +50,7 @@ void main() {
   PostComment theirs({String? parentId}) => PostComment(
     id: 'c1',
     postId: postId,
-    personaId: persona.id,
+    personaId: voiceId,
     content: '我原来那句',
     parentId: parentId,
     createdAt: DateTime.now(),

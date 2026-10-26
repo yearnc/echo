@@ -67,15 +67,17 @@ class CustomResidentRepository {
             scenario: Value(resident.scenario),
             languageStyle: Value(resident.languageStyle),
             tone: Value(resident.tone),
-            firstMessage: Value(resident.firstMessage),
             exampleDialogue: Value(resident.exampleDialogue),
             extraInstructions: Value(resident.extraInstructions),
             tags: Value(jsonEncode(resident.tags)),
-            activeHours: Value(jsonEncode(resident.activeHours)),
             memoryEnabled: Value(resident.memoryEnabled),
             memoryLimit: Value(resident.memoryLimit),
-            alwaysShow: Value(resident.alwaysShow),
             modelConfigId: Value(resident.modelConfigId),
+            voiceEnabled: Value(resident.voiceEnabled),
+            voiceDescription: Value(resident.voiceDescription),
+            voiceSamplePath: Value(resident.voiceSamplePath),
+            voiceSampleText: Value(resident.voiceSampleText),
+            voiceRef: Value(resident.voiceRef),
             createdAt: resident.createdAt.millisecondsSinceEpoch,
           ),
         );
@@ -116,15 +118,17 @@ class CustomResidentRepository {
     scenario: row.scenario,
     languageStyle: row.languageStyle,
     tone: row.tone,
-    firstMessage: row.firstMessage,
     exampleDialogue: row.exampleDialogue,
     extraInstructions: row.extraInstructions,
     tags: _strings(row.tags),
-    activeHours: _hours(row.activeHours),
     memoryEnabled: row.memoryEnabled,
     memoryLimit: row.memoryLimit,
-    alwaysShow: row.alwaysShow,
     modelConfigId: row.modelConfigId,
+    voiceEnabled: row.voiceEnabled,
+    voiceDescription: row.voiceDescription,
+    voiceSamplePath: row.voiceSamplePath,
+    voiceSampleText: row.voiceSampleText,
+    voiceRef: row.voiceRef,
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
   );
 
@@ -141,18 +145,6 @@ class CustomResidentRepository {
     }
   }
 
-  static List<int> _hours(String raw) {
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return [
-        for (final item in decoded)
-          if (item is num) item.toInt(),
-      ];
-    } catch (_) {
-      return const [];
-    }
-  }
 }
 
 final customResidentRepositoryProvider = Provider<CustomResidentRepository>(

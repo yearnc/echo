@@ -1,14 +1,20 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 
+import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/model_config_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/model_config.dart';
+import '../../domain/services/model_gateway.dart';
+import '../../domain/services/resident_voice_profile_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -38,11 +44,18 @@ class _CustomResidentEditorPageState
   final _extraInstructions = TextEditingController();
   final _tags = TextEditingController();
   final _memoryLimit = TextEditingController(text: '400');
+  final _voiceDescription = TextEditingController();
+  final _voiceSampleText = TextEditingController();
 
   String _avatar = '';
   String _modelConfigId = '';
   bool _memory = true;
-  bool _alwaysShow = true;
+  bool _voiceEnabled = false;
+  String _voiceSamplePath = '';
+  String _voiceRef = '';
+  String _originalVoiceDescription = '';
+  String? _voiceStatus;
+  bool _voiceBusy = false;
   bool _loading = false;
   bool _saving = false;
   DateTime? _createdAt;
@@ -83,8 +96,13 @@ class _CustomResidentEditorPageState
     _avatar = resident.avatarAsset;
     _modelConfigId = resident.modelConfigId;
     _memory = resident.memoryEnabled;
-    _alwaysShow = resident.alwaysShow;
     _memoryLimit.text = resident.memoryLimit?.toString() ?? '';
+    _voiceEnabled = resident.voiceEnabled;
+    _voiceDescription.text = resident.voiceDescription;
+    _voiceSamplePath = resident.voiceSamplePath;
+    _voiceSampleText.text = resident.voiceSampleText;
+    _voiceRef = resident.voiceRef;
+    _originalVoiceDescription = resident.voiceDescription;
     _createdAt = resident.createdAt;
     setState(() => _loading = false);
   }
@@ -101,6 +119,8 @@ class _CustomResidentEditorPageState
       _extraInstructions,
       _tags,
       _memoryLimit,
+      _voiceDescription,
+      _voiceSampleText,
     ]) {
       controller.dispose();
     }
@@ -111,6 +131,87 @@ class _CustomResidentEditorPageState
     final picked = await pickImageWithSource(context, ref);
     if (picked == null || !mounted) return;
     setState(() => _avatar = picked);
+  }
+
+  Future<void> _pickVoiceSample() async {
+    try {
+      final files = await FilePicker.pickFiles(type: FileType.audio);
+      if (files.isEmpty) return;
+      final picked = files.single;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) setState(() => _voiceStatus = '这个音频读不出来');
+        return;
+      }
+      final rawExt = p.extension(picked.name);
+      final oldSample = _voiceSamplePath;
+      final savedRef = await ref
+          .read(mediaServiceProvider)
+          .saveVoiceSample(
+            bytes,
+            extension: rawExt.isEmpty ? '.mp3' : rawExt,
+          );
+      if (oldSample.isNotEmpty) {
+        await ref.read(mediaServiceProvider).deleteByRef(oldSample);
+      }
+      if (!mounted) return;
+      setState(() {
+        _voiceSamplePath = savedRef;
+        _voiceRef = '';
+        _voiceStatus = '参考音频已选好；填上里面说的那句话，再点“生成音色”';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _voiceStatus = '选音频失败：$error');
+    }
+  }
+
+  Future<void> _cloneVoice() async {
+    if (_voiceBusy) return;
+    if (_voiceSamplePath.trim().isEmpty) {
+      setState(() => _voiceStatus = '先上传一段参考音频');
+      return;
+    }
+    final transcript = _voiceSampleText.text.trim();
+    if (transcript.isEmpty) {
+      setState(() => _voiceStatus = '要填上参考音频里说的那句话，克隆才对得准');
+      return;
+    }
+
+    setState(() {
+      _voiceBusy = true;
+      _voiceStatus = '正在生成音色…';
+    });
+    try {
+      final path = _voiceSamplePath.replaceFirst('file:', '');
+      final bytes = await File(path).readAsBytes();
+      final ext = p.extension(path).toLowerCase();
+      final mime = switch (ext) {
+        '.wav' => 'audio/wav',
+        '.m4a' => 'audio/mp4',
+        '.ogg' => 'audio/ogg',
+        '.flac' => 'audio/flac',
+        _ => 'audio/mpeg',
+      };
+      final refValue = await ref
+          .read(residentVoiceProfileServiceProvider)
+          .cloneFromSample(
+            audio: bytes,
+            text: transcript,
+            customName: _name.text.trim(),
+            mime: mime,
+          );
+      if (!mounted) return;
+      setState(() {
+        _voiceRef = refValue;
+        _voiceStatus = '音色已生成，保存后生效';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _voiceStatus = '生成失败：$error');
+    } finally {
+      if (mounted) setState(() => _voiceBusy = false);
+    }
   }
 
   Future<void> _save() async {
@@ -162,6 +263,23 @@ class _CustomResidentEditorPageState
       }
     }
 
+    var voiceRef = _voiceRef.trim();
+    if (_voiceEnabled) {
+      // 克隆出来的音色优先；没有克隆时，描述变了就重新固定一个本机音色。
+      final description = _voiceDescription.text.trim();
+      final descriptionChanged =
+          description != _originalVoiceDescription.trim();
+      if (voiceRef.isEmpty || (_voiceSamplePath.trim().isEmpty && descriptionChanged)) {
+        voiceRef = await ref
+            .read(residentVoiceProfileServiceProvider)
+            .fromDescription(description);
+      }
+    } else {
+      voiceRef = '';
+    }
+    _voiceRef = voiceRef;
+    _originalVoiceDescription = _voiceDescription.text.trim();
+
     final resident = CustomResident(
       id: widget.residentId ?? CustomResidentRepository.newId(),
       name: name,
@@ -173,8 +291,6 @@ class _CustomResidentEditorPageState
       scenario: '',
       languageStyle: _languageStyle.text.trim(),
       tone: _tone.text.trim(),
-      // 开场白这个设置已经去掉：第一句话由住民醒来后自己说。
-      firstMessage: '',
       exampleDialogue: _exampleDialogue.text.trim(),
       extraInstructions: _extraInstructions.text.trim(),
       tags: _tags.text
@@ -183,8 +299,12 @@ class _CustomResidentEditorPageState
           .toList(growable: false),
       memoryEnabled: _memory,
       memoryLimit: newLimit,
-      alwaysShow: _alwaysShow,
       modelConfigId: _modelConfigId,
+      voiceEnabled: _voiceEnabled,
+      voiceDescription: _voiceDescription.text.trim(),
+      voiceSamplePath: _voiceSamplePath,
+      voiceSampleText: _voiceSampleText.text.trim(),
+      voiceRef: voiceRef,
       createdAt: _createdAt ?? DateTime.now(),
     );
 
@@ -219,8 +339,18 @@ class _CustomResidentEditorPageState
     }
   }
 
+  String _voiceLabel(String ref) {
+    if (ref.startsWith('local:')) return '本机音色 #${ref.substring(6)}';
+    if (ref.startsWith('cloud:speech:')) return '克隆音色';
+    if (ref.startsWith('cloud:')) return '云端音色 ${ref.substring(6)}';
+    return ref;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cloudTts = ref.watch(cloudTtsConfigProvider).value;
+    final canClone =
+        cloudTts != null && cloudTts.baseUrl.contains('siliconflow');
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.residentId == null ? '添加固定住民' : '编辑固定住民'),
@@ -292,6 +422,103 @@ class _CustomResidentEditorPageState
                   ],
                 ),
                 _Section(
+                  title: '语音',
+                  subtitle: '让 TA 用声音说话',
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('会发语音'),
+                      subtitle: const Text('打开后模型多一个 send_voice 工具，由它自己决定用不用'),
+                      value: _voiceEnabled,
+                      onChanged: (value) =>
+                          setState(() => _voiceEnabled = value),
+                    ),
+                    if (_voiceEnabled) ...[
+                      _Field(
+                        controller: _voiceDescription,
+                        label: '音色描述',
+                        hint: '例如：低沉温柔的男声，语速偏慢。没上传参考音频时，按它固定一个内置音色',
+                        maxLines: 2,
+                      ),
+                      if (canClone) ...[
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.upload_file_outlined),
+                          title: Text(
+                            _voiceSamplePath.isEmpty
+                                ? '上传参考音频'
+                                : '参考音频已选好',
+                          ),
+                          subtitle: const Text('8—10 秒清晰人声，不超过 30 秒；格式 mp3 / wav / m4a'),
+                          onTap: _voiceBusy ? null : _pickVoiceSample,
+                        ),
+                        _Field(
+                          controller: _voiceSampleText,
+                          label: '参考音频里说的话',
+                          hint: '逐字填，克隆时要用它对音频',
+                          maxLines: 2,
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FilledButton.tonal(
+                            onPressed: _voiceBusy ? null : _cloneVoice,
+                            child: Text(_voiceBusy ? '生成中…' : '生成音色'),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '克隆出来的音色需要把设置里的「语音来源」选成云端才会用。',
+                          style: TextStyle(
+                            color: Theme.of(context).hintColor,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ] else
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '当前语音服务不支持参考音频克隆。'
+                            '去「模型」里配一条硅基流动 CosyVoice2 就能上传；'
+                            '现在只能用文字描述固定本机音色。',
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      if (_voiceRef.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 4),
+                          child: Text(
+                            '当前音色：${_voiceLabel(_voiceRef)}',
+                            style: const TextStyle(fontSize: 12.5),
+                          ),
+                        ),
+                      if (_voiceStatus != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 6),
+                          child: Text(
+                            _voiceStatus!,
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        '需要对话模型支持工具调用（function calling）；'
+                        '住民才会自己决定发语音。',
+                        style: TextStyle(
+                          color: Theme.of(context).hintColor,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                _Section(
                   title: '行为',
                   subtitle: '模型、记忆和出现频率',
                   children: [
@@ -314,14 +541,6 @@ class _CustomResidentEditorPageState
                       keyboardType: TextInputType.number,
                       maxLines: 1,
                       showCount: false,
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('每帖必到'),
-                      subtitle: const Text('关闭后按活跃度出现'),
-                      value: _alwaysShow,
-                      onChanged: (value) =>
-                          setState(() => _alwaysShow = value),
                     ),
                   ],
                 ),

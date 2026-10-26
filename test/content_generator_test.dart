@@ -5,24 +5,17 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
-import 'package:echo/data/repositories/analysis_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/model_config_repository.dart';
-import 'package:echo/data/repositories/notification_repository.dart';
-import 'package:echo/data/repositories/persona_repository.dart';
-import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
-import 'package:echo/data/repositories/relationship_repository.dart';
 import 'package:echo/domain/models/ai_persona.dart';
 import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/post.dart';
-import 'package:echo/domain/models/post_understanding.dart';
 import 'package:echo/domain/models/resident_post.dart';
 import 'package:echo/domain/services/content_generator.dart';
-import 'package:echo/domain/services/interaction_planner.dart';
+import 'package:echo/domain/models/planned_interaction.dart';
 import 'package:echo/domain/services/model_content_generator.dart';
 import 'package:echo/domain/services/relationship_rules.dart';
-import 'package:echo/domain/services/scheduler_service.dart';
 import 'package:echo/domain/services/model_call_common.dart';
 import 'package:echo/domain/services/model_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,58 +97,6 @@ AiPersona _persona(
 
 Post _post({String content = '今天下课后在操场边拍了一张天空照'}) =>
     Post(id: 'p1', content: content, createdAt: DateTime(2026, 9, 19));
-
-/// 假的生成器：调度器那条线只关心"它被叫了几次、回来的东西有没有落库"。
-class _FakeGenerator implements ContentGenerator {
-  Map<String, String> Function(List<AiPersona> personas)? reply;
-  Object? error;
-  int calls = 0;
-
-  @override
-  Future<Map<String, String>> comments({
-    required List<AiPersona> personas,
-    required Post post,
-    Map<String, RelationshipState> relations = const {},
-    PostUnderstanding? understanding,
-    bool sendImagesDirectly = false,
-  }) async {
-    calls++;
-    final failure = error;
-    if (failure != null) throw failure;
-    return reply?.call(personas) ??
-        {for (final persona in personas) persona.id: '模型写的'};
-  }
-
-  @override
-  Future<List<ResidentPostDraft>> residentPosts({
-    required List<ResidentMoment> moments,
-  }) async => const [];
-
-  @override
-  Future<Map<String, String>> directMessages({
-    required List<DirectThread> threads,
-    Map<String, RelationshipState> relations = const {},
-  }) async => {
-    for (final thread in threads) thread.persona.id: '模型写的私信',
-  };
-
-  @override
-  Future<Map<String, String>> replies({
-    required List<ReplyThread> threads,
-    Map<String, RelationshipState> relations = const {},
-  }) async => {
-    for (final thread in threads) thread.persona.id: '模型写的追问',
-  };
-
-  @override
-  Future<String?> peerReply({required PeerReplyThread thread}) async => null;
-
-  @override
-  Future<void> prewarm({
-    required Post post,
-    PostUnderstanding? understanding,
-  }) async {}
-}
 
 void main() {
   // 调度器那条线要读 assets 里的住民，rootBundle 需要 binding
@@ -629,11 +570,6 @@ void main() {
       interactions = InteractionRepository(db);
       posts = PostRepository(db);
 
-      for (final id in ['persona_001', 'persona_002']) {
-        await db
-            .into(db.aiPersonas)
-            .insert(AiPersonasCompanion.insert(id: id, name: '住民$id'));
-      }
       postId = await posts.create(content: '帖子', scope: 'echo');
     });
 
@@ -700,108 +636,6 @@ void main() {
 
       final row = await db.select(db.aiInteractions).getSingle();
       expect(row.content, '预置台词');
-    });
-  });
-
-  group('发帖后把评论交给模型', () {
-    late AppDatabase db;
-    late PostRepository posts;
-    late InteractionRepository interactions;
-    late _FakeGenerator generator;
-    late SchedulerService scheduler;
-    late String postId;
-
-    setUp(() async {
-      db = AppDatabase.forTesting(NativeDatabase.memory());
-      posts = PostRepository(db);
-      interactions = InteractionRepository(db);
-      generator = _FakeGenerator();
-
-      for (final id in ['persona_001', 'persona_002']) {
-        await db
-            .into(db.aiPersonas)
-            .insert(AiPersonasCompanion.insert(id: id, name: '住民$id'));
-      }
-
-      scheduler = SchedulerService(
-        interactions: interactions,
-        planEvents: PlanEventRepository(db),
-        posts: posts,
-        notifications: NotificationRepository(db),
-        personas: const PersonaRepository(),
-        analyses: AnalysisRepository(db),
-        generator: generator,
-        relationships: RelationshipRepository(db),
-      );
-
-      postId = await posts.create(content: '帖子', scope: 'echo');
-    });
-
-    tearDown(() async => db.close());
-
-    Future<void> scheduleComments(Map<String, bool> dueByPersona) async {
-      await interactions.insertPlanned(postId, [
-        for (final entry in dueByPersona.entries)
-          PlannedInteraction(
-            personaId: entry.key,
-            type: 'comment',
-            // v3.0：排期不再预填台词，等模型按帖子写
-            content: null,
-            scheduledAt: DateTime.now().add(
-              entry.value
-                  ? const Duration(seconds: -5)
-                  : const Duration(hours: 3),
-            ),
-          ),
-      ]);
-    }
-
-    test('把还没兑现的评论换成模型写的', () async {
-      await scheduleComments({'persona_001': false});
-
-      await scheduler.upgradeCommentsWithModel(postId);
-
-      final row = await db.select(db.aiInteractions).getSingle();
-      expect(row.content, '模型写的');
-      expect(generator.calls, 1, reason: '整批一次请求，不逐条调用');
-    });
-
-    test('已经兑现的不动', () async {
-      await scheduleComments({'persona_001': false, 'persona_002': true});
-      final dueItems = await interactions.duePending(DateTime.now());
-      await interactions.markExecuted(dueItems.single.id);
-
-      await scheduler.upgradeCommentsWithModel(postId);
-
-      final all = await db.select(db.aiInteractions).get();
-      final executed = all.firstWhere((row) => row.personaId == 'persona_002');
-      expect(executed.content, isNull, reason: '已经兑现的评论不该被改写');
-    });
-
-    test('模型写挂了就取消这条评论，不往外抛', () async {
-      generator.error = Exception('boom');
-      await scheduleComments({'persona_001': false});
-
-      // 这一步失败不该让调用方（发布流程）看见异常
-      await scheduler.upgradeCommentsWithModel(postId);
-
-      final row = await db.select(db.aiInteractions).getSingle();
-      expect(row.status, 'cancelled');
-      expect(row.content, isNull);
-    });
-
-    test('没有待兑现的评论就不发请求', () async {
-      await scheduler.upgradeCommentsWithModel(postId);
-
-      expect(generator.calls, 0);
-    });
-
-    test('帖子不存在时安静收场', () async {
-      await scheduleComments({'persona_001': false});
-
-      await scheduler.upgradeCommentsWithModel('不存在的帖子');
-
-      expect(generator.calls, 0);
     });
   });
 

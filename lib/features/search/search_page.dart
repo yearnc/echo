@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
-import '../../data/repositories/persona_repository.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/post_repository.dart';
-import '../../domain/models/ai_persona.dart';
+import '../../domain/models/custom_resident.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/community_search.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
@@ -36,10 +36,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final personas = ref.watch(personasProvider).value ?? const <AiPersona>[];
+    final residents =
+        ref.watch(customResidentsProvider).value ?? const <CustomResident>[];
     final posts = ref.watch(feedPostsProvider('echo')).value ?? const <Post>[];
     final result = CommunitySearch.run(
-      personas: personas,
+      residents: residents,
       posts: posts,
       query: _query,
     );
@@ -83,11 +84,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         false => ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            if (result.personas.isNotEmpty) ...[
+            if (result.residents.isNotEmpty) ...[
               const _SectionTitle('住民'),
               const SizedBox(height: 6),
-              for (final persona in result.personas)
-                _PersonaTile(persona: persona),
+              for (final resident in result.residents)
+                _ResidentTile(resident: resident),
               const SizedBox(height: 14),
             ],
             if (result.posts.isNotEmpty) ...[
@@ -105,22 +106,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-class _PersonaTile extends StatelessWidget {
-  const _PersonaTile({required this.persona});
+class _ResidentTile extends StatelessWidget {
+  const _ResidentTile({required this.resident});
 
-  final AiPersona persona;
+  final CustomResident resident;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push(RoutePaths.resident(persona.id)),
+      onTap: () => context.push(RoutePaths.chat(resident.id)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(
           children: [
             UserAvatar(
-              name: persona.name,
-              avatarRef: persona.avatar,
+              name: resident.name,
+              avatarRef: resident.avatarAsset,
               size: 36,
             ),
             const SizedBox(width: 10),
@@ -129,13 +130,13 @@ class _PersonaTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    persona.name,
+                    resident.name,
                     style: TextStyle(color: EchoColors.text, fontSize: 13.5),
                   ),
-                  if (persona.bio.isNotEmpty) ...[
+                  if (resident.bio.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      persona.bio,
+                      resident.bio,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

@@ -4,27 +4,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/custom_avatar_repository.dart';
-import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_understanding_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
-import '../../data/repositories/resident_memory_repository.dart';
 import '../models/echo_settings.dart';
 import '../models/model_config.dart';
+import '../models/planned_interaction.dart';
 import '../models/post.dart';
 import '../models/post_understanding.dart';
 import '../models/post_voice.dart';
 import 'community_settings_controller.dart';
 import 'content_generator.dart';
-import 'interaction_planner.dart';
 import 'model_gateway.dart';
 import 'post_analyzer.dart';
 import 'post_voice_generator.dart';
-import 'relationship_rules.dart';
-import 'resident_memory_service.dart';
 import 'voice_name_generator.dart';
 
 /// 发帖之后，给这一帖凑一桌人（v3.0）。
@@ -42,13 +37,9 @@ class AudienceService {
     this.activeVisionConfig,
     this.analyzer,
     this.understandings,
-    this.fixedPersonas,
     this.notifications,
-    this.customResidents,
     this.customAvatars,
-    this.memories,
     this.contentGenerator,
-    this.residentMemory,
     this.readSendImagesDirectly,
     VoiceNameGenerator? nameGenerator,
     Random? random,
@@ -68,15 +59,8 @@ class AudienceService {
   final PostAnalyzer? analyzer;
   final PostUnderstandingRepository? understandings;
 
-  /// 固定住民的出厂名单：临时网民不取同名，免得把旧熟人又拉回来。
-  final PersonaRepository? fixedPersonas;
-
   /// 连续失败时在通知页留一条提醒。可空：测试里不传就是不提醒。
   final NotificationRepository? notifications;
-
-  /// 用户自己配置的固定住民（阶段三）。
-  final CustomResidentRepository? customResidents;
-  final ResidentMemoryRepository? memories;
 
   /// 用户导入的网友头像池；有图就优先用它，空池回落到内置素材。
   final CustomAvatarRepository? customAvatars;
@@ -84,8 +68,6 @@ class AudienceService {
   /// 固定住民的评论走它；与临时网民的“起名字+动作”分开。
   final ContentGenerator? contentGenerator;
 
-  /// 固定住民“记住这条帖子”的入口。
-  final ResidentMemoryService? residentMemory;
 
   /// 帖子图片是原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
@@ -153,13 +135,6 @@ class AudienceService {
         understanding: understanding,
       );
     }
-
-    // 固定住民每帖都来一次；已经有快照的跳过。
-    added += await _addCustomResidents(
-      post: post,
-      config: config,
-      understanding: understanding,
-    );
 
     return existing.length + added;
   }
@@ -313,14 +288,6 @@ class AudienceService {
         for (final voice in existing) voice.name,
         ...await voices.recentNames(),
       };
-      try {
-        final fixed = await fixedPersonas?.loadAll();
-        if (fixed != null) {
-          takenNames.addAll(fixed.map((persona) => persona.name));
-        }
-      } catch (error) {
-        debugPrint('[围观] 这次没读到固定住民名单：$error');
-      }
 
       final now = DateTime.now();
       final drafts = await _draftOneByOne(
@@ -464,7 +431,10 @@ class AudienceService {
               scheduledAt: likeAt.add(
                 Duration(seconds: 10 + _random.nextInt(61)),
               ),
+              // 表情包是内容，输入框里的话是“顺便说一句”。
+              // 以前 `sticker ?? comment` 会把文字整个吞掉。
               content: sticker ?? draft.comment.trim(),
+              caption: sticker == null ? '' : draft.comment.trim(),
               mediaType: sticker == null ? 'text' : 'image',
             ),
           );
@@ -492,151 +462,6 @@ class AudienceService {
       }
       return 0;
     }
-  }
-
-  /// 固定住民每帖都来一次：留浏览 + 一条评论；写不出评论就点个赞。
-  ///
-  /// 快照的 id 带着帖子，但 `residentId` 指向同一个固定住民——
-  /// 关系和记忆以后都认这个 id，不认每次发帖新造的 voice id。
-  Future<int> _addCustomResidents({
-    required Post post,
-    required ModelConfig config,
-    PostUnderstanding? understanding,
-  }) async {
-    final repo = customResidents;
-    if (repo == null) return 0;
-
-    final all = await repo.all();
-    if (all.isEmpty) return 0;
-
-    final existing = await voices.byPost(post.id);
-    final seen = {
-      for (final voice in existing)
-        if (voice.residentId != null) voice.residentId!,
-    };
-
-    final now = DateTime.now();
-    var added = 0;
-
-    for (final resident in all.take(6)) {
-      if (!resident.alwaysShow) continue;
-      // 楼主不用在自己的帖子底下再以“围观者”的身份出现一次。
-      if (resident.id == post.authorResidentId) continue;
-      if (seen.contains(resident.id)) continue;
-
-      try {
-        final voice = PostVoice(
-          id: 'voice_${resident.id}_${post.id}',
-          postId: post.id,
-          kind: PostVoiceKind.custom,
-          residentId: resident.id,
-          name: resident.name,
-          avatarAsset: resident.avatarAsset,
-          // 快照里把酒馆式字段拼成现有提示词认的三段：
-          // bio=身份/背景/场景，languageStyle=说话方式/示例，
-          // tone=语气/额外指令。老字段保持原样，不改接口。
-          bio: [
-            resident.bio,
-            resident.description,
-            resident.scenario,
-          ].where((part) => part.trim().isNotEmpty).join('\n'),
-          languageStyle: [
-            resident.languageStyle,
-            resident.exampleDialogue,
-          ].where((part) => part.trim().isNotEmpty).join('\n'),
-          tone: [
-            resident.tone,
-            resident.extraInstructions,
-          ].where((part) => part.trim().isNotEmpty).join('；'),
-          memoryEnabled: resident.memoryEnabled,
-          memoryLimit: resident.memoryLimit,
-          alwaysShow: resident.alwaysShow,
-          createdAt: now,
-        );
-        await voices.insertAll([voice]);
-
-        final arrival = now.add(
-          Duration(seconds: 15 + _random.nextInt(31)),
-        );
-        final planned = <PlannedInteraction>[
-          PlannedInteraction(
-            personaId: voice.id,
-            type: 'view',
-            scheduledAt: arrival,
-          ),
-        ];
-
-        var comment = '';
-        final generator = contentGenerator;
-        if (generator != null) {
-          try {
-            final memory = await _memorySummary(resident.id);
-            final generated = await generator.comments(
-              personas: [voice.toPersona()],
-              post: post,
-              relations: {
-                voice.id: RelationshipState(
-                  personaId: voice.id,
-                  level: 1,
-                  memorySummary: memory,
-                ),
-              },
-              understanding: understanding,
-              sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
-            );
-            comment = (generated[voice.id] ?? '').trim();
-          } catch (error) {
-            debugPrint('[固定住民] ${resident.name} 这次没写出评论：$error');
-          }
-        }
-
-        if (comment.isEmpty) {
-          planned.add(
-            PlannedInteraction(
-              personaId: voice.id,
-              type: 'like',
-              scheduledAt: arrival.add(
-                Duration(seconds: 5 + _random.nextInt(21)),
-              ),
-            ),
-          );
-        } else {
-          planned.add(
-            PlannedInteraction(
-              personaId: voice.id,
-              type: 'comment',
-              scheduledAt: arrival.add(
-                Duration(seconds: 10 + _random.nextInt(41)),
-              ),
-              content: comment,
-            ),
-          );
-        }
-
-        await interactions.insertPlanned(post.id, planned);
-        // 他来过之后，把这条帖子记进他的长期记忆。
-        await residentMemory?.rememberPost(
-          residentId: resident.id,
-          post: post,
-          understanding: understanding,
-        );
-        seen.add(resident.id);
-        added++;
-      } catch (error) {
-        debugPrint('[固定住民] 这次没安排上 ${resident.name}：$error');
-      }
-    }
-
-    return added;
-  }
-
-  Future<String> _memorySummary(String residentId) async {
-    final repo = memories;
-    if (repo == null) return '';
-    final recent = await repo.recent(residentId, limit: 5);
-    if (recent.isEmpty) return '';
-    final text = recent.map((memory) => memory.toPromptLine()).join('；');
-    return text.length > 300 ? '${text.substring(0, 300)}…' : text;
   }
 
   /// 连续失败到阈值，就在通知页留一条“检查模型配置”。
@@ -712,13 +537,9 @@ final audienceServiceProvider = Provider<AudienceService>(
         ref.watch(modelGatewayProvider).activeConfig(kind: ModelKind.vision),
     analyzer: ref.watch(postAnalyzerProvider),
     understandings: ref.watch(postUnderstandingRepositoryProvider),
-    fixedPersonas: ref.watch(personaRepositoryProvider),
     notifications: ref.watch(notificationRepositoryProvider),
-    customResidents: ref.watch(customResidentRepositoryProvider),
     customAvatars: ref.watch(customAvatarRepositoryProvider),
-    memories: ref.watch(residentMemoryRepositoryProvider),
     contentGenerator: ref.watch(contentSourceProvider),
-    residentMemory: ref.watch(residentMemoryServiceProvider),
     readSendImagesDirectly: () =>
         ref.read(communitySettingsProvider).sendPostImagesDirectly,
   ),

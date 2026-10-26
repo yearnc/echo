@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
-import '../../data/repositories/persona_repository.dart';
+import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/services/community_calendar.dart';
@@ -218,29 +218,28 @@ class _ResidentRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final persona = ref.watch(personaByIdProvider(resident.personaId));
-    final name = persona?.name ?? '社区住民';
+    final stored = ref.watch(
+      customResidentAnyByIdProvider(resident.personaId),
+    );
+    final name = stored?.name ?? '已离开的住民';
 
-    return InkWell(
-      onTap: () => context.push(RoutePaths.resident(resident.personaId)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            UserAvatar(name: name, avatarRef: persona?.avatar, size: 34),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(color: EchoColors.text, fontSize: 13.5),
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          UserAvatar(name: name, avatarRef: stored?.avatarAsset, size: 34),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(color: EchoColors.text, fontSize: 13.5),
             ),
-            Text(
-              '${resident.postCount} 条动态',
-              style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            '${resident.postCount} 条动态',
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
+          ),
+        ],
       ),
     );
   }

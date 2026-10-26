@@ -36,8 +36,6 @@ class PostVoices extends Table {
   IntColumn get memoryLimit =>
       integer().nullable().withDefault(const Constant(400))();
 
-  /// 每帖至少出现一次（赞或评）。
-  BoolColumn get alwaysShow => boolean().withDefault(const Constant(true))();
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();
 

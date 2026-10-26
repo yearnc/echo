@@ -382,6 +382,63 @@ class ModelGateway {
     }
   }
 
+  /// 用一段参考音频克隆音色，返回服务商给的 voice URI。
+  ///
+  /// 目前只接硅基流动的 `POST /uploads/audio/voice`：它直接吃
+  /// base64 音频 + 逐字文本，返回 `speech:...`，之后 `/audio/speech`
+  /// 把它当 `voice` 参数用。其他家要么协议不同，要么需要授权录音，
+  /// 这里明确拒绝，不拿一个猜出来的地址去试。
+  Future<String> cloneVoice({
+    required ModelConfig config,
+    required Uint8List audio,
+    required String text,
+    required String customName,
+    String mime = 'audio/mpeg',
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final apiKey = (await _configs.readKey(config.id))?.trim() ?? '';
+    if (apiKey.isEmpty) {
+      throw const ModelCallException('这条配置还没有填 API Key');
+    }
+
+    final baseUrl = normalizeBaseUrl(config.baseUrl);
+    final problem = describeBaseUrlProblem(baseUrl);
+    if (problem != null) throw ModelCallException(problem);
+    if (!baseUrl.contains('siliconflow')) {
+      throw const ModelCallException('当前语音服务不支持参考音频克隆');
+    }
+    if (audio.isEmpty) {
+      throw const ModelCallException('参考音频是空的');
+    }
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$baseUrl/uploads/audio/voice',
+        data: {
+          'model': config.model,
+          'customName': customName,
+          'audio': 'data:$mime;base64,${base64Encode(audio)}',
+          'text': text,
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+      final uri = response.data?['uri'];
+      if (uri is! String || uri.trim().isEmpty) {
+        throw const ModelCallException('语音服务没有返回音色 id');
+      }
+      return uri.trim();
+    } on DioException catch (error) {
+      throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
+    }
+  }
+
   /// 生成一张图，返回图片数据本身。
   ///
   /// OpenAI 兼容的图片接口是 `/images/generations`，跟对话不是同一条路径；

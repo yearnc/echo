@@ -5,14 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/plan_script_repository.dart';
-import '../../data/seed/builtin_plan_scripts.dart';
 import '../../domain/models/plan_script.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 
 /// 策划脚本管理页。
 ///
-/// 脚本是"可保留的资产"：内置三幕 + 用户自建都在这里，能改名、能编辑、
-/// 能复制一份再改、能删。内置脚本不允许删除，免得手滑之后找不回三幕。
+/// 脚本是"可保留的资产"：用户自建的脚本都在这里，能改名、能编辑、
+/// 能复制一份再改、能删。旧住民的内置三幕已经整套下线。
 class ScriptsPage extends ConsumerWidget {
   const ScriptsPage({super.key});
 
@@ -30,11 +29,6 @@ class ScriptsPage extends ConsumerWidget {
           style: TextStyle(color: EchoColors.text, fontSize: 16),
         ),
         actions: [
-          IconButton(
-            tooltip: '重置内置脚本',
-            icon: const Icon(Icons.restore),
-            onPressed: () => _restoreBuiltIns(context, ref),
-          ),
           IconButton(
             tooltip: '新建脚本',
             icon: const Icon(Icons.add),
@@ -76,63 +70,7 @@ class ScriptsPage extends ConsumerWidget {
     context.push(RoutePaths.scriptEdit(script.id));
   }
 
-  /// 内置脚本删了也能找回来——所以删除不该有心理负担。
-  ///
-  /// 顺带把改动过的内置脚本刷新回出厂版本：脚本定义会随功能一起长，
-  /// 老库里那份不会自己更新。已经下线的内置脚本（比如第三幕）也会在这一步
-  /// 被清掉，所以这是一次真删，先弹确认说清楚。
-  ///
-  /// 自己复制的副本不受影响。
-  Future<void> _restoreBuiltIns(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: EchoColors.surface,
-        title: Text(
-          '重置内置脚本',
-          style: TextStyle(color: EchoColors.text, fontSize: 15),
-        ),
-        content: Text(
-          '内置脚本会被还原成出厂版本（包括你直接改过的内容）。\n'
-          '已经下线的内置脚本会一起清掉；你自己复制出来的副本不受影响。',
-          style: TextStyle(
-            color: EchoColors.textMuted,
-            fontSize: 13,
-            height: 1.7,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('取消', style: TextStyle(color: EchoColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('重置', style: TextStyle(color: EchoColors.primary)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
 
-    final builtIns = await BuiltinPlanScripts.load();
-    final result = await ref
-        .read(planScriptRepositoryProvider)
-        .restoreBuiltIns(builtIns);
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(_restoreMessage(result))));
-  }
-
-  /// 报"动了什么"而不是"做完了"：刷新了几个、下线了几个，一眼能对上。
-  static String _restoreMessage(({int written, int removed}) result) {
-    final parts = [
-      if (result.written > 0) '刷新 ${result.written} 个',
-      if (result.removed > 0) '下线 ${result.removed} 个',
-    ];
-    return parts.isEmpty ? '内置脚本已是最新，没有要动的' : '内置脚本：${parts.join('、')}';
-  }
 }
 
 class _ScriptTile extends ConsumerWidget {
@@ -229,10 +167,7 @@ class _ScriptTile extends ConsumerWidget {
           style: TextStyle(color: EchoColors.text, fontSize: 15),
         ),
         content: Text(
-          script.isBuiltIn
-              ? '「${script.name}」是内置脚本。删掉之后可以用右上角的「恢复内置脚本」找回来，'
-                    '已经发出去的帖子不受影响。'
-              : '「${script.name}」将被删除，已经发出去的帖子不受影响。',
+          '「${script.name}」将被删除，已经发出去的帖子不受影响。',
           style: TextStyle(
             color: EchoColors.textMuted,
             fontSize: 13,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/message_time.dart';
+import '../../domain/services/voice_playback.dart';
 import 'post_image.dart';
 import 'user_avatar.dart';
 
@@ -17,6 +19,9 @@ class ChatBubble extends StatelessWidget {
     required this.senderName,
     required this.createdAt,
     this.avatarRef,
+    this.caption = '',
+    this.voicePath = '',
+    this.transcript = '',
     this.showAvatar = true,
     this.showName = false,
     this.showTime = true,
@@ -24,8 +29,15 @@ class ChatBubble extends StatelessWidget {
 
   final String content;
 
-  /// text / image / sticker
+  /// text / image / sticker / voice
   final String mediaType;
+
+  /// 图片描述 / 表情包语义。只给住民看，聊天界面不铺出来。
+  final String caption;
+
+  /// 语音条的文件引用与转写稿。
+  final String voicePath;
+  final String transcript;
   final bool fromMe;
   final String senderName;
   final DateTime createdAt;
@@ -109,6 +121,9 @@ class ChatBubble extends StatelessWidget {
     required bool media,
     required bool isImage,
   }) {
+    if (mediaType == 'voice') {
+      return _VoiceChip(voicePath: voicePath, transcript: transcript);
+    }
     if (media) {
       // 图片和表情包不套气泡——套上像给图加了个相框。
       final width = isImage ? 196.0 : 112.0;
@@ -244,4 +259,83 @@ class ChatDayDivider extends StatelessWidget {
 
   static bool sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+/// 一条语音私信：点一下播，下面留转写稿。
+///
+/// 住民合成失败的语音不会走到这里——失败时那条消息保持纯文字。
+class _VoiceChip extends ConsumerWidget {
+  const _VoiceChip({required this.voicePath, required this.transcript});
+
+  final String voicePath;
+  final String transcript;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(voicePlaybackProvider);
+    final playing = voicePath.isNotEmpty && playback.isPlaying(voicePath);
+    final broken = voicePath.isNotEmpty && playback.hasFailed(voicePath);
+    final text = transcript.trim();
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        border: Border.all(color: EchoColors.divider, width: 0.8),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: voicePath.isEmpty
+                ? null
+                : () => ref
+                      .read(voicePlaybackProvider.notifier)
+                      .toggle(voicePath),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 19,
+                  color: EchoColors.accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '语音',
+                  style: TextStyle(
+                    color: EchoColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (broken) ...[
+            const SizedBox(height: 4),
+            Text(
+              '这段语音没能读出来',
+              style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
+            ),
+          ],
+          if (text.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              '“$text”',
+              style: TextStyle(
+                color: EchoColors.textMuted,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

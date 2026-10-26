@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/services/direct_message_service.dart';
 import '../domain/services/scheduler_service.dart';
-import '../domain/services/world_service.dart';
 import 'db/database_provider.dart';
 
 /// 启动引导：开库 → 首次播种（**只等这一段**）→ 补发与世界里发生的事。
@@ -27,23 +25,17 @@ final appBootstrapProvider = FutureProvider<void>((ref) async {
 
   // 先把服务对象取出来：后台任务不应该在 provider 结束后还攥着 ref。
   final scheduler = ref.watch(schedulerServiceProvider);
-  final world = ref.watch(worldServiceProvider);
-  final directMessages = ref.watch(directMessageServiceProvider);
-  unawaited(_catchUp(scheduler, world, directMessages));
+  unawaited(_catchUp(scheduler));
 });
 
 /// 离线期间该补的东西。失败只记日志——这一轮没补上，
 /// 下一次回前台或 30 秒心跳还会再补。
-Future<void> _catchUp(
-  SchedulerService scheduler,
-  WorldService world,
-  DirectMessageService directMessages,
-) async {
+///
+/// 这里**不再跑世界 tick**：固定住民的动态交给它自己醒来后用
+/// `create_post` 决定，平台不预生成、也不补在过去的时间点上。
+Future<void> _catchUp(SchedulerService scheduler) async {
   final steps = <(String, Future<void> Function())>[
     ('补发离线期间到点的互动', scheduler.flushDue),
-    ('补上社区这段时间的动静', world.tick),
-    // 私信排在最后：它要读刚更新的关系，也要看有没有人欠着一句回话
-    ('处理私信', directMessages.tick),
   ];
 
   for (final (label, run) in steps) {

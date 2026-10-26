@@ -12,15 +12,17 @@ class CustomResident {
     this.scenario = '',
     this.languageStyle = '',
     this.tone = '',
-    this.firstMessage = '',
     this.exampleDialogue = '',
     this.extraInstructions = '',
     this.tags = const [],
-    this.activeHours = const [],
     this.memoryEnabled = true,
     this.memoryLimit = 400,
-    this.alwaysShow = true,
     this.modelConfigId = '',
+    this.voiceEnabled = false,
+    this.voiceDescription = '',
+    this.voiceSamplePath = '',
+    this.voiceSampleText = '',
+    this.voiceRef = '',
     required this.createdAt,
   });
 
@@ -42,9 +44,6 @@ class CustomResident {
   final String languageStyle;
   final String tone;
 
-  /// 私信第一次开口用。
-  final String firstMessage;
-
   /// 示例对话，教模型怎么接话。
   final String exampleDialogue;
 
@@ -53,15 +52,26 @@ class CustomResident {
 
   /// 管理用标签，不发给模型。
   final List<String> tags;
-  final List<int> activeHours;
   final bool memoryEnabled;
 
   /// null = 无上限。
   final int? memoryLimit;
-  final bool alwaysShow;
 
   /// 这个住民单独使用的对话模型配置 id。空 = 用当前启用的那条。
   final String modelConfigId;
+
+  /// 会不会发语音。关着时模型看不到 `send_voice` 工具。
+  final bool voiceEnabled;
+
+  /// 用户写的音色描述（低沉、温柔、语速慢……）。
+  final String voiceDescription;
+
+  /// 参考音频与它的逐字文本，只在支持克隆的 TTS 服务下使用。
+  final String voiceSamplePath;
+  final String voiceSampleText;
+
+  /// 已经定下来的音色。`local:<sid>` / `cloud:<voice>` / `speech:...`。
+  final String voiceRef;
   final DateTime createdAt;
 
   /// 给现有内容生成层用的适配对象。
@@ -83,12 +93,16 @@ class CustomResident {
     tone: [tone, extraInstructions]
         .where((part) => part.trim().isNotEmpty)
         .join('；'),
-    activeHours: activeHours,
+    activeHours: const [],
     relationship: '固定住民',
     likeProbability: 0.6,
     commentProbability: 0.7,
     replyLength: 'medium',
-    voiceModel: '',
+    // 固定住民的音色是用户选/克隆出来的；没开语音时留空，
+    // 评论区的自动语音也就不会挑到它。
+    voiceModel: voiceEnabled
+        ? (voiceRef.trim().isEmpty ? 'voice_warm_default' : voiceRef.trim())
+        : '',
     level: 1,
     badges: const [],
     followers: 0,
@@ -108,15 +122,17 @@ class CustomResident {
     String? scenario,
     String? languageStyle,
     String? tone,
-    String? firstMessage,
     String? exampleDialogue,
     String? extraInstructions,
     List<String>? tags,
-    List<int>? activeHours,
     bool? memoryEnabled,
     int? memoryLimit,
-    bool? alwaysShow,
     String? modelConfigId,
+    bool? voiceEnabled,
+    String? voiceDescription,
+    String? voiceSamplePath,
+    String? voiceSampleText,
+    String? voiceRef,
   }) => CustomResident(
     id: id,
     name: name ?? this.name,
@@ -127,15 +143,17 @@ class CustomResident {
     scenario: scenario ?? this.scenario,
     languageStyle: languageStyle ?? this.languageStyle,
     tone: tone ?? this.tone,
-    firstMessage: firstMessage ?? this.firstMessage,
     exampleDialogue: exampleDialogue ?? this.exampleDialogue,
     extraInstructions: extraInstructions ?? this.extraInstructions,
     tags: tags ?? this.tags,
-    activeHours: activeHours ?? this.activeHours,
     memoryEnabled: memoryEnabled ?? this.memoryEnabled,
     memoryLimit: memoryLimit ?? this.memoryLimit,
-    alwaysShow: alwaysShow ?? this.alwaysShow,
     modelConfigId: modelConfigId ?? this.modelConfigId,
+    voiceEnabled: voiceEnabled ?? this.voiceEnabled,
+    voiceDescription: voiceDescription ?? this.voiceDescription,
+    voiceSamplePath: voiceSamplePath ?? this.voiceSamplePath,
+    voiceSampleText: voiceSampleText ?? this.voiceSampleText,
+    voiceRef: voiceRef ?? this.voiceRef,
     createdAt: createdAt,
   );
 }

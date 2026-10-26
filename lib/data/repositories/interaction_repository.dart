@@ -1,16 +1,13 @@
 import 'dart:math';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/pending_interaction.dart';
+import '../../domain/models/planned_interaction.dart';
 import '../../domain/models/post.dart';
-import '../../domain/services/interaction_planner.dart';
-import '../../domain/services/relationship_rules.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
-import 'relationship_repository.dart';
 
 /// AI 互动的读取。
 ///
@@ -19,15 +16,9 @@ import 'relationship_repository.dart';
 /// - `status = done` 的才进评论区
 /// 所以页面永远只读 done，不会提前剧透。
 class InteractionRepository {
-  const InteractionRepository(this._db, {this.relationships});
+  const InteractionRepository(this._db);
 
   final AppDatabase _db;
-
-  /// 你和住民的关系（B4）。
-  ///
-  /// 可空是为了让这一层还能被单独测：关系记不记，不影响"我说了句话"
-  /// 这件事本身该不该落库。
-  final RelationshipRepository? relationships;
 
   static const String typeComment = 'comment';
   static const String typeLike = 'like';
@@ -64,7 +55,7 @@ SELECT id, post_id, persona_id, content, media_type, caption, voice_path,
        transcript, voice_duration_ms, parent_id, reply_to_name, like_count,
        at, is_ai
 FROM (
-  SELECT id, post_id, persona_id, content, media_type, '' AS caption,
+  SELECT id, post_id, persona_id, content, media_type, caption,
          voice_path, transcript, voice_duration_ms, parent_id, reply_to_name,
          like_count, scheduled_at AS at, is_ai
   FROM ai_interactions
@@ -213,35 +204,7 @@ ORDER BY at ASC
           ),
         );
     await _bumpCommentCount(postId);
-    await _recordWithPostAuthor(postId);
     return id;
-  }
-
-  /// 你主动接了住民的话，这是"你和他变熟"的另一半（B4）。
-  ///
-  /// 另一半在调度器那边：住民来评论你的时候记。两边都记，关系才是双向的——
-  /// 光等着别人来找你，熟不起来。
-  ///
-  /// 整段包起来：关系是我们自己的一本账，它写不进去不该让你刚打的那句话
-  /// 发不出去。评论的是自己的帖子时，authorPersonaId 是空，直接跳过。
-  Future<void> _recordWithPostAuthor(String postId) async {
-    final repo = relationships;
-    if (repo == null) return;
-
-    try {
-      final post =
-          await (_db.select(_db.posts)..where((t) => t.id.equals(postId)))
-              .getSingleOrNull();
-      final authorId = post?.authorPersonaId ?? '';
-      if (authorId.isEmpty) return;
-
-      await repo.record(
-        personaId: authorId,
-        event: RelationshipEvent.comment,
-      );
-    } catch (error) {
-      debugPrint('[关系] 这次没能记上：$error');
-    }
   }
 
   /// 评论数 +1——帖子卡片上那个数字要跟着动。
@@ -285,6 +248,7 @@ ORDER BY at ASC
           type: Value(item.type),
           mediaType: Value(item.mediaType),
           content: Value(item.content),
+          caption: Value(item.caption),
           scheduledAt: Value(item.scheduledAt.millisecondsSinceEpoch),
           status: const Value('pending'),
           // 只有点赞才占 like_count；评论的赞走评论自己的账，
@@ -310,6 +274,8 @@ ORDER BY at ASC
     required DateTime scheduledAt,
     String? replyToName,
     String source = 'user_reply',
+    String mediaType = 'text',
+    String caption = '',
   }) async {
     await _db
         .into(_db.aiInteractions)
@@ -319,8 +285,9 @@ ORDER BY at ASC
             postId: postId,
             personaId: personaId,
             type: typeComment,
-            mediaType: const Value('text'),
+            mediaType: Value(mediaType),
             content: Value(content),
+            caption: Value(caption),
             parentId: Value(parentId),
             replyToName: Value(replyToName),
             scheduledAt: scheduledAt.millisecondsSinceEpoch,
@@ -371,6 +338,7 @@ ORDER BY at ASC
     required String personaId,
     String? mediaType,
     String? content,
+    String? caption,
     String? voicePath,
     String? transcript,
     int? voiceDurationMs,
@@ -386,6 +354,7 @@ ORDER BY at ASC
             type: typeComment,
             mediaType: Value(mediaType ?? 'text'),
             content: Value(content),
+            caption: Value(caption),
             voicePath: Value(voicePath),
             transcript: Value(transcript),
             voiceDurationMs: Value(voiceDurationMs),
@@ -470,7 +439,10 @@ ORDER BY at ASC
                   t.postId.equals(postId) &
                   t.personaId.equals(entry.key) &
                   t.type.equals(typeComment) &
-                  t.status.equals('pending'),
+                  t.status.equals('pending') &
+                  // 表情包评论的 content 是图片路径，不能被一段文字覆盖；
+                  // 要换的只是纯文字评论。
+                  (t.mediaType.isNull() | t.mediaType.equals('text')),
             ))
           .write(AiInteractionsCompanion(content: Value(entry.value)));
     }
@@ -566,6 +538,7 @@ WHERE al.action = 'like_post' AND al.target_id = ?
     scheduledAt: DateTime.fromMillisecondsSinceEpoch(row.scheduledAt),
     content: row.content,
     mediaType: row.mediaType,
+    caption: row.caption ?? '',
     voiceDurationMs: row.voiceDurationMs,
     likeBatch: row.likeCount,
     source: row.source,
@@ -666,10 +639,7 @@ WHERE al.action = 'like_post' AND al.target_id = ?
 }
 
 final interactionRepositoryProvider = Provider<InteractionRepository>(
-  (ref) => InteractionRepository(
-    ref.watch(databaseProvider),
-    relationships: ref.watch(relationshipRepositoryProvider),
-  ),
+  (ref) => InteractionRepository(ref.watch(databaseProvider)),
 );
 
 final commentsProvider = StreamProvider.autoDispose

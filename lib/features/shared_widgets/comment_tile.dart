@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_texts.dart';
-import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/media/voice_wave_store.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/models/post_voice.dart';
@@ -72,7 +69,7 @@ class CommentTile extends ConsumerWidget {
   final PostComment comment;
 
   /// 说话的人（v3.0）。临时网民不在固定住民表里，由详情页一次查好传进来；
-  /// 为空时退回 `personaByIdProvider`（老数据和固定住民）。
+  /// 为空时只可能是用户自己；旧住民已经下线。
   final PostVoice? voice;
 
   /// 这条是对楼上那条的回复（B7）：缩进一点、左边带一条细线，
@@ -92,29 +89,15 @@ class CommentTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // personaId 为空表示这条是我自己说的
     final personaId = comment.personaId;
-    final persona = personaId == null || voice != null
-        ? null
-        : ref.watch(personaByIdProvider(personaId));
     final me = ref.watch(userProfileProvider).value;
     final name = voice?.name ??
-        persona?.name ??
         (personaId == null
             ? (me?.displayName ?? AppTexts.defaultNickname)
             : '路过的网友');
-    // 自己那条评论也要用真头像：以前这里只查住民，persona 为空就退回
-    // 文字头像，于是「我」回复别人的每一条都变成一个字。
+    // 自己那条评论也要用真头像；别人的脸从 post_voices 快照里来。
     final avatarRef = voice?.avatarAsset ??
-        persona?.avatar ??
         (personaId == null ? me?.avatarOrNull : null);
     final createdAt = createdAtOverride ?? comment.createdAt;
-
-    // 点开一个人，看他是谁、平常在哪儿、发过什么——
-    // 评论区的"活人感"就落在这一步上（自己那句当然点不开）。
-    // 临时网民没有主页，点了不跳。
-    void openAuthor() {
-      if (personaId == null || voice != null) return;
-      context.push(RoutePaths.resident(personaId));
-    }
 
     return Padding(
       padding: EdgeInsets.only(bottom: 16, left: isReply ? 14 : 0),
@@ -141,14 +124,7 @@ class CommentTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onTap: openAuthor,
-              child: UserAvatar(
-                name: name,
-                avatarRef: avatarRef,
-                size: 34,
-              ),
-            ),
+            UserAvatar(name: name, avatarRef: avatarRef, size: 34),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -156,27 +132,13 @@ class CommentTile extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      GestureDetector(
-                        onTap: openAuthor,
-                        child: Text(
-                          name,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: EchoColors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      Text(
+                        name,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: EchoColors.text,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (persona != null && voice == null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          'Lv.${persona.level}',
-                          style: TextStyle(
-                            color: EchoColors.textFaint,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
                       if (highlighted) ...[
                         const SizedBox(width: 6),
                         Icon(

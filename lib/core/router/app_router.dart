@@ -7,7 +7,6 @@ import '../../features/analysis/reflection_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
 import '../../features/feed/feed_page.dart';
-import '../../features/follows/follows_page.dart';
 import '../../features/help/help_page.dart';
 import '../../features/help/tutorial_page.dart';
 import '../../features/messages/chat_page.dart';
@@ -21,7 +20,6 @@ import '../../features/profile/identity_page.dart';
 import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
-import '../../features/resident/resident_page.dart';
 import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
 import '../../features/residents/resident_memories_page.dart';
@@ -190,11 +188,6 @@ final appRouter = GoRouter(
           PostDetailPage(postId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
-      path: '/resident/:id',
-      builder: (context, state) =>
-          ResidentPage(personaId: state.pathParameters['id'] ?? ''),
-    ),
-    GoRoute(
       path: RoutePaths.customResidents,
       builder: (context, state) => const CustomResidentsPage(),
     ),
@@ -215,12 +208,6 @@ final appRouter = GoRouter(
       path: '/chat/:id',
       builder: (context, state) =>
           ChatPage(personaId: state.pathParameters['id'] ?? ''),
-    ),
-    GoRoute(
-      path: RoutePaths.follows,
-      builder: (context, state) => FollowsPage(
-        initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
-      ),
     ),
     GoRoute(
       path: RoutePaths.search,

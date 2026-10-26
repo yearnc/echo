@@ -4,15 +4,9 @@ import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/plan_event_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/domain/models/app_mode.dart';
-import 'package:echo/domain/services/interaction_planner.dart';
+import 'package:echo/domain/models/planned_interaction.dart';
 import 'package:echo/domain/services/mode_switch_service.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-Future<void> _seedPersona(AppDatabase db, String id) async {
-  await db
-      .into(db.aiPersonas)
-      .insert(AiPersonasCompanion.insert(id: id, name: '住民'));
-}
 
 void main() {
   late AppDatabase db;
@@ -29,7 +23,6 @@ void main() {
       interactions: InteractionRepository(db),
       planEvents: PlanEventRepository(db),
     );
-    await _seedPersona(db, 'persona_0');
   });
 
   tearDown(() async => db.close());

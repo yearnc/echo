@@ -5,13 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
-import '../../domain/services/direct_message_service.dart';
 import '../../domain/services/photo_describer.dart';
-import '../../domain/services/resident_memory_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/chat_bubble.dart';
@@ -34,7 +31,6 @@ class ChatPage extends ConsumerStatefulWidget {
 
 class _ChatPageState extends ConsumerState<ChatPage> {
   final TextEditingController _input = TextEditingController();
-  Timer? _refresh;
   bool _sending = false;
 
   @override
@@ -45,18 +41,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       // 不再播手写的“开场白”：住民醒来后自己开口。
       // 新建住民时编辑页已经叫醒过他，这里不重复叫。
     });
-    // 他不会秒回：回应排在几分钟之后，页面得自己隔一会儿重问一次，
-    // 不然那句话要等你退出去再进来才看得见。
-    _refresh = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (!mounted) return;
-      _markRead();
-      ref.invalidate(privateThreadProvider(widget.personaId));
-    });
+    // 不用轮询：私信仓储会按“下一条排期消息到点”的时间自己重新发射，
+    // 到点的那一条会像微信一样直接出现。
   }
 
   @override
   void dispose() {
-    _refresh?.cancel();
     _input.dispose();
     super.dispose();
   }
@@ -82,35 +72,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final mediaType = sticker != null
         ? 'sticker'
         : (imageRef != null ? 'image' : 'text');
+    final caption = sticker == null
+        ? ''
+        : '表情包「${sticker.name}」'
+              '${sticker.tags.isEmpty ? '' : '（标签：${sticker.tags.join('、')}）'}';
 
     setState(() => _sending = true);
     try {
       _input.clear();
-      await ref
+      final messageId = await ref
           .read(privateMessageRepositoryProvider)
           .send(
             personaId: widget.personaId,
             content: content,
             mediaType: mediaType,
+            caption: caption,
           );
 
-      final resident = ref.read(customResidentByIdProvider(widget.personaId));
-      if (resident != null) {
-        // 记忆写在后台：图片要先让视觉模型看一眼，可能要几秒。
-        unawaited(_remember(resident.id, content, mediaType));
-      }
-
-      // 固定住民要马上醒过来看这条消息：他这一轮可能回私信，
-      // 也可能去帖子下面接话——那是他自己的选择，不该由发送方决定。
-      if (resident != null) {
-        unawaited(
-          ref
-              .read(residentWakeServiceProvider)
-              .wake(widget.personaId, trigger: WakeTrigger.userAction),
-        );
-      } else {
-        unawaited(ref.read(directMessageServiceProvider).tick());
-      }
+      // 消息先出现；图片描述补齐之后再把住民叫醒。
+      // 这样模型无论是看图还是读描述，都知道“他发来的到底是什么”。
+      unawaited(
+        _enrichAndWake(
+          messageId: messageId,
+          content: content,
+          mediaType: mediaType,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -121,46 +108,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  /// 把这次发送写进固定住民的记忆。
+  /// 把图片/表情包的语义补进这条消息，再叫醒固定住民。
   ///
-  /// 图片不再只记“收到一张图片”：先用视觉模型描述画面，再把描述写进记忆。
-  /// 没配看图模型时退回原来那句——至少不会因为描述失败而记不上。
-  Future<void> _remember(
-    String residentId,
-    String content,
-    String mediaType,
-  ) async {
-    final memory = ref.read(residentMemoryServiceProvider);
-    final sourceId =
-        'dm_${widget.personaId}_${DateTime.now().microsecondsSinceEpoch}';
-
-    if (mediaType == 'text') {
-      await memory.rememberUserReply(
-        residentId: residentId,
-        reply: content,
-        source: 'dm',
-        sourceId: sourceId,
-      );
-      return;
+  /// 记忆不再由页面写死：住民醒来后自己决定记什么。页面只负责把
+  /// “图里是什么”送到它面前。
+  Future<void> _enrichAndWake({
+    required String messageId,
+    required String content,
+    required String mediaType,
+  }) async {
+    if (mediaType == 'image') {
+      final description = await ref
+          .read(photoDescriberProvider)
+          .describe(content);
+      if (description.isNotEmpty) {
+        await ref
+            .read(privateMessageRepositoryProvider)
+            .attachCaption(messageId, description);
+      }
     }
-    if (mediaType == 'sticker') {
-      await memory.rememberUserReply(
-        residentId: residentId,
-        reply: '[发来一个表情包]',
-        source: 'dm',
-        sourceId: sourceId,
-      );
-      return;
-    }
+    if (!mounted) return;
 
-    final description = await ref.read(photoDescriberProvider).describe(content);
-    await memory.rememberUserReply(
-      residentId: residentId,
-      reply: '[发来一张图片]',
-      imageSummary: description.isEmpty ? '对方发来一张图片' : description,
-      source: 'dm',
-      sourceId: sourceId,
-    );
+    final resident = ref.read(customResidentByIdProvider(widget.personaId));
+    if (resident != null) {
+      // 他这一轮可能回私信，也可能去帖子下面接话——那是他自己的选择。
+      await ref
+          .read(residentWakeServiceProvider)
+          .wake(widget.personaId, trigger: WakeTrigger.userAction);
+    }
   }
 
   @override
@@ -171,15 +146,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final storedResident = ref.watch(
       customResidentAnyByIdProvider(widget.personaId),
     );
-    final persona = ref.watch(personaByIdProvider(widget.personaId));
     final thread = ref.watch(privateThreadProvider(widget.personaId));
-    final name =
-        storedResident?.name ?? persona?.name ?? '社区住民';
-    final avatarRef = storedResident?.avatarAsset ?? persona?.avatar;
-    // 没有人能接话了：固定住民已删除，或者这条线指向一个已经不存在的账号。
-    // 保留历史，但不能再发。
-    final canSend = resident != null || persona != null;
-    final departed = resident == null && persona == null;
+    final name = storedResident?.name ?? '已离开的住民';
+    final avatarRef = storedResident?.avatarAsset;
+    // 没有人能接话了：固定住民已删除。保留历史，但不能再发。
+    final canSend = resident != null;
+    final departed = resident == null;
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -210,9 +182,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     ),
                   ),
                   Text(
-                    departed
-                        ? '已离开社区'
-                        : (resident != null ? '固定住民' : '社区住民'),
+                    departed ? '已离开社区' : '固定住民',
                     style: TextStyle(
                       color: EchoColors.textFaint,
                       fontSize: 10.5,
@@ -250,13 +220,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
                   ),
                 ),
-                data: (list) => list.isEmpty
-                    ? _Opening(name: name, avatarRef: avatarRef)
-                    : _MessageList(
-                        messages: list,
-                        name: name,
-                        avatarRef: avatarRef,
-                      ),
+                data: (list) {
+                  // 刚到点的那条消息出现时顺手标已读；不用等页面轮询。
+                  if (list.any((message) => !message.fromMe && !message.read)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _markRead();
+                    });
+                  }
+                  return list.isEmpty
+                      ? _Opening(name: name, avatarRef: avatarRef)
+                      : _MessageList(
+                          messages: list,
+                          name: name,
+                          avatarRef: avatarRef,
+                        );
+                },
               ),
             ),
             if (canSend)
@@ -312,6 +290,9 @@ class _MessageList extends StatelessWidget {
         ChatBubble(
           content: message.content,
           mediaType: message.mediaType,
+          caption: message.caption,
+          voicePath: message.voicePath,
+          transcript: message.transcript,
           fromMe: message.fromMe,
           senderName: name,
           avatarRef: avatarRef,

@@ -83,8 +83,6 @@ class CustomResidentsPage extends ConsumerWidget {
                           RoutePaths.residentMemories(resident.id),
                         ),
                       ),
-                      if (resident.alwaysShow)
-                        const Icon(Icons.push_pin, size: 16),
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 20),
                         onPressed: () =>

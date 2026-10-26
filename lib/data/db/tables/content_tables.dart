@@ -1,7 +1,5 @@
 import 'package:drift/drift.dart';
 
-import 'ai_tables.dart';
-
 /// 配置与内容类表（规划书 §8）。
 
 // 所有 Drift 行类统一加 `Row` 后缀：领域模型（Post / AiPersona / Sticker…）
@@ -78,15 +76,7 @@ class Posts extends Table {
   /// 比如看自己的互动轨迹）；而它反正只占一个整数。
   IntColumn get likedAt => integer().nullable()();
 
-  /// 住民自己发的动态在这里记下作者；用户发的为 null。
-  ///
-  /// 住民动态走同一张 `posts` 表而不是另开一张（阶段 B 计划书决策 3）：
-  /// 信息流、帖子详情、评论区、点赞计数全部现成，`ai_interactions` 的外键
-  /// 也不用改语义——"谁发的"只多这一个字段。
-  TextColumn get authorPersonaId =>
-      text().nullable().references(AiPersonas, #id)();
-
-  /// 固定住民自己发的动态记的是他的 id；用户发的、旧住民发的为空。
+  /// 固定住民自己发的动态记的是他的 id；用户发的为空。
   ///
   /// 不设外键：固定住民可以被删除（软删除），而动态要留着；
   /// 而且这一列只回答"谁发的"，不承担级联语义。

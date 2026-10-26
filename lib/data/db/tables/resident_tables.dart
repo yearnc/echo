@@ -24,9 +24,6 @@ class CustomResidents extends Table {
   TextColumn get languageStyle => text().withDefault(const Constant(''))();
   TextColumn get tone => text().withDefault(const Constant(''))();
 
-  /// 私信第一次开口用。
-  TextColumn get firstMessage => text().withDefault(const Constant(''))();
-
   /// 示例对话：教模型怎么接话。
   TextColumn get exampleDialogue => text().withDefault(const Constant(''))();
 
@@ -36,17 +33,28 @@ class CustomResidents extends Table {
   /// 管理用标签，逗号分隔；不发给模型。
   TextColumn get tags => text().withDefault(const Constant(''))();
 
-  /// 活跃时段（JSON 数组）。
-  TextColumn get activeHours => text().withDefault(const Constant('[]'))();
   BoolColumn get memoryEnabled => boolean().withDefault(const Constant(true))();
 
   /// null = 无上限。
   IntColumn get memoryLimit =>
       integer().nullable().withDefault(const Constant(400))();
-  BoolColumn get alwaysShow => boolean().withDefault(const Constant(true))();
-
   /// 这个住民单独指定的对话模型配置 id（v30）。空 = 用当前启用的那条。
   TextColumn get modelConfigId => text().withDefault(const Constant(''))();
+
+  /// 会不会发语音（v36）。关着时 `send_voice` 工具不出现。
+  BoolColumn get voiceEnabled => boolean().withDefault(const Constant(false))();
+
+  /// 音色描述。没有上传参考音频时，用它在一组固定音色里选一个。
+  TextColumn get voiceDescription => text().withDefault(const Constant(''))();
+
+  /// 上传的参考音频（`file:` 引用），只给支持克隆的 TTS 服务用。
+  TextColumn get voiceSamplePath => text().withDefault(const Constant(''))();
+
+  /// 参考音频里说的那句话，克隆时要逐字对上。
+  TextColumn get voiceSampleText => text().withDefault(const Constant(''))();
+
+  /// 已经定下来的音色：`local:<sid>` / `cloud:<voice>` / `speech:...`。
+  TextColumn get voiceRef => text().withDefault(const Constant(''))();
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();
 

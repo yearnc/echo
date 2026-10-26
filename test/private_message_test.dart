@@ -2,7 +2,29 @@ import 'package:drift/drift.dart' show TableUpdate;
 import 'package:drift/native.dart';
 import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/repositories/private_message_repository.dart';
+import 'package:echo/domain/models/custom_resident.dart';
+import 'package:echo/domain/services/dm_voice_service.dart';
+import 'package:echo/domain/services/tts_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _FakeTts extends TtsService {
+  String? capturedVoiceModel;
+
+  @override
+  Future<VoiceClip?> speak({
+    required String text,
+    required String personaId,
+    String voiceModel = '',
+  }) async {
+    capturedVoiceModel = voiceModel;
+    return VoiceClip(
+      ref: 'file:/fake.wav',
+      transcript: text,
+      durationMs: 1200,
+      waveform: const [],
+    );
+  }
+}
 
 void main() {
   late AppDatabase db;
@@ -12,12 +34,6 @@ void main() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     messages = PrivateMessageRepository(db);
 
-    // 私信表对 ai_personas 有外键，住民得先在表里
-    for (final id in ['persona_001', 'persona_002']) {
-      await db
-          .into(db.aiPersonas)
-          .insert(AiPersonasCompanion.insert(id: id, name: '住民$id'));
-    }
   });
 
   tearDown(() async => db.close());
@@ -95,6 +111,121 @@ void main() {
     await messages.markThreadRead('persona_001');
 
     expect(await messages.watchUnreadCount().first, 0);
+  });
+
+  test('排期消息到点自己冒出来，不用退出重进', () async {
+    await messages.scheduleIncoming(
+      personaId: 'persona_001',
+      content: '我刚忙完',
+      at: DateTime.now().add(const Duration(seconds: 1)),
+    );
+
+    final emissions = await messages
+        .watchThread('persona_001')
+        .take(2)
+        .toList()
+        .timeout(const Duration(seconds: 5));
+
+    expect(emissions.first, isEmpty);
+    expect(emissions.last.length, 1);
+    expect(emissions.last.first.content, '我刚忙完');
+  });
+
+  test('图片描述和表情包语义跟着消息一起存', () async {
+    final id = await messages.send(
+      personaId: 'persona_001',
+      content: 'file:///pic.jpg',
+      mediaType: 'image',
+    );
+    await messages.attachCaption(id, '桌上有一碗热汤面');
+
+    final thread = await messages.watchThread('persona_001').first;
+    expect(thread.single.mediaType, 'image');
+    expect(thread.single.caption, '桌上有一碗热汤面');
+  });
+
+  test('语音合成好了再挂上去，文字不会丢', () async {
+    final id = await messages.send(
+      personaId: 'persona_001',
+      content: '今天风挺大的',
+    );
+    await messages.attachVoice(
+      messageId: id,
+      voicePath: 'file:/voice.wav',
+      transcript: '今天风挺大的',
+    );
+
+    final thread = await messages.watchThread('persona_001').first;
+    expect(thread.single.mediaType, 'voice');
+    expect(thread.single.voicePath, 'file:/voice.wav');
+    expect(thread.single.transcript, '今天风挺大的');
+  });
+
+  test('合成语音时用住民自己的音色，失败不会落一条假文字', () async {
+    final tts = _FakeTts();
+    final service = DmVoiceService(tts: tts);
+    final resident = CustomResident(
+      id: 'persona_001',
+      name: '小满',
+      voiceEnabled: true,
+      voiceRef: 'local:42',
+      createdAt: DateTime(2026, 10, 1),
+    );
+
+    final result = await service.synthesize(
+      resident: resident,
+      text: '今天风挺大的',
+    );
+
+    expect(result.clip, isNotNull);
+    expect(result.clip!.transcript, '今天风挺大的');
+    expect(tts.capturedVoiceModel, 'local:42');
+  });
+
+  test('没开语音的住民不会被偷偷换成语音', () async {
+    final tts = _FakeTts();
+    final service = DmVoiceService(tts: tts);
+    final resident = CustomResident(
+      id: 'persona_001',
+      name: '小满',
+      createdAt: DateTime(2026, 10, 1),
+    );
+
+    final result = await service.synthesize(
+      resident: resident,
+      text: '普通一句话',
+    );
+    expect(result.clip, isNull);
+    expect(result.error, isNotEmpty);
+    expect(tts.capturedVoiceModel, isNull);
+  });
+
+  test('语音消息一开始就是语音，不会先以文字出现', () async {
+    await messages.scheduleIncoming(
+      personaId: 'persona_001',
+      content: '今天风挺大的',
+      mediaType: 'voice',
+      voicePath: 'file:/voice.wav',
+      transcript: '今天风挺大的',
+      at: DateTime.now().subtract(const Duration(seconds: 1)),
+    );
+
+    final thread = await messages.watchThread('persona_001').first;
+    expect(thread.single.mediaType, 'voice');
+    expect(thread.single.content, '今天风挺大的');
+    expect(thread.single.voicePath, 'file:/voice.wav');
+  });
+
+  test('删掉会话之后，列表和会话里都不再出现', () async {
+    await messages.scheduleIncoming(
+      personaId: 'persona_001',
+      content: '再见啦',
+      at: DateTime.now().subtract(const Duration(minutes: 1)),
+    );
+    await messages.deleteThread('persona_001');
+
+    expect(await messages.watchThread('persona_001').first, isEmpty);
+    expect(await messages.watchConversations().first, isEmpty);
   });
 
   test('表情包和语音在列表上不铺路径出来', () async {

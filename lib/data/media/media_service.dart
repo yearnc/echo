@@ -66,6 +66,24 @@ class MediaService {
     return 'file:${destination.path}';
   }
 
+  /// 保存一段参考音频（音色克隆用）。原文件可能是相册/文件管理器给的
+  /// 临时缓存，拷进 APP 私有目录才不会过两天就失效。
+  Future<String> saveVoiceSample(
+    Uint8List bytes, {
+    String extension = '.mp3',
+  }) async {
+    final mediaDir = await _mediaDir();
+    final ext = extension.startsWith('.') ? extension : '.$extension';
+    final file = File(
+      p.join(
+        mediaDir.path,
+        'voice_sample_${DateTime.now().microsecondsSinceEpoch}$ext',
+      ),
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    return 'file:${file.path}';
+  }
+
   /// 从数据本身认图片格式。
   ///
   /// 文生图服务给的是数据，不说它是什么格式——有的回 png，有的回 jpeg。

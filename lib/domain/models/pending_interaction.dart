@@ -10,6 +10,7 @@ class PendingInteraction {
     required this.type,
     required this.scheduledAt,
     this.content,
+    this.caption = '',
     this.mediaType,
     this.voiceDurationMs,
     this.likeBatch = 1,
@@ -30,6 +31,9 @@ class PendingInteraction {
   /// like / comment
   final String type;
   final String? content;
+
+  /// 图片评论配的文字；纯文字评论为空。
+  final String caption;
   final String? mediaType;
   final int? voiceDurationMs;
 

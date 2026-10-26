@@ -6,7 +6,6 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -82,16 +81,14 @@ class _ConversationTile extends ConsumerWidget {
     final storedResident = ref.watch(
       customResidentAnyByIdProvider(conversation.personaId),
     );
-    final persona = ref.watch(personaByIdProvider(conversation.personaId));
-    final name =
-        storedResident?.name ?? persona?.name ?? '社区住民';
-    final avatarRef = storedResident?.avatarAsset ?? persona?.avatar;
-    final departed =
-        resident == null && persona == null && storedResident != null;
+    final name = storedResident?.name ?? '已离开的住民';
+    final avatarRef = storedResident?.avatarAsset;
+    final departed = resident == null;
     final unread = conversation.unreadCount > 0;
 
-    return InkWell(
+    final tile = InkWell(
       onTap: () => context.push(RoutePaths.chat(conversation.personaId)),
+      onLongPress: departed ? () => _deleteNow(context, ref) : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Row(
@@ -155,6 +152,24 @@ class _ConversationTile extends ConsumerWidget {
                           fontSize: 11.5,
                         ),
                       ),
+                      if (departed) ...[
+                        const SizedBox(width: 2),
+                        IconButton(
+                          onPressed: () => _deleteNow(context, ref),
+                          tooltip: '删除这段对话',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          icon: Icon(
+                            Icons.delete_outline,
+                            size: 16,
+                            color: EchoColors.textFaint,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 5),
@@ -194,6 +209,41 @@ class _ConversationTile extends ConsumerWidget {
         ),
       ),
     );
+
+    return tile;
+  }
+
+  Future<void> _deleteNow(BuildContext context, WidgetRef ref) async {
+    if (!await _confirmDelete(context)) return;
+    await ref
+        .read(privateMessageRepositoryProvider)
+        .deleteThread(conversation.personaId);
+  }
+
+  /// 已离开的住民不会再有新消息，这段历史可以整段删掉。
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: const Text('删除这段对话？'),
+        content: const Text('TA 已经离开社区，删除后这段对话不会再出现在消息列表里。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              '删除',
+              style: TextStyle(color: EchoColors.like),
+            ),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 }
 

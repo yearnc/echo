@@ -120,6 +120,9 @@ class ActionRegistry {
     required String idempotencyKey,
     DateTime? at,
     String source = 'tool',
+    String mediaType = 'text',
+    String voicePath = '',
+    String transcript = '',
   }) async {
     return run(
       actorId: residentId,
@@ -138,12 +141,19 @@ class ActionRegistry {
         if (text.isEmpty) {
           return const ActionOutcome(ok: false, message: '消息是空的');
         }
-        await messages.scheduleIncoming(
+        final messageId = await messages.scheduleIncoming(
           personaId: residentId,
           content: text,
           at: at ?? DateTime.now(),
+          mediaType: mediaType,
+          voicePath: voicePath,
+          transcript: transcript,
         );
-        return const ActionOutcome(ok: true, message: '已发出');
+        return ActionOutcome(
+          ok: true,
+          message: '已发出',
+          data: {'messageId': messageId},
+        );
       },
     );
   }
@@ -368,13 +378,14 @@ class ActionRegistry {
     );
   }
 
-  /// 写一条记忆。只有用户明确说"记住"时才允许调用。
+  /// 写一条记忆。由住民自己判断该不该记。
   Future<ActionOutcome> writeMemory({
     required String residentId,
     required String summary,
     String content = '',
     List<String> tags = const [],
     String? sourceId,
+    String source = 'dm',
     required String idempotencyKey,
   }) async {
     return run(
@@ -404,7 +415,7 @@ class ActionRegistry {
           ResidentMemory(
             id: ResidentMemoryRepository.newId(),
             residentId: residentId,
-            source: 'dm',
+            source: source,
             sourceId: sourceId,
             summary: text,
             content: content.trim().isEmpty ? text : content.trim(),
@@ -415,6 +426,76 @@ class ActionRegistry {
           limit: resident.memoryLimit,
         );
         return const ActionOutcome(ok: true, message: '记住了');
+      },
+    );
+  }
+
+  /// 改一条记忆：记错了、过时了，就改，不必删了重写。
+  Future<ActionOutcome> updateMemory({
+    required String residentId,
+    required String memoryId,
+    String? summary,
+    String? content,
+    List<String>? tags,
+    required String idempotencyKey,
+  }) async {
+    return run(
+      actorId: residentId,
+      actorKind: 'resident',
+      action: 'memory_update',
+      idempotencyKey: idempotencyKey,
+      targetId: memoryId,
+      params: {'memory_id': memoryId},
+      body: () async {
+        final resident = await residents.findById(residentId);
+        if (resident == null || !resident.memoryEnabled) {
+          return const ActionOutcome(ok: false, message: '这个人没有开启记忆');
+        }
+        final existing = await memories.findActive(memoryId);
+        if (existing == null || existing.residentId != residentId) {
+          return const ActionOutcome(ok: false, message: '没有这条记忆');
+        }
+        final nextSummary = (summary ?? existing.summary).trim();
+        final nextContent = (content ?? existing.content).trim();
+        if (nextSummary.isEmpty) {
+          return const ActionOutcome(ok: false, message: '摘要不能是空的');
+        }
+        await memories.updateText(
+          id: memoryId,
+          summary: nextSummary,
+          content: nextContent.isEmpty ? nextSummary : nextContent,
+          tags: tags ?? existing.tags,
+        );
+        final updated = await memories.findActive(memoryId);
+        return ActionOutcome(
+          ok: true,
+          message: '改好了',
+          data: {if (updated != null) 'memory': _memoryJson(updated)},
+        );
+      },
+    );
+  }
+
+  /// 删一条不再成立、或本来就不该记的记忆。
+  Future<ActionOutcome> deleteMemory({
+    required String residentId,
+    required String memoryId,
+    required String idempotencyKey,
+  }) async {
+    return run(
+      actorId: residentId,
+      actorKind: 'resident',
+      action: 'memory_delete',
+      idempotencyKey: idempotencyKey,
+      targetId: memoryId,
+      params: {'memory_id': memoryId},
+      body: () async {
+        final existing = await memories.findActive(memoryId);
+        if (existing == null || existing.residentId != residentId) {
+          return const ActionOutcome(ok: false, message: '没有这条记忆');
+        }
+        await memories.softDelete(memoryId);
+        return const ActionOutcome(ok: true, message: '忘了这件事');
       },
     );
   }

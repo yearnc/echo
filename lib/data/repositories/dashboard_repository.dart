@@ -47,7 +47,6 @@ class DashboardRepository {
     final query = _db.select(_db.posts)
       ..where(
         (t) =>
-            t.authorPersonaId.isNull() &
             t.authorResidentId.isNull() &
             t.scope.equals(scope) &
             t.deletedAt.isNull() &
@@ -102,17 +101,8 @@ class DashboardRepository {
     ];
   }
 
-  /// 关注了我的人（单方面关注 + 互相关注）。
-  Future<int> followerCount() async {
-    final count = _db.aiRelationships.personaId.count();
-    final query = _db.selectOnly(_db.aiRelationships)
-      ..addColumns([count])
-      ..where(
-        _db.aiRelationships.followState.equals('followed') |
-            _db.aiRelationships.followState.equals('mutual'),
-      );
-    return (await query.getSingle()).read(count) ?? 0;
-  }
+  /// 旧住民的关注关系已经整体下线，固定住民没有这套账。
+  Future<int> followerCount() async => 0;
 
   /// 最近 [since] 之后收到过几条私信（住民主动来敲门）。
   Future<int> receivedMessageCount({required DateTime since}) async {

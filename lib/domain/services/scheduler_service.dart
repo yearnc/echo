@@ -10,25 +10,18 @@ import '../../data/repositories/analysis_repository.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/plan_event_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_understanding_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
-import '../../data/repositories/relationship_repository.dart';
 import '../models/ai_persona.dart';
-import '../models/echo_settings.dart';
 import '../models/pending_interaction.dart';
 import '../models/plan_script.dart';
 import '../models/post_voice.dart';
 import '../models/voice_settings.dart';
 import 'community_settings_controller.dart';
 import 'content_generator.dart';
-import 'interaction_planner.dart';
-import 'memory_summarizer.dart';
 import 'notification_service.dart';
-import 'relationship_rules.dart';
-import 'safety_controller.dart';
 import 'tts_service.dart';
 import 'voice_settings_controller.dart';
 
@@ -51,36 +44,26 @@ class SchedulerService {
     required this.planEvents,
     required this.posts,
     required this.notifications,
-    required this.personas,
     required this.analyses,
     required this.generator,
-    required this.relationships,
     this.voiceRepo,
     this.residents,
     this.understandings,
     this.readAiPeerLimit,
     this.readSendImagesDirectly,
-    this.memory,
     this.voice,
     this.readVoiceSettings,
     this.notify,
     this.scheduleNotification,
     this.cancelScheduledNotification,
-    this.readCoolDown,
-    InteractionPlanner? planner,
     Random? random,
-  }) : _planner = planner ?? InteractionPlanner(),
-       _random = random ?? Random();
+  }) : _random = random ?? Random();
 
   final InteractionRepository interactions;
   final PlanEventRepository planEvents;
   final PostRepository posts;
   final NotificationRepository notifications;
-  final PersonaRepository personas;
   final AnalysisRepository analyses;
-
-  /// 住民和你的关系（B4）。兑现一次互动就顺手推进一步。
-  final RelationshipRepository relationships;
 
   /// 每帖的临时网民（v3.0）。可空：老测试和策划模式只认识固定住民。
   final PostVoiceRepository? voiceRepo;
@@ -97,9 +80,6 @@ class SchedulerService {
 
   /// 帖子图片原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
-
-  /// 「我记得你…」（B4）。可空：没有它就只是不记，互动本身照常。
-  final MemorySummarizer? memory;
 
   /// 住民说话的嗓子（B8）。可空：没有它就全发文字，社区照常运转。
   final TtsService? voice;
@@ -126,95 +106,7 @@ class SchedulerService {
   /// 住民说什么话由它出：配了模型就是模型写的，没配就是预置台词。
   final ContentGenerator generator;
 
-  /// 冷静模式是否开启。用回调注入而不是直接读设置，
-  /// 是为了让调度器仍然可以被单独测试（传 null 就是"从不冷静"）。
-  final bool Function()? readCoolDown;
-
-  final InteractionPlanner _planner;
   final Random _random;
-
-  /// 冷静模式下，新帖的第一条反馈至少要等这么久（规划书 §6.9）。
-  static const Duration coolDownDelay = Duration(minutes: 10);
-
-  /// 住民动态底下的评论，作者回嘴的概率（B7）。
-  ///
-  /// 刻意压得低：一屏评论下面条条都有来有回，那不像社区，像客服。
-  static const double residentFollowUpChance = 0.4;
-
-  /// 发帖后调用：把这条帖子将来会收到的随机互动排进队列。
-  ///
-  /// 返回排期条数，方便在 UI 上给一句"反馈会在 0—48 小时内陆续出现"。
-  Future<int> planForPost({
-    required String postId,
-    required EchoSettings settings,
-  }) async {
-    // 人格是**内容资产**（含样例评论、作息），所以从 assets 读，
-    // 数据库里那份只承担运行期状态。
-    final pool = await personas.loadAll();
-    final delay = (readCoolDown?.call() ?? false)
-        ? coolDownDelay
-        : Duration.zero;
-    final planned = _planner.plan(
-      now: DateTime.now(),
-      personas: pool,
-      settings: settings,
-      relations: await _loadRelations(),
-      delay: delay,
-    );
-    await interactions.insertPlanned(postId, planned);
-
-    // 这里**不预约**系统通知：评论内容还没写出来，预约了也只会在到点时
-    // 弹一条点进去空空的提醒。等 `upgradeCommentsWithModel` 写完之后，
-    // 由 `rescheduleNotifications` 统一预约有内容的那些。
-    return planned.length;
-  }
-
-  /// 发帖之后调：把这条帖子的评论**按帖子内容**写出来。
-  ///
-  /// v3.0 起排期不再预填台词，所以这一步是评论能不能出现的关键：
-  /// - 写出来了 → 更新排期内容，预约通知；
-  /// - 没模型 / 超时 / 解析失败 → 取消这批空评论，只保留点赞。
-  ///   **绝不拿固定台词顶上**。
-  ///
-  /// 调用方**不该 await** 它：写五六条评论要好几秒，用户没道理站在发布页等。
-  Future<void> upgradeCommentsWithModel(String postId) async {
-    try {
-      final personaIds = await interactions.pendingCommentPersonaIds(postId);
-      if (personaIds.isEmpty) return;
-
-      final post = await posts.findById(postId);
-      if (post == null) return;
-
-      final pool = await personas.loadAll();
-      final fixedById = {for (final persona in pool) persona.id: persona};
-      final voiceMap =
-          await voiceRepo?.byIds(personaIds) ?? const <String, PostVoice>{};
-      final targets = [
-        for (final id in personaIds)
-          voiceMap[id]?.toPersona() ?? fixedById[id],
-      ].whereType<AiPersona>().toList(growable: false);
-
-      if (targets.isNotEmpty) {
-        final generated = await generator.comments(
-          personas: targets,
-          post: post,
-          relations: await _loadRelations(),
-          understanding: await understandings?.find(postId),
-          sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
-        );
-        await interactions.updatePendingComments(postId, generated);
-      }
-    } catch (error) {
-      debugPrint('[内容生成] 这条帖子的评论没写出来：$error');
-    } finally {
-      // 写不出来（或只写出一部分）的评论一律取消：宁可少几条，
-      // 也不要兑现出一条空白评论。
-      //
-      // 这里不预约系统通知：发帖时 APP 在前台，预约了会当场亮一下；
-      // 切到后台时 `didChangeAppLifecycleState` 会按剩下的有内容评论重排。
-      await interactions.cancelPendingCommentsWithoutContent(postId);
-    }
-  }
 
   /// APP 切到后台时调用：把还没到点的评论重新交给系统闹钟。
   ///
@@ -233,12 +125,10 @@ class SchedulerService {
       final peers = await posts.residentAuthorsOf(
         pending.map((item) => item.postId).toSet(),
       );
-      final pool = await personas.loadAll();
       final voiceMap =
           await voiceRepo?.byIds(pending.map((item) => item.personaId)) ??
           const {};
       final nameById = {
-        for (final p in pool) p.id: p.name,
         for (final v in voiceMap.values) v.id: v.name,
       };
       final now = DateTime.now();
@@ -292,17 +182,11 @@ class SchedulerService {
     final due = await interactions.duePending(DateTime.now());
     if (due.isEmpty) return 0;
 
-    final pool = await personas.loadAll();
     final voiceMap =
         await voiceRepo?.byIds(due.map((item) => item.personaId)) ??
         const {};
     final nameById = {
-      for (final p in pool) p.id: p.name,
       for (final v in voiceMap.values) v.id: v.name,
-    };
-    final byId = {
-      for (final p in pool) p.id: p,
-      for (final v in voiceMap.values) v.id: v.toPersona(),
     };
 
     // 这些帖子里哪些是住民自己发的。住民动态下面也会来人——那是社区
@@ -311,13 +195,16 @@ class SchedulerService {
       due.map((item) => item.postId).toSet(),
     );
 
-    // 这次和你打过照面的人——关系要记，记忆也要跟着更新。
-    final touched = <String>{};
-
     for (final item in due) {
       await interactions.markExecuted(item.id);
       // 已经由前台兑现了，把系统里那条预约撤掉，别过一会儿又弹一次。
       cancelScheduledNotification?.call('n_${item.id}');
+
+      // 用户把「网友互相接话」关了：已经排在队列里的 AI 接 AI 也不兑现，
+      // 不然开关关了之后还会零星冒出一两句。
+      if (item.isPeerReply && (readAiPeerLimit?.call() ?? 2) <= 0) {
+        continue;
+      }
 
       // 浏览事件：到点才留痕，不计数、不通知、不推进关系。
       if (item.type == 'view') {
@@ -353,16 +240,7 @@ class SchedulerService {
         if (content.isEmpty) continue;
 
         await posts.addCounters(item.postId, comments: 1);
-        if (!isMyPost) {
-          // 住民之间的追问（B7 的尾巴）：他的动态下面有人说了句什么，
-          // 他可能回一句。楼中楼里最常见的其实是这种对话，不是"用户和 AI"。
-          await _maybeResidentFollowUp(
-            item: item,
-            authorId: peersPosts[item.postId] ?? '',
-            pool: pool,
-          );
-          continue;
-        }
+        if (!isMyPost) continue;
         // AI 接 AI 的话只在应用内出现，不叫醒手机，也不加红点。
         if (!item.isPeerReply) {
           // 表情包评论的 content 是文件路径，别把它铺到通知正文里。
@@ -384,7 +262,10 @@ class SchedulerService {
         unawaited(
           _maybeAttachVoice(
             item: item,
-            persona: byId[item.personaId],
+            persona: voiceMap[item.personaId]?.toPersona(),
+            // 固定住民在每条帖子里都有一个 voice 快照，但嗓子要认人，
+            // 不能认这个一帖一换的快照 id，否则同一个人每条帖子换声。
+            speakerId: voiceMap[item.personaId]?.residentId,
           ),
         );
 
@@ -404,51 +285,9 @@ class SchedulerService {
         }
       }
 
-      // 住民对你做了什么，关系才知道（B4）。住民彼此之间的互动不记——
-      // 他们互相点赞、互相评论，跟你没有关系，也不该让你和谁变熟。
-      //
-      // 临时网民不建关系：这一帖结束他就散了，记进关系表既没有下文，
-      // 也会撞上 ai_relationships 指向固定住民的外键。
-      if (isMyPost && !item.isPeerReply) {
-        final voice = voiceMap[item.personaId];
-        if (voice == null || !voice.isEphemeral) {
-          await _recordRelationship(
-            item,
-            personaId: voice?.residentId,
-          );
-        }
-        // 固定住民的关系和记忆认 residentId，不认每帖新造的 voice id
-        touched.add(voice?.residentId ?? item.personaId);
-      }
     }
-
-    // 记住你这件事跑在后台：它要读帖子、可能还要问一次模型，几十秒起步，
-    // 不该让冷启动停在这儿等。失败了也只是"这次没记住"。
-    unawaited(_refreshMemories(touched));
 
     return due.length;
-  }
-
-  /// 让刚和你打过照面的人记一记你（B4）。
-  ///
-  /// 整段兜到底：它跑在后台，抛出去就是没人接的异常，
-  /// 而它坏掉的后果仅仅是"记忆还是上一次那句"。
-  Future<void> _refreshMemories(Set<String> personaIds) async {
-    final summarizer = memory;
-    if (summarizer == null || personaIds.isEmpty) return;
-
-    try {
-      final pool = await personas.loadAll();
-      final targets = [
-        for (final persona in pool)
-          if (personaIds.contains(persona.id) && persona.memoryEnabled) persona,
-      ];
-      if (targets.isEmpty) return;
-
-      await summarizer.refresh(personas: targets);
-    } catch (error) {
-      debugPrint('[记忆] 这次没记住：$error');
-    }
   }
 
   /// 脚本里写的这段语音素材在不在包里（B8）。
@@ -474,6 +313,7 @@ class SchedulerService {
   Future<void> _maybeAttachVoice({
     required PendingInteraction item,
     required AiPersona? persona,
+    String? speakerId,
   }) async {
     final speech = voice;
     if (speech == null || persona == null) return;
@@ -481,17 +321,22 @@ class SchedulerService {
     if (persona.voiceModel.isEmpty) return;
     if (!(readVoiceSettings?.call().enabled ?? true)) return;
 
+    // 固定住民是不是发语音，交给它自己在唤醒里用工具决定；
+    // 平台不替它掷这个骰子。
+    final snapshot = await voiceRepo?.findById(item.personaId);
+    if (snapshot?.residentId != null) return;
+
     final content = (item.content ?? '').trim();
     if (content.isEmpty) return;
-    if (_random.nextDouble() > InteractionPlanner.voiceChance(persona)) return;
+    if (_random.nextDouble() > _voiceChance(persona)) return;
 
     try {
       final existing = await interactions.countVoicesForPost(item.postId);
-      if (existing >= InteractionPlanner.maxVoicesPerPost) return;
+      if (existing >= maxVoicesPerPost) return;
 
       final clip = await speech.speak(
         text: content,
-        personaId: persona.id,
+        personaId: speakerId ?? persona.id,
         voiceModel: persona.voiceModel,
       );
       if (clip == null) return;
@@ -507,66 +352,16 @@ class SchedulerService {
     }
   }
 
-  /// 住民之间的追问：他回别人的评论（B7）。
-  ///
-  /// 规矩跟用户那条一模一样——**有上文才追**（parentId 指向那条评论）。
-  /// 差别只在频率：社区里绝大多数评论是没人接的，所以这里只让四成的人回嘴，
-  /// 而且不每轮都问模型。
-  Future<void> _maybeResidentFollowUp({
-    required PendingInteraction item,
-    required String authorId,
-    required List<AiPersona> pool,
-  }) async {
-    if (authorId.isEmpty || authorId == item.personaId) return;
-    if (_random.nextDouble() > residentFollowUpChance) return;
-
-    final content = (item.content ?? '').trim();
-    if (content.isEmpty) return;
-
-    try {
-      AiPersona? author;
-      for (final persona in pool) {
-        if (persona.id == authorId) author = persona;
-      }
-      if (author == null) return;
-
-      // 上文是"他原本说的那句话" + "别人回的那句"——楼上楼下就这两条
-      final post = await posts.findById(item.postId);
-      final mine = (post?.content ?? '').trim();
-      if (mine.isEmpty) return;
-
-      final lines = await generator.replies(
-        threads: [
-          ReplyThread(persona: author, mine: mine, yours: content),
-        ],
-        relations: await _loadRelations(),
-      );
-      final line = lines[authorId]?.trim() ?? '';
-      if (line.isEmpty) return;
-
-      // 他回的是哪个人：先看这一帖的临时网民快照，再回落到旧住民名单
-      var targetName = (await voiceRepo?.findById(item.personaId))?.name;
-      if (targetName == null) {
-        for (final persona in pool) {
-          if (persona.id == item.personaId) targetName = persona.name;
-        }
-      }
-
-      await interactions.insertFollowUp(
-        postId: item.postId,
-        personaId: authorId,
-        content: line,
-        parentId: item.id,
-        replyToName: targetName,
-        scheduledAt: DateTime.now().add(
-          Duration(minutes: 10 + _random.nextInt(50)),
-        ),
-      );
-    } catch (error) {
-      // 排不上就排不上：社区少一次来回，不是塌天的事
-      debugPrint('[追问] 住民之间这次没排上：$error');
-    }
+  /// 一条评论变成语音的概率。语气标签只做很小的区分。
+  static double _voiceChance(AiPersona persona) {
+    final model = persona.voiceModel;
+    if (model.contains('lazy') || model.contains('quiet')) return 0.34;
+    if (model.contains('warm') || model.contains('soft')) return 0.22;
+    return 0.16;
   }
+
+  /// 一条帖子下面最多留几条语音。
+  static const int maxVoicesPerPost = 2;
 
   /// AI 给评论点赞：每条最多 2 个，不通知、不写关系。
   Future<void> _maybeLikeComment({
@@ -667,38 +462,6 @@ class SchedulerService {
     }
   }
 
-  /// 读一次关系表，供拼提示词用（B4）。
-  ///
-  /// 读不出来就返回空表——那意味着"这批人跟你都还不熟"，评论照样有人写，
-  /// 只是少一点熟络。说话这件事不该被一本账卡住。
-  Future<Map<String, RelationshipState>> _loadRelations() async {
-    try {
-      return await relationships.loadAll();
-    } catch (error) {
-      debugPrint('[关系] 这次没读到关系：$error');
-      return const {};
-    }
-  }
-
-  /// 记一次「他和你之间发生了点什么」。
-  ///
-  /// 单独包起来：关系是我们自己的一本账，它写不进去不该把已经兑现的计数与
-  /// 通知一起赔进去——用户该看到的是"有人评论了你"，而不是因为关系没记上，
-  /// 连这条评论都消失。
-  Future<void> _recordRelationship(
-    PendingInteraction item, {
-    String? personaId,
-  }) async {
-    try {
-      await relationships.record(
-        personaId: personaId ?? item.personaId,
-        event: RelationshipRules.eventFrom(item.type),
-      );
-    } catch (error) {
-      debugPrint('[关系] 这次没能记上：$error');
-    }
-  }
-
   /// 兑现到点的策划事件。
   ///
   /// 评论会额外写一条已完成的互动（评论区用的还是同一套查询），
@@ -706,9 +469,6 @@ class SchedulerService {
   Future<int> flushPlanEvents() async {
     final due = await planEvents.duePending(DateTime.now());
     if (due.isEmpty) return 0;
-
-    final pool = await personas.loadAll();
-    final byId = {for (final p in pool) p.id: p};
 
     for (final event in due) {
       await planEvents.markExecuted(event.id);
@@ -723,7 +483,7 @@ class SchedulerService {
           // 没有名字和头像。这里先给 TA 在本帖落一个身份快照：
           // - 固定住民 → custom voice，以后还能认回主页和记忆；
           // - 内置住民 → 临时网友，复用它的名字、头像和音色。
-          final seat = await _planSeat(event.postId, personaId, byId);
+          final seat = await _planSeat(event.postId, personaId);
 
           // 脚本里写死的语音素材不一定在仓库里（演示音频常由素材方另行提供）。
           // 找不到那段音频就**现合成一条**：声音还是这位住民的固定音色，
@@ -820,69 +580,40 @@ class SchedulerService {
 
   /// 策划事件里的评论者，在这条帖子里是谁。
   ///
-  /// 新版评论区只认 post_voices：所以先把“脚本写的那个 id”翻译成
-  /// “这条帖子里的一个身份”，再写互动。固定住民和内置住民分开处理——
-  /// 前者要能认回主页/记忆，后者只是路过的临时网友。
-  Future<_PlanSeat> _planSeat(
-    String postId,
-    String personaId,
-    Map<String, AiPersona> byId,
-  ) async {
-    final persona = byId[personaId];
+  /// 旧住民下线之后，脚本只认固定住民；找不到就退回一个没有身份的名字。
+  Future<_PlanSeat> _planSeat(String postId, String residentId) async {
     final repo = voiceRepo;
-    if (repo == null) {
+    final custom = await residents?.findById(residentId);
+    if (custom == null || repo == null) {
       return _PlanSeat(
-        voiceId: personaId,
-        name: persona?.name ?? '社区住民',
-        voiceModel: persona?.voiceModel ?? '',
+        voiceId: residentId,
+        name: custom?.name ?? '社区住民',
+        voiceModel: custom?.toPersona().voiceModel ?? '',
       );
     }
 
-    final custom = await residents?.findById(personaId);
-    if (custom != null) {
-      final voiceId = 'voice_${custom.id}_$postId';
-      if (await repo.findById(voiceId) == null) {
-        await repo.insertAll([
-          PostVoice(
-            id: voiceId,
-            postId: postId,
-            kind: PostVoiceKind.custom,
-            residentId: custom.id,
-            name: custom.name,
-            avatarAsset: custom.avatarAsset,
-            bio: custom.bio,
-            languageStyle: custom.languageStyle,
-            tone: custom.tone,
-            createdAt: DateTime.now(),
-          ),
-        ]);
-      }
-      return _PlanSeat(voiceId: voiceId, name: custom.name, voiceModel: '');
-    }
-
-    if (persona == null) {
-      return _PlanSeat(voiceId: personaId, name: '社区住民', voiceModel: '');
-    }
-    final voiceId = 'planvoice_${postId}_$personaId';
+    final voiceId = 'voice_${custom.id}_$postId';
     if (await repo.findById(voiceId) == null) {
       await repo.insertAll([
         PostVoice(
           id: voiceId,
           postId: postId,
-          kind: PostVoiceKind.ephemeral,
-          name: persona.name,
-          avatarAsset: persona.avatar,
-          bio: persona.bio,
-          languageStyle: persona.languageStyle,
-          tone: persona.tone,
+          kind: PostVoiceKind.custom,
+          residentId: custom.id,
+          name: custom.name,
+          avatarAsset: custom.avatarAsset,
+          bio: custom.bio,
+          languageStyle: custom.languageStyle,
+          tone: custom.tone,
+          model: custom.toPersona().voiceModel,
           createdAt: DateTime.now(),
         ),
       ]);
     }
     return _PlanSeat(
       voiceId: voiceId,
-      name: persona.name,
-      voiceModel: persona.voiceModel,
+      name: custom.name,
+      voiceModel: custom.toPersona().voiceModel,
     );
   }
 
@@ -912,10 +643,8 @@ final schedulerServiceProvider = Provider<SchedulerService>(
     planEvents: ref.watch(planEventRepositoryProvider),
     posts: ref.watch(postRepositoryProvider),
     notifications: ref.watch(notificationRepositoryProvider),
-    personas: ref.watch(personaRepositoryProvider),
     analyses: ref.watch(analysisRepositoryProvider),
     generator: ref.watch(contentSourceProvider),
-    relationships: ref.watch(relationshipRepositoryProvider),
     voiceRepo: ref.watch(postVoiceRepositoryProvider),
     residents: ref.watch(customResidentRepositoryProvider),
     understandings: ref.watch(postUnderstandingRepositoryProvider),
@@ -923,7 +652,6 @@ final schedulerServiceProvider = Provider<SchedulerService>(
         ref.read(communitySettingsProvider).aiPeerInteractionLimit,
     readSendImagesDirectly: () =>
         ref.read(communitySettingsProvider).sendPostImagesDirectly,
-    memory: ref.watch(memorySummarizerProvider),
     voice: ref.watch(ttsServiceProvider),
     readVoiceSettings: () => ref.read(voiceSettingsControllerProvider),
     // 只有后台补发才推通知栏（B10）：前台那条路上，应用内的红点已经够了。
@@ -937,6 +665,5 @@ final schedulerServiceProvider = Provider<SchedulerService>(
         .schedule(key: key, at: at, title: title, body: body),
     cancelScheduledNotification: (key) =>
         ref.read(systemNotificationProvider).cancelScheduled(key),
-    readCoolDown: () => ref.read(safetyControllerProvider).coolDownMode,
   ),
 );

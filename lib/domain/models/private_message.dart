@@ -10,6 +10,7 @@ class PrivateMessage {
     required this.content,
     required this.createdAt,
     this.mediaType = 'text',
+    this.caption = '',
     this.voicePath = '',
     this.voiceDurationMs,
     this.transcript = '',
@@ -27,6 +28,10 @@ class PrivateMessage {
   /// text / voice / sticker / image。表情包把路径存在 [content] 里——
   /// 一个表情包就是一张图，为它单独开一列不值得。
   final String mediaType;
+
+  /// 图片描述 / 表情包的名字与标签。不是聊天正文，但住民要靠它
+  /// 知道“这张图里是什么、这个表情在表达什么”。
+  final String caption;
   final String voicePath;
   final int? voiceDurationMs;
   final String transcript;

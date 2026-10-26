@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.6.3+13
+version: 3.6.4+14
 
 environment:
   sdk: ^3.13.3
@@ -50,6 +50,7 @@ dependencies:
   sherpa_onnx: ^1.13.8
   workmanager: ^0.10.10
   share_plus: ^13.3.1
+  file_picker: ^13.3.0
 
 dev_dependencies:
   flutter_test:
@@ -115,9 +116,7 @@ flutter:
   # 各目录下的 _placeholder.png 是 1x1 占位图（保证空目录能被 Flutter 打包），
   # 放入真实素材后可以直接删掉。
   assets:
-    - assets/personas/          # 住民配置 personas.json（含圈层与作息）
-    - assets/demo/              # 三幕脚本资产（首次启动转成内置策划脚本）
-    - assets/avatars/           # 住民头像（文件名与 personas.json 的 id 对应）
+    - assets/avatars/           # 临时网民与固定住民的头像池
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
     # 离线语音模型（B8）：不带进 git 仓库，克隆后照目录里 _placeholder.txt

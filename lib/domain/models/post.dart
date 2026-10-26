@@ -20,7 +20,6 @@ class Post {
     this.scope = 'shared',
     this.allowAiReply = true,
     this.isHot = false,
-    this.authorPersonaId,
     this.authorResidentId,
     this.likedByMe = false,
   });
@@ -39,12 +38,6 @@ class Post {
   final bool allowAiReply;
   final bool isHot;
 
-  /// 住民自己发的动态记的是他的 id；用户发的是 null。
-  ///
-  /// 住民动态走同一张表（阶段 B 计划书决策 3），所以"这是谁发的"
-  /// 只能靠这一列分——信息流、帖子详情、通知都看它。
-  final String? authorPersonaId;
-
   /// 固定住民自己发的动态记的是他的 id；用户发的为空。
   final String? authorResidentId;
 
@@ -52,8 +45,7 @@ class Post {
   final bool likedByMe;
 
   bool get hasImages => images.isNotEmpty;
-  bool get isByResident =>
-      authorPersonaId != null || authorResidentId != null;
+  bool get isByResident => authorResidentId != null;
 
   Post copyWith({
     int? likeCount,
@@ -73,7 +65,6 @@ class Post {
       scope: scope,
       allowAiReply: allowAiReply,
       isHot: isHot ?? this.isHot,
-      authorPersonaId: authorPersonaId,
       authorResidentId: authorResidentId,
       likedByMe: likedByMe ?? this.likedByMe,
     );

@@ -138,6 +138,7 @@ class DirectTurn {
   const DirectTurn({
     required this.fromMe,
     required this.text,
+    this.caption = '',
     this.imageRef,
     this.at,
   });
@@ -146,12 +147,27 @@ class DirectTurn {
   final bool fromMe;
   final String text;
 
+  /// 图片描述 / 表情包的名字与标签。模型看不懂图时，靠它知道
+  /// “这张图里是什么、这个表情在表达什么”。
+  final String caption;
+
   /// 用户发来的图片（`file:` 引用）。原样进对话历史，不摘要。
   final String? imageRef;
 
   /// 这句话是什么时候说的。住民需要知道每条消息的时间，
   /// 不然“昨天说的”和“刚说的”在它眼里一模一样。
   final DateTime? at;
+
+  /// 给模型看的那一行：没有正文的图/表情包，至少把 caption 带上。
+  String get displayText {
+    final body = text.trim();
+    final note = caption.trim();
+    if (body.isEmpty) {
+      return note.isEmpty ? '[对方发来一张图片]' : '[图片：$note]';
+    }
+    if (note.isEmpty) return body;
+    return '$body（$note）';
+  }
 }
 
 /// 离线样本：从住民自己的预置台词里挑一条。

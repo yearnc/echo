@@ -93,6 +93,15 @@ class StickerRepository {
     ];
   }
 
+  /// 按图片引用找一张素材。私信发表情包时要把名字和标签写进 caption。
+  Future<StickerItem?> findByPath(String path) async {
+    final query = _db.select(_db.stickers)
+      ..where((t) => t.path.equals(path) & t.deletedAt.isNull())
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    return row == null ? null : _toItem(row);
+  }
+
   Future<int> countUserStickers() async {
     final count = _db.stickers.id.count();
     final query = _db.selectOnly(_db.stickers)

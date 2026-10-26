@@ -4,41 +4,6 @@ import 'content_tables.dart';
 
 /// AI 住民与互动类表（规划书 §8）。
 
-/// AI 人格。阶段 A 从 assets/personas.json 播种，阶段 B 支持用户自定义。
-@DataClassName('AiPersonaRow')
-class AiPersonas extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  TextColumn get avatar => text().withDefault(const Constant(''))();
-  TextColumn get bio => text().withDefault(const Constant(''))();
-  TextColumn get languageStyle => text().withDefault(const Constant(''))();
-  TextColumn get tone => text().withDefault(const Constant(''))();
-  TextColumn get activeHours => text().withDefault(const Constant('[]'))();
-  RealColumn get likeProbability => real().withDefault(const Constant(0.5))();
-  RealColumn get commentProbability =>
-      real().withDefault(const Constant(0.4))();
-  TextColumn get replyLength => text().withDefault(const Constant('medium'))();
-  TextColumn get voiceModel => text().withDefault(const Constant(''))();
-  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
-  TextColumn get scope => text().withDefault(const Constant('echo'))();
-  IntColumn get level => integer().withDefault(const Constant(1))();
-  TextColumn get badges => text().withDefault(const Constant('[]'))();
-  IntColumn get followers => integer().withDefault(const Constant(0))();
-  IntColumn get following => integer().withDefault(const Constant(0))();
-  TextColumn get personalityType => text().withDefault(const Constant(''))();
-
-  /// 圈层：信息流按圈子分发时的归属（日常 / 吐槽 / 深夜 / 运动 / 摄影 / 美食…）。
-  /// 空字符串表示"哪个圈子都沾一点"，分发时按「日常」算。
-  TextColumn get circle => text().withDefault(const Constant(''))();
-
-  BoolColumn get memoryEnabled => boolean().withDefault(const Constant(true))();
-  IntColumn get relationshipLevel => integer().withDefault(const Constant(0))();
-  IntColumn get deletedAt => integer().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
 /// AI 互动队列——阶段 A 的核心表。
 ///
 /// 发帖时就把 0—48 小时内的互动**排好队**（`scheduledAt`），
@@ -64,6 +29,10 @@ class AiInteractions extends Table {
   /// text / voice / image / emoji
   TextColumn get mediaType => text().nullable()();
   TextColumn get content => text().nullable()();
+
+  /// 图片评论配的一句话。表情包是内容、文字是“顺便说一句”，
+  /// 两者可以同时存在——以前只存 content，发表情包就把文字吞了。
+  TextColumn get caption => text().nullable()();
   TextColumn get voicePath => text().nullable()();
   TextColumn get transcript => text().nullable()();
   IntColumn get voiceDurationMs => integer().nullable()();

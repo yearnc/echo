@@ -111,8 +111,14 @@ class TtsService {
     // 念出来很奇怪；能读出人话才合成，读不出来就退回文字。
     if (!_worthSpeaking(transcript)) return null;
 
-    final preferCloud = readSource?.call() == VoiceSource.cloud;
+    // 克隆出来的音色、或者明确指定云端音色的，必须走云端——
+    // 否则“本机优先”会拿一个内置嗓子把它顶掉。
+    final forceCloud =
+        voiceModel.startsWith('cloud:') || voiceModel.startsWith('speech:');
+    final preferCloud = forceCloud || readSource?.call() == VoiceSource.cloud;
     final cloudConfig = await _cloudConfig();
+    final localSid = _localSidOf(voiceModel);
+    final cloudVoice = _cloudVoiceOf(voiceModel);
 
     // 用户选了云端、而且确实有一条能用的 TTS 配置：先走云端。
     // 云端失败（断网、额度、服务商抽风）就继续往下走本机，
@@ -123,6 +129,7 @@ class TtsService {
         transcript: transcript,
         personaId: personaId,
         voiceModel: voiceModel,
+        voiceOverride: cloudVoice,
       );
       if (clip != null) return clip;
       debugPrint('[语音] 云端没合成出来，退回本机');
@@ -132,6 +139,7 @@ class TtsService {
       transcript: transcript,
       personaId: personaId,
       voiceModel: voiceModel,
+      sid: localSid,
     );
     if (local != null) return local;
 
@@ -142,8 +150,25 @@ class TtsService {
         transcript: transcript,
         personaId: personaId,
         voiceModel: voiceModel,
+        voiceOverride: cloudVoice,
       );
     }
+    return null;
+  }
+
+  /// `local:42` → 42；不是这个格式就返回 null（说明走默认映射）。
+  static int? _localSidOf(String voiceModel) {
+    if (!voiceModel.startsWith('local:')) return null;
+    return int.tryParse(voiceModel.substring('local:'.length));
+  }
+
+  /// `cloud:anna` / `speech:...` → 直接交给服务商。
+  static String? _cloudVoiceOf(String voiceModel) {
+    if (voiceModel.startsWith('cloud:')) {
+      final value = voiceModel.substring('cloud:'.length).trim();
+      return value.isEmpty ? null : value;
+    }
+    if (voiceModel.startsWith('speech:')) return voiceModel;
     return null;
   }
 
@@ -165,6 +190,7 @@ class TtsService {
     required String transcript,
     required String personaId,
     required String voiceModel,
+    String? voiceOverride,
   }) async {
     final client = gateway;
     if (client == null) return null;
@@ -173,11 +199,13 @@ class TtsService {
       final bytes = await client.speech(
         config: config,
         text: transcript,
-        voice: ResidentVoice.cloudVoiceFor(
-          personaId,
-          voiceModel: voiceModel,
-          baseUrl: config.baseUrl,
-        ),
+        voice:
+            voiceOverride ??
+            ResidentVoice.cloudVoiceFor(
+              personaId,
+              voiceModel: voiceModel,
+              baseUrl: config.baseUrl,
+            ),
       );
       if (bytes.isEmpty) return null;
 
@@ -203,6 +231,7 @@ class TtsService {
     required String transcript,
     required String personaId,
     required String voiceModel,
+    int? sid,
   }) async {
     final engine = await _ensureEngine();
     if (engine == null) return null;
@@ -210,7 +239,9 @@ class TtsService {
     try {
       final audio = engine.generate(
         text: transcript,
-        sid: ResidentVoice.sidFor(personaId, voiceModel: voiceModel),
+        sid:
+            sid ??
+            ResidentVoice.sidFor(personaId, voiceModel: voiceModel),
         speed: ResidentVoice.speedFor(voiceModel),
       );
       if (audio.samples.isEmpty || audio.sampleRate <= 0) return null;

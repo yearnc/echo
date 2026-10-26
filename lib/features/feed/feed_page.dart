@@ -8,7 +8,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
@@ -187,28 +186,18 @@ class _PostCard extends ConsumerWidget {
             .map((comment) => comment.personaId)
             .whereType<String>()
             .toList(growable: false);
-    // 谁发的：固定住民 / 旧住民显示本人，用户自己发的才显示"我"。
-    // 三种动态躺在同一张表里，靠两个作者列区分。
+    // 谁发的：固定住民显示本人，用户自己发的才显示"我"。
     // 作者已经删掉时也要认出来——用“含已删除”的查询，否则会一路回落到
     // 我自己的名字和头像，看起来就像这条帖子是我发的。
     final resident = post.authorResidentId == null
         ? null
         : ref.watch(customResidentAnyByIdProvider(post.authorResidentId!));
-    final author = post.authorPersonaId == null
-        ? null
-        : ref.watch(personaByIdProvider(post.authorPersonaId!));
     final me = ref.watch(userProfileProvider).value;
-    final name = resident?.name ??
-        author?.name ??
-        me?.displayName ??
-        AppTexts.defaultNickname;
-    final avatarRef =
-        resident?.avatarAsset ?? author?.avatar ?? me?.avatarOrNull;
-    // 旧住民的头像和名字可以点开——那是"这个账号背后有个人"的入口；
+    final name =
+        resident?.name ?? me?.displayName ?? AppTexts.defaultNickname;
+    final avatarRef = resident?.avatarAsset ?? me?.avatarOrNull;
     // 固定住民还没有公开主页，点开不跳。
-    final openAuthor = author == null
-        ? null
-        : () => context.push(RoutePaths.resident(author.id));
+    const VoidCallback? openAuthor = null;
 
     return GestureDetector(
       onTap: () => context.push(RoutePaths.post(post.id)),
@@ -338,10 +327,7 @@ class _PostFooter extends ConsumerWidget {
         ));
         continue;
       }
-      final persona = ref.watch(personaByIdProvider(id));
-      if (persona != null) {
-        avatars.add((name: persona.name, avatarRef: persona.avatar));
-      }
+      // 旧住民已经下线；找不到对应的 post_voice 就不显示这张脸。
     }
 
     return Row(
@@ -393,8 +379,7 @@ class _PostMenu extends ConsumerWidget {
 
   final Post post;
 
-  bool get _isMine =>
-      post.authorPersonaId == null && post.authorResidentId == null;
+  bool get _isMine => post.authorResidentId == null;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

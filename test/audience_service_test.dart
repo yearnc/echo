@@ -2,67 +2,17 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo/data/db/app_database.dart';
-import 'package:echo/data/repositories/custom_resident_repository.dart';
 import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/notification_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/post_voice_repository.dart';
-import 'package:echo/data/repositories/resident_memory_repository.dart';
-import 'package:echo/domain/models/ai_persona.dart';
-import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/echo_settings.dart';
-import 'package:echo/domain/models/resident_post.dart';
 import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/models/post_understanding.dart';
-import 'package:echo/domain/models/post_voice.dart';
-import 'package:echo/domain/models/resident_memory.dart';
 import 'package:echo/domain/services/audience_service.dart';
 import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/post_voice_generator.dart';
-import 'package:echo/domain/services/relationship_rules.dart';
-
-class _FakeContent implements ContentGenerator {
-  Map<String, RelationshipState>? lastRelations;
-
-  @override
-  Future<Map<String, String>> comments({
-    required List<AiPersona> personas,
-    required Post post,
-    Map<String, RelationshipState> relations = const {},
-    PostUnderstanding? understanding,
-    bool sendImagesDirectly = false,
-  }) async {
-    lastRelations = relations;
-    return {for (final persona in personas) persona.id: '固定住民的评论'};
-  }
-
-  @override
-  Future<List<ResidentPostDraft>> residentPosts({
-    required List<ResidentMoment> moments,
-  }) async => const [];
-
-  @override
-  Future<Map<String, String>> directMessages({
-    required List<DirectThread> threads,
-    Map<String, RelationshipState> relations = const {},
-  }) async => const {};
-
-  @override
-  Future<Map<String, String>> replies({
-    required List<ReplyThread> threads,
-    Map<String, RelationshipState> relations = const {},
-  }) async => const {};
-
-  @override
-  Future<String?> peerReply({required PeerReplyThread thread}) async => null;
-
-  @override
-  Future<void> prewarm({
-    required Post post,
-    PostUnderstanding? understanding,
-  }) async {}
-}
 
 class _FakeGenerator implements PostVoiceGenerator {
   _FakeGenerator({this.drafts = const [], this.returnsEmpty = false});
@@ -130,8 +80,6 @@ void main() {
     _FakeGenerator generator, {
     ModelConfig? active,
     NotificationRepository? notifications,
-    CustomResidentRepository? customResidents,
-    ResidentMemoryRepository? memories,
     ContentGenerator? contentGenerator,
   }) => AudienceService(
     posts: posts,
@@ -140,8 +88,6 @@ void main() {
     generator: generator,
     activeConfig: () async => active,
     notifications: notifications,
-    customResidents: customResidents,
-    memories: memories,
     contentGenerator: contentGenerator,
   );
 
@@ -248,54 +194,6 @@ void main() {
     ).prepare(postId: postId, density: ReplyDensity.low, allowLurk: false);
 
     expect(generator.lastAllowLurk, isFalse);
-  });
-
-  test('固定住民每帖出现，带浏览和评论，并把记忆写进上下文', () async {
-    final customRepo = CustomResidentRepository(db);
-    final memoryRepo = ResidentMemoryRepository(db);
-    final content = _FakeContent();
-    final now = DateTime(2026, 10, 18, 21);
-    await customRepo.upsert(
-      CustomResident(
-        id: 'r1',
-        name: '小满',
-        bio: '住楼下，爱拍照',
-        alwaysShow: true,
-        createdAt: now,
-      ),
-    );
-    await memoryRepo.add(
-      ResidentMemory(
-        id: 'm1',
-        residentId: 'r1',
-        summary: '喜欢拍天空',
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-
-    final count = await build(
-      _FakeGenerator(returnsEmpty: true),
-      active: config,
-      customResidents: customRepo,
-      memories: memoryRepo,
-      contentGenerator: content,
-    ).prepare(postId: postId, density: ReplyDensity.low);
-
-    expect(count, 1);
-    final list = await voices.byPost(postId);
-    expect(list.single.kind, PostVoiceKind.custom);
-    expect(list.single.residentId, 'r1');
-
-    final rows = await db.select(db.aiInteractions).get();
-    expect(
-      rows.map((row) => row.type),
-      containsAll(['view', 'comment']),
-    );
-    expect(
-      content.lastRelations!.values.single.memorySummary,
-      contains('喜欢拍天空'),
-    );
   });
 
   test('连续三次失败会在通知页留一条提醒', () async {

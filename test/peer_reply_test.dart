@@ -6,7 +6,7 @@ import 'package:echo/data/repositories/interaction_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/post_voice_repository.dart';
 import 'package:echo/domain/models/post_voice.dart';
-import 'package:echo/domain/services/interaction_planner.dart';
+import 'package:echo/domain/models/planned_interaction.dart';
 
 void main() {
   late AppDatabase db;

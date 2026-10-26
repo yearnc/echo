@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
-import '../../data/repositories/persona_repository.dart';
 import '../../data/repositories/plan_script_repository.dart';
-import '../../domain/models/ai_persona.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/plan_script.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
@@ -29,7 +27,6 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
   final TextEditingController _contentCtrl = TextEditingController();
 
   PlanScript? _script;
-  List<AiPersona> _personas = const [];
   List<CustomResident> _residents = const [];
   List<PlanStep> _steps = [];
   String? _topic;
@@ -55,12 +52,10 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
     final script = await ref
         .read(planScriptRepositoryProvider)
         .findById(widget.scriptId);
-    final personas = await ref.read(personaRepositoryProvider).loadAll();
     final residents = await ref.read(customResidentRepositoryProvider).all();
     if (!mounted) return;
     setState(() {
       _script = script;
-      _personas = personas;
       _residents = residents;
       _nameCtrl.text = script?.name ?? '';
       _contentCtrl.text = script?.postContent ?? '';
@@ -78,8 +73,7 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: EchoColors.surface,
-      builder: (_) =>
-          _StepEditor(personas: _personas, residents: _residents),
+      builder: (_) => _StepEditor(residents: _residents),
     );
     if (step == null) return;
     setState(() => _steps = [..._steps, step]..sort(_byAt));
@@ -91,7 +85,6 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
       isScrollControlled: true,
       backgroundColor: EchoColors.surface,
       builder: (_) => _StepEditor(
-        personas: _personas,
         residents: _residents,
         initial: _steps[index],
       ),
@@ -227,7 +220,6 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
             for (var i = 0; i < _steps.length; i++)
               _StepTile(
                 step: _steps[i],
-                personas: _personas,
                 residents: _residents,
                 onTap: () => _editStep(i),
                 onDelete: () =>
@@ -320,14 +312,12 @@ class _TopicChip extends StatelessWidget {
 class _StepTile extends StatelessWidget {
   const _StepTile({
     required this.step,
-    required this.personas,
     required this.residents,
     required this.onTap,
     required this.onDelete,
   });
 
   final PlanStep step;
-  final List<AiPersona> personas;
   final List<CustomResident> residents;
   final VoidCallback onTap;
   final VoidCallback onDelete;
@@ -369,7 +359,7 @@ class _StepTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _summary(step, personas, residents),
+                    _summary(step, residents),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -391,21 +381,13 @@ class _StepTile extends StatelessWidget {
     );
   }
 
-  static String _summary(
-    PlanStep step,
-    List<AiPersona> personas,
-    List<CustomResident> residents,
-  ) {
+  static String _summary(PlanStep step, List<CustomResident> residents) {
     switch (step.type) {
       case PlanStepType.comment:
         final name = residents
-                .where((r) => r.id == step.personaId)
-                .map((r) => r.name)
-                .firstOrNull ??
-            personas
-                .where((p) => p.id == step.personaId)
-                .map((p) => p.name)
-                .firstOrNull;
+            .where((r) => r.id == step.personaId)
+            .map((r) => r.name)
+            .firstOrNull;
         final voice = step.mediaType == 'voice' ? '语音 · ' : '';
         return '$voice${name ?? step.personaId ?? '未指定'}：${step.content ?? ''}';
       case PlanStepType.likeBurst:
@@ -423,12 +405,10 @@ class _StepTile extends StatelessWidget {
 /// 单条事件的编辑器。
 class _StepEditor extends StatefulWidget {
   const _StepEditor({
-    required this.personas,
     required this.residents,
     this.initial,
   });
 
-  final List<AiPersona> personas;
   final List<CustomResident> residents;
   final PlanStep? initial;
 
@@ -458,11 +438,8 @@ class _StepEditorState extends State<_StepEditor> {
     final initial = widget.initial;
     _type = initial?.type ?? PlanStepType.comment;
     // 默认先选固定住民：新版 app 的评论区里，能留下长期关系的是他们。
-    _personaId =
-        initial?.personaId ??
-        (widget.residents.isNotEmpty
-            ? widget.residents.first.id
-            : (widget.personas.isEmpty ? null : widget.personas.first.id));
+    _personaId = initial?.personaId ??
+        (widget.residents.isEmpty ? null : widget.residents.first.id);
     _voice = initial?.mediaType == 'voice';
 
     _atCtrl = TextEditingController(text: initial?.at ?? '5');
@@ -630,8 +607,7 @@ class _StepEditorState extends State<_StepEditor> {
         return [
           const _FieldLabel('谁来评论'),
           _Dropdown<String>(
-            value: widget.residents.any((r) => r.id == _personaId) ||
-                    widget.personas.any((p) => p.id == _personaId)
+            value: widget.residents.any((r) => r.id == _personaId)
                 ? _personaId
                 : null,
             items: [
@@ -640,19 +616,14 @@ class _StepEditorState extends State<_StepEditor> {
                   value: resident.id,
                   child: Text('固定 · ${resident.name}'),
                 ),
-              for (final persona in widget.personas)
-                DropdownMenuItem(
-                  value: persona.id,
-                  child: Text('临时 · ${persona.name}'),
-                ),
             ],
             onChanged: (value) => setState(() => _personaId = value),
           ),
           const SizedBox(height: 4),
           Text(
             widget.residents.isEmpty
-                ? '还没有固定住民。去「设置 → 固定住民」添加，TA 才能在评论区留下长期关系。'
-                : '固定住民会在评论区有自己的身份；临时网友只在这一次脚本里出现。',
+                ? '还没有固定住民。去「设置 → 固定住民」添加，TA 才能在这条脚本里说话。'
+                : '脚本里的评论由固定住民发出，会用它自己的身份和音色。',
             style: TextStyle(
               color: EchoColors.textFaint,
               fontSize: 11,

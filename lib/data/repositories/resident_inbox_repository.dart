@@ -121,7 +121,7 @@ WHERE pv.resident_id = ? AND uc.deleted_at IS NULL
     final now = DateTime.now().millisecondsSinceEpoch;
     final dmRows = await _db.customSelect(
       '''
-SELECT pm.id, pm.content, pm.media_type, pm.created_at
+SELECT pm.id, pm.content, pm.media_type, pm.caption, pm.created_at
 FROM private_messages pm
 WHERE pm.persona_id = ? AND pm.direction = 'out' AND pm.deleted_at IS NULL
   AND pm.created_at > COALESCE((
@@ -140,6 +140,8 @@ LIMIT 6
     ).get();
     for (final dm in dmRows.toList().reversed) {
       final media = dm.readNullable<String>('media_type') ?? 'text';
+      final caption = dm.readNullable<String>('caption') ?? '';
+      final label = media == 'sticker' ? '表情包' : '图片';
       rows.add(
         _item(
           residentId: residentId,
@@ -147,7 +149,9 @@ LIMIT 6
           refId: dm.read<String>('id'),
           summary: media == 'text'
               ? (dm.readNullable<String>('content') ?? '')
-              : '[发来一张${media == 'sticker' ? '表情包' : '图片'}]',
+              : (caption.isEmpty
+                    ? '[发来一张$label]'
+                    : '[发来一张$label：$caption]'),
           at: dm.read<int>('created_at'),
         ),
       );

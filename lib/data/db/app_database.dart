@@ -30,10 +30,7 @@ part 'app_database.g.dart';
     AppSettings,
     UserProfile,
     Posts,
-    AiPersonas,
     AiInteractions,
-    AiRelationships,
-    PersonaRoutines,
     PrivateMessages,
     UserComments,
     CommentLikes,
@@ -70,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 40;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,8 +90,7 @@ class AppDatabase extends _$AppDatabase {
         // 所以删表重建最简单——下次启动会按新结构重新播种。
         await m.createTable(planScripts);
         await m.createTable(planEvents);
-        await m.deleteTable('ai_personas');
-        await m.createTable(aiPersonas);
+        // ai_personas 在 v37 整体下线；这里不再重建它。
       }
       if (from < 4) {
         // v4：清掉旧的播种内容（三幕演示帖 + 清醒模式示例记录）。
@@ -140,12 +136,10 @@ class AppDatabase extends _$AppDatabase {
         //
         // 全是**新增**，没有删改既有结构——老库升上来时帖子、互动、设置、
         // 记录一概不动，这是这一版迁移唯一要保证的事。
-        await m.createTable(aiRelationships);
-        await m.createTable(personaRoutines);
         await m.createTable(privateMessages);
         await m.createTable(topics);
-        await m.addColumn(posts, posts.authorPersonaId);
-        await m.addColumn(aiPersonas, aiPersonas.circle);
+        // v9 曾经给 posts 加过 author_persona_id；旧住民在 v37 整套下线，
+        // 新库不再创建这一列。
       }
       if (from < 10) {
         // v10：模型配置分用途（对话 / 文生图）。
@@ -320,7 +314,6 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(customResidents, customResidents.description);
           await m.addColumn(customResidents, customResidents.personality);
           await m.addColumn(customResidents, customResidents.scenario);
-          await m.addColumn(customResidents, customResidents.firstMessage);
           await m.addColumn(customResidents, customResidents.exampleDialogue);
           await m.addColumn(
             customResidents,
@@ -612,6 +605,230 @@ class AppDatabase extends _$AppDatabase {
         // 历史迁移链保持原样（老库升上来会先建再删），新库则完全不建。
         await customStatement('DROP TABLE IF EXISTS group_messages');
         await customStatement('DROP TABLE IF EXISTS group_chats');
+      }
+      // 旧迁移里有些表是用**当前**定义重新建的，重建出来就已经带了新列。
+      // 所以补列之前不只要确认表在，还要确认列不在——否则会 duplicate column。
+      Future<bool> hasTable(String name) async {
+        final row = await customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name = ?",
+          variables: [Variable<String>(name)],
+        ).getSingleOrNull();
+        return row != null;
+      }
+
+      Future<bool> hasColumn(String table, String column) async {
+        final rows = await customSelect('PRAGMA table_info("$table")').get();
+        return rows.any((row) => row.read<String>('name') == column);
+      }
+
+      if (from < 35) {
+        // v35：图片/表情包的语义要传给住民。
+        // - 私信：记录图片描述或表情包的名字、标签；
+        // - AI 评论：表情包 + 一句话可以同时存在，不再二选一。
+        if (await hasTable('private_messages') &&
+            !await hasColumn('private_messages', 'caption')) {
+          await m.addColumn(privateMessages, privateMessages.caption);
+        }
+        if (await hasTable('ai_interactions') &&
+            !await hasColumn('ai_interactions', 'caption')) {
+          await m.addColumn(aiInteractions, aiInteractions.caption);
+        }
+      }
+      if (from < 36) {
+        // v36：每个固定住民的音色。默认不说语音，用户自己开。
+        if (await hasTable('custom_residents')) {
+          for (final entry in <String, GeneratedColumn>{
+            'voice_enabled': customResidents.voiceEnabled,
+            'voice_description': customResidents.voiceDescription,
+            'voice_sample_path': customResidents.voiceSamplePath,
+            'voice_sample_text': customResidents.voiceSampleText,
+            'voice_ref': customResidents.voiceRef,
+          }.entries) {
+            if (!await hasColumn('custom_residents', entry.key)) {
+              await m.addColumn(customResidents, entry.value);
+            }
+          }
+        }
+      }
+      if (from < 37) {
+        // v37：旧住民整套下线。
+        //
+        // 他们不是“用户配置的人”，而是阶段 A 从 assets 播种的 32 位旧住民。
+        // 从此以后社区只由固定住民 + 临时网民组成。旧住民的账号、帖子、
+        // 评论、私信、关系、作息全部清掉，不给 UI 留孤儿数据。
+        final hasPersonas = await hasTable('ai_personas');
+        final hasPosts = await hasTable('posts');
+        final hasInteractions = await hasTable('ai_interactions');
+        final hasPostVoices = await hasTable('post_voices');
+        final hasUserComments = await hasTable('user_comments');
+        final hasCommentLikes = await hasTable('comment_likes');
+        final hasPostViews = await hasTable('post_views');
+        final hasNotifications = await hasTable('notification_logs');
+        final hasPlanEvents = await hasTable('plan_events');
+        final hasActionLogs = await hasTable('action_logs');
+        final hasPrivateMessages = await hasTable('private_messages');
+        final hasUnderstandings = await hasTable('post_understandings');
+        final hasThreads = await hasTable('ai_threads');
+        final hasPostsAuthor = hasPosts &&
+            await hasColumn('posts', 'author_persona_id');
+
+        // 1. 旧住民留下的评论/互动（先删孩子，再删帖子）。
+        if (hasInteractions) {
+          if (hasPersonas) {
+            await customStatement(
+              'DELETE FROM ai_interactions WHERE persona_id IN '
+              '(SELECT id FROM ai_personas)',
+            );
+          }
+          if (hasPostVoices) {
+            await customStatement(
+              "DELETE FROM ai_interactions WHERE persona_id IN "
+              "(SELECT id FROM post_voices WHERE kind = 'builtin')",
+            );
+          }
+          if (hasPostsAuthor) {
+            await customStatement(
+              'DELETE FROM ai_interactions WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+        }
+
+        // 2. 旧帖子的浏览量、评论、通知、解析、线程、身份快照。
+        if (hasPostsAuthor) {
+          if (hasPostViews) {
+            await customStatement(
+              'DELETE FROM post_views WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+            if (hasPostVoices) {
+              await customStatement(
+                "DELETE FROM post_views WHERE voice_id IN "
+                "(SELECT id FROM post_voices WHERE kind = 'builtin')",
+              );
+            }
+          }
+          if (hasUserComments) {
+            await customStatement(
+              'DELETE FROM user_comments WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+          if (hasNotifications) {
+            await customStatement(
+              'DELETE FROM notification_logs WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+          if (hasUnderstandings) {
+            await customStatement(
+              'DELETE FROM post_understandings WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+          if (hasThreads) {
+            await customStatement(
+              'DELETE FROM ai_threads WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+          if (hasPostVoices) {
+            await customStatement(
+              'DELETE FROM post_voices WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+          if (hasInteractions) {
+            await customStatement(
+              'DELETE FROM ai_interactions WHERE post_id IN '
+              '(SELECT id FROM posts WHERE author_persona_id IS NOT NULL)',
+            );
+          }
+        }
+
+        // 3. 旧住民的身份快照、私信、策划事件、动作日志。
+        if (hasPostVoices) {
+          await customStatement(
+            "DELETE FROM post_voices WHERE kind = 'builtin'",
+          );
+        }
+        if (hasPrivateMessages && hasPersonas) {
+          await customStatement(
+            'DELETE FROM private_messages WHERE persona_id IN '
+            '(SELECT id FROM ai_personas)',
+          );
+        }
+        if (hasPlanEvents && hasPersonas) {
+          await customStatement(
+            'DELETE FROM plan_events WHERE persona_id IN '
+            '(SELECT id FROM ai_personas)',
+          );
+        }
+        if (hasActionLogs && hasPersonas) {
+          await customStatement(
+            'DELETE FROM action_logs WHERE actor_id IN '
+            '(SELECT id FROM ai_personas)',
+          );
+        }
+
+        // 4. 删掉旧住民发的帖子本身。
+        if (hasPostsAuthor) {
+          await customStatement(
+            'DELETE FROM posts WHERE author_persona_id IS NOT NULL',
+          );
+        }
+
+        // 5. 评论的赞只保留还存在的评论。
+        if (hasCommentLikes && hasInteractions) {
+          final keepUserComments = hasUserComments
+              ? ' AND comment_id NOT IN (SELECT id FROM user_comments)'
+              : '';
+          await customStatement(
+            'DELETE FROM comment_likes WHERE comment_id NOT IN '
+            '(SELECT id FROM ai_interactions)$keepUserComments',
+          );
+        }
+
+        // 6. posts 去掉 author_persona_id（连外键一起），再删旧表。
+        if (hasPostsAuthor) {
+          await m.alterTable(TableMigration(posts));
+        }
+        await customStatement('DROP TABLE IF EXISTS ai_relationships');
+        await customStatement('DROP TABLE IF EXISTS persona_routines');
+        await customStatement('DROP TABLE IF EXISTS ai_personas');
+      }
+      if (from < 38) {
+        // v38：「每帖必到」拆掉，两个 always_show 列一起下线。
+        // 用 alterTable 重建，数据原样保留，只少这一列。
+        if (await hasTable('custom_residents')) {
+          await m.alterTable(TableMigration(customResidents));
+        }
+        if (await hasTable('post_voices')) {
+          await m.alterTable(TableMigration(postVoices));
+        }
+      }
+      if (from < 39) {
+        // v39：固定住民的两个半废弃字段（first_message / active_hours）
+        // 一起下线；它们不再参与提示词或唤醒。
+        if (await hasTable('custom_residents')) {
+          await m.alterTable(TableMigration(customResidents));
+        }
+      }
+      if (from < 40) {
+        // v40：内置策划脚本还是旧住民的内容资产，整套清掉。
+        // 用户自己建的脚本（is_built_in = 0）不动。
+        if (await hasTable('plan_events') && await hasTable('plan_scripts')) {
+          await customStatement(
+            'DELETE FROM plan_events WHERE script_id IN '
+            '(SELECT id FROM plan_scripts WHERE is_built_in = 1)',
+          );
+        }
+        if (await hasTable('plan_scripts')) {
+          await customStatement(
+            'DELETE FROM plan_scripts WHERE is_built_in = 1',
+          );
+        }
       }
     },
   );

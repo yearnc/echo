@@ -123,7 +123,7 @@ class Trending {
     final counts = <String, int>{};
 
     for (final post in residentPosts) {
-      final author = post.authorPersonaId?.trim() ?? '';
+      final author = post.authorResidentId?.trim() ?? '';
       if (author.isEmpty) continue;
       if (post.createdAt.isBefore(since)) continue;
       counts[author] = (counts[author] ?? 0) + 1;

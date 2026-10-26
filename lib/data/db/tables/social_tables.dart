@@ -1,66 +1,6 @@
 import 'package:drift/drift.dart';
 
-import 'ai_tables.dart';
 import 'content_tables.dart';
-
-/// 社区关系层（阶段 B）。
-///
-/// 阶段 A 的社区是**单向**的：住民只在"你的帖子"下面出现，彼此之间没有关系，
-/// 也不记得你发过什么。这一组表就是那条分界线——住民从这里开始有生活轨迹、
-/// 和你的关系会变、会私信你。
-///
-/// 表先建、业务后写：这几张表的形状是由规划书 §3 / §8 定下来的，
-/// 与其在 B3—B6 里各迁一次，不如地基一次打好（每次迁移都要面对
-/// "老库升上来会不会丢数据"这个问题，能少问一次就少问一次）。
-
-/// 住民与用户的关系（规划书 §8 `ai_relationships`）。
-///
-/// 一行 = 一个住民。存的是**当前状态**，不是往来流水——
-/// 具体说过什么在 `ai_interactions` 里，这里只留"到哪一步了"。
-@DataClassName('AiRelationshipRow')
-class AiRelationships extends Table {
-  TextColumn get personaId => text().references(AiPersonas, #id)();
-
-  /// 亲密档位：0 陌生 → 1 眼熟 → 2 互关 → 3 熟人 → 4 好友
-  /// （规划书 §3.9）。存数字而不是字符串，是因为它要被比较和排序。
-  IntColumn get relationshipLevel => integer().withDefault(const Constant(0))();
-  IntColumn get intimacy => integer().withDefault(const Constant(0))();
-
-  /// 互动次数。与 `intimacy` 分开：一个是"聊过几回"，一个是"多亲近"——
-  /// 十条礼貌回复不该等于一次深夜长谈。
-  IntColumn get interactionCount => integer().withDefault(const Constant(0))();
-  IntColumn get lastInteractionAt => integer().nullable()();
-
-  /// 压缩过的「我记得你…」。
-  ///
-  /// 不是聊天记录：全量历史喂给模型既贵又没必要，还有隐私上的顾虑
-  /// （用户的帖文不该被整段搬进每一次请求）。见阶段 B 计划书决策 4。
-  TextColumn get memorySummary => text().withDefault(const Constant(''))();
-
-  /// 谁关注了谁：none / following / followed / mutual
-  TextColumn get followState => text().withDefault(const Constant('none'))();
-
-  TextColumn get scope => text().withDefault(const Constant('echo'))();
-  IntColumn get updatedAt => integer()();
-
-  @override
-  Set<Column> get primaryKey => {personaId};
-}
-
-/// 住民的生活轨迹（规划书 §3.2）。
-///
-/// 一行 = 某个住民在某个钟点、在某个地方、做某件事。
-/// 住民自己的动态（B3）就是从这里长出来的：通勤的人发通勤的牢骚，
-/// 夜里活跃的人发夜里的东西。空着也不影响——动态生成会退回通用模板。
-@DataClassName('PersonaRoutineRow')
-@TableIndex(name: 'persona_routines_persona', columns: {#personaId})
-class PersonaRoutines extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get personaId => text().references(AiPersonas, #id)();
-  IntColumn get hour => integer()();
-  TextColumn get place => text().withDefault(const Constant(''))();
-  TextColumn get activity => text().withDefault(const Constant(''))();
-}
 
 /// 私信（规划书 §3.5 / §6.2）。
 ///
@@ -80,6 +20,12 @@ class PrivateMessages extends Table {
 
   /// text / voice / sticker / image
   TextColumn get mediaType => text().withDefault(const Constant('text'))();
+
+  /// 图片的描述，或者表情包的名字/标签。
+  ///
+  /// 住民看不到用户手机里的图时，至少要知道“这张图里是什么”；
+  /// 表情包同理——只写“发来一个表情包”，下次聊天就什么也用不上。
+  TextColumn get caption => text().withDefault(const Constant(''))();
   TextColumn get voicePath => text().nullable()();
   TextColumn get transcript => text().nullable()();
   IntColumn get createdAt => integer()();

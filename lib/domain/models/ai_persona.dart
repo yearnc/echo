@@ -20,10 +20,10 @@ class PersonaRoutine {
   );
 }
 
-/// AI 住民（规划书 §3.3）。
+/// 内容生成层认识的“说话人”形状。
 ///
-/// 字段与 `assets/personas/personas.json` 一一对应。人格是"内容资产"，
-/// 所以放在 JSON 里而不是代码里——后续加人格、换头像、调语气都不用改 Dart。
+/// 临时网民和固定住民都会翻译成它再交给模型；它不再是旧住民的内容资产。
+/// 旧住民整套已经下线，这里只保留生成层需要的字段。
 class AiPersona {
   const AiPersona({
     required this.id,
