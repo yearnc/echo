@@ -81,6 +81,41 @@ void main() {
   });
 
   group('工具清单回归', () {
+    test('唤醒专用工具里有 read_post，且基础工具没被误删', () {
+      final names = {
+        for (final tool in ResidentToolSession.wakeOnlyTools)
+          (tool['function'] as Map)['name'] as String,
+      };
+      expect(
+        names,
+        containsAll([
+          'browse_feed',
+          'read_post',
+          'like_post',
+          'comment_post',
+          'finish',
+          'check_wake_log',
+          'leave_note',
+        ]),
+      );
+
+      final readPost = ResidentToolSession.wakeOnlyTools.firstWhere(
+        (tool) => (tool['function'] as Map)['name'] == 'read_post',
+      );
+      final parameters = (readPost['function'] as Map)['parameters'] as Map;
+      final properties = parameters['properties'] as Map;
+      expect(
+        properties.keys,
+        containsAll([
+          'post_id',
+          'include_comments',
+          'comments_limit',
+          'include_replies',
+        ]),
+      );
+      expect(parameters['required'], contains('post_id'));
+    });
+
     test('基础工具没有被误删', () {
       final names = {
         for (final tool in ResidentToolSession.tools)

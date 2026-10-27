@@ -79,6 +79,15 @@ abstract class ResidentWakeToolkit {
 
   Future<ActionOutcome> browseFeed();
 
+  /// 点开一条帖子：完整正文、赞/评论/浏览、评论区，以及（模型能看图时）
+  /// 原图。post_id 来自 `browse_feed`。
+  Future<ActionOutcome> readPost(
+    String postId, {
+    bool includeComments = true,
+    int commentsLimit = 20,
+    bool includeReplies = true,
+  });
+
   Future<ActionOutcome> likePost(String postId, String callId);
 
   Future<ActionOutcome> generateImage(String prompt, String callId);
@@ -145,6 +154,7 @@ class ResidentToolSession {
     'memory_write' || 'memory_update' || 'memory_delete' => '正在记下来…',
     'web_search' => '正在搜索…',
     'browse_feed' => '正在刷帖子…',
+    'read_post' => '正在点开帖子…',
     'like_post' => '正在点赞…',
     'comment_post' => '正在写评论…',
     'create_post' => '正在发动态…',
@@ -315,6 +325,9 @@ class ResidentToolSession {
     );
     _report(resident, '正在看消息…', ResidentActivityKind.reading);
     final memoryLines = await _prefetch(resident);
+    // 一轮里附加的原图总额度：一次 read_post 最多 4 张，整轮最多 8 张，
+    // 免得连着点开好几条带图的帖子把上下文撑爆。
+    var imagesAttached = 0;
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
@@ -435,6 +448,16 @@ class ResidentToolSession {
             outcome = await toolkit.finish();
           case 'browse_feed':
             outcome = await toolkit.browseFeed();
+          case 'read_post':
+            {
+              final limit = args['comments_limit'];
+              outcome = await toolkit.readPost(
+                (args['post_id'] as String?) ?? '',
+                includeComments: (args['include_comments'] as bool?) ?? true,
+                commentsLimit: limit is num ? limit.toInt() : 20,
+                includeReplies: (args['include_replies'] as bool?) ?? true,
+              );
+            }
           case 'like_post':
             outcome = await toolkit.likePost(
               (args['post_id'] as String?) ?? '',
@@ -482,11 +505,50 @@ class ResidentToolSession {
               memorySource: 'wake',
             );
         }
+        final toolData = Map<String, dynamic>.from(outcome.data);
+        final refsRaw = toolData.remove('__image_refs');
+        final toolOutcome = refsRaw == null
+            ? outcome
+            : ActionOutcome(
+                ok: outcome.ok,
+                message: outcome.message,
+                data: toolData,
+              );
         messages.add({
           'role': 'tool',
           'tool_call_id': call.id,
-          'content': outcome.toToolResult(),
+          'content': toolOutcome.toToolResult(),
         });
+
+        // read_post 的图片：模型能看图就直接附原图，不做“先描述再降级”。
+        if (call.name == 'read_post' && refsRaw is List) {
+          final refs = refsRaw.whereType<String>().toList(growable: false);
+          if (refs.isNotEmpty && config.supportsVision) {
+            if (imagesAttached >= 8) {
+              messages.add({
+                'role': 'user',
+                'content': '这一轮附带的图片额度已经用完，后面的帖子图不再附上。',
+              });
+            } else {
+              final parts = await ImagePayload.partsFromRefs(refs, limit: 4);
+              if (parts.isNotEmpty) {
+                imagesAttached += parts.length;
+                messages.add({
+                  'role': 'user',
+                  'content': [
+                    {
+                      'type': 'text',
+                      'text':
+                          '这是你刚点开的帖子里的图片'
+                          '${refs.length > parts.length ? '（只附了前 ${parts.length} 张）' : ''}。',
+                    },
+                    ...parts,
+                  ],
+                });
+              }
+            }
+          }
+        }
       }
     }
 
@@ -547,7 +609,8 @@ $persona
 - 你也有自己的日志：check_wake_log 能看今天什么时候醒过；
   想给下一次醒来的自己留句话就用 leave_note（可留可不留，别写成日记）。
 - 没有待办时，可以自己发条动态（create_post，用户关了开关就发不了）、
-  刷一刷别人发的帖子（browse_feed）、点个赞（like_post）、
+  刷一刷别人发的帖子（browse_feed）、点进一条仔细看（read_post：完整正文、
+  评论和图片都在里面，会留下浏览记录）、点个赞（like_post）、
   在别人的帖子下留句话（comment_post，post_id 来自 browse_feed），
   或者给聊过的人发条私信（send_dm）——想分享点什么、想问问对方近况都可以；
   也可以什么都不做。自己的帖子下面回评论用 reply_inbox，不要用 comment_post。
@@ -897,7 +960,7 @@ $persona
         if (allowProactive || _functionName(tool) != 'create_post') tool,
     ];
     final wakeOnly = [
-      for (final tool in _wakeOnlyTools)
+      for (final tool in wakeOnlyTools)
         if (allowProactive ||
             !const {
               'browse_feed',
@@ -993,7 +1056,7 @@ $persona
     },
   ];
 
-  static const List<Map<String, dynamic>> _wakeOnlyTools = [
+  static const List<Map<String, dynamic>> wakeOnlyTools = [
     {
       'type': 'function',
       'function': {
@@ -1043,6 +1106,36 @@ $persona
             '刷到就会留下浏览记录，对方点开浏览量名单能看到你来过；'
             '自己的帖子不算。',
         'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'read_post',
+        'description':
+            '点开一条帖子，看完整正文、图片、赞/评论/浏览数和评论区。'
+            'post_id 来自 browse_feed。点进去会留下浏览记录。'
+            '如果模型能看图，帖子图片会以原图附在工具结果后面；'
+            '看不到图时只会知道有几张，不要猜内容。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'post_id': {'type': 'string'},
+            'include_comments': {
+              'type': 'boolean',
+              'description': '要不要看评论，默认 true',
+            },
+            'comments_limit': {
+              'type': 'integer',
+              'description': '最多看几条顶层评论，默认 20，最多 50',
+            },
+            'include_replies': {
+              'type': 'boolean',
+              'description': '是否带上评论下的回复，默认 true',
+            },
+          },
+          'required': ['post_id'],
+        },
       },
     },
     {

@@ -18,6 +18,7 @@ import '../../data/repositories/user_profile_repository.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import '../models/post.dart';
+import '../models/post_voice.dart';
 import '../models/private_message.dart';
 import '../models/resident_inbox.dart';
 import '../models/resident_wake_log.dart';
@@ -349,6 +350,7 @@ class ResidentWakeService {
       // 只有语音因为耗时太长、后台预算不稳定而不开放。
       allowProactive: true,
       allowVoice: trigger != WakeTrigger.background,
+      visionEnabled: config.supportsVision,
     );
 
     try {
@@ -774,6 +776,110 @@ class ResidentWakeService {
     }
   }
 
+  /// 点开一条帖子时返回的完整详情。
+  ///
+  /// 纯函数，方便单独验证正文、评论作者和楼层结构；浏览记录由调用方写。
+  @visibleForTesting
+  static Map<String, dynamic> postDetail({
+    required Post post,
+    required List<PostComment> comments,
+    required List<PostVoice> voices,
+    required int viewCount,
+    required String authorName,
+    bool includeComments = true,
+    int commentsLimit = 20,
+    bool includeReplies = true,
+  }) {
+    final voiceById = {for (final voice in voices) voice.id: voice};
+
+    String authorOf(PostComment comment) {
+      final id = comment.personaId;
+      if (id == null) return '你';
+      return voiceById[id]?.name ?? '已离开的网民';
+    }
+
+    String typeOf(PostComment comment) {
+      final id = comment.personaId;
+      if (id == null) return '用户';
+      final voice = voiceById[id];
+      if (voice == null) return '网民';
+      return voice.residentId == null ? '临时网民' : '固定住民';
+    }
+
+    String textOf(PostComment comment) {
+      final content = (comment.content ?? '').trim();
+      final caption = comment.caption.trim();
+      final text = switch (comment.mediaType) {
+        CommentMedia.voice =>
+          '[语音] ${(comment.transcript ?? '').trim()}'.trim(),
+        CommentMedia.image => '[图片]${caption.isEmpty ? '' : ' $caption'}',
+        CommentMedia.emoji => '[表情包]${caption.isEmpty ? '' : ' $caption'}',
+        CommentMedia.text => content.isEmpty ? caption : content,
+      };
+      return _clip(text, 300);
+    }
+
+    final top = <PostComment>[];
+    final replies = <String, List<PostComment>>{};
+    for (final comment in comments) {
+      final parent = comment.parentId;
+      if (parent == null || parent.isEmpty) {
+        top.add(comment);
+      } else {
+        replies.putIfAbsent(parent, () => []).add(comment);
+      }
+    }
+
+    final limit = commentsLimit.clamp(0, 50);
+    final shownTop = top.length > limit ? top.sublist(top.length - limit) : top;
+    final items = <Map<String, Object?>>[];
+    if (includeComments && limit > 0) {
+      for (final comment in shownTop) {
+        final item = <String, Object?>{
+          'id': comment.id,
+          'author': authorOf(comment),
+          'author_type': typeOf(comment),
+          'time': ResidentToolSession.timeLabel(comment.createdAt),
+          'content': textOf(comment),
+          'likes': comment.likeCount,
+        };
+        if (includeReplies) {
+          final list = replies[comment.id] ?? const <PostComment>[];
+          if (list.isNotEmpty) {
+            item['replies'] = [
+              for (final reply in list.take(2))
+                {
+                  'author': authorOf(reply),
+                  'author_type': typeOf(reply),
+                  'time': ResidentToolSession.timeLabel(reply.createdAt),
+                  'content': textOf(reply),
+                  'likes': reply.likeCount,
+                },
+            ];
+          }
+        }
+        items.add(item);
+      }
+    }
+
+    final content = post.content.trim();
+    return {
+      'id': post.id,
+      'author': authorName,
+      'author_type': post.authorResidentId == null ? '用户' : '固定住民',
+      'time': ResidentToolSession.timeLabel(post.createdAt),
+      'topic': post.topicName ?? '',
+      'content': _clip(content, 2000),
+      if (content.length > 2000) 'content_truncated': true,
+      'likes': post.likeCount,
+      'comments': post.commentCount,
+      'views': viewCount,
+      'images': post.images.length,
+      if (includeComments) 'shown_comments': items.length,
+      if (includeComments) 'comments_list': items,
+    };
+  }
+
   /// 刷帖返回的一条帖子：把作者、时间、话题和计数都摊开。
   ///
   /// 纯函数，不写库；浏览记录由 [markSeen] 负责。
@@ -805,6 +911,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     required this.now,
     required this.allowProactive,
     required this.allowVoice,
+    required this.visionEnabled,
   });
 
   final ResidentWakeService service;
@@ -816,6 +923,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   /// 后台唤醒不给语音：合成一句话几十秒，后台预算扛不住。
   final bool allowVoice;
+
+  /// 对话模型能不能看图。能看就直接附原图，不能就只告诉它有几张。
+  final bool visionEnabled;
 
   bool finished = false;
   bool spokePrivately = false;
@@ -1021,6 +1131,63 @@ class _WakeToolkit implements ResidentWakeToolkit {
         ],
       },
     );
+  }
+
+  @override
+  Future<ActionOutcome> readPost(
+    String postId, {
+    bool includeComments = true,
+    int commentsLimit = 20,
+    bool includeReplies = true,
+  }) async {
+    final id = postId.trim();
+    if (id.isEmpty) {
+      return const ActionOutcome(ok: false, message: '没有给帖子 id');
+    }
+    try {
+      final post = await service.posts.watchById(id).first;
+      if (post == null) {
+        return const ActionOutcome(ok: false, message: '没有这条帖子');
+      }
+      // 点进去也算看过：浏览名单里留痕，和刷帖一致。
+      await service.markSeen(resident: resident, post: post);
+
+      final comments = includeComments
+          ? await service.interactions.watchComments(id).first
+          : const <PostComment>[];
+      final voices = await service.voices.byPost(id);
+      final views = await service.voices.viewCount(id);
+      final authorId = post.authorResidentId;
+      final authorName = authorId == null
+          ? '你'
+          : (await service.residents.findById(authorId))?.name ?? '已离开的住民';
+
+      final data = ResidentWakeService.postDetail(
+        post: post,
+        comments: comments,
+        voices: voices,
+        viewCount: views,
+        authorName: authorName,
+        includeComments: includeComments,
+        commentsLimit: commentsLimit,
+        includeReplies: includeReplies,
+      );
+      if (post.images.isNotEmpty) {
+        data['__image_refs'] = post.images;
+      }
+
+      final imageCount = post.images.length;
+      final message = !includeComments
+          ? '点开了这条帖子（没看评论）'
+          : imageCount == 0
+          ? '点开了这条帖子'
+          : visionEnabled
+          ? '点开了这条帖子；图片会随后附上（一次最多 4 张）'
+          : '点开了这条帖子；有 $imageCount 张图，但你的模型看不了图片，不要猜内容';
+      return ActionOutcome(ok: true, message: message, data: data);
+    } catch (error) {
+      return ActionOutcome(ok: false, message: '读这条帖子失败：$error');
+    }
   }
 
   @override
