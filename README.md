@@ -172,10 +172,10 @@ APK 仍使用 Flutter 模板默认的调试签名，只用于侧载测试。
 
 ## 下载
 
-当前源码版本 **v3.9.0**（schema v42）。arm64 APK 已经构建好，
-放在开发机的桌面 `echo-v3.9.0-arm64.apk`（308.3MB / 323,258,798 字节，
-SHA256 `96fd86ad…` 开头），还没有发布到 Releases；更早的版本在
-[**Releases**](https://github.com/yearnc/echo/releases) 里。
+当前版本 **v3.9.0**（schema v42）的源码与 arm64 APK 见
+[**Releases**](https://github.com/yearnc/echo/releases/tag/v3.9.0)
+（附件 `echo-v3.9.0-arm64.apk`，308.3MB / 323,258,798 字节，
+SHA256 `96fd86ad…6cc585f`）。更早的版本也在 Releases 里。
 
 - **策划脚本排期、清醒模式**可以离线跑，不需要 API Key；
 - **临时网民、帖子解析、固定住民唤醒与私信、表情包选择、身份前缀需要配置一个对话模型**（任意 OpenAI 兼容接口，且支持 function calling）；没配模型时帖子照发，只是不会有人来；
