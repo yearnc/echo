@@ -27,13 +27,16 @@ void main() {
 
   group('云端音色', () {
     test('按住民性别挑名字，不把女声配成男声', () {
-      // persona_001 在固定表里是 0（女声），persona_002 是 10（男声）
+      // v3.8 起本机只有 5 个声线，性别要靠语气标签来判：
+      // 默认落到女声池，标了 male 的走唯一的男声（sid 4）。
       final female = ResidentVoice.cloudVoiceFor(
         'persona_001',
+        voiceModel: 'voice_female_warm',
         baseUrl: 'https://api.openai.com/v1',
       );
       final male = ResidentVoice.cloudVoiceFor(
         'persona_002',
+        voiceModel: 'voice_male_calm',
         baseUrl: 'https://api.openai.com/v1',
       );
 

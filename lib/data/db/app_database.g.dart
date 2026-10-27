@@ -3434,6 +3434,42 @@ class $PrivateMessagesTable extends PrivateMessages
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deliveryGroupMeta = const VerificationMeta(
+    'deliveryGroup',
+  );
+  @override
+  late final GeneratedColumn<String> deliveryGroup = GeneratedColumn<String>(
+    'delivery_group',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _deliveryIndexMeta = const VerificationMeta(
+    'deliveryIndex',
+  );
+  @override
+  late final GeneratedColumn<int> deliveryIndex = GeneratedColumn<int>(
+    'delivery_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deliveryStateMeta = const VerificationMeta(
+    'deliveryState',
+  );
+  @override
+  late final GeneratedColumn<String> deliveryState = GeneratedColumn<String>(
+    'delivery_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('sent'),
+  );
   static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
   @override
   late final GeneratedColumn<int> readAt = GeneratedColumn<int>(
@@ -3475,6 +3511,9 @@ class $PrivateMessagesTable extends PrivateMessages
     voicePath,
     transcript,
     createdAt,
+    deliveryGroup,
+    deliveryIndex,
+    deliveryState,
     readAt,
     deletedAt,
     scope,
@@ -3550,6 +3589,33 @@ class $PrivateMessagesTable extends PrivateMessages
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('delivery_group')) {
+      context.handle(
+        _deliveryGroupMeta,
+        deliveryGroup.isAcceptableOrUnknown(
+          data['delivery_group']!,
+          _deliveryGroupMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivery_index')) {
+      context.handle(
+        _deliveryIndexMeta,
+        deliveryIndex.isAcceptableOrUnknown(
+          data['delivery_index']!,
+          _deliveryIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivery_state')) {
+      context.handle(
+        _deliveryStateMeta,
+        deliveryState.isAcceptableOrUnknown(
+          data['delivery_state']!,
+          _deliveryStateMeta,
+        ),
+      );
+    }
     if (data.containsKey('read_at')) {
       context.handle(
         _readAtMeta,
@@ -3613,6 +3679,18 @@ class $PrivateMessagesTable extends PrivateMessages
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      deliveryGroup: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delivery_group'],
+      )!,
+      deliveryIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivery_index'],
+      )!,
+      deliveryState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delivery_state'],
+      )!,
       readAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}read_at'],
@@ -3658,6 +3736,15 @@ class PrivateMessageRow extends DataClass
   final String? transcript;
   final int createdAt;
 
+  /// 一次唤醒里分几段发出去（v41）。
+  ///
+  /// 同一个 `deliveryGroup` 是同一轮写出来的话；`deliveryIndex` 是第几段；
+  /// 状态 `pending → sent / cancelled`。用户在你说话途中又发了一句时，
+  /// 还没到点的段会被取消，交给下一次唤醒重新决定发不发、发什么。
+  final String deliveryGroup;
+  final int deliveryIndex;
+  final String deliveryState;
+
   /// 已读时刻。只有收到的消息才需要它，自己发出去的为 null。
   final int? readAt;
   final int? deletedAt;
@@ -3672,6 +3759,9 @@ class PrivateMessageRow extends DataClass
     this.voicePath,
     this.transcript,
     required this.createdAt,
+    required this.deliveryGroup,
+    required this.deliveryIndex,
+    required this.deliveryState,
     this.readAt,
     this.deletedAt,
     required this.scope,
@@ -3692,6 +3782,9 @@ class PrivateMessageRow extends DataClass
       map['transcript'] = Variable<String>(transcript);
     }
     map['created_at'] = Variable<int>(createdAt);
+    map['delivery_group'] = Variable<String>(deliveryGroup);
+    map['delivery_index'] = Variable<int>(deliveryIndex);
+    map['delivery_state'] = Variable<String>(deliveryState);
     if (!nullToAbsent || readAt != null) {
       map['read_at'] = Variable<int>(readAt);
     }
@@ -3717,6 +3810,9 @@ class PrivateMessageRow extends DataClass
           ? const Value.absent()
           : Value(transcript),
       createdAt: Value(createdAt),
+      deliveryGroup: Value(deliveryGroup),
+      deliveryIndex: Value(deliveryIndex),
+      deliveryState: Value(deliveryState),
       readAt: readAt == null && nullToAbsent
           ? const Value.absent()
           : Value(readAt),
@@ -3742,6 +3838,9 @@ class PrivateMessageRow extends DataClass
       voicePath: serializer.fromJson<String?>(json['voicePath']),
       transcript: serializer.fromJson<String?>(json['transcript']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      deliveryGroup: serializer.fromJson<String>(json['deliveryGroup']),
+      deliveryIndex: serializer.fromJson<int>(json['deliveryIndex']),
+      deliveryState: serializer.fromJson<String>(json['deliveryState']),
       readAt: serializer.fromJson<int?>(json['readAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
       scope: serializer.fromJson<String>(json['scope']),
@@ -3760,6 +3859,9 @@ class PrivateMessageRow extends DataClass
       'voicePath': serializer.toJson<String?>(voicePath),
       'transcript': serializer.toJson<String?>(transcript),
       'createdAt': serializer.toJson<int>(createdAt),
+      'deliveryGroup': serializer.toJson<String>(deliveryGroup),
+      'deliveryIndex': serializer.toJson<int>(deliveryIndex),
+      'deliveryState': serializer.toJson<String>(deliveryState),
       'readAt': serializer.toJson<int?>(readAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
       'scope': serializer.toJson<String>(scope),
@@ -3776,6 +3878,9 @@ class PrivateMessageRow extends DataClass
     Value<String?> voicePath = const Value.absent(),
     Value<String?> transcript = const Value.absent(),
     int? createdAt,
+    String? deliveryGroup,
+    int? deliveryIndex,
+    String? deliveryState,
     Value<int?> readAt = const Value.absent(),
     Value<int?> deletedAt = const Value.absent(),
     String? scope,
@@ -3789,6 +3894,9 @@ class PrivateMessageRow extends DataClass
     voicePath: voicePath.present ? voicePath.value : this.voicePath,
     transcript: transcript.present ? transcript.value : this.transcript,
     createdAt: createdAt ?? this.createdAt,
+    deliveryGroup: deliveryGroup ?? this.deliveryGroup,
+    deliveryIndex: deliveryIndex ?? this.deliveryIndex,
+    deliveryState: deliveryState ?? this.deliveryState,
     readAt: readAt.present ? readAt.value : this.readAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     scope: scope ?? this.scope,
@@ -3806,6 +3914,15 @@ class PrivateMessageRow extends DataClass
           ? data.transcript.value
           : this.transcript,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deliveryGroup: data.deliveryGroup.present
+          ? data.deliveryGroup.value
+          : this.deliveryGroup,
+      deliveryIndex: data.deliveryIndex.present
+          ? data.deliveryIndex.value
+          : this.deliveryIndex,
+      deliveryState: data.deliveryState.present
+          ? data.deliveryState.value
+          : this.deliveryState,
       readAt: data.readAt.present ? data.readAt.value : this.readAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       scope: data.scope.present ? data.scope.value : this.scope,
@@ -3824,6 +3941,9 @@ class PrivateMessageRow extends DataClass
           ..write('voicePath: $voicePath, ')
           ..write('transcript: $transcript, ')
           ..write('createdAt: $createdAt, ')
+          ..write('deliveryGroup: $deliveryGroup, ')
+          ..write('deliveryIndex: $deliveryIndex, ')
+          ..write('deliveryState: $deliveryState, ')
           ..write('readAt: $readAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('scope: $scope')
@@ -3842,6 +3962,9 @@ class PrivateMessageRow extends DataClass
     voicePath,
     transcript,
     createdAt,
+    deliveryGroup,
+    deliveryIndex,
+    deliveryState,
     readAt,
     deletedAt,
     scope,
@@ -3859,6 +3982,9 @@ class PrivateMessageRow extends DataClass
           other.voicePath == this.voicePath &&
           other.transcript == this.transcript &&
           other.createdAt == this.createdAt &&
+          other.deliveryGroup == this.deliveryGroup &&
+          other.deliveryIndex == this.deliveryIndex &&
+          other.deliveryState == this.deliveryState &&
           other.readAt == this.readAt &&
           other.deletedAt == this.deletedAt &&
           other.scope == this.scope);
@@ -3874,6 +4000,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
   final Value<String?> voicePath;
   final Value<String?> transcript;
   final Value<int> createdAt;
+  final Value<String> deliveryGroup;
+  final Value<int> deliveryIndex;
+  final Value<String> deliveryState;
   final Value<int?> readAt;
   final Value<int?> deletedAt;
   final Value<String> scope;
@@ -3888,6 +4017,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
     this.voicePath = const Value.absent(),
     this.transcript = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.deliveryGroup = const Value.absent(),
+    this.deliveryIndex = const Value.absent(),
+    this.deliveryState = const Value.absent(),
     this.readAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.scope = const Value.absent(),
@@ -3903,6 +4035,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
     this.voicePath = const Value.absent(),
     this.transcript = const Value.absent(),
     required int createdAt,
+    this.deliveryGroup = const Value.absent(),
+    this.deliveryIndex = const Value.absent(),
+    this.deliveryState = const Value.absent(),
     this.readAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.scope = const Value.absent(),
@@ -3921,6 +4056,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
     Expression<String>? voicePath,
     Expression<String>? transcript,
     Expression<int>? createdAt,
+    Expression<String>? deliveryGroup,
+    Expression<int>? deliveryIndex,
+    Expression<String>? deliveryState,
     Expression<int>? readAt,
     Expression<int>? deletedAt,
     Expression<String>? scope,
@@ -3936,6 +4074,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
       if (voicePath != null) 'voice_path': voicePath,
       if (transcript != null) 'transcript': transcript,
       if (createdAt != null) 'created_at': createdAt,
+      if (deliveryGroup != null) 'delivery_group': deliveryGroup,
+      if (deliveryIndex != null) 'delivery_index': deliveryIndex,
+      if (deliveryState != null) 'delivery_state': deliveryState,
       if (readAt != null) 'read_at': readAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (scope != null) 'scope': scope,
@@ -3953,6 +4094,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
     Value<String?>? voicePath,
     Value<String?>? transcript,
     Value<int>? createdAt,
+    Value<String>? deliveryGroup,
+    Value<int>? deliveryIndex,
+    Value<String>? deliveryState,
     Value<int?>? readAt,
     Value<int?>? deletedAt,
     Value<String>? scope,
@@ -3968,6 +4112,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
       voicePath: voicePath ?? this.voicePath,
       transcript: transcript ?? this.transcript,
       createdAt: createdAt ?? this.createdAt,
+      deliveryGroup: deliveryGroup ?? this.deliveryGroup,
+      deliveryIndex: deliveryIndex ?? this.deliveryIndex,
+      deliveryState: deliveryState ?? this.deliveryState,
       readAt: readAt ?? this.readAt,
       deletedAt: deletedAt ?? this.deletedAt,
       scope: scope ?? this.scope,
@@ -4005,6 +4152,15 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (deliveryGroup.present) {
+      map['delivery_group'] = Variable<String>(deliveryGroup.value);
+    }
+    if (deliveryIndex.present) {
+      map['delivery_index'] = Variable<int>(deliveryIndex.value);
+    }
+    if (deliveryState.present) {
+      map['delivery_state'] = Variable<String>(deliveryState.value);
+    }
     if (readAt.present) {
       map['read_at'] = Variable<int>(readAt.value);
     }
@@ -4032,6 +4188,9 @@ class PrivateMessagesCompanion extends UpdateCompanion<PrivateMessageRow> {
           ..write('voicePath: $voicePath, ')
           ..write('transcript: $transcript, ')
           ..write('createdAt: $createdAt, ')
+          ..write('deliveryGroup: $deliveryGroup, ')
+          ..write('deliveryIndex: $deliveryIndex, ')
+          ..write('deliveryState: $deliveryState, ')
           ..write('readAt: $readAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('scope: $scope, ')
@@ -10107,6 +10266,65 @@ class $ModelConfigsTable extends ModelConfigs
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _ttsVoiceDescriptionMeta =
+      const VerificationMeta('ttsVoiceDescription');
+  @override
+  late final GeneratedColumn<bool> ttsVoiceDescription = GeneratedColumn<bool>(
+    'tts_voice_description',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tts_voice_description" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _ttsReferenceOnlyMeta = const VerificationMeta(
+    'ttsReferenceOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> ttsReferenceOnly = GeneratedColumn<bool>(
+    'tts_reference_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tts_reference_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _ttsReferenceDescriptionMeta =
+      const VerificationMeta('ttsReferenceDescription');
+  @override
+  late final GeneratedColumn<bool> ttsReferenceDescription =
+      GeneratedColumn<bool>(
+        'tts_reference_description',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("tts_reference_description" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _ttsReferenceTranscriptMeta =
+      const VerificationMeta('ttsReferenceTranscript');
+  @override
+  late final GeneratedColumn<bool> ttsReferenceTranscript =
+      GeneratedColumn<bool>(
+        'tts_reference_transcript',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("tts_reference_transcript" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -10153,6 +10371,10 @@ class $ModelConfigsTable extends ModelConfigs
     model,
     kind,
     supportsVision,
+    ttsVoiceDescription,
+    ttsReferenceOnly,
+    ttsReferenceDescription,
+    ttsReferenceTranscript,
     enabled,
     createdAt,
     updatedAt,
@@ -10221,6 +10443,42 @@ class $ModelConfigsTable extends ModelConfigs
         ),
       );
     }
+    if (data.containsKey('tts_voice_description')) {
+      context.handle(
+        _ttsVoiceDescriptionMeta,
+        ttsVoiceDescription.isAcceptableOrUnknown(
+          data['tts_voice_description']!,
+          _ttsVoiceDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tts_reference_only')) {
+      context.handle(
+        _ttsReferenceOnlyMeta,
+        ttsReferenceOnly.isAcceptableOrUnknown(
+          data['tts_reference_only']!,
+          _ttsReferenceOnlyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tts_reference_description')) {
+      context.handle(
+        _ttsReferenceDescriptionMeta,
+        ttsReferenceDescription.isAcceptableOrUnknown(
+          data['tts_reference_description']!,
+          _ttsReferenceDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tts_reference_transcript')) {
+      context.handle(
+        _ttsReferenceTranscriptMeta,
+        ttsReferenceTranscript.isAcceptableOrUnknown(
+          data['tts_reference_transcript']!,
+          _ttsReferenceTranscriptMeta,
+        ),
+      );
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -10280,6 +10538,22 @@ class $ModelConfigsTable extends ModelConfigs
         DriftSqlType.bool,
         data['${effectivePrefix}supports_vision'],
       )!,
+      ttsVoiceDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tts_voice_description'],
+      )!,
+      ttsReferenceOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tts_reference_only'],
+      )!,
+      ttsReferenceDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tts_reference_description'],
+      )!,
+      ttsReferenceTranscript: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tts_reference_transcript'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -10324,6 +10598,16 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
   /// 关着的时候私信图片不会塞进请求，避免整轮 400。
   final bool supportsVision;
 
+  /// 语音合成模型支持哪些音色配置方式（v41）。
+  ///
+  /// 四种方式不是每家都支持：OpenAI 的 `instructions` 能按描述调语气，
+  /// 硅基流动 CosyVoice2 要参考音频 + 逐字稿。
+  /// 编辑页按这里的开关决定哪几项可选，避免用户配完才发现服务商不认。
+  final bool ttsVoiceDescription;
+  final bool ttsReferenceOnly;
+  final bool ttsReferenceDescription;
+  final bool ttsReferenceTranscript;
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   final bool enabled;
   final int createdAt;
@@ -10336,6 +10620,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     required this.model,
     required this.kind,
     required this.supportsVision,
+    required this.ttsVoiceDescription,
+    required this.ttsReferenceOnly,
+    required this.ttsReferenceDescription,
+    required this.ttsReferenceTranscript,
     required this.enabled,
     required this.createdAt,
     required this.updatedAt,
@@ -10350,6 +10638,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     map['model'] = Variable<String>(model);
     map['kind'] = Variable<String>(kind);
     map['supports_vision'] = Variable<bool>(supportsVision);
+    map['tts_voice_description'] = Variable<bool>(ttsVoiceDescription);
+    map['tts_reference_only'] = Variable<bool>(ttsReferenceOnly);
+    map['tts_reference_description'] = Variable<bool>(ttsReferenceDescription);
+    map['tts_reference_transcript'] = Variable<bool>(ttsReferenceTranscript);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -10365,6 +10657,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       model: Value(model),
       kind: Value(kind),
       supportsVision: Value(supportsVision),
+      ttsVoiceDescription: Value(ttsVoiceDescription),
+      ttsReferenceOnly: Value(ttsReferenceOnly),
+      ttsReferenceDescription: Value(ttsReferenceDescription),
+      ttsReferenceTranscript: Value(ttsReferenceTranscript),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -10384,6 +10680,16 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       model: serializer.fromJson<String>(json['model']),
       kind: serializer.fromJson<String>(json['kind']),
       supportsVision: serializer.fromJson<bool>(json['supportsVision']),
+      ttsVoiceDescription: serializer.fromJson<bool>(
+        json['ttsVoiceDescription'],
+      ),
+      ttsReferenceOnly: serializer.fromJson<bool>(json['ttsReferenceOnly']),
+      ttsReferenceDescription: serializer.fromJson<bool>(
+        json['ttsReferenceDescription'],
+      ),
+      ttsReferenceTranscript: serializer.fromJson<bool>(
+        json['ttsReferenceTranscript'],
+      ),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -10400,6 +10706,12 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       'model': serializer.toJson<String>(model),
       'kind': serializer.toJson<String>(kind),
       'supportsVision': serializer.toJson<bool>(supportsVision),
+      'ttsVoiceDescription': serializer.toJson<bool>(ttsVoiceDescription),
+      'ttsReferenceOnly': serializer.toJson<bool>(ttsReferenceOnly),
+      'ttsReferenceDescription': serializer.toJson<bool>(
+        ttsReferenceDescription,
+      ),
+      'ttsReferenceTranscript': serializer.toJson<bool>(ttsReferenceTranscript),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -10414,6 +10726,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     String? model,
     String? kind,
     bool? supportsVision,
+    bool? ttsVoiceDescription,
+    bool? ttsReferenceOnly,
+    bool? ttsReferenceDescription,
+    bool? ttsReferenceTranscript,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -10425,6 +10741,12 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     model: model ?? this.model,
     kind: kind ?? this.kind,
     supportsVision: supportsVision ?? this.supportsVision,
+    ttsVoiceDescription: ttsVoiceDescription ?? this.ttsVoiceDescription,
+    ttsReferenceOnly: ttsReferenceOnly ?? this.ttsReferenceOnly,
+    ttsReferenceDescription:
+        ttsReferenceDescription ?? this.ttsReferenceDescription,
+    ttsReferenceTranscript:
+        ttsReferenceTranscript ?? this.ttsReferenceTranscript,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -10440,6 +10762,18 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       supportsVision: data.supportsVision.present
           ? data.supportsVision.value
           : this.supportsVision,
+      ttsVoiceDescription: data.ttsVoiceDescription.present
+          ? data.ttsVoiceDescription.value
+          : this.ttsVoiceDescription,
+      ttsReferenceOnly: data.ttsReferenceOnly.present
+          ? data.ttsReferenceOnly.value
+          : this.ttsReferenceOnly,
+      ttsReferenceDescription: data.ttsReferenceDescription.present
+          ? data.ttsReferenceDescription.value
+          : this.ttsReferenceDescription,
+      ttsReferenceTranscript: data.ttsReferenceTranscript.present
+          ? data.ttsReferenceTranscript.value
+          : this.ttsReferenceTranscript,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -10456,6 +10790,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           ..write('model: $model, ')
           ..write('kind: $kind, ')
           ..write('supportsVision: $supportsVision, ')
+          ..write('ttsVoiceDescription: $ttsVoiceDescription, ')
+          ..write('ttsReferenceOnly: $ttsReferenceOnly, ')
+          ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
+          ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -10472,6 +10810,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     model,
     kind,
     supportsVision,
+    ttsVoiceDescription,
+    ttsReferenceOnly,
+    ttsReferenceDescription,
+    ttsReferenceTranscript,
     enabled,
     createdAt,
     updatedAt,
@@ -10487,6 +10829,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           other.model == this.model &&
           other.kind == this.kind &&
           other.supportsVision == this.supportsVision &&
+          other.ttsVoiceDescription == this.ttsVoiceDescription &&
+          other.ttsReferenceOnly == this.ttsReferenceOnly &&
+          other.ttsReferenceDescription == this.ttsReferenceDescription &&
+          other.ttsReferenceTranscript == this.ttsReferenceTranscript &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -10500,6 +10846,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   final Value<String> model;
   final Value<String> kind;
   final Value<bool> supportsVision;
+  final Value<bool> ttsVoiceDescription;
+  final Value<bool> ttsReferenceOnly;
+  final Value<bool> ttsReferenceDescription;
+  final Value<bool> ttsReferenceTranscript;
   final Value<bool> enabled;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -10512,6 +10862,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.model = const Value.absent(),
     this.kind = const Value.absent(),
     this.supportsVision = const Value.absent(),
+    this.ttsVoiceDescription = const Value.absent(),
+    this.ttsReferenceOnly = const Value.absent(),
+    this.ttsReferenceDescription = const Value.absent(),
+    this.ttsReferenceTranscript = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -10525,6 +10879,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     required String model,
     this.kind = const Value.absent(),
     this.supportsVision = const Value.absent(),
+    this.ttsVoiceDescription = const Value.absent(),
+    this.ttsReferenceOnly = const Value.absent(),
+    this.ttsReferenceDescription = const Value.absent(),
+    this.ttsReferenceTranscript = const Value.absent(),
     this.enabled = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -10544,6 +10902,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Expression<String>? model,
     Expression<String>? kind,
     Expression<bool>? supportsVision,
+    Expression<bool>? ttsVoiceDescription,
+    Expression<bool>? ttsReferenceOnly,
+    Expression<bool>? ttsReferenceDescription,
+    Expression<bool>? ttsReferenceTranscript,
     Expression<bool>? enabled,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -10557,6 +10919,13 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       if (model != null) 'model': model,
       if (kind != null) 'kind': kind,
       if (supportsVision != null) 'supports_vision': supportsVision,
+      if (ttsVoiceDescription != null)
+        'tts_voice_description': ttsVoiceDescription,
+      if (ttsReferenceOnly != null) 'tts_reference_only': ttsReferenceOnly,
+      if (ttsReferenceDescription != null)
+        'tts_reference_description': ttsReferenceDescription,
+      if (ttsReferenceTranscript != null)
+        'tts_reference_transcript': ttsReferenceTranscript,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -10572,6 +10941,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Value<String>? model,
     Value<String>? kind,
     Value<bool>? supportsVision,
+    Value<bool>? ttsVoiceDescription,
+    Value<bool>? ttsReferenceOnly,
+    Value<bool>? ttsReferenceDescription,
+    Value<bool>? ttsReferenceTranscript,
     Value<bool>? enabled,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -10585,6 +10958,12 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       model: model ?? this.model,
       kind: kind ?? this.kind,
       supportsVision: supportsVision ?? this.supportsVision,
+      ttsVoiceDescription: ttsVoiceDescription ?? this.ttsVoiceDescription,
+      ttsReferenceOnly: ttsReferenceOnly ?? this.ttsReferenceOnly,
+      ttsReferenceDescription:
+          ttsReferenceDescription ?? this.ttsReferenceDescription,
+      ttsReferenceTranscript:
+          ttsReferenceTranscript ?? this.ttsReferenceTranscript,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -10616,6 +10995,22 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     if (supportsVision.present) {
       map['supports_vision'] = Variable<bool>(supportsVision.value);
     }
+    if (ttsVoiceDescription.present) {
+      map['tts_voice_description'] = Variable<bool>(ttsVoiceDescription.value);
+    }
+    if (ttsReferenceOnly.present) {
+      map['tts_reference_only'] = Variable<bool>(ttsReferenceOnly.value);
+    }
+    if (ttsReferenceDescription.present) {
+      map['tts_reference_description'] = Variable<bool>(
+        ttsReferenceDescription.value,
+      );
+    }
+    if (ttsReferenceTranscript.present) {
+      map['tts_reference_transcript'] = Variable<bool>(
+        ttsReferenceTranscript.value,
+      );
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
@@ -10641,6 +11036,10 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ..write('model: $model, ')
           ..write('kind: $kind, ')
           ..write('supportsVision: $supportsVision, ')
+          ..write('ttsVoiceDescription: $ttsVoiceDescription, ')
+          ..write('ttsReferenceOnly: $ttsReferenceOnly, ')
+          ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
+          ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -12166,6 +12565,18 @@ class $CustomResidentsTable extends CustomResidents
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _voiceModeMeta = const VerificationMeta(
+    'voiceMode',
+  );
+  @override
+  late final GeneratedColumn<String> voiceMode = GeneratedColumn<String>(
+    'voice_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('description'),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -12210,6 +12621,7 @@ class $CustomResidentsTable extends CustomResidents
     voiceSamplePath,
     voiceSampleText,
     voiceRef,
+    voiceMode,
     createdAt,
     deletedAt,
   ];
@@ -12385,6 +12797,12 @@ class $CustomResidentsTable extends CustomResidents
         voiceRef.isAcceptableOrUnknown(data['voice_ref']!, _voiceRefMeta),
       );
     }
+    if (data.containsKey('voice_mode')) {
+      context.handle(
+        _voiceModeMeta,
+        voiceMode.isAcceptableOrUnknown(data['voice_mode']!, _voiceModeMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -12488,6 +12906,10 @@ class $CustomResidentsTable extends CustomResidents
         DriftSqlType.string,
         data['${effectivePrefix}voice_ref'],
       )!,
+      voiceMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_mode'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -12555,6 +12977,11 @@ class CustomResidentRow extends DataClass
 
   /// 已经定下来的音色：`local:<sid>` / `cloud:<voice>` / `speech:...`。
   final String voiceRef;
+
+  /// 音色由什么定下来（v41）：
+  /// `description` / `reference` / `reference_description` / `reference_transcript`。
+  /// 哪几种可选由当前语音模型的能力决定。
+  final String voiceMode;
   final int createdAt;
   final int? deletedAt;
   const CustomResidentRow({
@@ -12578,6 +13005,7 @@ class CustomResidentRow extends DataClass
     required this.voiceSamplePath,
     required this.voiceSampleText,
     required this.voiceRef,
+    required this.voiceMode,
     required this.createdAt,
     this.deletedAt,
   });
@@ -12606,6 +13034,7 @@ class CustomResidentRow extends DataClass
     map['voice_sample_path'] = Variable<String>(voiceSamplePath);
     map['voice_sample_text'] = Variable<String>(voiceSampleText);
     map['voice_ref'] = Variable<String>(voiceRef);
+    map['voice_mode'] = Variable<String>(voiceMode);
     map['created_at'] = Variable<int>(createdAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<int>(deletedAt);
@@ -12637,6 +13066,7 @@ class CustomResidentRow extends DataClass
       voiceSamplePath: Value(voiceSamplePath),
       voiceSampleText: Value(voiceSampleText),
       voiceRef: Value(voiceRef),
+      voiceMode: Value(voiceMode),
       createdAt: Value(createdAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -12670,6 +13100,7 @@ class CustomResidentRow extends DataClass
       voiceSamplePath: serializer.fromJson<String>(json['voiceSamplePath']),
       voiceSampleText: serializer.fromJson<String>(json['voiceSampleText']),
       voiceRef: serializer.fromJson<String>(json['voiceRef']),
+      voiceMode: serializer.fromJson<String>(json['voiceMode']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
     );
@@ -12698,6 +13129,7 @@ class CustomResidentRow extends DataClass
       'voiceSamplePath': serializer.toJson<String>(voiceSamplePath),
       'voiceSampleText': serializer.toJson<String>(voiceSampleText),
       'voiceRef': serializer.toJson<String>(voiceRef),
+      'voiceMode': serializer.toJson<String>(voiceMode),
       'createdAt': serializer.toJson<int>(createdAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
     };
@@ -12724,6 +13156,7 @@ class CustomResidentRow extends DataClass
     String? voiceSamplePath,
     String? voiceSampleText,
     String? voiceRef,
+    String? voiceMode,
     int? createdAt,
     Value<int?> deletedAt = const Value.absent(),
   }) => CustomResidentRow(
@@ -12747,6 +13180,7 @@ class CustomResidentRow extends DataClass
     voiceSamplePath: voiceSamplePath ?? this.voiceSamplePath,
     voiceSampleText: voiceSampleText ?? this.voiceSampleText,
     voiceRef: voiceRef ?? this.voiceRef,
+    voiceMode: voiceMode ?? this.voiceMode,
     createdAt: createdAt ?? this.createdAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
@@ -12798,6 +13232,7 @@ class CustomResidentRow extends DataClass
           ? data.voiceSampleText.value
           : this.voiceSampleText,
       voiceRef: data.voiceRef.present ? data.voiceRef.value : this.voiceRef,
+      voiceMode: data.voiceMode.present ? data.voiceMode.value : this.voiceMode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
@@ -12826,6 +13261,7 @@ class CustomResidentRow extends DataClass
           ..write('voiceSamplePath: $voiceSamplePath, ')
           ..write('voiceSampleText: $voiceSampleText, ')
           ..write('voiceRef: $voiceRef, ')
+          ..write('voiceMode: $voiceMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
@@ -12854,6 +13290,7 @@ class CustomResidentRow extends DataClass
     voiceSamplePath,
     voiceSampleText,
     voiceRef,
+    voiceMode,
     createdAt,
     deletedAt,
   ]);
@@ -12881,6 +13318,7 @@ class CustomResidentRow extends DataClass
           other.voiceSamplePath == this.voiceSamplePath &&
           other.voiceSampleText == this.voiceSampleText &&
           other.voiceRef == this.voiceRef &&
+          other.voiceMode == this.voiceMode &&
           other.createdAt == this.createdAt &&
           other.deletedAt == this.deletedAt);
 }
@@ -12906,6 +13344,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
   final Value<String> voiceSamplePath;
   final Value<String> voiceSampleText;
   final Value<String> voiceRef;
+  final Value<String> voiceMode;
   final Value<int> createdAt;
   final Value<int?> deletedAt;
   final Value<int> rowid;
@@ -12930,6 +13369,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.voiceSamplePath = const Value.absent(),
     this.voiceSampleText = const Value.absent(),
     this.voiceRef = const Value.absent(),
+    this.voiceMode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12955,6 +13395,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.voiceSamplePath = const Value.absent(),
     this.voiceSampleText = const Value.absent(),
     this.voiceRef = const Value.absent(),
+    this.voiceMode = const Value.absent(),
     required int createdAt,
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12982,6 +13423,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Expression<String>? voiceSamplePath,
     Expression<String>? voiceSampleText,
     Expression<String>? voiceRef,
+    Expression<String>? voiceMode,
     Expression<int>? createdAt,
     Expression<int>? deletedAt,
     Expression<int>? rowid,
@@ -13007,6 +13449,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       if (voiceSamplePath != null) 'voice_sample_path': voiceSamplePath,
       if (voiceSampleText != null) 'voice_sample_text': voiceSampleText,
       if (voiceRef != null) 'voice_ref': voiceRef,
+      if (voiceMode != null) 'voice_mode': voiceMode,
       if (createdAt != null) 'created_at': createdAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
@@ -13034,6 +13477,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Value<String>? voiceSamplePath,
     Value<String>? voiceSampleText,
     Value<String>? voiceRef,
+    Value<String>? voiceMode,
     Value<int>? createdAt,
     Value<int?>? deletedAt,
     Value<int>? rowid,
@@ -13059,6 +13503,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       voiceSamplePath: voiceSamplePath ?? this.voiceSamplePath,
       voiceSampleText: voiceSampleText ?? this.voiceSampleText,
       voiceRef: voiceRef ?? this.voiceRef,
+      voiceMode: voiceMode ?? this.voiceMode,
       createdAt: createdAt ?? this.createdAt,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
@@ -13128,6 +13573,9 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     if (voiceRef.present) {
       map['voice_ref'] = Variable<String>(voiceRef.value);
     }
+    if (voiceMode.present) {
+      map['voice_mode'] = Variable<String>(voiceMode.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -13163,6 +13611,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
           ..write('voiceSamplePath: $voiceSamplePath, ')
           ..write('voiceSampleText: $voiceSampleText, ')
           ..write('voiceRef: $voiceRef, ')
+          ..write('voiceMode: $voiceMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -21883,6 +22332,9 @@ typedef $$PrivateMessagesTableCreateCompanionBuilder =
       Value<String?> voicePath,
       Value<String?> transcript,
       required int createdAt,
+      Value<String> deliveryGroup,
+      Value<int> deliveryIndex,
+      Value<String> deliveryState,
       Value<int?> readAt,
       Value<int?> deletedAt,
       Value<String> scope,
@@ -21899,6 +22351,9 @@ typedef $$PrivateMessagesTableUpdateCompanionBuilder =
       Value<String?> voicePath,
       Value<String?> transcript,
       Value<int> createdAt,
+      Value<String> deliveryGroup,
+      Value<int> deliveryIndex,
+      Value<String> deliveryState,
       Value<int?> readAt,
       Value<int?> deletedAt,
       Value<String> scope,
@@ -21956,6 +22411,21 @@ class $$PrivateMessagesTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deliveryGroup => $composableBuilder(
+    column: $table.deliveryGroup,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveryIndex => $composableBuilder(
+    column: $table.deliveryIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deliveryState => $composableBuilder(
+    column: $table.deliveryState,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -22029,6 +22499,21 @@ class $$PrivateMessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get deliveryGroup => $composableBuilder(
+    column: $table.deliveryGroup,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveryIndex => $composableBuilder(
+    column: $table.deliveryIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deliveryState => $composableBuilder(
+    column: $table.deliveryState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get readAt => $composableBuilder(
     column: $table.readAt,
     builder: (column) => ColumnOrderings(column),
@@ -22082,6 +22567,21 @@ class $$PrivateMessagesTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get deliveryGroup => $composableBuilder(
+    column: $table.deliveryGroup,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deliveryIndex => $composableBuilder(
+    column: $table.deliveryIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get deliveryState => $composableBuilder(
+    column: $table.deliveryState,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get readAt =>
       $composableBuilder(column: $table.readAt, builder: (column) => column);
@@ -22139,6 +22639,9 @@ class $$PrivateMessagesTableTableManager
                 Value<String?> voicePath = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<String> deliveryGroup = const Value.absent(),
+                Value<int> deliveryIndex = const Value.absent(),
+                Value<String> deliveryState = const Value.absent(),
                 Value<int?> readAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> scope = const Value.absent(),
@@ -22153,6 +22656,9 @@ class $$PrivateMessagesTableTableManager
                 voicePath: voicePath,
                 transcript: transcript,
                 createdAt: createdAt,
+                deliveryGroup: deliveryGroup,
+                deliveryIndex: deliveryIndex,
+                deliveryState: deliveryState,
                 readAt: readAt,
                 deletedAt: deletedAt,
                 scope: scope,
@@ -22169,6 +22675,9 @@ class $$PrivateMessagesTableTableManager
                 Value<String?> voicePath = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 required int createdAt,
+                Value<String> deliveryGroup = const Value.absent(),
+                Value<int> deliveryIndex = const Value.absent(),
+                Value<String> deliveryState = const Value.absent(),
                 Value<int?> readAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> scope = const Value.absent(),
@@ -22183,6 +22692,9 @@ class $$PrivateMessagesTableTableManager
                 voicePath: voicePath,
                 transcript: transcript,
                 createdAt: createdAt,
+                deliveryGroup: deliveryGroup,
+                deliveryIndex: deliveryIndex,
+                deliveryState: deliveryState,
                 readAt: readAt,
                 deletedAt: deletedAt,
                 scope: scope,
@@ -25657,6 +26169,10 @@ typedef $$ModelConfigsTableCreateCompanionBuilder =
       required String model,
       Value<String> kind,
       Value<bool> supportsVision,
+      Value<bool> ttsVoiceDescription,
+      Value<bool> ttsReferenceOnly,
+      Value<bool> ttsReferenceDescription,
+      Value<bool> ttsReferenceTranscript,
       Value<bool> enabled,
       required int createdAt,
       required int updatedAt,
@@ -25671,6 +26187,10 @@ typedef $$ModelConfigsTableUpdateCompanionBuilder =
       Value<String> model,
       Value<String> kind,
       Value<bool> supportsVision,
+      Value<bool> ttsVoiceDescription,
+      Value<bool> ttsReferenceOnly,
+      Value<bool> ttsReferenceDescription,
+      Value<bool> ttsReferenceTranscript,
       Value<bool> enabled,
       Value<int> createdAt,
       Value<int> updatedAt,
@@ -25718,6 +26238,26 @@ class $$ModelConfigsTableFilterComposer
 
   ColumnFilters<bool> get supportsVision => $composableBuilder(
     column: $table.supportsVision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ttsVoiceDescription => $composableBuilder(
+    column: $table.ttsVoiceDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ttsReferenceOnly => $composableBuilder(
+    column: $table.ttsReferenceOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ttsReferenceDescription => $composableBuilder(
+    column: $table.ttsReferenceDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ttsReferenceTranscript => $composableBuilder(
+    column: $table.ttsReferenceTranscript,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25781,6 +26321,26 @@ class $$ModelConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get ttsVoiceDescription => $composableBuilder(
+    column: $table.ttsVoiceDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ttsReferenceOnly => $composableBuilder(
+    column: $table.ttsReferenceOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ttsReferenceDescription => $composableBuilder(
+    column: $table.ttsReferenceDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ttsReferenceTranscript => $composableBuilder(
+    column: $table.ttsReferenceTranscript,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -25826,6 +26386,26 @@ class $$ModelConfigsTableAnnotationComposer
 
   GeneratedColumn<bool> get supportsVision => $composableBuilder(
     column: $table.supportsVision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get ttsVoiceDescription => $composableBuilder(
+    column: $table.ttsVoiceDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get ttsReferenceOnly => $composableBuilder(
+    column: $table.ttsReferenceOnly,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get ttsReferenceDescription => $composableBuilder(
+    column: $table.ttsReferenceDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get ttsReferenceTranscript => $composableBuilder(
+    column: $table.ttsReferenceTranscript,
     builder: (column) => column,
   );
 
@@ -25877,6 +26457,10 @@ class $$ModelConfigsTableTableManager
                 Value<String> model = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<bool> supportsVision = const Value.absent(),
+                Value<bool> ttsVoiceDescription = const Value.absent(),
+                Value<bool> ttsReferenceOnly = const Value.absent(),
+                Value<bool> ttsReferenceDescription = const Value.absent(),
+                Value<bool> ttsReferenceTranscript = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -25889,6 +26473,10 @@ class $$ModelConfigsTableTableManager
                 model: model,
                 kind: kind,
                 supportsVision: supportsVision,
+                ttsVoiceDescription: ttsVoiceDescription,
+                ttsReferenceOnly: ttsReferenceOnly,
+                ttsReferenceDescription: ttsReferenceDescription,
+                ttsReferenceTranscript: ttsReferenceTranscript,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -25903,6 +26491,10 @@ class $$ModelConfigsTableTableManager
                 required String model,
                 Value<String> kind = const Value.absent(),
                 Value<bool> supportsVision = const Value.absent(),
+                Value<bool> ttsVoiceDescription = const Value.absent(),
+                Value<bool> ttsReferenceOnly = const Value.absent(),
+                Value<bool> ttsReferenceDescription = const Value.absent(),
+                Value<bool> ttsReferenceTranscript = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -25915,6 +26507,10 @@ class $$ModelConfigsTableTableManager
                 model: model,
                 kind: kind,
                 supportsVision: supportsVision,
+                ttsVoiceDescription: ttsVoiceDescription,
+                ttsReferenceOnly: ttsReferenceOnly,
+                ttsReferenceDescription: ttsReferenceDescription,
+                ttsReferenceTranscript: ttsReferenceTranscript,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -26699,6 +27295,7 @@ typedef $$CustomResidentsTableCreateCompanionBuilder =
       Value<String> voiceSamplePath,
       Value<String> voiceSampleText,
       Value<String> voiceRef,
+      Value<String> voiceMode,
       required int createdAt,
       Value<int?> deletedAt,
       Value<int> rowid,
@@ -26725,6 +27322,7 @@ typedef $$CustomResidentsTableUpdateCompanionBuilder =
       Value<String> voiceSamplePath,
       Value<String> voiceSampleText,
       Value<String> voiceRef,
+      Value<String> voiceMode,
       Value<int> createdAt,
       Value<int?> deletedAt,
       Value<int> rowid,
@@ -26888,6 +27486,11 @@ class $$CustomResidentsTableFilterComposer
 
   ColumnFilters<String> get voiceRef => $composableBuilder(
     column: $table.voiceRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceMode => $composableBuilder(
+    column: $table.voiceMode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -27061,6 +27664,11 @@ class $$CustomResidentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get voiceMode => $composableBuilder(
+    column: $table.voiceMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -27166,6 +27774,9 @@ class $$CustomResidentsTableAnnotationComposer
 
   GeneratedColumn<String> get voiceRef =>
       $composableBuilder(column: $table.voiceRef, builder: (column) => column);
+
+  GeneratedColumn<String> get voiceMode =>
+      $composableBuilder(column: $table.voiceMode, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -27277,6 +27888,7 @@ class $$CustomResidentsTableTableManager
                 Value<String> voiceSamplePath = const Value.absent(),
                 Value<String> voiceSampleText = const Value.absent(),
                 Value<String> voiceRef = const Value.absent(),
+                Value<String> voiceMode = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27301,6 +27913,7 @@ class $$CustomResidentsTableTableManager
                 voiceSamplePath: voiceSamplePath,
                 voiceSampleText: voiceSampleText,
                 voiceRef: voiceRef,
+                voiceMode: voiceMode,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 rowid: rowid,
@@ -27327,6 +27940,7 @@ class $$CustomResidentsTableTableManager
                 Value<String> voiceSamplePath = const Value.absent(),
                 Value<String> voiceSampleText = const Value.absent(),
                 Value<String> voiceRef = const Value.absent(),
+                Value<String> voiceMode = const Value.absent(),
                 required int createdAt,
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27351,6 +27965,7 @@ class $$CustomResidentsTableTableManager
                 voiceSamplePath: voiceSamplePath,
                 voiceSampleText: voiceSampleText,
                 voiceRef: voiceRef,
+                voiceMode: voiceMode,
                 createdAt: createdAt,
                 deletedAt: deletedAt,
                 rowid: rowid,

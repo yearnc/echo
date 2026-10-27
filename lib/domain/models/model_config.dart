@@ -33,6 +33,10 @@ class ModelConfig {
     required this.model,
     this.kind = ModelKind.chat,
     this.supportsVision = false,
+    this.ttsVoiceDescription = false,
+    this.ttsReferenceOnly = false,
+    this.ttsReferenceDescription = false,
+    this.ttsReferenceTranscript = false,
     this.enabled = false,
     this.createdAt = 0,
     this.updatedAt = 0,
@@ -55,6 +59,17 @@ class ModelConfig {
 
   /// 对话模型能不能直接收图片。关着时私信图片不会塞进请求。
   final bool supportsVision;
+
+  /// 语音合成的四种音色配置方式，各自由模型能力决定（v41）。
+  ///
+  /// - 文字描述：OpenAI `instructions` 一类的“按描述调语气”；
+  /// - 仅参考音频：参考音频本身就能定音色；
+  /// - 参考音频 + 文字描述：两者一起用（少见）；
+  /// - 参考音频 + 转录文本：注册音色时要求逐字对上（如 CosyVoice2）。
+  final bool ttsVoiceDescription;
+  final bool ttsReferenceOnly;
+  final bool ttsReferenceDescription;
+  final bool ttsReferenceTranscript;
 
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
@@ -218,6 +233,8 @@ class ModelConfig {
       label: '硅基流动',
       baseUrl: 'https://api.siliconflow.cn/v1',
       model: 'FunAudioLLM/CosyVoice2-0.5B',
+      // CosyVoice2 注册音色时要求参考音频 + 逐字稿，不能只给音频。
+      ttsReferenceTranscript: true,
     ),
     ModelPreset(
       id: 'openai-tts',
@@ -225,6 +242,8 @@ class ModelConfig {
       baseUrl: 'https://api.openai.com/v1',
       model: 'gpt-4o-mini-tts',
       altModels: ['tts-1', 'tts-1-hd'],
+      // gpt-4o-mini-tts 支持 instructions（按描述调语气），不吃参考音频。
+      ttsVoiceDescription: true,
     ),
     ModelPreset(id: 'custom', label: '自定义（OpenAI 兼容）', baseUrl: '', model: ''),
   ];
@@ -281,6 +300,10 @@ class ModelConfig {
     String? model,
     ModelKind? kind,
     bool? supportsVision,
+    bool? ttsVoiceDescription,
+    bool? ttsReferenceOnly,
+    bool? ttsReferenceDescription,
+    bool? ttsReferenceTranscript,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -290,6 +313,12 @@ class ModelConfig {
       provider: provider ?? this.provider,
       label: label ?? this.label,
       supportsVision: supportsVision ?? this.supportsVision,
+      ttsVoiceDescription: ttsVoiceDescription ?? this.ttsVoiceDescription,
+      ttsReferenceOnly: ttsReferenceOnly ?? this.ttsReferenceOnly,
+      ttsReferenceDescription:
+          ttsReferenceDescription ?? this.ttsReferenceDescription,
+      ttsReferenceTranscript:
+          ttsReferenceTranscript ?? this.ttsReferenceTranscript,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
       kind: kind ?? this.kind,
@@ -308,6 +337,10 @@ class ModelPreset {
     required this.baseUrl,
     required this.model,
     this.altModels = const [],
+    this.ttsVoiceDescription = false,
+    this.ttsReferenceOnly = false,
+    this.ttsReferenceDescription = false,
+    this.ttsReferenceTranscript = false,
   });
 
   final String id;
@@ -319,4 +352,10 @@ class ModelPreset {
 
   /// 同一家的其他常用模型（点一下就换上，省得记名字）
   final List<String> altModels;
+
+  /// 这家语音服务支持哪些音色配置方式（见 ModelConfig 上同名说明）。
+  final bool ttsVoiceDescription;
+  final bool ttsReferenceOnly;
+  final bool ttsReferenceDescription;
+  final bool ttsReferenceTranscript;
 }

@@ -1,5 +1,60 @@
 import 'ai_persona.dart';
 
+/// 住民的声音由什么定下来（v41）。
+///
+/// 四种方式不是每家 TTS 都支持：OpenAI 能按文字描述调语气，
+/// 硅基流动要“参考音频 + 逐字稿”；本机 vits-zh-ll 支持文字描述，
+/// 本机 ZipVoice 支持参考音频 + 逐字稿。编辑页按模型能力决定哪几项可选。
+enum ResidentVoiceMode {
+  description('description', '内置音色', '本机 vits-zh-ll 的 5 个中文声线，直接选一个'),
+  cloudDescription(
+    'cloud_description',
+    '文字描述（云端）',
+    '让云端模型按文字描述调语气，比如“低沉温柔的男声”',
+  ),
+  referenceOnly('reference', '仅参考音频', '只上传一段声音，不带文字'),
+  referenceDescription(
+    'reference_description',
+    '参考音频 + 文字描述',
+    '参考音频定音色，文字描述补充语气',
+  ),
+  referenceTranscript(
+    'reference_transcript',
+    '参考音频 + 转录文本',
+    '上传音频并逐字填上里面说的话，克隆最准',
+  );
+
+  const ResidentVoiceMode(this.key, this.label, this.hint);
+
+  final String key;
+  final String label;
+  final String hint;
+
+  bool get usesSample => switch (this) {
+    ResidentVoiceMode.referenceOnly ||
+    ResidentVoiceMode.referenceDescription ||
+    ResidentVoiceMode.referenceTranscript => true,
+    _ => false,
+  };
+
+  bool get usesDescription => switch (this) {
+    ResidentVoiceMode.cloudDescription ||
+    ResidentVoiceMode.referenceDescription => true,
+    _ => false,
+  };
+
+  bool get usesTranscript =>
+      this == ResidentVoiceMode.referenceTranscript;
+
+  /// 本机内置的 5 个声线。
+  bool get usesLocalSpeaker => this == ResidentVoiceMode.description;
+
+  static ResidentVoiceMode fromKey(String? raw) => values.firstWhere(
+    (mode) => mode.key == raw,
+    orElse: () => ResidentVoiceMode.description,
+  );
+}
+
 /// 用户自己配置的固定住民（阶段三）。
 class CustomResident {
   const CustomResident({
@@ -23,6 +78,7 @@ class CustomResident {
     this.voiceSamplePath = '',
     this.voiceSampleText = '',
     this.voiceRef = '',
+    this.voiceMode = ResidentVoiceMode.description,
     required this.createdAt,
   });
 
@@ -72,6 +128,9 @@ class CustomResident {
 
   /// 已经定下来的音色。`local:<sid>` / `cloud:<voice>` / `speech:...`。
   final String voiceRef;
+
+  /// 用哪种方式定音色（v41）。
+  final ResidentVoiceMode voiceMode;
   final DateTime createdAt;
 
   /// 给现有内容生成层用的适配对象。
@@ -133,6 +192,7 @@ class CustomResident {
     String? voiceSamplePath,
     String? voiceSampleText,
     String? voiceRef,
+    ResidentVoiceMode? voiceMode,
   }) => CustomResident(
     id: id,
     name: name ?? this.name,
@@ -154,6 +214,7 @@ class CustomResident {
     voiceSamplePath: voiceSamplePath ?? this.voiceSamplePath,
     voiceSampleText: voiceSampleText ?? this.voiceSampleText,
     voiceRef: voiceRef ?? this.voiceRef,
+    voiceMode: voiceMode ?? this.voiceMode,
     createdAt: createdAt,
   );
 }

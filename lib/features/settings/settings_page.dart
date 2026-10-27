@@ -11,6 +11,7 @@ import '../../domain/services/appearance_controller.dart';
 import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
+import '../../domain/services/tool_settings_controller.dart';
 import '../../domain/services/voice_settings_controller.dart';
 import '../../domain/services/web_search.dart';
 import '../shared_widgets/mode_switch_flow.dart';
@@ -133,6 +134,7 @@ class SettingsPage extends ConsumerWidget {
     final appearance = ref.watch(appearanceControllerProvider);
     final community = ref.watch(communitySettingsProvider);
     final voice = ref.watch(voiceSettingsControllerProvider);
+    final tools = ref.watch(toolSettingsProvider);
     final cloudTts = ref.watch(cloudTtsConfigProvider).value;
     final isEcho = mode.isEcho;
 
@@ -267,8 +269,24 @@ class SettingsPage extends ConsumerWidget {
                 isEcho: isEcho,
                 icon: Icons.people_outline,
                 title: '固定住民',
-                subtitle: '自己配置、每帖都会出现的人',
+                subtitle: '自己配置、会记住你、会主动找你的人',
                 onTap: () => context.push(RoutePaths.customResidents),
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.repeat,
+                title: '工具调用轮数',
+                subtitle: '一次醒来最多“模型 → 工具 → 模型”几轮',
+                value: '${tools.maxRounds} 轮',
+                onTap: () => _pickToolRounds(context, ref),
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.timer_outlined,
+                title: '单次唤醒超时',
+                subtitle: '调大更完整，调小更省钱；有语音时自动多加 60 秒',
+                value: '${tools.timeoutSeconds} 秒',
+                onTap: () => _pickToolTimeout(context, ref),
               ),
               _Row(
                 isEcho: isEcho,
@@ -474,6 +492,60 @@ class SettingsPage extends ConsumerWidget {
     await ref
         .read(communitySettingsProvider.notifier)
         .setAiPeerInteractionLimit(picked);
+  }
+
+  Future<void> _pickToolRounds(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(toolSettingsProvider).maxRounds;
+    const options = [6, 8, 10, 12, 16, 20, 30];
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: currentPalette.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            for (final value in options)
+              _SourceOption(
+                title: '$value 轮',
+                subtitle: value == 12 ? '默认：够查记忆、回评论、发消息' : '',
+                selected: current == value,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(toolSettingsProvider.notifier).setMaxRounds(picked);
+  }
+
+  Future<void> _pickToolTimeout(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(toolSettingsProvider).timeoutSeconds;
+    const options = [15, 20, 30, 45, 60, 90, 120, 180];
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: currentPalette.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            for (final value in options)
+              _SourceOption(
+                title: '$value 秒',
+                subtitle: value == 30 ? '默认：一次唤醒的总时长' : '',
+                selected: current == value,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(toolSettingsProvider.notifier).setTimeoutSeconds(picked);
   }
 
   /// 选语音来源。云端没配置时只让选本机，并留一个去配置的入口。

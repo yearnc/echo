@@ -13,9 +13,12 @@ import '../../data/repositories/model_config_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/model_config.dart';
+import '../../domain/models/resident_voice.dart';
+import '../../domain/models/voice_settings.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/resident_voice_profile_service.dart';
 import '../../domain/services/resident_wake_service.dart';
+import '../../domain/services/voice_settings_controller.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -51,9 +54,11 @@ class _CustomResidentEditorPageState
   String _modelConfigId = '';
   bool _memory = true;
   bool _voiceEnabled = false;
+  ResidentVoiceMode _voiceMode = ResidentVoiceMode.description;
   String _voiceSamplePath = '';
   String _voiceRef = '';
   String _originalVoiceDescription = '';
+  ResidentVoiceMode _originalVoiceMode = ResidentVoiceMode.description;
   String? _voiceStatus;
   bool _voiceBusy = false;
   bool _loading = false;
@@ -102,7 +107,15 @@ class _CustomResidentEditorPageState
     _voiceSamplePath = resident.voiceSamplePath;
     _voiceSampleText.text = resident.voiceSampleText;
     _voiceRef = resident.voiceRef;
+    // 老数据里 OpenAI 的“文字描述”也记在 description 下，靠 voiceRef 区分：
+    // cloud:... 说明当时走的是云端描述，不是本机五选一。
+    _voiceMode =
+        resident.voiceMode == ResidentVoiceMode.description &&
+            resident.voiceRef.startsWith('cloud:')
+        ? ResidentVoiceMode.cloudDescription
+        : resident.voiceMode;
     _originalVoiceDescription = resident.voiceDescription;
+    _originalVoiceMode = resident.voiceMode;
     _createdAt = resident.createdAt;
     setState(() => _loading = false);
   }
@@ -158,7 +171,9 @@ class _CustomResidentEditorPageState
       setState(() {
         _voiceSamplePath = savedRef;
         _voiceRef = '';
-        _voiceStatus = '参考音频已选好；填上里面说的那句话，再点“生成音色”';
+        _voiceStatus = _voiceMode.usesTranscript
+            ? '参考音频已选好；填上里面说的那句话，再点“生成音色”'
+            : '参考音频已选好；点“生成音色”试试，不行就换一种方式';
       });
     } catch (error) {
       if (!mounted) return;
@@ -168,13 +183,22 @@ class _CustomResidentEditorPageState
 
   Future<void> _cloneVoice() async {
     if (_voiceBusy) return;
+    if (!_voiceMode.usesSample) {
+      setState(() => _voiceStatus = '这种方式不需要参考音频');
+      return;
+    }
     if (_voiceSamplePath.trim().isEmpty) {
       setState(() => _voiceStatus = '先上传一段参考音频');
       return;
     }
     final transcript = _voiceSampleText.text.trim();
-    if (transcript.isEmpty) {
+    if (_voiceMode.usesTranscript && transcript.isEmpty) {
       setState(() => _voiceStatus = '要填上参考音频里说的那句话，克隆才对得准');
+      return;
+    }
+    if (!_voiceMode.usesTranscript) {
+      // 目前接入的云端服务注册时都要求逐字稿；本机 ZipVoice 也一样。
+      setState(() => _voiceStatus = '当前语音服务还没有接入这种方式，换成“参考音频 + 转录文本”吧');
       return;
     }
 
@@ -183,6 +207,27 @@ class _CustomResidentEditorPageState
       _voiceStatus = '正在生成音色…';
     });
     try {
+      final source = ref.read(voiceSettingsControllerProvider).source;
+      final cloud = await ref.read(cloudTtsConfigProvider.future);
+      final canCloudClone =
+          source == VoiceSource.cloud &&
+          cloud != null &&
+          ref.read(residentVoiceProfileServiceProvider).supportsClone(cloud);
+
+      if (!canCloudClone) {
+        // 本机 ZipVoice：不需要注册，音频和逐字稿都在本地，
+        // 保存后合成时直接读这两样。
+        if (!_voiceSamplePath.toLowerCase().endsWith('.wav')) {
+          throw StateError('本机克隆需要 wav 参考音频（mp3/m4a 先转成 wav）');
+        }
+        if (!mounted) return;
+        setState(() {
+          _voiceRef = 'local:zipvoice';
+          _voiceStatus = '本机克隆已就绪；wav 参考音频和逐字稿会随住民保存在本机';
+        });
+        return;
+      }
+
       final path = _voiceSamplePath.replaceFirst('file:', '');
       final bytes = await File(path).readAsBytes();
       final ext = p.extension(path).toLowerCase();
@@ -204,7 +249,7 @@ class _CustomResidentEditorPageState
       if (!mounted) return;
       setState(() {
         _voiceRef = refValue;
-        _voiceStatus = '音色已生成，保存后生效';
+        _voiceStatus = '云端音色已生成，保存后生效';
       });
     } catch (error) {
       if (!mounted) return;
@@ -265,20 +310,66 @@ class _CustomResidentEditorPageState
 
     var voiceRef = _voiceRef.trim();
     if (_voiceEnabled) {
-      // 克隆出来的音色优先；没有克隆时，描述变了就重新固定一个本机音色。
+      // 以当前模型能力为准：换过语音服务之后，老的方式可能已经不支持了。
+      final modes = ref
+          .read(residentVoiceProfileServiceProvider)
+          .modesFor(
+            await ref.read(cloudTtsConfigProvider.future),
+            source: ref.read(voiceSettingsControllerProvider).source,
+          );
+      final mode = modes.contains(_voiceMode) ? _voiceMode : modes.first;
+      _voiceMode = mode;
       final description = _voiceDescription.text.trim();
-      final descriptionChanged =
-          description != _originalVoiceDescription.trim();
-      if (voiceRef.isEmpty || (_voiceSamplePath.trim().isEmpty && descriptionChanged)) {
-        voiceRef = await ref
-            .read(residentVoiceProfileServiceProvider)
-            .fromDescription(description);
+      switch (mode) {
+        case ResidentVoiceMode.description:
+          // 五选一：存 local:<sid>，不再根据描述散列。
+          final sid = ResidentVoice.localSidOf(voiceRef) ??
+              ResidentVoice.sidFor(
+                widget.residentId ?? _name.text.trim(),
+              );
+          voiceRef = 'local:$sid';
+        case ResidentVoiceMode.cloudDescription:
+          final changed =
+              description != _originalVoiceDescription.trim() ||
+              _originalVoiceMode != ResidentVoiceMode.cloudDescription;
+          if (voiceRef.isEmpty ||
+              changed ||
+              !voiceRef.startsWith('cloud:')) {
+            voiceRef = await ref
+                .read(residentVoiceProfileServiceProvider)
+                .fromDescription(description);
+          }
+        case ResidentVoiceMode.referenceTranscript:
+          if (voiceRef.isEmpty) {
+            if (_voiceSamplePath.trim().isEmpty ||
+                _voiceSampleText.text.trim().isEmpty) {
+              if (mounted) {
+                setState(() {
+                  _saving = false;
+                  _voiceStatus = '先上传参考音频、填上转录文本，再点“生成音色”';
+                });
+              }
+              return;
+            }
+            // 本机 ZipVoice 不需要预先注册。
+            voiceRef = 'local:zipvoice';
+          }
+        case ResidentVoiceMode.referenceOnly:
+        case ResidentVoiceMode.referenceDescription:
+          if (mounted) {
+            setState(() {
+              _saving = false;
+              _voiceStatus = '当前语音服务还不支持这种方式，换一种吧';
+            });
+          }
+          return;
       }
     } else {
       voiceRef = '';
     }
     _voiceRef = voiceRef;
     _originalVoiceDescription = _voiceDescription.text.trim();
+    _originalVoiceMode = _voiceMode;
 
     final resident = CustomResident(
       id: widget.residentId ?? CustomResidentRepository.newId(),
@@ -305,6 +396,7 @@ class _CustomResidentEditorPageState
       voiceSamplePath: _voiceSamplePath,
       voiceSampleText: _voiceSampleText.text.trim(),
       voiceRef: voiceRef,
+      voiceMode: _voiceMode,
       createdAt: _createdAt ?? DateTime.now(),
     );
 
@@ -340,8 +432,9 @@ class _CustomResidentEditorPageState
   }
 
   String _voiceLabel(String ref) {
+    if (ref == 'local:zipvoice') return '本机克隆音色（ZipVoice）';
     if (ref.startsWith('local:')) return '本机音色 #${ref.substring(6)}';
-    if (ref.startsWith('cloud:speech:')) return '克隆音色';
+    if (ref.startsWith('cloud:speech:')) return '云端克隆音色';
     if (ref.startsWith('cloud:')) return '云端音色 ${ref.substring(6)}';
     return ref;
   }
@@ -349,8 +442,14 @@ class _CustomResidentEditorPageState
   @override
   Widget build(BuildContext context) {
     final cloudTts = ref.watch(cloudTtsConfigProvider).value;
-    final canClone =
-        cloudTts != null && cloudTts.baseUrl.contains('siliconflow');
+    final voiceSource = ref.watch(voiceSettingsControllerProvider).source;
+    final modes = ref
+        .watch(residentVoiceProfileServiceProvider)
+        .modesFor(cloudTts, source: voiceSource);
+    final canClone = modes.any((mode) => mode.usesSample);
+    final mode = modes.contains(_voiceMode) ? _voiceMode : modes.first;
+    final selectedSid = ResidentVoice.localSidOf(_voiceRef) ??
+        ResidentVoice.sidFor(widget.residentId ?? _name.text.trim());
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.residentId == null ? '添加固定住民' : '编辑固定住民'),
@@ -434,13 +533,81 @@ class _CustomResidentEditorPageState
                           setState(() => _voiceEnabled = value),
                     ),
                     if (_voiceEnabled) ...[
-                      _Field(
-                        controller: _voiceDescription,
-                        label: '音色描述',
-                        hint: '例如：低沉温柔的男声，语速偏慢。没上传参考音频时，按它固定一个内置音色',
-                        maxLines: 2,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 6),
+                        child: Text(
+                          '音色方式',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                       ),
-                      if (canClone) ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          for (final option in modes)
+                            ChoiceChip(
+                              label: Text(option.label),
+                              selected: option == mode,
+                              onSelected: (_) => setState(() {
+                                _voiceMode = option;
+                                _voiceStatus = null;
+                                if (!option.usesSample) _voiceSamplePath = '';
+                              }),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, bottom: 10),
+                        child: Text(
+                          mode.hint,
+                          style: TextStyle(
+                            color: Theme.of(context).hintColor,
+                            fontSize: 11.5,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                      if (mode.usesLocalSpeaker) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (var sid = 0;
+                                sid < ResidentVoice.localSpeakerCount;
+                                sid++)
+                              ChoiceChip(
+                                label: Text(
+                                  ResidentVoice.labelForSid(sid),
+                                ),
+                                selected: selectedSid == sid,
+                                onSelected: (_) => setState(() {
+                                  _voiceRef = 'local:$sid';
+                                  _voiceStatus = null;
+                                }),
+                              ),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 10),
+                          child: Text(
+                            '选定后保存，这位住民以后就用这个声线；'
+                            '评论区和私信是同一个声音。',
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                              fontSize: 11.5,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (mode.usesDescription)
+                        _Field(
+                          controller: _voiceDescription,
+                          label: '音色描述',
+                          hint: '例如：低沉温柔的男声，语速偏慢',
+                          maxLines: 2,
+                        ),
+                      if (mode.usesSample) ...[
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: const Icon(Icons.upload_file_outlined),
@@ -452,12 +619,13 @@ class _CustomResidentEditorPageState
                           subtitle: const Text('8—10 秒清晰人声，不超过 30 秒；格式 mp3 / wav / m4a'),
                           onTap: _voiceBusy ? null : _pickVoiceSample,
                         ),
-                        _Field(
-                          controller: _voiceSampleText,
-                          label: '参考音频里说的话',
-                          hint: '逐字填，克隆时要用它对音频',
-                          maxLines: 2,
-                        ),
+                        if (mode.usesTranscript)
+                          _Field(
+                            controller: _voiceSampleText,
+                            label: '参考音频里说的话',
+                            hint: '逐字填，注册音色时要用它对音频',
+                            maxLines: 2,
+                          ),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: FilledButton.tonal(
@@ -473,13 +641,13 @@ class _CustomResidentEditorPageState
                             fontSize: 11.5,
                           ),
                         ),
-                      ] else
+                      ],
+                      if (!canClone && modes.length == 1)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.only(top: 4, bottom: 8),
                           child: Text(
-                            '当前语音服务不支持参考音频克隆。'
-                            '去「模型」里配一条硅基流动 CosyVoice2 就能上传；'
-                            '现在只能用文字描述固定本机音色。',
+                            '本机克隆需要 wav 参考音频 + 转录文本；'
+                            '也可以去「模型」里配一条硅基流动 CosyVoice2 做云端克隆。',
                             style: TextStyle(
                               color: Theme.of(context).hintColor,
                               fontSize: 12,
@@ -487,6 +655,7 @@ class _CustomResidentEditorPageState
                             ),
                           ),
                         ),
+                      const SizedBox(height: 8),
                       if (_voiceRef.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4, bottom: 4),

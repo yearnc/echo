@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
+import '../../domain/services/update_service.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 「我的」页：个人资料 + 模式管理入口。
@@ -33,8 +36,191 @@ class ProfilePage extends ConsumerWidget {
             title: '帮助',
             onTap: () => context.push(RoutePaths.help),
           ),
+          const _UpdateTile(),
         ],
       ),
+    );
+  }
+}
+
+/// 「检查更新」：查 GitHub 最新 Release，不自动弹窗、不后台轮询。
+class _UpdateTile extends ConsumerStatefulWidget {
+  const _UpdateTile();
+
+  @override
+  ConsumerState<_UpdateTile> createState() => _UpdateTileState();
+}
+
+class _UpdateTileState extends ConsumerState<_UpdateTile> {
+  bool _busy = false;
+
+  Future<void> _check() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final result = await ref.read(updateServiceProvider).check();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) =>
+          _UpdateDialog(result: result),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: _busy ? null : _check,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: EchoColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: EchoColors.divider),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.system_update_outlined, size: 19, color: EchoColors.textMuted),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '检查更新',
+                  style: TextStyle(color: EchoColors.text, fontSize: 14),
+                ),
+              ),
+              if (_busy)
+                const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(Icons.chevron_right, size: 18, color: EchoColors.textFaint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpdateDialog extends StatelessWidget {
+  const _UpdateDialog({required this.result});
+
+  final UpdateCheckResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    if (result.failed) {
+      return AlertDialog(
+        title: const Text('检查更新失败'),
+        content: Text(result.error),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
+      );
+    }
+
+    if (!result.hasUpdate) {
+      return AlertDialog(
+        title: const Text('已经是最新版本'),
+        content: Text('当前版本 ${result.currentVersion}。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('好'),
+          ),
+        ],
+      );
+    }
+
+    return AlertDialog(
+      title: Text('发现新版本 ${result.latestVersion}'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '当前 ${result.currentVersion} → 最新 ${result.latestVersion}',
+                style: TextStyle(color: EchoColors.textMuted, fontSize: 12.5),
+              ),
+              if (result.notes.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '更新说明',
+                  style: TextStyle(
+                    color: EchoColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  result.notes,
+                  style: TextStyle(
+                    color: EchoColors.textMuted,
+                    fontSize: 12,
+                    height: 1.6,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              SelectableText(
+                result.url,
+                style: TextStyle(color: EchoColors.primary, fontSize: 11.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: result.url));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('下载链接已复制')));
+          },
+          child: const Text('复制链接'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            final uri = Uri.tryParse(result.url);
+            if (uri == null) return;
+            try {
+              final opened = await launchUrl(
+                uri,
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('没有找到能打开链接的应用')),
+                );
+              }
+            } catch (error) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('打不开链接：$error')),
+              );
+            }
+          },
+          child: const Text('打开发布页'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
     );
   }
 }

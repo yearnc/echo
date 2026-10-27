@@ -41,6 +41,10 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   bool _hasSavedKey = false;
   bool _enabled = false;
   bool _supportsVision = false;
+  bool _ttsDescription = false;
+  bool _ttsReferenceOnly = false;
+  bool _ttsReferenceDescription = false;
+  bool _ttsReferenceTranscript = false;
   ProbeResult? _probe;
 
   /// 进页面时的表单快照。当前值和它不一致，就说明有没保存的改动。
@@ -55,6 +59,10 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _modelCtrl.text.trim(),
     _enabled ? '1' : '0',
     _supportsVision ? '1' : '0',
+    _ttsDescription ? '1' : '0',
+    _ttsReferenceOnly ? '1' : '0',
+    _ttsReferenceDescription ? '1' : '0',
+    _ttsReferenceTranscript ? '1' : '0',
   ].join('|');
 
   bool get _dirty =>
@@ -108,6 +116,10 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _modelCtrl.text = config?.model ?? '';
       _enabled = config?.enabled ?? false;
       _supportsVision = config?.supportsVision ?? false;
+      _ttsDescription = config?.ttsVoiceDescription ?? false;
+      _ttsReferenceOnly = config?.ttsReferenceOnly ?? false;
+      _ttsReferenceDescription = config?.ttsReferenceDescription ?? false;
+      _ttsReferenceTranscript = config?.ttsReferenceTranscript ?? false;
       _hasSavedKey = hasKey;
       _loading = false;
       _initialSnapshot = _snapshot;
@@ -122,6 +134,12 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       // 预设已经按用途分过组了（对话 / 文生图 / 语音合成），
       // 点哪一条就填哪一条的型号，不用用户再记名字。
       _modelCtrl.text = preset.model;
+      // 每家语音服务支持的音色方式不一样，跟预设一起填好；
+      // 自定义端点留空，让用户自己勾。
+      _ttsDescription = preset.ttsVoiceDescription;
+      _ttsReferenceOnly = preset.ttsReferenceOnly;
+      _ttsReferenceDescription = preset.ttsReferenceDescription;
+      _ttsReferenceTranscript = preset.ttsReferenceTranscript;
       _probe = null;
     });
   }
@@ -256,6 +274,10 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       model: model,
       kind: _kind,
       supportsVision: _supportsVision,
+      ttsVoiceDescription: _ttsDescription,
+      ttsReferenceOnly: _ttsReferenceOnly,
+      ttsReferenceDescription: _ttsReferenceDescription,
+      ttsReferenceTranscript: _ttsReferenceTranscript,
     );
 
     await repo.save(saved);
@@ -463,6 +485,52 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                 value: _supportsVision,
                 onChanged: (value) => setState(() => _supportsVision = value),
               ),
+            if (_kind == ModelKind.tts) ...[
+              const SizedBox(height: 8),
+              Text(
+                '这个语音模型支持哪些音色方式（决定住民编辑页里哪几项可选）',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  height: 1.5,
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('仅文字描述'),
+                subtitle: const Text('按“温柔、语速慢”这类描述调语气'),
+                value: _ttsDescription,
+                onChanged: (value) => setState(() => _ttsDescription = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('仅参考音频'),
+                subtitle: const Text('只给一段声音，不需要文字'),
+                value: _ttsReferenceOnly,
+                onChanged: (value) =>
+                    setState(() => _ttsReferenceOnly = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('参考音频 + 文字描述'),
+                subtitle: const Text('声音由音频定，描述补充语气'),
+                value: _ttsReferenceDescription,
+                onChanged: (value) =>
+                    setState(() => _ttsReferenceDescription = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('参考音频 + 转录文本'),
+                subtitle: const Text('上传音频并逐字填上里面说的话（本机 ZipVoice / CosyVoice2）'),
+                value: _ttsReferenceTranscript,
+                onChanged: (value) =>
+                    setState(() => _ttsReferenceTranscript = value),
+              ),
+            ],
             const SizedBox(height: 20),
             const _Label('服务商'),
             Wrap(

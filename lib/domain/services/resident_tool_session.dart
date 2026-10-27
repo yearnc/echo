@@ -6,9 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/media/image_payload.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
+import '../models/resident_activity.dart';
+import '../models/tool_settings.dart';
 import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
+import 'resident_activity_controller.dart';
+import 'tool_settings_controller.dart';
 import 'voice_settings_controller.dart';
 import 'web_search.dart';
 
@@ -59,6 +63,15 @@ abstract class ResidentWakeToolkit {
     String callId,
   );
 
+  /// 取消一段还没发出去的私信。
+  Future<ActionOutcome> cancelPendingSegment(String segmentId);
+
+  /// 改写一段还没发出去的私信。
+  Future<ActionOutcome> rewritePendingSegment(
+    String segmentId,
+    String content,
+  );
+
   /// 发一张表情包私信。
   Future<ActionOutcome> sendSticker(
     String stickerId,
@@ -94,6 +107,8 @@ class ResidentToolSession {
     required this.actions,
     this.search,
     this.voiceAvailable,
+    this.readSettings,
+    this.activity,
   });
 
   final ModelGateway gateway;
@@ -105,12 +120,39 @@ class ResidentToolSession {
   /// 语音总开关。关着时 `send_voice` 工具不出现。
   final bool Function()? voiceAvailable;
 
-  static const int maxRounds = 8;
-  static const Duration totalTimeout = Duration(seconds: 20);
+  /// 工具轮数与总超时。设置页可调，默认 12 轮 / 30 秒。
+  final ToolSettings Function()? readSettings;
 
-  /// 有 send_voice 时多给一点：云端 TTS 一句话可能要几十秒，
-  /// 而失败原因必须有机会回到模型手里，不能跑一半就被总超时掐断。
-  static const Duration voiceTimeout = Duration(seconds: 80);
+  /// 向聊天页汇报“现在在干什么”。
+  final ResidentActivitySink? activity;
+
+  ToolSettings get _settings => readSettings?.call() ?? ToolSettings.defaults;
+
+  /// 单次请求的超时：不超过剩余时间，也不超过每轮上限。
+  static Duration _callTimeout(Duration left, ToolSettings settings) {
+    final cap = settings.perCallTimeout;
+    return left > cap ? cap : left;
+  }
+
+  void _report(CustomResident resident, String label, ResidentActivityKind kind) {
+    activity?.call(resident.id, label, kind);
+  }
+
+  static String _toolLabel(String name) => switch (name) {
+    'memory_search' || 'memory_read' || 'memory_list_recent' => '正在翻记忆…',
+    'memory_write' || 'memory_update' || 'memory_delete' => '正在记下来…',
+    'web_search' => '正在搜索…',
+    'browse_feed' => '正在刷帖子…',
+    'like_post' => '正在点赞…',
+    'comment_post' => '正在写评论…',
+    'create_post' => '正在发动态…',
+    'generate_image' => '正在画图…',
+    'reply_inbox' || 'send_dm' => '正在写回复…',
+    'send_voice' => '正在录语音…',
+    'send_sticker' => '正在挑表情包…',
+    'finish' => '正在看完…',
+    _ => '正在查东西…',
+  };
 
   /// 这次回复排在什么时候。固定住民自己、以及给模型的提示词共用一份格式：
   /// 年月日、周几、24 小时制精确到分钟。只写“10月24日”会让模型不知道今年是哪年。
@@ -139,7 +181,9 @@ class ResidentToolSession {
     required String latestUserMessage,
     DateTime? at,
   }) async {
-    final deadline = DateTime.now().add(totalTimeout);
+    final limits = _settings;
+    final deadline = DateTime.now().add(limits.timeout);
+    _report(resident, '正在看消息…', ResidentActivityKind.reading);
     final memoryLines = await _prefetch(resident);
     final stickers = <ResidentStickerChoice>[];
     final messages = <Map<String, dynamic>>[
@@ -156,19 +200,18 @@ class ResidentToolSession {
       ),
     ];
 
-    for (var round = 0; round < maxRounds; round++) {
+    for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
 
+      _report(resident, '正在思考…', ResidentActivityKind.thinking);
       final result = await gateway.completeWithTools(
         config: config,
         messages: messages,
         tools: allTools,
         temperature: 0.85,
         maxTokens: 320,
-        timeout: left > const Duration(seconds: 12)
-            ? const Duration(seconds: 12)
-            : left,
+        timeout: _callTimeout(left, limits),
       );
 
       if (result.toolCalls.isEmpty) {
@@ -196,6 +239,7 @@ class ResidentToolSession {
 
       for (final call in result.toolCalls) {
         if (deadline.difference(DateTime.now()) <= Duration.zero) break;
+        _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
         final ActionOutcome outcome;
         if (call.name == 'send_sticker' && stickers.isNotEmpty) {
           outcome = const ActionOutcome(
@@ -274,13 +318,20 @@ class ResidentToolSession {
     DateTime? at,
     List<DirectTurn> history = const [],
     bool allowProactive = true,
+    bool allowVoice = true,
   }) async {
+    final limits = _settings;
+    final voiceReady = allowVoice && _voiceToolAvailable(resident);
     final deadline = DateTime.now().add(
-      _voiceToolAvailable(resident) ? voiceTimeout : totalTimeout,
+      voiceReady ? limits.voiceTimeout : limits.timeout,
     );
+    _report(resident, '正在看消息…', ResidentActivityKind.reading);
     final memoryLines = await _prefetch(resident);
     final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': _wakeSystemPrompt(resident)},
+      {
+        'role': 'system',
+        'content': _wakeSystemPrompt(resident, voiceReady: voiceReady),
+      },
       ...await _timedHistory(history, supportsVision: config.supportsVision),
       {
         'role': 'user',
@@ -292,21 +343,24 @@ class ResidentToolSession {
       },
     ];
 
-    for (var round = 0; round < maxRounds; round++) {
+    for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
 
+      _report(resident, '正在思考…', ResidentActivityKind.thinking);
       ToolChatResult result;
       try {
         result = await gateway.completeWithTools(
           config: config,
           messages: messages,
-          tools: _wakeToolsFor(resident, allowProactive: allowProactive),
+          tools: _wakeToolsFor(
+            resident,
+            allowProactive: allowProactive,
+            allowVoice: allowVoice,
+          ),
           temperature: 0.85,
           maxTokens: 420,
-          timeout: left > const Duration(seconds: 12)
-              ? const Duration(seconds: 12)
-              : left,
+          timeout: _callTimeout(left, limits),
         );
       } catch (error) {
         // 模型不支持 tool calling 时，至少让它还能说一句话。
@@ -349,6 +403,7 @@ class ResidentToolSession {
       for (final call in result.toolCalls) {
         if (deadline.difference(DateTime.now()) <= Duration.zero) break;
         final args = call.arguments;
+        _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
         final ActionOutcome outcome;
         switch (call.name) {
           case 'reply_inbox':
@@ -379,6 +434,15 @@ class ResidentToolSession {
               (args['tag'] as String?) ?? '',
               call.id,
             );
+          case 'cancel_pending_segment':
+            outcome = await toolkit.cancelPendingSegment(
+              (args['segment_id'] as String?) ?? '',
+            );
+          case 'rewrite_pending_segment':
+            outcome = await toolkit.rewritePendingSegment(
+              (args['segment_id'] as String?) ?? '',
+              (args['content'] as String?) ?? '',
+            );
           case 'finish':
             outcome = await toolkit.finish();
           case 'browse_feed':
@@ -403,6 +467,7 @@ class ResidentToolSession {
             final available = _wakeToolsFor(
               resident,
               allowProactive: allowProactive,
+              allowVoice: allowVoice,
             );
             outcome = ActionOutcome(
               ok: true,
@@ -447,8 +512,8 @@ class ResidentToolSession {
     }
   }
 
-  String _wakeSystemPrompt(CustomResident resident) {
-    final voiceLine = _voiceToolAvailable(resident)
+  String _wakeSystemPrompt(CustomResident resident, {bool voiceReady = true}) {
+    final voiceLine = voiceReady && _voiceToolAvailable(resident)
         ? '- 想用声音说就用 send_voice；普通说话用 send_dm。语音合成要几十秒，\n'
               '  先 send_dm 说一句“等我一下，我录段语音”，别让对方干等。\n'
               '  失败会告诉你原因，你自己决定改用文字还是换句话再试。\n'
@@ -825,6 +890,7 @@ $persona
   List<Map<String, dynamic>> _wakeToolsFor(
     CustomResident resident, {
     bool allowProactive = true,
+    bool allowVoice = true,
   }) {
     final base = [
       for (final tool in tools)
@@ -845,7 +911,8 @@ $persona
       ...base,
       _webSearchTool,
       ...wakeOnly,
-      if (_voiceToolAvailable(resident)) _voiceTool,
+      ..._pendingSegmentTools,
+      if (allowVoice && _voiceToolAvailable(resident)) _voiceTool,
     ];
   }
 
@@ -889,6 +956,44 @@ $persona
       },
     },
   };
+
+  /// 处理“上一轮没发出去的段”（v41）。
+  ///
+  /// 用户在住民说话途中又发消息时，平台会先把未到点的段暂停；
+  /// 住民在下一轮可以用这两只手自己决定：改掉，或者不发了。
+  static const List<Map<String, dynamic>> _pendingSegmentTools = [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'cancel_pending_segment',
+        'description':
+            '取消一段还没发出去的私信。段 id 来自“你上一轮还有几段没发出去”那一节。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'segment_id': {'type': 'string'},
+          },
+          'required': ['segment_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'rewrite_pending_segment',
+        'description':
+            '改写一段还没发出去的私信。对方中途又说了话时，用它把原来的话改得接得上。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'segment_id': {'type': 'string'},
+            'content': {'type': 'string', 'description': '改成什么，10—60 字'},
+          },
+          'required': ['segment_id', 'content'],
+        },
+      },
+    },
+  ];
 
   static const List<Map<String, dynamic>> _wakeOnlyTools = [
     {
@@ -1150,7 +1255,10 @@ final residentToolSessionProvider = Provider<ResidentToolSession>(
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
     search: ref.watch(webSearchServiceProvider),
-    voiceAvailable: () =>
-        ref.read(voiceSettingsControllerProvider).enabled,
+    voiceAvailable: () => ref.read(voiceSettingsControllerProvider).enabled,
+    readSettings: () => ref.read(toolSettingsProvider),
+    activity: (residentId, label, kind) => ref
+        .read(residentActivityProvider.notifier)
+        .show(residentId, label, kind),
   ),
 );

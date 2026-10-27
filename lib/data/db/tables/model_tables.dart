@@ -34,6 +34,20 @@ class ModelConfigs extends Table {
   BoolColumn get supportsVision =>
       boolean().withDefault(const Constant(false))();
 
+  /// 语音合成模型支持哪些音色配置方式（v41）。
+  ///
+  /// 四种方式不是每家都支持：OpenAI 的 `instructions` 能按描述调语气，
+  /// 硅基流动 CosyVoice2 要参考音频 + 逐字稿。
+  /// 编辑页按这里的开关决定哪几项可选，避免用户配完才发现服务商不认。
+  BoolColumn get ttsVoiceDescription =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get ttsReferenceOnly =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get ttsReferenceDescription =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get ttsReferenceTranscript =>
+      boolean().withDefault(const Constant(false))();
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 

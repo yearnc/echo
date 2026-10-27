@@ -40,11 +40,25 @@ class DmVoiceService {
     }
 
     try {
+      // 本机克隆只在本机方式、且已经选了参考音频 + 逐字稿时启用；
+      // 云端克隆的 voiceRef 是 cloud:...，走云端那条路。
+      final localClone =
+          resident.voiceMode == ResidentVoiceMode.referenceTranscript &&
+          resident.voiceSamplePath.trim().isNotEmpty &&
+          resident.voiceSampleText.trim().isNotEmpty &&
+          !resident.voiceRef.startsWith('cloud:');
       final clip = await tts.speak(
         text: clean,
         personaId: resident.id,
-        // `local:<sid>` / `cloud:<voice>` / `speech:...`，TtsService 自己认。
+        // `local:<sid>` / `local:zipvoice` / `cloud:<voice>` / `speech:...`。
         voiceModel: resident.voiceRef,
+        // 文字描述方式下，OpenAI 的 instructions 能真的按描述调语气；
+        // 其他家忽略这段文本，不会出错。
+        voiceDescription: resident.voiceDescription,
+        wantsDescription: resident.voiceMode.usesDescription,
+        referenceAudioPath: resident.voiceSamplePath,
+        referenceText: resident.voiceSampleText,
+        preferLocalClone: localClone,
       );
       if (clip == null) {
         return (clip: null, error: '语音服务没有返回音频');

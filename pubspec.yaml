@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.6.4+14
+version: 3.8.0+16
 
 environment:
   sdk: ^3.13.3
@@ -51,6 +51,10 @@ dependencies:
   workmanager: ^0.10.10
   share_plus: ^13.3.1
   file_picker: ^13.3.0
+  url_launcher: ^6.3.2
+  # ZipVoice 的 espeak-ng-data 是一个带子目录的小文件树，Flutter 的目录式
+  # 资源声明不会递归打包；压成一个 zip 再在运行时解开，省得手写几十条路径。
+  archive: ^4.3.0
 
 dev_dependencies:
   flutter_test:
@@ -119,9 +123,12 @@ flutter:
     - assets/avatars/           # 临时网民与固定住民的头像池
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
-    # 离线语音模型（B8）：不带进 git 仓库，克隆后照目录里 _placeholder.txt
-    # 的说明下载放好，Flutter 打包时会一起打进 APK。
+    # 离线语音模型（B8 / v3.8）：不带进 git 仓库，按目录说明下载放好，
+    # Flutter 打包时会一起打进 APK。
+    # - tts/：vits-zh-ll，文字描述用的 5 个中文声线
+    # - zipvoice/：ZipVoice INT8 + vocos，参考音频克隆
     - assets/models/tts/
+    - assets/models/zipvoice/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

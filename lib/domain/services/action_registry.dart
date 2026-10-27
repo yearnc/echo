@@ -123,6 +123,8 @@ class ActionRegistry {
     String mediaType = 'text',
     String voicePath = '',
     String transcript = '',
+    String deliveryGroup = '',
+    int deliveryIndex = 0,
   }) async {
     return run(
       actorId: residentId,
@@ -148,6 +150,8 @@ class ActionRegistry {
           mediaType: mediaType,
           voicePath: voicePath,
           transcript: transcript,
+          deliveryGroup: deliveryGroup,
+          deliveryIndex: deliveryIndex,
         );
         return ActionOutcome(
           ok: true,
@@ -265,6 +269,8 @@ class ActionRegistry {
     required String idempotencyKey,
     DateTime? at,
     String source = 'tool',
+    String deliveryGroup = '',
+    int deliveryIndex = 0,
   }) async {
     return run(
       actorId: residentId,
@@ -288,6 +294,8 @@ class ActionRegistry {
           content: stickerPath,
           mediaType: 'sticker',
           at: at ?? DateTime.now(),
+          deliveryGroup: deliveryGroup,
+          deliveryIndex: deliveryIndex,
         );
         return const ActionOutcome(ok: true, message: '已发出');
       },

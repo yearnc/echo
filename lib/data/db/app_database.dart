@@ -67,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -801,6 +801,15 @@ class AppDatabase extends _$AppDatabase {
       if (from < 38) {
         // v38：「每帖必到」拆掉，两个 always_show 列一起下线。
         // 用 alterTable 重建，数据原样保留，只少这一列。
+        //
+        // ⚠️ alterTable 用的是**当前**表定义：它会把现有列原样 SELECT 过去。
+        // 从更老的库（v13 之类）一路升上来时，v41 才加的 voice_mode 还没建，
+        // 重建就会报 "no such column: voice_mode"。所以这里先把以后才会加、
+        // 但重建时会被引用的列补上；v41 那段有 hasColumn 守卫，不会重复加。
+        if (await hasTable('custom_residents') &&
+            !await hasColumn('custom_residents', 'voice_mode')) {
+          await m.addColumn(customResidents, customResidents.voiceMode);
+        }
         if (await hasTable('custom_residents')) {
           await m.alterTable(TableMigration(customResidents));
         }
@@ -828,6 +837,40 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'DELETE FROM plan_scripts WHERE is_built_in = 1',
           );
+        }
+      }
+      if (from < 41) {
+        // v41：
+        // - 私信分段可打断：一次唤醒写出的几段带同一个 group，未到点的段
+        //   可以被下一轮取消或改写；
+        // - 语音模型的音色能力（四种配置方式）；
+        // - 每位住民选的是哪一种方式。
+        if (await hasTable('private_messages')) {
+          for (final entry in <String, GeneratedColumn>{
+            'delivery_group': privateMessages.deliveryGroup,
+            'delivery_index': privateMessages.deliveryIndex,
+            'delivery_state': privateMessages.deliveryState,
+          }.entries) {
+            if (!await hasColumn('private_messages', entry.key)) {
+              await m.addColumn(privateMessages, entry.value);
+            }
+          }
+        }
+        if (await hasTable('model_configs')) {
+          for (final entry in <String, GeneratedColumn>{
+            'tts_voice_description': modelConfigs.ttsVoiceDescription,
+            'tts_reference_only': modelConfigs.ttsReferenceOnly,
+            'tts_reference_description': modelConfigs.ttsReferenceDescription,
+            'tts_reference_transcript': modelConfigs.ttsReferenceTranscript,
+          }.entries) {
+            if (!await hasColumn('model_configs', entry.key)) {
+              await m.addColumn(modelConfigs, entry.value);
+            }
+          }
+        }
+        if (await hasTable('custom_residents') &&
+            !await hasColumn('custom_residents', 'voice_mode')) {
+          await m.addColumn(customResidents, customResidents.voiceMode);
         }
       }
     },

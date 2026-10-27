@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,12 +16,14 @@ import '../../data/repositories/resident_inbox_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
+import '../models/private_message.dart';
 import '../models/resident_inbox.dart';
 import 'action_registry.dart';
 import 'comment_reply_service.dart';
 import 'content_generator.dart';
 import 'dm_voice_service.dart';
 import 'model_gateway.dart';
+import 'resident_activity_controller.dart';
 import 'tts_service.dart';
 import 'resident_tool_session.dart';
 
@@ -63,6 +67,7 @@ class ResidentWakeService {
     required this.media,
     required this.commentReplies,
     this.dmVoice,
+    this.activityDone,
   });
 
   final AppDatabase db;
@@ -83,8 +88,15 @@ class ResidentWakeService {
   /// 私信回复可以变成语音条（可空：测试或关掉语音时保持文字）。
   final DmVoiceService? dmVoice;
 
+  /// 一轮结束后收掉聊天页上的“正在思考…”。
+  final void Function(String residentId)? activityDone;
+
   /// 同一个人不要被同时叫醒两次（用户点发送 + 心跳撞在一起）。
   final Set<String> _running = {};
+
+  /// 正在醒着的时候又来了用户消息：这一轮结束后立刻再醒一次，
+  /// 不要等下一个 30 秒心跳（更不能等 15 分钟冷却）。
+  final Set<String> _rerun = {};
 
   /// 一轮 wakeAll 没跑完时，下一拍心跳不要再叠一轮。
   bool _wakingAll = false;
@@ -125,6 +137,9 @@ class ResidentWakeService {
   ///
   /// WorkManager 一轮只有有限的执行时间，串行叫醒六个人、每人再跑最多
   /// 20 秒模型，很容易在这一轮里跑不完。没待办的人本来也不该被后台吵醒。
+  /// 有人的话先回，没人说话的人也轮一轮（v41）：后台不再只“补待办”，
+  /// 否则 APP 长期不开时，固定住民读不到新帖、也没机会自己发帖子。
+  /// 除了语音，后台能用完整的一套工具。
   Future<int> wakePending({int maxResidents = 3}) async {
     final pool = await residents.all();
     var woken = 0;
@@ -133,11 +148,17 @@ class ResidentWakeService {
       if (tried >= maxResidents) break;
       await inbox.sync(resident.id);
       final pending = await inbox.pending(resident.id);
-      if (pending.isEmpty) continue;
+      if (pending.isEmpty && !await _idleDue(resident.id)) continue;
       tried++;
       woken += await wake(resident.id, trigger: WakeTrigger.background);
     }
     return woken;
+  }
+
+  Future<bool> _idleDue(String residentId) async {
+    final idleAt = await _idleAt(residentId);
+    return idleAt == null ||
+        DateTime.now().difference(idleAt) >= idleGap;
   }
 
   /// “上一次醒来”的水位必须落盘：只放内存的话，每次冷启动都算
@@ -177,12 +198,19 @@ class ResidentWakeService {
     String residentId, {
     WakeTrigger trigger = WakeTrigger.heartbeat,
   }) async {
-    if (_running.contains(residentId)) return 0;
+    if (_running.contains(residentId)) {
+      // 用户又发了一句：不能丢。等他这一轮收尾后马上再醒一次。
+      if (trigger == WakeTrigger.userAction) _rerun.add(residentId);
+      return 0;
+    }
     _running.add(residentId);
     try {
       return await _wake(residentId, trigger);
     } finally {
       _running.remove(residentId);
+      if (_rerun.remove(residentId)) {
+        unawaited(wake(residentId, trigger: WakeTrigger.userAction));
+      }
     }
   }
 
@@ -205,14 +233,13 @@ class ResidentWakeService {
     // 否则住户每 15 分钟醒一次，醒来又没事干，只是白花钱。
     // **用户主动发消息是例外**：他就在屏幕前等着，哪怕收件箱因为时序
     // 没整理出待办，也得让住民看一眼最近的对话。
-    // 后台只做“把欠下的话补上”，没有待办就直接结束。
-    if (pending.isEmpty && trigger == WakeTrigger.background) return 0;
-
-    if (pending.isEmpty && trigger == WakeTrigger.heartbeat) {
-      final idleAt = await _idleAt(residentId);
-      if (idleAt != null && now.difference(idleAt) < idleGap) {
-        return 0;
-      }
+    //
+    // v41 起后台也不再只补待办：APP 长期不开时，固定住民也该有机会
+    // 刷到新帖子、自己发一条。仍按三小时空闲间隔限流，不会每 15 分钟吵醒。
+    if (pending.isEmpty &&
+        (trigger == WakeTrigger.heartbeat ||
+            trigger == WakeTrigger.background)) {
+      if (!await _idleDue(residentId)) return 0;
       // 内存里的冷却只防同一进程内的心跳扎堆；落盘的水位防冷启动扎堆。
       if (last != null && now.difference(last) < heartbeatGap) {
         return 0;
@@ -231,13 +258,19 @@ class ResidentWakeService {
     // 积攒的评论该回就回；真的处理不完的留在收件箱，下次醒来继续。
     // 不能把没展示过的待办也标成“已读”，那等于替模型做了决定。
     final visible = pending.take(20).toList(growable: false);
+    // 上一轮写好、还没发出去的段：用户中途又说话时它们已经被取消了，
+    // 这里把原话交给住民，由它决定照发、改写还是算了。
+    final unsent = await messages.pendingSegments(residentId);
     final toolkit = _WakeToolkit(
       service: this,
       resident: resident,
       wakeId: wakeId,
       pending: visible,
       now: now,
-      allowProactive: trigger != WakeTrigger.background,
+      // v41：后台也允许主动行为（发帖/评论/点赞/刷帖子/画图），
+      // 只有语音因为耗时太长、后台预算不稳定而不开放。
+      allowProactive: true,
+      allowVoice: trigger != WakeTrigger.background,
     );
 
     try {
@@ -269,17 +302,28 @@ class ResidentWakeService {
           visible,
           trigger,
           ownActivity: ownActivity,
+          unsent: unsent,
         ),
         toolkit: toolkit,
         at: now,
         history: history,
-        allowProactive: trigger != WakeTrigger.background,
+        allowProactive: true,
+        allowVoice: toolkit.allowVoice,
       );
 
       // 模型没调工具、只回了一句话：当作私信发出去。
       // 这既兜住了不支持 tool calling 的模型，也兜住“它就是想直接说话”。
       if (said.trim().isNotEmpty && !toolkit.spokePrivately) {
         await toolkit.sendDm(said.trim(), 'fallback');
+      }
+
+      // 交给它看过的暂停段，如果它既没改写也没取消，就当作不要了——
+      // 否则这些段会在每次醒来时反复出现。中途新暂停的段不在这里，
+      // 留给下一轮处理。
+      if (unsent.isNotEmpty) {
+        await messages.expirePausedSegments(
+          unsent.map((segment) => segment.id),
+        );
       }
 
       // 这一轮结束了，剩下的都是“看过了但没回”。必须落一个 handled，
@@ -300,6 +344,8 @@ class ResidentWakeService {
       debugPrint('[唤醒] ${resident.name} 这次没醒成：$error');
       await toolkit.flushImage();
       return 0;
+    } finally {
+      activityDone?.call(residentId);
     }
   }
 
@@ -308,6 +354,7 @@ class ResidentWakeService {
     List<ResidentInboxItem> pending,
     WakeTrigger trigger, {
     String ownActivity = '',
+    List<PendingSegment> unsent = const [],
   }) {
     final String base;
     if (pending.isEmpty) {
@@ -345,8 +392,31 @@ class ResidentWakeService {
       base = buffer.toString();
     }
 
-    if (ownActivity.trim().isEmpty) return base;
-    return '$base\n你最近做过的事（只是给你回忆，记不记由你）：\n$ownActivity';
+    final parts = <String>[base.trimRight()];
+    if (unsent.isNotEmpty) {
+      final buffer = StringBuffer()
+        ..writeln()
+        ..writeln(
+          '你上一轮还有 ${unsent.length} 段话没发出去——对方中途又说话了，'
+          '平台先把它们暂停了。原话如下：',
+        );
+      for (final segment in unsent) {
+        buffer.writeln(
+          '- [${segment.id}] 第 ${segment.index + 1} 段（原定 '
+          '${ResidentToolSession.timeLabel(segment.at)}）：「${segment.preview}」',
+        );
+      }
+      buffer.writeln(
+        '要不要照发、要不要改写、还是算了，都由你决定：'
+        'send_dm 可以重新说一句；rewrite_pending_segment 改掉某一段；'
+        'cancel_pending_segment 取消某一段。',
+      );
+      parts.add(buffer.toString().trimRight());
+    }
+    if (ownActivity.trim().isNotEmpty) {
+      parts.add('你最近做过的事（只是给你回忆，记不记由你）：\n$ownActivity');
+    }
+    return parts.join('\n');
   }
 
   /// 它自己最近发过的动态。只读，不替它写记忆。
@@ -490,6 +560,9 @@ class ResidentWakeService {
       mediaType: wantsVoice ? 'voice' : 'text',
       voicePath: clip?.ref ?? '',
       transcript: clip?.transcript ?? '',
+      // v41：同一轮写出的段带同一个 group，用户可以中途打断。
+      deliveryGroup: wakeId,
+      deliveryIndex: segment,
     );
     if (!outcome.ok) return outcome;
 
@@ -578,6 +651,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     required this.pending,
     required this.now,
     required this.allowProactive,
+    required this.allowVoice,
   });
 
   final ResidentWakeService service;
@@ -586,6 +660,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
   final List<ResidentInboxItem> pending;
   final DateTime now;
   final bool allowProactive;
+
+  /// 后台唤醒不给语音：合成一句话几十秒，后台预算扛不住。
+  final bool allowVoice;
 
   bool finished = false;
   bool spokePrivately = false;
@@ -634,12 +711,12 @@ class _WakeToolkit implements ResidentWakeToolkit {
       wakeId,
       callId,
       _dmSegments,
-      // 用户刚发来消息——他就在屏幕前等着。别学批量私信那样等 40 秒：
-      // 8 秒起步、每多一段再加 12 秒，既像真人打字，也不让人干等。
-      const Duration(seconds: 8),
+      // 用户刚发来消息——他就在屏幕前等着。3 秒起步、每多一段再加 6 秒，
+      // 像真人打一行字，又不会让人以为界面卡住了。
+      const Duration(seconds: 3),
       pending,
       _repliedDm,
-      12,
+      6,
     );
     if (outcome.ok) {
       _dmSegments++;
@@ -650,16 +727,22 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> sendVoice(String content, String callId) async {
+    if (!allowVoice) {
+      return const ActionOutcome(
+        ok: false,
+        message: '后台唤醒不发语音，改用 send_dm 发文字',
+      );
+    }
     final outcome = await service._sendDm(
       resident,
       content,
       wakeId,
       callId,
       _dmSegments,
-      const Duration(seconds: 8),
+      const Duration(seconds: 3),
       pending,
       _repliedDm,
-      12,
+      6,
       asVoice: true,
     );
     if (outcome.ok) {
@@ -686,14 +769,15 @@ class _WakeToolkit implements ResidentWakeToolkit {
     }
 
     final at = DateTime.now().add(
-      const Duration(seconds: 8) +
-          Duration(seconds: 12 * _dmSegments),
+      const Duration(seconds: 3) + Duration(seconds: 6 * _dmSegments),
     );
     final outcome = await service.actions.sendStickerMessage(
       residentId: resident.id,
       stickerPath: path,
       at: at,
       idempotencyKey: 'sticker:${resident.id}:$callId',
+      deliveryGroup: wakeId,
+      deliveryIndex: _dmSegments,
     );
     if (!outcome.ok) return outcome;
 
@@ -712,6 +796,44 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
+  Future<ActionOutcome> cancelPendingSegment(String segmentId) async {
+    if (segmentId.trim().isEmpty) {
+      return const ActionOutcome(ok: false, message: '没有给段 id');
+    }
+    final ok = await service.messages.cancelPendingSegment(segmentId.trim());
+    return ok
+        ? const ActionOutcome(ok: true, message: '这一段不发了')
+        : const ActionOutcome(
+            ok: false,
+            message: '这段已经发出去了，或者不在待发队列里',
+          );
+  }
+
+  @override
+  Future<ActionOutcome> rewritePendingSegment(
+    String segmentId,
+    String content,
+  ) async {
+    if (segmentId.trim().isEmpty) {
+      return const ActionOutcome(ok: false, message: '没有给段 id');
+    }
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '改写的内容是空的');
+    }
+    final ok = await service.messages.rewritePendingSegment(
+      segmentId: segmentId.trim(),
+      content: text,
+    );
+    return ok
+        ? const ActionOutcome(ok: true, message: '这一段已经改成新的话')
+        : const ActionOutcome(
+            ok: false,
+            message: '这段已经发出去了，或者不在待发队列里',
+          );
+  }
+
+  @override
   Future<ActionOutcome> finish() async {
     finished = true;
     await service.inbox.markHandled(
@@ -724,9 +846,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> browseFeed() async {
-    if (!allowProactive) {
-      return const ActionOutcome(ok: false, message: '后台唤醒不主动刷帖子');
-    }
     final recent = await service.posts.recentForAudience(limit: 6);
     if (recent.isEmpty) {
       return const ActionOutcome(ok: true, message: '最近没什么新帖子');
@@ -754,9 +873,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
     String content,
     String callId,
   ) async {
-    if (!allowProactive) {
-      return const ActionOutcome(ok: false, message: '后台唤醒不主动评论');
-    }
     final text = content.trim();
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '评论是空的');
@@ -809,9 +925,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> likePost(String postId, String callId) async {
-    if (!allowProactive) {
-      return const ActionOutcome(ok: false, message: '后台唤醒不主动点赞');
-    }
     final post = await service.posts.watchById(postId).first;
     if (post == null) {
       return const ActionOutcome(ok: false, message: '没有这条帖子');
@@ -827,9 +940,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> generateImage(String prompt, String callId) async {
-    if (!allowProactive) {
-      return const ActionOutcome(ok: false, message: '后台唤醒不主动画图');
-    }
     final clean = prompt.trim();
     if (clean.isEmpty) {
       return const ActionOutcome(ok: false, message: '画面描述是空的');
@@ -854,9 +964,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
     String? topic,
     String callId,
   ) async {
-    if (!allowProactive) {
-      return const ActionOutcome(ok: false, message: '后台唤醒不主动发帖');
-    }
     final outcome = await service._createPost(
       resident,
       content,
@@ -886,5 +993,8 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     media: ref.watch(mediaServiceProvider),
     commentReplies: ref.watch(commentReplyServiceProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
+    activityDone: (residentId) => ref
+        .read(residentActivityProvider.notifier)
+        .clear(residentId),
   ),
 );

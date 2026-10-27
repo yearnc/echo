@@ -55,6 +55,12 @@ class CustomResidents extends Table {
 
   /// 已经定下来的音色：`local:<sid>` / `cloud:<voice>` / `speech:...`。
   TextColumn get voiceRef => text().withDefault(const Constant(''))();
+
+  /// 音色由什么定下来（v41）：
+  /// `description` / `reference` / `reference_description` / `reference_transcript`。
+  /// 哪几种可选由当前语音模型的能力决定。
+  TextColumn get voiceMode =>
+      text().withDefault(const Constant('description'))();
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();
 

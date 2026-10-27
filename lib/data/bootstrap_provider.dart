@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/services/scheduler_service.dart';
+import '../domain/services/speech_models.dart';
 import 'db/database_provider.dart';
 
 /// 启动引导：开库 → 首次播种（**只等这一段**）→ 补发与世界里发生的事。
@@ -25,8 +26,25 @@ final appBootstrapProvider = FutureProvider<void>((ref) async {
 
   // 先把服务对象取出来：后台任务不应该在 provider 结束后还攥着 ref。
   final scheduler = ref.watch(schedulerServiceProvider);
+  final speech = ref.watch(speechModelStoreProvider);
   unawaited(_catchUp(scheduler));
+  // 两套语音模型有 300MB 左右，第一次启动要搬到应用目录。放到后台做，
+  // 等用户真的点语音时就不必在工具调用的 30/90 秒里慢慢拷。
+  unawaited(_prewarmSpeech(speech));
 });
+
+Future<void> _prewarmSpeech(SpeechModelStore store) async {
+  try {
+    await store.prepareTts();
+  } catch (error) {
+    debugPrint('[启动] 文字语音模型没准备好：$error');
+  }
+  try {
+    await store.prepareZipVoice();
+  } catch (error) {
+    debugPrint('[启动] 克隆语音模型没准备好：$error');
+  }
+}
 
 /// 离线期间该补的东西。失败只记日志——这一轮没补上，
 /// 下一次回前台或 30 秒心跳还会再补。

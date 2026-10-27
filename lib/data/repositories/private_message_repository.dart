@@ -19,6 +19,17 @@ class PrivateMessageRepository {
 
   final AppDatabase _db;
 
+  /// 分段投递的四种状态（v41）。
+  ///
+  /// - `pending`：写好、还没到点；
+  /// - `paused`：你中途又说话了，先停下，等下一轮由住民决定怎么处理；
+  /// - `sent`：已经出现 / 历史消息；
+  /// - `cancelled`：不要了，永远不出现。
+  static const String pendingState = 'pending';
+  static const String pausedState = 'paused';
+  static const String sentState = 'sent';
+  static const String cancelledState = 'cancelled';
+
   /// 会话列表：一个人一行，带最后一句和未读数。
   ///
   /// 一行一个子查询是有点重，但会话数量是"你聊过的人"，不是"消息数"，
@@ -52,7 +63,14 @@ class PrivateMessageRepository {
       load: () async {
         final rows =
             await (_db.select(_db.privateMessages)..where(
-                  (t) => t.personaId.equals(personaId) & t.deletedAt.isNull(),
+                  (t) =>
+                      t.personaId.equals(personaId) &
+                      t.deletedAt.isNull() &
+                      // 被用户打断（paused）或取消（cancelled）的段不出现。
+                      t.deliveryState.isIn([
+                        pendingState,
+                        sentState,
+                      ]),
                 )
                 ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
                 .get();
@@ -77,6 +95,10 @@ class PrivateMessageRepository {
             _db.privateMessages.direction.equals('in') &
                 _db.privateMessages.readAt.isNull() &
                 _db.privateMessages.deletedAt.isNull() &
+                _db.privateMessages.deliveryState.isIn([
+                  pendingState,
+                  sentState,
+                ]) &
                 _db.privateMessages.createdAt.isSmallerOrEqualValue(_now),
           );
         final row = await query.getSingle();
@@ -170,6 +192,7 @@ class PrivateMessageRepository {
       ..addColumns([soonest])
       ..where(
         _db.privateMessages.deletedAt.isNull() &
+            _db.privateMessages.deliveryState.isIn([pendingState, sentState]) &
             _db.privateMessages.createdAt.isBiggerThanValue(_now),
       );
     if (personaId != null) {
@@ -208,6 +231,9 @@ class PrivateMessageRepository {
   }
 
   /// 排一条他发来的话。[at] 可以是将来的时刻——那时它才会出现在会话里。
+  ///
+  /// [deliveryGroup] 是同一次唤醒的标识，[deliveryIndex] 是第几段。
+  /// 还没到点的段状态是 `pending`，可以被用户的新消息打断后取消或改写。
   Future<String> scheduleIncoming({
     required String personaId,
     required String content,
@@ -216,8 +242,11 @@ class PrivateMessageRepository {
     String caption = '',
     String voicePath = '',
     String transcript = '',
+    String deliveryGroup = '',
+    int deliveryIndex = 0,
   }) async {
     final id = _newId();
+    final pending = deliveryGroup.isNotEmpty && at.isAfter(DateTime.now());
     await _db
         .into(_db.privateMessages)
         .insert(
@@ -231,9 +260,141 @@ class PrivateMessageRepository {
             voicePath: Value(voicePath.isEmpty ? null : voicePath),
             transcript: Value(transcript.isEmpty ? null : transcript),
             createdAt: at.millisecondsSinceEpoch,
+            deliveryGroup: Value(deliveryGroup),
+            deliveryIndex: Value(deliveryIndex),
+            deliveryState: Value(pending ? pendingState : sentState),
           ),
         );
     return id;
+  }
+
+  /// 还没到点、也还没被取消的段（按第几段排序）。
+  ///
+  /// 只读：下一轮唤醒时把“你有几段没发出去、原话是什么”交给住民，
+  /// 让它自己决定照发、改写还是算了。
+  Future<List<PendingSegment>> pendingSegments(String personaId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final rows =
+        await (_db.select(_db.privateMessages)..where(
+              (t) =>
+                  t.personaId.equals(personaId) &
+                  t.direction.equals('in') &
+                  t.deletedAt.isNull() &
+                  t.deliveryState.isIn([pendingState, pausedState]),
+            )
+            ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+            .get();
+    return [
+      for (final row in rows)
+        // 暂停的段不管原定时间过没过，都要交给下一轮；
+        // 正常待发的段只交还没到点的（过了点的已经在会话里）。
+        if (row.deliveryState == pausedState || row.createdAt > now)
+          PendingSegment(
+          id: row.id,
+          groupId: row.deliveryGroup,
+          index: row.deliveryIndex,
+          content: row.content,
+          at: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+          mediaType: row.mediaType,
+        ),
+    ];
+  }
+
+  /// 用户又发了一句：把这一轮还没发出去的段全部暂停。
+  ///
+  /// 返回被暂停的段，交给下一次唤醒。“已经发出去的”不动——
+  /// 只有 `created_at` 还在未来的段才谈得上暂停。
+  Future<List<PendingSegment>> pausePendingSegments(String personaId) async {
+    final paused = await pendingSegments(personaId);
+    if (paused.isEmpty) return const [];
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await (_db.update(_db.privateMessages)..where(
+          (t) =>
+              t.personaId.equals(personaId) &
+              t.deliveryState.equals(pendingState) &
+              t.createdAt.isBiggerThanValue(now),
+        ))
+        .write(
+          const PrivateMessagesCompanion(
+            deliveryState: Value(pausedState),
+          ),
+        );
+    return paused;
+  }
+
+  /// 取消单独一段（模型自己决定某段不发了）。暂停中的段也能取消。
+  Future<bool> cancelPendingSegment(String segmentId) async {
+    return _markRemoved(segmentId, cancelledState);
+  }
+
+  /// 这一轮已经给模型看过、但它没有处理（没改也没取消）的暂停段：
+  /// 不能一直挂在待发队列里反复出现，收尾时统一取消。
+  Future<int> expirePausedSegments(Iterable<String> ids) async {
+    if (ids.isEmpty) return 0;
+    return (_db.update(_db.privateMessages)..where(
+          (t) =>
+              t.id.isIn(ids) & t.deliveryState.equals(pausedState),
+        ))
+        .write(
+          const PrivateMessagesCompanion(
+            deliveryState: Value(cancelledState),
+          ),
+        );
+  }
+
+  Future<bool> _markRemoved(String segmentId, String state) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final affected =
+        await (_db.update(_db.privateMessages)..where(
+              (t) =>
+                  t.id.equals(segmentId) &
+                  (t.deliveryState.equals(pausedState) |
+                      (t.deliveryState.equals(pendingState) &
+                          t.createdAt.isBiggerThanValue(now))),
+            ))
+            .write(PrivateMessagesCompanion(deliveryState: Value(state)));
+    return affected > 0;
+  }
+
+  /// 改写一段还没发出去的话（时间也可以顺延）。
+  Future<bool> rewritePendingSegment({
+    required String segmentId,
+    required String content,
+    DateTime? at,
+  }) async {
+    final text = content.trim();
+    if (text.isEmpty) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final affected =
+        await (_db.update(_db.privateMessages)..where(
+              (t) =>
+                  t.id.equals(segmentId) &
+                  (t.deliveryState.equals(pausedState) |
+                      (t.deliveryState.equals(pendingState) &
+                          t.createdAt.isBiggerThanValue(now))),
+            ))
+            .write(
+              PrivateMessagesCompanion(
+                content: Value(text),
+                caption: const Value(''),
+                mediaType: const Value('text'),
+                transcript: const Value(null),
+                // 改写过的段重新进入待发；时间不变的话它仍按原计划出现。
+                deliveryState: const Value(pendingState),
+              ),
+            );
+    if (affected > 0 && at != null) {
+      // createdAt 在更新语句里不是可空字段，单独写一次。
+      await (_db.update(_db.privateMessages)..where(
+            (t) => t.id.equals(segmentId),
+          ))
+          .write(
+            PrivateMessagesCompanion(
+              createdAt: Value(at.millisecondsSinceEpoch),
+            ),
+          );
+    }
+    return affected > 0;
   }
 
   /// 图/表情包发出去之后补一句“它是什么”。失败不影响消息本身。
@@ -287,6 +448,7 @@ class PrivateMessageRepository {
                 (t) =>
                     t.personaId.equals(personaId) &
                     t.deletedAt.isNull() &
+                    t.deliveryState.isIn([pendingState, sentState]) &
                     t.createdAt.isSmallerOrEqualValue(_now),
               )
               ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
@@ -450,15 +612,18 @@ SELECT
       AND u.direction = 'in'
       AND u.read_at IS NULL
       AND u.deleted_at IS NULL
+      AND u.delivery_state IN ('pending', 'sent')
       AND u.created_at <= $_conversationsNow
   ) AS unread
 FROM private_messages m
 WHERE m.deleted_at IS NULL
+  AND m.delivery_state IN ('pending', 'sent')
   AND m.created_at <= $_conversationsNow
   AND m.id = (
     SELECT l.id FROM private_messages l
     WHERE l.persona_id = m.persona_id
       AND l.deleted_at IS NULL
+      AND l.delivery_state IN ('pending', 'sent')
       AND l.created_at <= $_conversationsNow
     ORDER BY l.created_at DESC
     LIMIT 1

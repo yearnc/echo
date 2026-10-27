@@ -15,6 +15,11 @@ class _FakeTts extends TtsService {
     required String text,
     required String personaId,
     String voiceModel = '',
+    String voiceDescription = '',
+    bool wantsDescription = false,
+    String referenceAudioPath = '',
+    String referenceText = '',
+    bool preferLocalClone = false,
   }) async {
     capturedVoiceModel = voiceModel;
     return VoiceClip(

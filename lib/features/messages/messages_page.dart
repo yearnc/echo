@@ -8,6 +8,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
+import '../../domain/services/resident_activity_controller.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 消息页（B5）：你和住民一对一聊过的那几个人。
@@ -85,6 +86,9 @@ class _ConversationTile extends ConsumerWidget {
     final avatarRef = storedResident?.avatarAsset;
     final departed = resident == null;
     final unread = conversation.unreadCount > 0;
+    final activity =
+        ref.watch(residentActivityProvider)[conversation.personaId];
+    final live = activity != null && !activity.isStale ? activity : null;
 
     final tile = InkWell(
       onTap: () => context.push(RoutePaths.chat(conversation.personaId)),
@@ -175,27 +179,41 @@ class _ConversationTile extends ConsumerWidget {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      if (conversation.lastFromMe)
-                        Text(
-                          '我：',
-                          style: TextStyle(
-                            color: EchoColors.textFaint,
-                            fontSize: 13,
+                      if (live != null)
+                        Expanded(
+                          child: Text(
+                            live.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: EchoColors.primary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      else ...[
+                        if (conversation.lastFromMe)
+                          Text(
+                            '我：',
+                            style: TextStyle(
+                              color: EchoColors.textFaint,
+                              fontSize: 13,
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            conversation.lastMessage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: unread
+                                  ? EchoColors.text
+                                  : EchoColors.textMuted,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
-                      Expanded(
-                        child: Text(
-                          conversation.lastMessage,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: unread
-                                ? EchoColors.text
-                                : EchoColors.textMuted,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
+                      ],
                       if (unread) ...[
                         const SizedBox(width: 8),
                         _UnreadBadge(count: conversation.unreadCount),

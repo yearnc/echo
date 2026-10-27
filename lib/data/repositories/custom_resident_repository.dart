@@ -78,6 +78,7 @@ class CustomResidentRepository {
             voiceSamplePath: Value(resident.voiceSamplePath),
             voiceSampleText: Value(resident.voiceSampleText),
             voiceRef: Value(resident.voiceRef),
+            voiceMode: Value(resident.voiceMode.key),
             createdAt: resident.createdAt.millisecondsSinceEpoch,
           ),
         );
@@ -129,6 +130,7 @@ class CustomResidentRepository {
     voiceSamplePath: row.voiceSamplePath,
     voiceSampleText: row.voiceSampleText,
     voiceRef: row.voiceRef,
+    voiceMode: ResidentVoiceMode.fromKey(row.voiceMode),
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
   );
 

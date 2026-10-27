@@ -40,6 +40,34 @@ class PrivateMessage {
   final bool read;
 }
 
+/// 一段已经写好、但还没到点发出去的私信（v41）。
+///
+/// 住民一次醒来可能把一句话分成几段；这些段在表里先躺着，
+/// 用户中途又发消息时，还没发出去的部分可以被取消或改写。
+class PendingSegment {
+  const PendingSegment({
+    required this.id,
+    required this.groupId,
+    required this.index,
+    required this.content,
+    required this.at,
+    this.mediaType = 'text',
+  });
+
+  final String id;
+  final String groupId;
+  final int index;
+  final String content;
+  final DateTime at;
+  final String mediaType;
+
+  String get preview => switch (mediaType) {
+    'voice' => '[语音] $content',
+    'sticker' => '[表情包]',
+    _ => content,
+  };
+}
+
 /// 会话列表里的一行：一个人 + 你们最后说的那句话。
 class Conversation {
   const Conversation({

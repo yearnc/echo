@@ -1,0 +1,24 @@
+语音合成模型 · 参考音频克隆（ZipVoice INT8）
+==================================================
+
+这套模型给上传了参考音频 + 转录文本的住民做零样本克隆。
+它必须同时有参考音频和逐字稿，不支持“仅文字描述”。
+
+下载：
+
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx
+
+解压后把下面这些放到本目录（保持 espeak-ng-data 的子目录结构）：
+
+    encoder.int8.onnx    约 5.4 MB
+    decoder.int8.onnx    约 125 MB
+    tokens.txt
+    lexicon.txt
+    vocos_24khz.onnx     声码器，约 54 MB
+    espeak-ng-data.zip   把解压出来的 espeak-ng-data/ 整个目录压成 zip
+                         （355 个小文件、带子目录；Flutter 的目录式资源
+                         声明不会递归打包，所以这里用 zip 随包）
+
+许可证：ZipVoice / sherpa-onnx 的模型许可请在使用前核对。
+缺文件不会让应用崩：克隆合成退回文字，文字描述仍用 tts/ 那套。

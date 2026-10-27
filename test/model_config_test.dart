@@ -76,7 +76,12 @@ void main() {
       for (final preset in ModelConfig.presets) {
         if (preset.id == 'custom') continue;
         expect(preset.model, isNotEmpty, reason: '${preset.label} 缺默认模型');
-        expect(preset.baseUrl, startsWith('https://'));
+        // 本机/内网服务允许 http（比如自己跑的服务），公网必须是 https。
+        expect(
+          isSecureBaseUrl(preset.baseUrl),
+          isTrue,
+          reason: '${preset.label} 的地址不安全',
+        );
       }
     });
 
@@ -93,8 +98,20 @@ void main() {
       for (final preset in presets) {
         if (preset.id == 'custom') continue;
         expect(preset.model, isNotEmpty, reason: '${preset.label} 缺默认模型');
-        expect(preset.baseUrl, startsWith('https://'));
+        expect(
+          isSecureBaseUrl(preset.baseUrl),
+          isTrue,
+          reason: '${preset.label} 的地址不安全',
+        );
       }
+      // 云端 TTS 里，OpenAI 支持按描述调语气，硅基流动支持参考音频 + 逐字稿。
+      final openai = ModelConfig.presetOf('openai-tts', kind: ModelKind.tts);
+      expect(openai.ttsVoiceDescription, isTrue);
+      final silicon = ModelConfig.presetOf(
+        'siliconflow-tts',
+        kind: ModelKind.tts,
+      );
+      expect(silicon.ttsReferenceTranscript, isTrue);
     });
 
     test('地址和模型名都填了才算完整', () {

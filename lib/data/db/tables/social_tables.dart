@@ -30,6 +30,16 @@ class PrivateMessages extends Table {
   TextColumn get transcript => text().nullable()();
   IntColumn get createdAt => integer()();
 
+  /// 一次唤醒里分几段发出去（v41）。
+  ///
+  /// 同一个 `deliveryGroup` 是同一轮写出来的话；`deliveryIndex` 是第几段；
+  /// 状态 `pending → sent / cancelled`。用户在你说话途中又发了一句时，
+  /// 还没到点的段会被取消，交给下一次唤醒重新决定发不发、发什么。
+  TextColumn get deliveryGroup => text().withDefault(const Constant(''))();
+  IntColumn get deliveryIndex => integer().withDefault(const Constant(0))();
+  TextColumn get deliveryState =>
+      text().withDefault(const Constant('sent'))();
+
   /// 已读时刻。只有收到的消息才需要它，自己发出去的为 null。
   IntColumn get readAt => integer().nullable()();
   IntColumn get deletedAt => integer().nullable()();

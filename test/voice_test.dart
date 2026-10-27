@@ -54,6 +54,11 @@ class _FakeTts extends TtsService {
     required String text,
     required String personaId,
     String voiceModel = '',
+    String voiceDescription = '',
+    bool wantsDescription = false,
+    String referenceAudioPath = '',
+    String referenceText = '',
+    bool preferLocalClone = false,
   }) async {
     calls += 1;
     if (!succeeds) return null;
@@ -71,14 +76,28 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('住民音色', () {
-    test('出场设定里的住民各有各的编号', () {
-      final sids = <int>{};
+    test('所有住民都落在当前本机模型的 5 个音色里', () {
       for (var i = 1; i <= 32; i++) {
         final id = 'persona_${i.toString().padLeft(3, '0')}';
-        sids.add(ResidentVoice.sidFor(id));
+        final sid = ResidentVoice.sidFor(id);
+        expect(sid, greaterThanOrEqualTo(0));
+        expect(sid, lessThan(ResidentVoice.localSpeakerCount));
       }
-      // 32 个人就该有 32 个嗓子：模型里 174 个说话人，没道理撞。
-      expect(sids.length, 32);
+    });
+
+    test('旧的 local:42 越界引用会被忽略，重新落到有效音色', () {
+      final sid = ResidentVoice.sidFor(
+        'resident_x',
+        voiceModel: 'local:42',
+      );
+      expect(sid, lessThan(ResidentVoice.localSpeakerCount));
+    });
+
+    test('新的 local:3 会被尊重', () {
+      expect(
+        ResidentVoice.sidFor('resident_x', voiceModel: 'local:3'),
+        3,
+      );
     });
 
     test('同一个住民每次问都是同一个编号', () {

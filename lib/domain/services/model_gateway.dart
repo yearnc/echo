@@ -333,6 +333,7 @@ class ModelGateway {
     required ModelConfig config,
     required String text,
     String voice = 'alloy',
+    String instructions = '',
     Duration timeout = const Duration(seconds: 40),
   }) async {
     final apiKey = (await _configs.readKey(config.id))?.trim() ?? '';
@@ -347,7 +348,14 @@ class ModelGateway {
     try {
       final response = await _dio.post<List<int>>(
         '$baseUrl/audio/speech',
-        data: {'model': config.model, 'input': text, 'voice': voice},
+        data: {
+          'model': config.model,
+          'input': text,
+          'voice': voice,
+          // OpenAI 的 gpt-4o-mini-tts 用 instructions 调语气；
+          // 不支持的服务商会忽略它。
+          if (instructions.trim().isNotEmpty) 'instructions': instructions.trim(),
+        },
         options: Options(
           headers: {
             'Authorization': 'Bearer $apiKey',
@@ -405,7 +413,7 @@ class ModelGateway {
     final problem = describeBaseUrlProblem(baseUrl);
     if (problem != null) throw ModelCallException(problem);
     if (!baseUrl.contains('siliconflow')) {
-      throw const ModelCallException('当前语音服务不支持参考音频克隆');
+      throw const ModelCallException('当前语音服务不支持云端参考音频克隆');
     }
     if (audio.isEmpty) {
       throw const ModelCallException('参考音频是空的');
