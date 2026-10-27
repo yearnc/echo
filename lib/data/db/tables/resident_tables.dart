@@ -98,6 +98,34 @@ class ResidentInboxItems extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// 固定住民的唤醒日志（v3.9）。
+///
+/// 每次真正醒来记一条：什么时候醒的、因为什么醒、这一轮醒了多久，
+/// 以及**给未来的自己留的一句话**。日志页读它，住民自己也能用工具查——
+/// 它不是给用户看的监控，而是让住民对“我什么时候来过”有记忆。
+@DataClassName('ResidentWakeLogRow')
+@TableIndex(name: 'resident_wake_logs_at', columns: {#residentId, #wokeAt})
+class ResidentWakeLogs extends Table {
+  TextColumn get id => text()();
+  TextColumn get residentId => text()();
+
+  /// user_action / heartbeat / background / setup
+  TextColumn get trigger => text()();
+  IntColumn get wokeAt => integer()();
+  IntColumn get endedAt => integer().nullable()();
+
+  /// 留给下一次醒来的自己的话。空串 = 没留。
+  TextColumn get note => text().withDefault(const Constant(''))();
+  IntColumn get noteAt => integer().nullable()();
+
+  /// 这句话已经被哪一次醒来带进上下文了。只为 null 时才算“还没读到”，
+  /// 否则同一句留言会在之后每一轮里反复出现。
+  IntColumn get noteDeliveredAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// 固定住民的长期记忆（v3.0）。
 ///
 /// 只写用户明确表达的事实/偏好/事件；删除条目不删对话原文。

@@ -13,7 +13,6 @@ import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
 import 'tool_settings_controller.dart';
-import 'voice_settings_controller.dart';
 import 'web_search.dart';
 
 /// 这一轮选中的表情包。
@@ -67,10 +66,7 @@ abstract class ResidentWakeToolkit {
   Future<ActionOutcome> cancelPendingSegment(String segmentId);
 
   /// 改写一段还没发出去的私信。
-  Future<ActionOutcome> rewritePendingSegment(
-    String segmentId,
-    String content,
-  );
+  Future<ActionOutcome> rewritePendingSegment(String segmentId, String content);
 
   /// 发一张表情包私信。
   Future<ActionOutcome> sendSticker(
@@ -86,6 +82,12 @@ abstract class ResidentWakeToolkit {
   Future<ActionOutcome> likePost(String postId, String callId);
 
   Future<ActionOutcome> generateImage(String prompt, String callId);
+
+  /// 查自己最近几天什么时候醒过（默认今天）。
+  Future<ActionOutcome> checkWakeLog(int days);
+
+  /// 给下一次醒来的自己留一句话。
+  Future<ActionOutcome> leaveNote(String content);
 
   /// 发一条动态。由 toolkit 实现是为了让“配图”和文字一起落库——
   /// 发出去的帖子必须是完整的，不能先发文字再补图。
@@ -106,7 +108,6 @@ class ResidentToolSession {
     required this.gateway,
     required this.actions,
     this.search,
-    this.voiceAvailable,
     this.readSettings,
     this.activity,
   });
@@ -116,9 +117,6 @@ class ResidentToolSession {
 
   /// 用户开了联网搜索才注入；没开时 `web_search` 会明确说没开。
   final WebSearchService? search;
-
-  /// 语音总开关。关着时 `send_voice` 工具不出现。
-  final bool Function()? voiceAvailable;
 
   /// 工具轮数与总超时。设置页可调，默认 12 轮 / 30 秒。
   final ToolSettings Function()? readSettings;
@@ -134,7 +132,11 @@ class ResidentToolSession {
     return left > cap ? cap : left;
   }
 
-  void _report(CustomResident resident, String label, ResidentActivityKind kind) {
+  void _report(
+    CustomResident resident,
+    String label,
+    ResidentActivityKind kind,
+  ) {
     activity?.call(resident.id, label, kind);
   }
 
@@ -150,6 +152,8 @@ class ResidentToolSession {
     'reply_inbox' || 'send_dm' => '正在写回复…',
     'send_voice' => '正在录语音…',
     'send_sticker' => '正在挑表情包…',
+    'check_wake_log' => '正在翻自己的日志…',
+    'leave_note' => '正在给未来的自己留言…',
     'finish' => '正在看完…',
     _ => '正在查东西…',
   };
@@ -187,10 +191,7 @@ class ResidentToolSession {
     final memoryLines = await _prefetch(resident);
     final stickers = <ResidentStickerChoice>[];
     final messages = <Map<String, dynamic>>[
-      {
-        'role': 'system',
-        'content': _systemPrompt(resident),
-      },
+      {'role': 'system', 'content': _systemPrompt(resident)},
       ...await _historyMessages(
         recent: recent,
         config: config,
@@ -215,10 +216,7 @@ class ResidentToolSession {
       );
 
       if (result.toolCalls.isEmpty) {
-        return ResidentReply(
-          text: result.content.trim(),
-          stickers: stickers,
-        );
+        return ResidentReply(text: result.content.trim(), stickers: stickers);
       }
 
       messages.add({
@@ -242,10 +240,7 @@ class ResidentToolSession {
         _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
         final ActionOutcome outcome;
         if (call.name == 'send_sticker' && stickers.isNotEmpty) {
-          outcome = const ActionOutcome(
-            ok: false,
-            message: '一次回复最多发一张表情包',
-          );
+          outcome = const ActionOutcome(ok: false, message: '一次回复最多发一张表情包');
         } else {
           outcome = await _execute(
             resident: resident,
@@ -258,11 +253,7 @@ class ResidentToolSession {
             final path = outcome.data['path'];
             if (id is String && path is String) {
               stickers.add(
-                ResidentStickerChoice(
-                  callId: call.id,
-                  id: id,
-                  path: path,
-                ),
+                ResidentStickerChoice(callId: call.id, id: id, path: path),
               );
             }
           }
@@ -285,10 +276,7 @@ class ResidentToolSession {
         config: config,
         messages: [
           ...messages,
-          {
-            'role': 'user',
-            'content': '时间到了，不用再查了，直接回他一句。',
-          },
+          {'role': 'user', 'content': '时间到了，不用再查了，直接回他一句。'},
         ],
         tools: const [],
         temperature: 0.85,
@@ -457,6 +445,17 @@ class ResidentToolSession {
               (args['prompt'] as String?) ?? '',
               call.id,
             );
+          case 'check_wake_log':
+            {
+              final days = args['days'];
+              outcome = await toolkit.checkWakeLog(
+                days is num ? days.toInt() : 1,
+              );
+            }
+          case 'leave_note':
+            outcome = await toolkit.leaveNote(
+              (args['content'] as String?) ?? '',
+            );
           case 'create_post':
             outcome = await toolkit.createPost(
               (args['content'] as String?) ?? '',
@@ -545,6 +544,8 @@ $persona
   如果更想私下说，用 send_dm 给他发私信——真人常这么干。
 - 收件箱里有人跟你说话就回，不限制人数；私信一次最多分三段说完
   （真人也是一句一句敲），没有每日额度，回完了就停。话要短，像微信，10—60 字。
+- 你也有自己的日志：check_wake_log 能看今天什么时候醒过；
+  想给下一次醒来的自己留句话就用 leave_note（可留可不留，别写成日记）。
 - 没有待办时，可以自己发条动态（create_post，用户关了开关就发不了）、
   刷一刷别人发的帖子（browse_feed）、点个赞（like_post）、
   在别人的帖子下留句话（comment_post，post_id 来自 browse_feed），
@@ -630,7 +631,8 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       if (resident.description.trim().isNotEmpty) resident.description,
       if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
       if (resident.tone.trim().isNotEmpty) resident.tone,
-      if (resident.extraInstructions.trim().isNotEmpty) resident.extraInstructions,
+      if (resident.extraInstructions.trim().isNotEmpty)
+        resident.extraInstructions,
     ].join('\n');
     return '''
 你是「${resident.name}」，正在跟一个人私聊。
@@ -704,8 +706,7 @@ $persona
         ..writeln('你们以前聊过（仅供参考）：')
         ..writeln(memoryLines);
     }
-    if (latest.trim().isNotEmpty &&
-        (recent.isEmpty || recent.last.fromMe)) {
+    if (latest.trim().isNotEmpty && (recent.isEmpty || recent.last.fromMe)) {
       tail.writeln('他刚说：${latest.trim()}');
     }
     tail.writeln('直接回他一句。');
@@ -781,7 +782,9 @@ $persona
       case 'list_tools':
         return ActionOutcome(
           ok: true,
-          data: {'tools': [for (final tool in tools) _toolName(tool)]},
+          data: {
+            'tools': [for (final tool in tools) _toolName(tool)],
+          },
         );
       case 'list_stickers':
         return actions.listStickers();
@@ -793,10 +796,7 @@ $persona
       case 'web_search':
         final service = search;
         if (service == null) {
-          return const ActionOutcome(
-            ok: false,
-            message: '联网搜索没有开启，不要假装查过',
-          );
+          return const ActionOutcome(ok: false, message: '联网搜索没有开启，不要假装查过');
         }
         final outcome = await service.search((args['query'] as String?) ?? '');
         if (!outcome.ok) {
@@ -916,8 +916,8 @@ $persona
     ];
   }
 
-  bool _voiceToolAvailable(CustomResident resident) =>
-      (voiceAvailable?.call() ?? false) && resident.voiceEnabled;
+  /// 发不发语音只看这位住民自己的设置——全局开关已经下线。
+  bool _voiceToolAvailable(CustomResident resident) => resident.voiceEnabled;
 
   static const Map<String, dynamic> _webSearchTool = {
     'type': 'function',
@@ -966,8 +966,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'cancel_pending_segment',
-        'description':
-            '取消一段还没发出去的私信。段 id 来自“你上一轮还有几段没发出去”那一节。',
+        'description': '取消一段还没发出去的私信。段 id 来自“你上一轮还有几段没发出去”那一节。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -981,8 +980,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'rewrite_pending_segment',
-        'description':
-            '改写一段还没发出去的私信。对方中途又说了话时，用它把原来的话改得接得上。',
+        'description': '改写一段还没发出去的私信。对方中途又说了话时，用它把原来的话改得接得上。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1000,8 +998,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'reply_inbox',
-        'description':
-            '回复收件箱里的一条评论（item_id 来自待办清单）。回复会排在这条评论下面。',
+        'description': '回复收件箱里的一条评论（item_id 来自待办清单）。回复会排在这条评论下面。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1032,8 +1029,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'finish',
-        'description':
-            '这一轮不回了。已读不回也是回应；剩下的待办会被标成已看。',
+        'description': '这一轮不回了。已读不回也是回应；剩下的待办会被标成已看。',
         'parameters': {'type': 'object', 'properties': {}},
       },
     },
@@ -1041,7 +1037,11 @@ $persona
       'type': 'function',
       'function': {
         'name': 'browse_feed',
-        'description': '刷一刷最近别人发的帖子，看看有什么可接的话。',
+        'description':
+            '刷一刷最近别人发的帖子，看看有什么可接的话。'
+            '每条会带作者、发帖时间、话题、赞与评论数；'
+            '刷到就会留下浏览记录，对方点开浏览量名单能看到你来过；'
+            '自己的帖子不算。',
         'parameters': {'type': 'object', 'properties': {}},
       },
     },
@@ -1079,9 +1079,39 @@ $persona
     {
       'type': 'function',
       'function': {
-        'name': 'generate_image',
+        'name': 'check_wake_log',
         'description':
-            '生成一张图，用来配自己下面要发的动态。返回要等一会儿，先继续做别的事。',
+            '看看自己最近什么时候醒过。默认只看今天；'
+            '想回忆前几天的作息可以把 days 调到 2—7。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'days': {'type': 'integer', 'description': '往前看几天，默认 1（只看今天）'},
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'leave_note',
+        'description':
+            '给下一次醒来的自己留一句话。可留可不留；'
+            '留了的话，下一轮醒来会先看到它和留言时间。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'content': {'type': 'string', 'description': '一句话，别写成日记'},
+          },
+          'required': ['content'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'generate_image',
+        'description': '生成一张图，用来配自己下面要发的动态。返回要等一会儿，先继续做别的事。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1230,8 +1260,7 @@ $persona
       'type': 'function',
       'function': {
         'name': 'send_sticker',
-        'description':
-            '发一张表情包。一次回复最多一张；对方难过时只选安慰/陪伴类标签。',
+        'description': '发一张表情包。一次回复最多一张；对方难过时只选安慰/陪伴类标签。',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1239,10 +1268,7 @@ $persona
               'type': 'string',
               'description': 'list_stickers 返回的 id，优先用它',
             },
-            'tag': {
-              'type': 'string',
-              'description': '没给 id 时按标签匹配；匹配到多张会要求重选',
-            },
+            'tag': {'type': 'string', 'description': '没给 id 时按标签匹配；匹配到多张会要求重选'},
           },
         },
       },
@@ -1255,7 +1281,6 @@ final residentToolSessionProvider = Provider<ResidentToolSession>(
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
     search: ref.watch(webSearchServiceProvider),
-    voiceAvailable: () => ref.read(voiceSettingsControllerProvider).enabled,
     readSettings: () => ref.read(toolSettingsProvider),
     activity: (residentId, label, kind) => ref
         .read(residentActivityProvider.notifier)

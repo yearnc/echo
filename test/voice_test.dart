@@ -2,23 +2,10 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:drift/native.dart';
-import 'package:echo/data/db/app_database.dart';
 import 'package:echo/data/media/voice_wave_store.dart';
-import 'package:echo/data/repositories/analysis_repository.dart';
-import 'package:echo/data/repositories/interaction_repository.dart';
-import 'package:echo/data/repositories/notification_repository.dart';
-import 'package:echo/data/repositories/plan_event_repository.dart';
-import 'package:echo/data/repositories/post_repository.dart';
-import 'package:echo/data/repositories/post_voice_repository.dart';
 import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/post_voice.dart';
 import 'package:echo/domain/models/resident_voice.dart';
-import 'package:echo/domain/models/voice_settings.dart';
-import 'package:echo/domain/services/content_generator.dart';
-import 'package:echo/domain/models/planned_interaction.dart';
-import 'package:echo/domain/services/scheduler_service.dart';
-import 'package:echo/domain/services/tts_service.dart';
 import 'package:echo/domain/services/voice_waveform.dart';
 import 'package:echo/core/constants/app_texts.dart';
 import 'package:echo/domain/models/post.dart';
@@ -26,50 +13,6 @@ import 'package:echo/features/shared_widgets/comment_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-/// 一个永远掷出最低值的骰子。
-///
-/// 「这条评论要不要用语音」是概率判定，但用例要验的是接线
-/// （合成完之后字段有没有写对），概率本身交给另一组用例。
-class _AlwaysLowRandom implements Random {
-  @override
-  double nextDouble() => 0.0;
-
-  @override
-  int nextInt(int max) => 0;
-
-  @override
-  bool nextBool() => false;
-}
-
-/// 假的合成服务：不碰模型、不写文件，只回答"合成成不成功"。
-class _FakeTts extends TtsService {
-  _FakeTts({this.succeeds = true});
-
-  final bool succeeds;
-  int calls = 0;
-
-  @override
-  Future<VoiceClip?> speak({
-    required String text,
-    required String personaId,
-    String voiceModel = '',
-    String voiceDescription = '',
-    bool wantsDescription = false,
-    String referenceAudioPath = '',
-    String referenceText = '',
-    bool preferLocalClone = false,
-  }) async {
-    calls += 1;
-    if (!succeeds) return null;
-    return VoiceClip(
-      ref: 'file:fake/voice.wav',
-      transcript: text,
-      durationMs: 1800,
-      waveform: const [1.0],
-    );
-  }
-}
 
 void main() {
   // 住民名单是从 assets 读的，得先有 binding。
@@ -213,110 +156,6 @@ void main() {
       );
       expect(bars.length, VoiceWaveform.defaultBars);
       expect(bars.toSet().length, 1);
-    });
-  });
-
-  group('评论兑现之后变成语音', () {
-    late AppDatabase db;
-    late PostRepository posts;
-    late InteractionRepository interactions;
-
-    setUp(() async {
-      db = AppDatabase.forTesting(NativeDatabase.memory());
-      posts = PostRepository(db);
-      interactions = InteractionRepository(db);
-
-    });
-
-    tearDown(() => db.close());
-
-    /// 排一条"早就该兑现"的评论，然后扫一次队列。
-    Future<void> flushOneComment({
-      required TtsService? voice,
-      VoiceSettings Function()? readVoiceSettings,
-    }) async {
-      final postId = await posts.create(content: '今天楼下桂花开了', scope: 'echo');
-      await PostVoiceRepository(db).insertAll([
-        PostVoice(
-          id: 'voice_1',
-          postId: postId,
-          kind: PostVoiceKind.ephemeral,
-          name: '三楼的灯',
-          model: 'voice_soft_female',
-          createdAt: DateTime.now(),
-        ),
-      ]);
-      await interactions.insertPlanned(postId, [
-        PlannedInteraction(
-          personaId: 'voice_1',
-          type: 'comment',
-          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
-          content: '桂花一开，整条街都是甜的。',
-          mediaType: 'text',
-        ),
-      ]);
-
-      final scheduler = SchedulerService(
-        interactions: interactions,
-        planEvents: PlanEventRepository(db),
-        posts: posts,
-        notifications: NotificationRepository(db),
-        analyses: AnalysisRepository(db),
-        generator: SampleContentGenerator(),
-        voiceRepo: PostVoiceRepository(db),
-        voice: voice,
-        readVoiceSettings: readVoiceSettings,
-        // 概率那一关直接放行：这条用例要验的是接线，不是随机。
-        random: _AlwaysLowRandom(),
-      );
-      await scheduler.flushDue();
-      // 合成是 unawaited 挂出去的，等它跑完。
-      await pumpEventQueue();
-    }
-
-    test('合成成功后评论变成语音条，转写稿和时长一起落库', () async {
-      final fake = _FakeTts();
-      await flushOneComment(voice: fake);
-
-      final row = (await db.select(db.aiInteractions).get()).single;
-      expect(fake.calls, 1);
-      expect(row.mediaType, 'voice');
-      expect(row.voicePath, 'file:fake/voice.wav');
-      expect(row.transcript, '桂花一开，整条街都是甜的。');
-      expect(row.voiceDurationMs, 1800);
-    });
-
-    test('合成不出来就保持文字，评论区照常', () async {
-      final fake = _FakeTts(succeeds: false);
-      await flushOneComment(voice: fake);
-
-      final row = (await db.select(db.aiInteractions).get()).single;
-      expect(fake.calls, 1);
-      expect(row.mediaType, 'text');
-      expect(row.voicePath, isNull);
-      // 评论本身还在——语音只是表现形式，不该连累内容。
-      expect(row.status, 'done');
-    });
-
-    test('语音开关关掉时不再生成新的语音条', () async {
-      final fake = _FakeTts();
-      await flushOneComment(
-        voice: fake,
-        readVoiceSettings: () => const VoiceSettings(enabled: false),
-      );
-
-      final row = (await db.select(db.aiInteractions).get()).single;
-      expect(fake.calls, 0, reason: '开关关了就不该再合成');
-      expect(row.mediaType, 'text');
-      expect(row.status, 'done', reason: '评论本身照常送到');
-    });
-
-    test('没有语音服务时行为和 B8 之前完全一致', () async {
-      await flushOneComment(voice: null);
-
-      final row = (await db.select(db.aiInteractions).get()).single;
-      expect(row.mediaType, 'text');
-      expect(row.status, 'done');
     });
   });
 

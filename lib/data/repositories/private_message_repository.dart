@@ -49,6 +49,32 @@ class PrivateMessageRepository {
     );
   }
 
+  /// 这位住民现在是不是还有话没发完（聊天页的「正在打字…」用它）。
+  ///
+  /// 唤醒结束时会清掉「正在思考」；但分好的段按 3/9/15 秒的节奏一条条出现，
+  /// 中间那几秒没有状态，用户会以为对方说完了。这个流只在**未来还有待发段**
+  /// 时为 true，到点自动变回 false——不是假打字动画。
+  Stream<bool> watchTyping(String personaId) {
+    return _dueStream(
+      load: () async {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final count = _db.privateMessages.id.count();
+        final query = _db.selectOnly(_db.privateMessages)
+          ..addColumns([count])
+          ..where(
+            _db.privateMessages.personaId.equals(personaId) &
+                _db.privateMessages.direction.equals('in') &
+                _db.privateMessages.deletedAt.isNull() &
+                _db.privateMessages.deliveryState.equals(pendingState) &
+                _db.privateMessages.createdAt.isBiggerThanValue(now),
+          );
+        final row = await query.getSingle();
+        return (row.read(count) ?? 0) > 0;
+      },
+      nextDueMs: () => _nextFutureAt(personaId: personaId, incomingOnly: true),
+    );
+  }
+
   /// 和某个人的全部往来（按时间正序，够聊天页从上往下铺）。
   ///
   /// **不在 SQL 里绑一个"建查询那一刻"的 now**：那样你刚发出去的消息
@@ -647,6 +673,12 @@ final privateThreadProvider = StreamProvider.autoDispose
       (ref, personaId) =>
           ref.watch(privateMessageRepositoryProvider).watchThread(personaId),
     );
+
+/// 这位住民还有没有话没发完（「正在打字…」）。
+final privateTypingProvider = StreamProvider.autoDispose.family<bool, String>(
+  (ref, personaId) =>
+      ref.watch(privateMessageRepositoryProvider).watchTyping(personaId),
+);
 
 /// 未读私信条数（底部导航的红点）。
 final privateUnreadCountProvider = StreamProvider<int>(

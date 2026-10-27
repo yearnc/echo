@@ -18,11 +18,14 @@ class ResidentVoice {
 
   /// 五选一时给用户看的名字。模型里的原始 speaker 名是角色名，
   /// 对用户没有意义；这里只如实标男女，不编“清亮/温柔”这类没验证过的音色。
+  ///
+  /// 这五条是**听出来的**，不是按模型说明猜的：vits-zh-ll 的 speaker 2 和
+  /// speaker 4 实际是男声（v3.9 修正）。别再按“前四位都是女声”去分组。
   static const List<String> speakerLabels = [
     '声线 1 · 女',
-    '声线 2 · 女',
+    '声线 2 · 男',
     '声线 3 · 女',
-    '声线 4 · 女',
+    '声线 4 · 男',
     '声线 5 · 男',
   ];
 
@@ -31,13 +34,12 @@ class ResidentVoice {
     return speakerLabels[sid];
   }
 
-  /// 女声可用的编号：前四位是女声，最后一位是“霸总”男声。
+  /// 男女声可用的编号（v3.9 按实际听感修正）：0、2 女；1、3、4 男。
   ///
-  /// 这是模型自带的分组，不是我们按名字猜的——旧 AISHELL-3 的 174 人表
-  /// 已经不适用了，`local:42` 这类老引用会被下面的 `_localSid` 挡掉，
-  /// 重新落到稳定散列上，不会把引擎喂一个越界的 sid。
-  static const List<int> _femalePool = [0, 1, 2, 3];
-  static const List<int> _malePool = [4];
+  /// 旧 AISHELL-3 的 174 人表已经不适用了，`local:42` 这类老引用会被下面的
+  /// `_localSid` 挡掉，重新落到稳定散列上，不会把引擎喂一个越界的 sid。
+  static const List<int> _femalePool = [0, 2];
+  static const List<int> _malePool = [1, 3, 4];
 
   /// 查一个住民的音色编号。
   ///

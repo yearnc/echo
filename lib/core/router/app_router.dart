@@ -23,11 +23,13 @@ import '../../features/records/records_page.dart';
 import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
 import '../../features/residents/resident_memories_page.dart';
+import '../../features/residents/resident_wake_log_page.dart';
 import '../../features/safety/minor_page.dart';
 import '../../features/safety/safety_page.dart';
 import '../../features/scripts/script_edit_page.dart';
 import '../../features/scripts/scripts_page.dart';
 import '../../features/search/search_page.dart';
+import '../../features/settings/backup_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/stickers/stickers_page.dart';
@@ -74,6 +76,10 @@ class RoutePaths {
   static String residentMemories(String residentId) =>
       '/custom-residents/memories/$residentId';
 
+  /// 某位固定住民的唤醒日志。
+  static String residentWakeLog(String residentId) =>
+      '/custom-residents/logs/$residentId';
+
   /// 策划脚本管理。
   static const String scripts = '/scripts';
 
@@ -103,6 +109,9 @@ class RoutePaths {
 
   /// 头像与表情包管理。
   static const String stickers = '/settings/stickers';
+
+  /// 全量数据备份与恢复。
+  static const String backup = '/settings/backup';
 
   /// 编辑我的资料（昵称 / 头像）。
   static const String profileEdit = '/settings/profile';
@@ -203,6 +212,12 @@ final appRouter = GoRouter(
         residentId: state.pathParameters['id'] ?? '',
       ),
     ),
+    GoRoute(
+      path: '/custom-residents/logs/:id',
+      builder: (context, state) => ResidentWakeLogPage(
+        residentId: state.pathParameters['id'] ?? '',
+      ),
+    ),
     // 私信会话是沉浸式的：进去之后只有你们两个人，不挂底部导航
     GoRoute(
       path: '/chat/:id',
@@ -259,6 +274,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.stickers,
       builder: (context, state) => const StickersPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.backup,
+      builder: (context, state) => const BackupPage(),
     ),
     GoRoute(
       path: RoutePaths.profileEdit,

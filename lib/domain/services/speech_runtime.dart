@@ -13,11 +13,25 @@ class SpeechRuntime {
   static bool _ready = false;
 
   /// 确保原生库已加载。可以在任意线程安全地多调几次。
-  static void ensure() {
+  ///
+  /// [libraryPath] 只在“能解析出 sherpa 包目录”的环境里有值
+  /// （Dart CLI / 测试）；Flutter App 里通常是 null，交给默认解析。
+  /// worker isolate 每个都要自己 init 一次，所以路径要随请求带过去。
+  static void ensure([String? libraryPath]) {
     if (_ready) return;
     _ready = true;
-    _preheatOnWindows();
-    sherpa.initBindings();
+    final path = libraryPath ?? resolveLibraryPath();
+    _preheatOnWindows(path);
+    sherpa.initBindings(path);
+  }
+
+  /// 当前环境能不能直接解析出原生库目录。拿不到就返回 null。
+  static String? resolveLibraryPath() {
+    try {
+      return sherpa.resolveSherpaOnnxPathSync();
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -31,10 +45,9 @@ class SpeechRuntime {
 ///
 /// 桌面预览（exe 同目录优先）本来撞不上这个坑，但打包成正式应用时
 /// 依赖顺序会变，所以无条件预加载，稳一点。
-void _preheatOnWindows() {
+void _preheatOnWindows(String? packageDir) {
   if (!Platform.isWindows) return;
   try {
-    final packageDir = sherpa.resolveSherpaOnnxPathSync();
     if (packageDir == null) return;
     DynamicLibrary.open('$packageDir\\onnxruntime.dll');
   } catch (_) {

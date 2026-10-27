@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.8.0+16
+version: 3.9.0+17
 
 environment:
   sdk: ^3.13.3
@@ -55,6 +55,7 @@ dependencies:
   # ZipVoice 的 espeak-ng-data 是一个带子目录的小文件树，Flutter 的目录式
   # 资源声明不会递归打包；压成一个 zip 再在运行时解开，省得手写几十条路径。
   archive: ^4.3.0
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

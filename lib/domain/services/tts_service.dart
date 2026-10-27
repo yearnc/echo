@@ -2,19 +2,18 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import '../models/resident_voice.dart';
-import '../models/voice_settings.dart';
 import 'model_gateway.dart';
 import 'speech_models.dart';
 import 'speech_runtime.dart';
-import 'voice_settings_controller.dart';
+import 'speech_worker.dart';
 import 'voice_waveform.dart';
+import 'wav_pcm.dart';
 
 /// 合成好的一条语音。
 class VoiceClip {
@@ -50,7 +49,6 @@ class TtsService {
     SpeechModelStore? store,
     this.media = const MediaService(),
     this.gateway,
-    this.readSource,
     this.lookupResident,
   }) : _store = store ?? SpeechModelStore();
 
@@ -60,94 +58,15 @@ class TtsService {
   /// 云端 TTS 的通道。为空（或没配 TTS 配置）就只走本机。
   final ModelGateway? gateway;
 
-  /// 用户选的是哪条路。每次合成现读，改完设置不用重启 APP。
-  final VoiceSource Function()? readSource;
-
   /// 评论区的语音只有 personaId，没有住民对象；靠它把参考音频找回来，
   /// 这样同一个住民在私信和评论里听起来是同一个人。
   final Future<CustomResident?> Function(String residentId)? lookupResident;
-
-  /// 两套本机模型共用一个引擎槽：ZipVoice 内存占用不小，和 vits 同时常驻
-  /// 在手机上不划算。切模型时先 free 旧的，再建新的——多花一两次初始化的时间，
-  /// 换手机不 OOM。
-  sherpa.OfflineTts? _engine;
-  _LocalModel? _engineKind;
-  final Set<_LocalModel> _unavailable = {};
 
   /// 一句话最多合成这么多字。
   ///
   /// 语音评论本来就不长（住在评论区里，用户要等它放完），
   /// 超过这个长度的一律退回文字——一分钟的语音条没人会听。
   static const int maxTranscriptLength = 120;
-
-  Future<sherpa.OfflineTts?> _ensureLocal(_LocalModel kind) async {
-    if (_unavailable.contains(kind)) return null;
-    if (_engine != null && _engineKind == kind) return _engine;
-
-    if (_engine != null) {
-      try {
-        _engine!.free();
-      } catch (_) {
-        // 释放失败也继续建新的；真有问题会落在下面的 try 里。
-      }
-      _engine = null;
-      _engineKind = null;
-    }
-
-    try {
-      SpeechRuntime.ensure();
-      final sherpa.OfflineTtsConfig config;
-      if (kind == _LocalModel.vits) {
-        final models = await _store.prepareTts();
-        config = sherpa.OfflineTtsConfig(
-          model: sherpa.OfflineTtsModelConfig(
-            vits: sherpa.OfflineTtsVitsModelConfig(
-              model: models.pathOf('model.onnx'),
-              lexicon: models.pathOf('lexicon.txt'),
-              tokens: models.pathOf('tokens.txt'),
-            ),
-            // 合成是纯 CPU 活，两个线程够用：再多会跟 UI 抢，
-            // 而这条路径本来就不该让人等太久。
-            numThreads: 2,
-            debug: false,
-          ),
-          // 日期/数字/电话这类文本正则化。vits-zh-ll 的 README 里给了
-          // 对应的 fst；不传的话“3月24日”会被念成“三月二十四日”之外的东西。
-          ruleFsts: [
-            models.pathOf('date.fst'),
-            models.pathOf('number.fst'),
-            models.pathOf('phone.fst'),
-          ].join(','),
-        );
-      } else {
-        final models = await _store.prepareZipVoice();
-        config = sherpa.OfflineTtsConfig(
-          model: sherpa.OfflineTtsModelConfig(
-            zipvoice: sherpa.OfflineTtsZipVoiceModelConfig(
-              tokens: models.pathOf('tokens.txt'),
-              encoder: models.pathOf('encoder.int8.onnx'),
-              decoder: models.pathOf('decoder.int8.onnx'),
-              // 声码器单独一份，归档里叫 vocos_24khz.onnx。
-              vocoder: models.pathOf('vocos_24khz.onnx'),
-              dataDir: models.pathOf('espeak-ng-data'),
-              lexicon: models.pathOf('lexicon.txt'),
-            ),
-            numThreads: 2,
-            debug: false,
-          ),
-        );
-      }
-
-      _engine = sherpa.OfflineTts(config);
-      _engineKind = kind;
-      return _engine;
-    } catch (error) {
-      // 记一次就够，不必每条评论都试一遍引擎。
-      _unavailable.add(kind);
-      debugPrint('[语音] ${kind.name} 引擎起不来，本次运行跳过：$error');
-      return null;
-    }
-  }
 
   /// 把一句话合成成语音条。失败或不可用时返回 null。
   Future<VoiceClip?> speak({
@@ -188,10 +107,10 @@ class TtsService {
     final forceCloud =
         voiceModel.startsWith('cloud:') || voiceModel.startsWith('speech:');
     // 本机声线（local:<sid> / local:zipvoice）已经定死了嗓子，
-    // 不该因为“语音来源”是云端就被换成一个陌生预设音色。
+    // 不该被云端配置顶掉。没有明确指定云端音色时一律走本机——
+    // 全局“语音来源”开关已经下线，音色方式本身决定走哪条路。
     final forceLocal = voiceModel.startsWith('local:');
-    final preferCloud =
-        forceCloud || (!forceLocal && readSource?.call() == VoiceSource.cloud);
+    final preferCloud = forceCloud;
     final cloudConfig = await _cloudConfig();
     final localSid = _localSidOf(voiceModel);
     final cloudVoice = _cloudVoiceOf(voiceModel);
@@ -255,53 +174,44 @@ class TtsService {
     required String referenceText,
     required double speed,
   }) async {
-    final engine = await _ensureLocal(_LocalModel.zipvoice);
-    if (engine == null) {
-      throw StateError('本地克隆模型没有装好');
-    }
-
     final path = referenceAudioPath.replaceFirst('file:', '');
-    final file = File(path);
-    if (!await file.exists()) {
+    if (!await File(path).exists()) {
       throw StateError('找不到参考音频文件');
     }
-    final pcm = _WavPcm.tryParse(await file.readAsBytes());
-    if (pcm == null) {
-      // 目前没有引入 mp3/m4a 解码器；在编辑页选 wav 就能走本机克隆。
+    // 目前没有引入 mp3/m4a 解码器；在编辑页选 wav 就能走本机克隆。
+    if (!path.toLowerCase().endsWith('.wav')) {
       throw StateError('本地克隆需要 wav 格式的参考音频');
     }
 
-    final audio = engine.generateWithConfig(
-      text: transcript,
-      config: sherpa.OfflineTtsGenerationConfig(
-        referenceAudio: pcm.samples,
-        referenceSampleRate: pcm.sampleRate,
-        referenceText: referenceText.trim(),
-        // ZipVoice 蒸馏版推荐 4 步；再少会有明显底噪。
-        numSteps: 4,
+    final models = await _store.prepareZipVoice();
+    final out = await media.newVoiceFile();
+    final reply = await SpeechWorker.instance.synthesize(
+      SpeechWorkerRequest(
+        kind: 'zipvoice',
+        text: transcript,
+        outputPath: out.path,
+        files: {
+          'tokens': models.pathOf('tokens.txt'),
+          'encoder': models.pathOf('encoder.int8.onnx'),
+          'decoder': models.pathOf('decoder.int8.onnx'),
+          // 声码器单独一份，归档里叫 vocos_24khz.onnx。
+          'vocoder': models.pathOf('vocos_24khz.onnx'),
+          'dataDir': models.pathOf('espeak-ng-data'),
+          'lexicon': models.pathOf('lexicon.txt'),
+        },
         speed: speed,
+        referenceAudioPath: path,
+        referenceText: referenceText,
+        libraryPath: SpeechRuntime.resolveLibraryPath(),
       ),
     );
-    if (audio.samples.isEmpty || audio.sampleRate <= 0) {
-      throw StateError('本地克隆没有生成出音频');
-    }
-
-    final out = await media.newVoiceFile();
-    final written = sherpa.writeWave(
-      filename: out.path,
-      samples: audio.samples,
-      sampleRate: audio.sampleRate,
-    );
-    if (!written) throw StateError('语音文件没写出来');
+    if (!reply.ok) throw StateError(reply.error);
 
     return VoiceClip(
-      ref: 'file:${out.path}',
+      ref: 'file:${reply.path}',
       transcript: transcript,
-      durationMs: VoiceWaveform.durationMs(
-        audio.samples.length,
-        audio.sampleRate,
-      ),
-      waveform: VoiceWaveform.bars(audio.samples),
+      durationMs: reply.durationMs,
+      waveform: reply.waveform,
     );
   }
 
@@ -362,7 +272,7 @@ class TtsService {
 
       // 有的服务商回 wav（44.1kHz PCM），能直接算波形和时长；
       // 其他家多是 mp3，拿不到采样点就按字数估时长、波形交给播放层。
-      final wav = _WavPcm.tryParse(bytes);
+      final wav = WavPcm.tryParse(bytes);
       final file = await media.newVoiceFile(
         extension: wav == null ? '.mp3' : '.wav',
       );
@@ -392,35 +302,39 @@ class TtsService {
     required String voiceModel,
     int? sid,
   }) async {
-    final engine = await _ensureLocal(_LocalModel.vits);
-    if (engine == null) return null;
-
     try {
-      final audio = engine.generate(
-        text: transcript,
-        sid:
-            sid ??
-            ResidentVoice.sidFor(personaId, voiceModel: voiceModel),
-        speed: ResidentVoice.speedFor(voiceModel),
-      );
-      if (audio.samples.isEmpty || audio.sampleRate <= 0) return null;
-
+      final models = await _store.prepareTts();
       final file = await media.newVoiceFile();
-      final written = sherpa.writeWave(
-        filename: file.path,
-        samples: audio.samples,
-        sampleRate: audio.sampleRate,
+      final reply = await SpeechWorker.instance.synthesize(
+        SpeechWorkerRequest(
+          kind: 'vits',
+          text: transcript,
+          outputPath: file.path,
+          files: {
+            'model': models.pathOf('model.onnx'),
+            'lexicon': models.pathOf('lexicon.txt'),
+            'tokens': models.pathOf('tokens.txt'),
+            // 不传的话“3月24日”会被念成别的东西。
+            'date': models.pathOf('date.fst'),
+            'number': models.pathOf('number.fst'),
+            'phone': models.pathOf('phone.fst'),
+          },
+          sid:
+              sid ??
+              ResidentVoice.sidFor(personaId, voiceModel: voiceModel),
+          speed: ResidentVoice.speedFor(voiceModel),
+        ),
       );
-      if (!written) return null;
+      if (!reply.ok) {
+        debugPrint('[语音] 本机这句没合成出来：${reply.error}');
+        return null;
+      }
 
       return VoiceClip(
-        ref: 'file:${file.path}',
+        ref: 'file:${reply.path}',
         transcript: transcript,
-        durationMs: VoiceWaveform.durationMs(
-          audio.samples.length,
-          audio.sampleRate,
-        ),
-        waveform: VoiceWaveform.bars(audio.samples),
+        durationMs: reply.durationMs,
+        waveform: reply.waveform,
       );
     } catch (error) {
       debugPrint('[语音] 本机这句没合成出来：$error');
@@ -457,94 +371,10 @@ class TtsService {
   }
 }
 
-/// 从 wav 里读 PCM，给气泡算时长和波形用。
-///
-/// 只需要单声道浮点采样，不追求把整份 wav 解析器写完：
-/// 44.1kHz / 16-bit PCM 的 wav 是常见格式；解析失败就返回 null，
-/// 调用方按“不知道时长”处理，不影响播放。
-class _WavPcm {
-  const _WavPcm({required this.samples, required this.sampleRate});
-
-  final Float32List samples;
-  final int sampleRate;
-
-  static _WavPcm? tryParse(Uint8List bytes) {
-    if (bytes.length < 44) return null;
-    if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF' ||
-        String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') {
-      return null;
-    }
-    final data = ByteData.sublistView(bytes);
-    var pos = 12;
-    int? sampleRate;
-    int? channels;
-    int? bits;
-    Float32List? pcm;
-
-    while (pos + 8 <= bytes.length) {
-      final id = String.fromCharCodes(bytes.sublist(pos, pos + 4));
-      final size = data.getUint32(pos + 4, Endian.little);
-      final start = pos + 8;
-      if (start + size > bytes.length && id != 'data') break;
-
-      if (id == 'fmt ' && size >= 16) {
-        final format = data.getUint16(start, Endian.little);
-        channels = data.getUint16(start + 2, Endian.little);
-        sampleRate = data.getUint32(start + 4, Endian.little);
-        bits = data.getUint16(start + 14, Endian.little);
-        // 只认整数 PCM；float32 的 wav 让播放层自己处理。
-        if (format != 1) return null;
-      } else if (id == 'data') {
-        if (sampleRate == null || channels == null || bits == null) return null;
-        final available = (bytes.length - start).clamp(0, size);
-        if (bits == 16) {
-          final frames = available ~/ (2 * channels);
-          if (frames <= 0) return null;
-          final samples = Float32List(frames);
-          var read = start;
-          for (var i = 0; i < frames; i++) {
-            var sum = 0.0;
-            for (var c = 0; c < channels; c++) {
-              sum += data.getInt16(read, Endian.little) / 32768.0;
-              read += 2;
-            }
-            samples[i] = sum / channels;
-          }
-          pcm = samples;
-        } else if (bits == 8) {
-          final frames = available ~/ channels;
-          if (frames <= 0) return null;
-          final samples = Float32List(frames);
-          var read = start;
-          for (var i = 0; i < frames; i++) {
-            var sum = 0.0;
-            for (var c = 0; c < channels; c++) {
-              sum += (bytes[read] - 128) / 128.0;
-              read++;
-            }
-            samples[i] = sum / channels;
-          }
-          pcm = samples;
-        } else {
-          return null;
-        }
-        break;
-      }
-      pos = start + size + (size.isOdd ? 1 : 0);
-    }
-
-    if (pcm == null || sampleRate == null || sampleRate <= 0) return null;
-    return _WavPcm(samples: pcm, sampleRate: sampleRate);
-  }
-}
-
-enum _LocalModel { vits, zipvoice }
-
 final ttsServiceProvider = Provider<TtsService>(
   (ref) => TtsService(
     store: ref.watch(speechModelStoreProvider),
     gateway: ref.watch(modelGatewayProvider),
-    readSource: () => ref.read(voiceSettingsControllerProvider).source,
     lookupResident: (id) =>
         ref.read(customResidentRepositoryProvider).findById(id),
   ),

@@ -5,9 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import '../models/resident_voice.dart';
-import '../models/voice_settings.dart';
 import 'model_gateway.dart';
-import 'voice_settings_controller.dart';
 
 /// 固定住民的音色怎么定下来。
 ///
@@ -19,15 +17,9 @@ import 'voice_settings_controller.dart';
 ///
 /// 不支持的选项在编辑页会置灰——不假装能做到，也不让用户配完才发现报错。
 class ResidentVoiceProfileService {
-  const ResidentVoiceProfileService({
-    required this.gateway,
-    this.readSource,
-  });
+  const ResidentVoiceProfileService({required this.gateway});
 
   final ModelGateway? gateway;
-
-  /// 用户选的是本机还是云端。文字描述按它决定落哪一边。
-  final VoiceSource Function()? readSource;
 
   Future<ModelConfig?> activeTts() async {
     final client = gateway;
@@ -50,18 +42,14 @@ class ResidentVoiceProfileService {
   /// 本机永远有两套：文字描述（vits-zh-ll）和参考音频 + 逐字稿（ZipVoice）。
   /// 云端再按模型能力追加——所以“仅文字描述”和“参考音频 + 转录文本”
   /// 不会再因为没配云端而消失。
-  List<ResidentVoiceMode> modesFor(
-    ModelConfig? config, {
-    VoiceSource? source,
-  }) {
-    final useCloud =
-        config != null && (source ?? readSource?.call()) == VoiceSource.cloud;
-
+  List<ResidentVoiceMode> modesFor(ModelConfig? config) {
+    // 不再靠一个全局“语音来源”开关决定：住民选哪种音色方式，
+    // 合成时就按哪条路走。配了云端 TTS，云端那几种方式才出现。
     final modes = <ResidentVoiceMode>[
       ResidentVoiceMode.description,
       // 本机 ZipVoice 已经随包内置，所以这一项不依赖云端。
       ResidentVoiceMode.referenceTranscript,
-      if (useCloud) ...[
+      if (config != null) ...[
         if (config.ttsVoiceDescription) ResidentVoiceMode.cloudDescription,
         if (config.ttsReferenceOnly) ResidentVoiceMode.referenceOnly,
         if (config.ttsReferenceDescription)
@@ -71,15 +59,17 @@ class ResidentVoiceProfileService {
     return modes.toSet().toList(growable: false);
   }
 
-  /// 用文字描述定一个音色，返回 `local:<sid>` 或 `cloud:<voice>`。
+  /// 用文字描述定一个云端音色，返回 `cloud:<voice>`。
+  ///
+  /// 本机那套“文字描述”只做稳定映射（见 [resolve] 的 description 分支），
+  /// 不会走到这里。这个方法对应的是住民明确选了「云端文字描述」。
   Future<String> fromDescription(String description) async {
     final text = description.trim();
     final config = await activeTts();
-    if (config != null && readSource?.call() == VoiceSource.cloud) {
-      return 'cloud:${_pickCloudVoice(text, config.baseUrl)}';
+    if (config == null) {
+      throw StateError('还没有配置云端语音服务');
     }
-    final sid = ResidentVoice.sidForDescription(text);
-    return 'local:$sid';
+    return 'cloud:${_pickCloudVoice(text, config.baseUrl)}';
   }
 
   /// 按住民选的方式把 `voiceRef` 定下来。
@@ -163,7 +153,5 @@ final residentVoiceProfileServiceProvider =
     Provider<ResidentVoiceProfileService>(
       (ref) => ResidentVoiceProfileService(
         gateway: ref.watch(modelGatewayProvider),
-        readSource: () =>
-            ref.read(voiceSettingsControllerProvider).source,
       ),
     );

@@ -2,17 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_info.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../../domain/models/voice_settings.dart';
 import '../../domain/services/appearance_controller.dart';
 import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
-import '../../domain/services/model_gateway.dart';
 import '../../domain/services/tool_settings_controller.dart';
-import '../../domain/services/voice_settings_controller.dart';
 import '../../domain/services/web_search.dart';
 import '../shared_widgets/mode_switch_flow.dart';
 
@@ -20,8 +16,16 @@ import '../shared_widgets/mode_switch_flow.dart';
 ///
 /// 只留真实可用的入口，说明压到一行以内：设置页是拿来改东西的，
 /// 不是拿来解释产品的。心理援助这类必须被看见的提示不在压缩范围内。
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  /// 回响模式默认只露常用的三项；其余收在「高级设置」里。
+  bool _showEchoAdvanced = false;
 
   /// 搜索能力来自服务商本身：智谱用 `web_search` 工具，百炼用 `enable_search`。
   /// DeepSeek 走独立搜索接口，只要模型配置里有它填好的 Key 就行，不需要切过去当对话模型；
@@ -83,17 +87,14 @@ class SettingsPage extends ConsumerWidget {
               ),
               subtitle: Text(
                 '用 DeepSeek 的 Key，按成功请求计费',
-                style: TextStyle(
-                  color: EchoColors.textFaint,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
               ),
               trailing: current == WebSearchService.providerDeepseek
                   ? Icon(Icons.check, size: 18, color: EchoColors.primary)
                   : null,
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(WebSearchService.providerDeepseek),
+              onTap: () =>
+                  Navigator.of(sheetContext)
+                      .pop(WebSearchService.providerDeepseek),
             ),
             ListTile(
               title: Text(
@@ -103,9 +104,9 @@ class SettingsPage extends ConsumerWidget {
               trailing: current == WebSearchService.providerZhipu
                   ? Icon(Icons.check, size: 18, color: EchoColors.primary)
                   : null,
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(WebSearchService.providerZhipu),
+              onTap: () =>
+                  Navigator.of(sheetContext)
+                      .pop(WebSearchService.providerZhipu),
             ),
             ListTile(
               title: Text(
@@ -115,9 +116,9 @@ class SettingsPage extends ConsumerWidget {
               trailing: current == WebSearchService.providerDashscope
                   ? Icon(Icons.check, size: 18, color: EchoColors.primary)
                   : null,
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(WebSearchService.providerDashscope),
+              onTap: () =>
+                  Navigator.of(sheetContext)
+                      .pop(WebSearchService.providerDashscope),
             ),
             const SizedBox(height: 10),
           ],
@@ -129,13 +130,11 @@ class SettingsPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final mode = ref.watch(modeControllerProvider);
     final appearance = ref.watch(appearanceControllerProvider);
     final community = ref.watch(communitySettingsProvider);
-    final voice = ref.watch(voiceSettingsControllerProvider);
     final tools = ref.watch(toolSettingsProvider);
-    final cloudTts = ref.watch(cloudTtsConfigProvider).value;
     final isEcho = mode.isEcho;
 
     // 从「我的」push 进来时（有上级页面）才需要返回键与标题栏；
@@ -219,83 +218,100 @@ class SettingsPage extends ConsumerWidget {
               ),
             ],
           ),
-          _Group(
-            title: '回响模式',
-            isEcho: isEcho,
-            children: [
-              _SwitchRow(
-                isEcho: isEcho,
-                icon: Icons.dynamic_feed_outlined,
-                title: '固定住民动态',
-                subtitle: '关闭后，固定住民不会自己发动态',
-                value: community.allowResidentPosts,
-                onChanged: (on) => ref
-                    .read(communitySettingsProvider.notifier)
-                    .setAllowResidentPosts(on),
-              ),
-              _SwitchRow(
-                isEcho: isEcho,
-                icon: Icons.visibility_outlined,
-                title: '允许网友只读',
-                subtitle: '关闭后，每个来的网友都会点赞或评论',
-                value: community.allowLurk,
-                onChanged: (on) => ref
-                    .read(communitySettingsProvider.notifier)
-                    .setAllowLurk(on),
-              ),
-              _SwitchRow(
-                isEcho: isEcho,
-                icon: Icons.image_search_outlined,
-                title: '帖子图片原图发给 AI',
-                subtitle: community.sendPostImagesDirectly
-                    ? '每次生成都会带上图片，更准但更贵'
-                    : '先理解一次、生成摘要共享（推荐）',
-                value: community.sendPostImagesDirectly,
-                onChanged: (on) => ref
-                    .read(communitySettingsProvider.notifier)
-                    .setSendPostImagesDirectly(on),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.forum_outlined,
-                title: '网友互相接话',
-                subtitle: '每帖 AI 之间的来往上限',
-                value: community.aiPeerInteractionLimit == 0
-                    ? '关闭'
-                    : '${community.aiPeerInteractionLimit} 次',
-                onTap: () => _pickPeerLimit(context, ref),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.people_outline,
-                title: '固定住民',
-                subtitle: '自己配置、会记住你、会主动找你的人',
-                onTap: () => context.push(RoutePaths.customResidents),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.repeat,
-                title: '工具调用轮数',
-                subtitle: '一次醒来最多“模型 → 工具 → 模型”几轮',
-                value: '${tools.maxRounds} 轮',
-                onTap: () => _pickToolRounds(context, ref),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.timer_outlined,
-                title: '单次唤醒超时',
-                subtitle: '调大更完整，调小更省钱；有语音时自动多加 60 秒',
-                value: '${tools.timeoutSeconds} 秒',
-                onTap: () => _pickToolTimeout(context, ref),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.emoji_emotions_outlined,
-                title: '头像与表情包',
-                onTap: () => context.push(RoutePaths.stickers),
-              ),
-            ],
-          ),
+          if (isEcho)
+            _Group(
+              title: '回响模式',
+              isEcho: isEcho,
+              children: [
+                _SwitchRow(
+                  isEcho: isEcho,
+                  icon: Icons.dynamic_feed_outlined,
+                  title: '固定住民动态',
+                  subtitle: '关闭后，固定住民不会自己发动态',
+                  value: community.allowResidentPosts,
+                  onChanged: (on) => ref
+                      .read(communitySettingsProvider.notifier)
+                      .setAllowResidentPosts(on),
+                ),
+                _Row(
+                  isEcho: isEcho,
+                  icon: Icons.people_outline,
+                  title: '固定住民',
+                  subtitle: '自己配置、会记住你、会主动找你的人',
+                  onTap: () => context.push(RoutePaths.customResidents),
+                ),
+                _Row(
+                  isEcho: isEcho,
+                  icon: Icons.emoji_emotions_outlined,
+                  title: '头像与表情包',
+                  onTap: () => context.push(RoutePaths.stickers),
+                ),
+                _Row(
+                  isEcho: isEcho,
+                  icon: Icons.tune,
+                  title: _showEchoAdvanced ? '收起高级设置' : '高级设置',
+                  subtitle: '网友行为、图片理解、工具与策划脚本',
+                  onTap: () =>
+                      setState(() => _showEchoAdvanced = !_showEchoAdvanced),
+                ),
+                if (_showEchoAdvanced) ...[
+                  _SwitchRow(
+                    isEcho: isEcho,
+                    icon: Icons.visibility_outlined,
+                    title: '允许网友只读',
+                    subtitle: '关闭后，每个来的网友都会点赞或评论',
+                    value: community.allowLurk,
+                    onChanged: (on) => ref
+                        .read(communitySettingsProvider.notifier)
+                        .setAllowLurk(on),
+                  ),
+                  _SwitchRow(
+                    isEcho: isEcho,
+                    icon: Icons.image_search_outlined,
+                    title: '帖子图片原图发给 AI',
+                    subtitle: community.sendPostImagesDirectly
+                        ? '每次生成都会带上图片，更准但更贵'
+                        : '先理解一次、生成摘要共享（推荐）',
+                    value: community.sendPostImagesDirectly,
+                    onChanged: (on) => ref
+                        .read(communitySettingsProvider.notifier)
+                        .setSendPostImagesDirectly(on),
+                  ),
+                  _Row(
+                    isEcho: isEcho,
+                    icon: Icons.forum_outlined,
+                    title: '网友互相接话',
+                    subtitle: '每帖 AI 之间的来往上限',
+                    value: community.aiPeerInteractionLimit == 0
+                        ? '关闭'
+                        : '${community.aiPeerInteractionLimit} 次',
+                    onTap: () => _pickPeerLimit(context, ref),
+                  ),
+                  _Row(
+                    isEcho: isEcho,
+                    icon: Icons.repeat,
+                    title: '工具调用轮数',
+                    subtitle: '一次醒来最多“模型 → 工具 → 模型”几轮',
+                    value: '${tools.maxRounds} 轮',
+                    onTap: () => _pickToolRounds(context, ref),
+                  ),
+                  _Row(
+                    isEcho: isEcho,
+                    icon: Icons.timer_outlined,
+                    title: '单次唤醒超时',
+                    subtitle: '调大更完整，调小更省钱；有语音时自动多加 60 秒',
+                    value: '${tools.timeoutSeconds} 秒',
+                    onTap: () => _pickToolTimeout(context, ref),
+                  ),
+                  _Row(
+                    isEcho: isEcho,
+                    icon: Icons.theater_comedy_outlined,
+                    title: '策划脚本',
+                    onTap: () => context.push(RoutePaths.scripts),
+                  ),
+                ],
+              ],
+            ),
           _Group(
             title: '我的资料',
             isEcho: isEcho,
@@ -309,92 +325,38 @@ class SettingsPage extends ConsumerWidget {
               ),
             ],
           ),
-          _Group(
-            title: '语音',
-            isEcho: isEcho,
-            children: [
-              _SwitchRow(
-                isEcho: isEcho,
-                icon: Icons.volume_up_outlined,
-                title: '住民语音',
-                subtitle: '评论可以带语音条',
-                value: voice.enabled,
-                onChanged: (on) => ref
-                    .read(voiceSettingsControllerProvider.notifier)
-                    .setEnabled(on),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.graphic_eq,
-                title: '语音来源',
-                value: cloudTts == null ? '本机' : voice.source.label,
-                subtitle: voice.source == VoiceSource.cloud && cloudTts == null
-                    ? '云端未配置，暂用本机'
-                    : (cloudTts == null ? '配置后可选云端' : null),
-                onTap: () => _pickVoiceSource(
-                  context,
-                  ref,
-                  cloudAvailable: cloudTts != null,
+          if (!isEcho)
+            _Group(
+              title: '清醒模式',
+              isEcho: isEcho,
+              children: [
+                _Row(
+                  isEcho: isEcho,
+                  icon: Icons.insights_outlined,
+                  title: '数据看板',
+                  subtitle: '只统计真实记录',
+                  onTap: () => context.push(RoutePaths.dashboard),
                 ),
-              ),
-            ],
-          ),
-          _Group(
-            title: '清醒模式',
-            isEcho: isEcho,
-            children: [
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.insights_outlined,
-                title: '数据看板',
-                subtitle: isEcho ? 'AI 制造的动静' : '只统计真实记录',
-                onTap: () => context.push(RoutePaths.dashboard),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.info_outline,
-                title: '常驻提示',
-                // 把提示本身写出来：只写"已固定"，用户不知道固定的是什么。
-                subtitle: '清醒模式下始终显示：${AppTexts.permanentNotice}',
-                value: '不可关闭',
-              ),
-            ],
-          ),
+                _Row(
+                  isEcho: isEcho,
+                  icon: Icons.info_outline,
+                  title: '常驻提示',
+                  // 把提示本身写出来：只写"已固定"，用户不知道固定的是什么。
+                  subtitle: '清醒模式下始终显示：${AppTexts.permanentNotice}',
+                  value: '不可关闭',
+                ),
+              ],
+            ),
           _Group(
             title: '安全',
             isEcho: isEcho,
             children: [
               _Row(
                 isEcho: isEcho,
-                icon: Icons.favorite_border,
-                title: '心理安全',
-                subtitle: '冷静模式与求助',
-                onTap: () => context.push(RoutePaths.safety),
-              ),
-              _Row(
-                isEcho: isEcho,
                 icon: Icons.escalator_warning_outlined,
                 title: '未成年人保护',
                 subtitle: '锁定回响模式',
                 onTap: () => context.push(RoutePaths.minorProtection),
-              ),
-            ],
-          ),
-          _Group(
-            title: '其他',
-            isEcho: isEcho,
-            children: [
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.theater_comedy_outlined,
-                title: '策划脚本',
-                onTap: () => context.push(RoutePaths.scripts),
-              ),
-              _Row(
-                isEcho: isEcho,
-                icon: Icons.code,
-                title: '版本',
-                value: '$appVersion ($appStageLabel)',
               ),
             ],
           ),
@@ -547,58 +509,6 @@ class SettingsPage extends ConsumerWidget {
     if (picked == null) return;
     await ref.read(toolSettingsProvider.notifier).setTimeoutSeconds(picked);
   }
-
-  /// 选语音来源。云端没配置时只让选本机，并留一个去配置的入口。
-  Future<void> _pickVoiceSource(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool cloudAvailable,
-  }) async {
-    final current = ref.read(voiceSettingsControllerProvider).source;
-
-    final picked = await showModalBottomSheet<VoiceSource>(
-      context: context,
-      backgroundColor: currentPalette.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            _SourceOption(
-              title: '本机',
-              subtitle: '离线合成，随包模型',
-              selected: current == VoiceSource.local,
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(VoiceSource.local),
-            ),
-            _SourceOption(
-              title: '云端',
-              subtitle: cloudAvailable ? '使用已配置的 TTS 服务' : '还没有配置 TTS 服务',
-              selected: current == VoiceSource.cloud && cloudAvailable,
-              onTap: cloudAvailable
-                  ? () => Navigator.of(sheetContext).pop(VoiceSource.cloud)
-                  : null,
-              trailing: cloudAvailable
-                  ? null
-                  : TextButton(
-                      onPressed: () {
-                        Navigator.of(sheetContext).pop();
-                        context.push(RoutePaths.models);
-                      },
-                      child: const Text('去配置', style: TextStyle(fontSize: 12)),
-                    ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-
-    if (picked == null) return;
-    await ref
-        .read(voiceSettingsControllerProvider.notifier)
-        .setSource(picked);
-  }
 }
 
 class _SourceOption extends StatelessWidget {
@@ -607,14 +517,12 @@ class _SourceOption extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.onTap,
-    this.trailing,
   });
 
   final String title;
   final String subtitle;
   final bool selected;
   final VoidCallback? onTap;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -629,10 +537,9 @@ class _SourceOption extends StatelessWidget {
         subtitle,
         style: TextStyle(color: currentPalette.textFaint, fontSize: 11.5),
       ),
-      trailing: trailing ??
-          (selected
-              ? Icon(Icons.check, size: 18, color: currentPalette.primary)
-              : null),
+      trailing: selected
+          ? Icon(Icons.check, size: 18, color: currentPalette.primary)
+          : null,
       onTap: onTap,
     );
   }
@@ -673,10 +580,7 @@ class _SwitchRow extends StatelessWidget {
               children: [
                 Text(title, style: TextStyle(color: text, fontSize: 14)),
                 const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: faint, fontSize: 11.5),
-                ),
+                Text(subtitle, style: TextStyle(color: faint, fontSize: 11.5)),
               ],
             ),
           ),

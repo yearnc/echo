@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_info.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
@@ -30,6 +31,16 @@ class ProfilePage extends ConsumerWidget {
             icon: Icons.settings_outlined,
             title: '设置',
             onTap: () => context.push(RoutePaths.settings),
+          ),
+          _Tile(
+            icon: Icons.backup_outlined,
+            title: '数据备份与恢复',
+            onTap: () => context.push(RoutePaths.backup),
+          ),
+          _Tile(
+            icon: Icons.favorite_border,
+            title: '心理安全',
+            onTap: () => context.push(RoutePaths.safety),
           ),
           _Tile(
             icon: Icons.help_outline,
@@ -62,8 +73,7 @@ class _UpdateTileState extends ConsumerState<_UpdateTile> {
     setState(() => _busy = false);
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) =>
-          _UpdateDialog(result: result),
+      builder: (dialogContext) => _UpdateDialog(result: result),
     );
   }
 
@@ -83,7 +93,11 @@ class _UpdateTileState extends ConsumerState<_UpdateTile> {
           ),
           child: Row(
             children: [
-              Icon(Icons.system_update_outlined, size: 19, color: EchoColors.textMuted),
+              Icon(
+                Icons.system_update_outlined,
+                size: 19,
+                color: EchoColors.textMuted,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -91,6 +105,12 @@ class _UpdateTileState extends ConsumerState<_UpdateTile> {
                   style: TextStyle(color: EchoColors.text, fontSize: 14),
                 ),
               ),
+              // 当前版本号跟着「检查更新」走，设置页里不再单独占一行。
+              Text(
+                'v$appVersion',
+                style: TextStyle(color: EchoColors.textFaint, fontSize: 12),
+              ),
+              const SizedBox(width: 6),
               if (_busy)
                 const SizedBox(
                   width: 15,
@@ -98,7 +118,11 @@ class _UpdateTileState extends ConsumerState<_UpdateTile> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else
-                Icon(Icons.chevron_right, size: 18, color: EchoColors.textFaint),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: EchoColors.textFaint,
+                ),
             ],
           ),
         ),
@@ -187,9 +211,8 @@ class _UpdateDialog extends StatelessWidget {
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: result.url));
             if (!context.mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('下载链接已复制')));
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('下载链接已复制')));
           },
           child: const Text('复制链接'),
         ),
@@ -203,15 +226,14 @@ class _UpdateDialog extends StatelessWidget {
                 mode: LaunchMode.externalApplication,
               );
               if (!opened && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('没有找到能打开链接的应用')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('没有找到能打开链接的应用')));
               }
             } catch (error) {
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('打不开链接：$error')),
-              );
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text('打不开链接：$error')));
             }
           },
           child: const Text('打开发布页'),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/router/app_router.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/model_config_repository.dart';
@@ -14,13 +15,14 @@ import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/model_config.dart';
 import '../../domain/models/resident_voice.dart';
-import '../../domain/models/voice_settings.dart';
+import '../../domain/services/chat_transcript_import.dart';
 import '../../domain/services/model_gateway.dart';
+import '../../domain/services/resident_memory_import_service.dart';
 import '../../domain/services/resident_voice_profile_service.dart';
 import '../../domain/services/resident_wake_service.dart';
-import '../../domain/services/voice_settings_controller.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
+import 'chat_import_sheet.dart';
 
 /// 固定住民的完整编辑页。
 ///
@@ -61,6 +63,12 @@ class _CustomResidentEditorPageState
   ResidentVoiceMode _originalVoiceMode = ResidentVoiceMode.description;
   String? _voiceStatus;
   bool _voiceBusy = false;
+
+  /// 新建住民时先读好、等保存后再写进记忆的对话。
+  List<ImportedTurn> _pendingTurns = const [];
+  bool _importBusy = false;
+  String? _importStatus;
+
   bool _loading = false;
   bool _saving = false;
   DateTime? _createdAt;
@@ -207,10 +215,8 @@ class _CustomResidentEditorPageState
       _voiceStatus = '正在生成音色…';
     });
     try {
-      final source = ref.read(voiceSettingsControllerProvider).source;
       final cloud = await ref.read(cloudTtsConfigProvider.future);
       final canCloudClone =
-          source == VoiceSource.cloud &&
           cloud != null &&
           ref.read(residentVoiceProfileServiceProvider).supportsClone(cloud);
 
@@ -256,6 +262,57 @@ class _CustomResidentEditorPageState
       setState(() => _voiceStatus = '生成失败：$error');
     } finally {
       if (mounted) setState(() => _voiceBusy = false);
+    }
+  }
+
+  /// 读一段旧聊天，交给这位住民整理成记忆。
+  Future<void> _importChat() async {
+    final turns = await showModalBottomSheet<List<ImportedTurn>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const ChatImportSheet(),
+    );
+    if (turns == null || turns.isEmpty) return;
+
+    final id = widget.residentId;
+    if (id == null) {
+      // 新建住民还没有 id：先把对话留着，保存后一起写。
+      setState(() {
+        _pendingTurns = turns;
+        _importStatus = '已读取 ${turns.length} 段对话；点保存后会一起写进记忆';
+      });
+      return;
+    }
+    await _runImport(id, turns);
+  }
+
+  Future<void> _runImport(String residentId, List<ImportedTurn> turns) async {
+    setState(() {
+      _importBusy = true;
+      _importStatus = '正在让 TA 整理记忆…';
+    });
+    try {
+      final resident = await ref
+          .read(customResidentRepositoryProvider)
+          .findById(residentId);
+      if (resident == null) {
+        throw const MemoryImportException('住民还没保存好');
+      }
+      final count = await ref
+          .read(residentMemoryImportServiceProvider)
+          .import(resident: resident, turns: turns);
+      if (!mounted) return;
+      setState(
+        () => _importStatus = count == 0
+            ? '这段对话里没有值得长期记住的事'
+            : '已写进 $count 条记忆',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _importStatus = '整理失败：$error');
+    } finally {
+      if (mounted) setState(() => _importBusy = false);
     }
   }
 
@@ -313,10 +370,7 @@ class _CustomResidentEditorPageState
       // 以当前模型能力为准：换过语音服务之后，老的方式可能已经不支持了。
       final modes = ref
           .read(residentVoiceProfileServiceProvider)
-          .modesFor(
-            await ref.read(cloudTtsConfigProvider.future),
-            source: ref.read(voiceSettingsControllerProvider).source,
-          );
+          .modesFor(await ref.read(cloudTtsConfigProvider.future));
       final mode = modes.contains(_voiceMode) ? _voiceMode : modes.first;
       _voiceMode = mode;
       final description = _voiceDescription.text.trim();
@@ -407,6 +461,14 @@ class _CustomResidentEditorPageState
             .read(residentMemoryRepositoryProvider)
             .archiveOverflow(resident.id, newLimit);
       }
+
+      // 新建时先读好、还没写进记忆的那段对话：保存后交给住民整理。
+      // 失败只更新状态，不影响住民本身已经保存成功。
+      if (_pendingTurns.isNotEmpty) {
+        final pending = _pendingTurns;
+        _pendingTurns = const [];
+        await _runImport(resident.id, pending);
+      }
       if (!mounted) return;
 
       // 刚建好的住民直接进私信页，并且马上叫醒他：
@@ -442,10 +504,9 @@ class _CustomResidentEditorPageState
   @override
   Widget build(BuildContext context) {
     final cloudTts = ref.watch(cloudTtsConfigProvider).value;
-    final voiceSource = ref.watch(voiceSettingsControllerProvider).source;
     final modes = ref
         .watch(residentVoiceProfileServiceProvider)
-        .modesFor(cloudTts, source: voiceSource);
+        .modesFor(cloudTts);
     final canClone = modes.any((mode) => mode.usesSample);
     final mode = modes.contains(_voiceMode) ? _voiceMode : modes.first;
     final selectedSid = ResidentVoice.localSidOf(_voiceRef) ??
@@ -635,7 +696,8 @@ class _CustomResidentEditorPageState
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '克隆出来的音色需要把设置里的「语音来源」选成云端才会用。',
+                          '选了云端克隆，合成时会直接用这条云端音色；'
+                          '没有配云端 TTS 时请用本机克隆（wav + 逐字稿）。',
                           style: TextStyle(
                             color: Theme.of(context).hintColor,
                             fontSize: 11.5,
@@ -711,8 +773,42 @@ class _CustomResidentEditorPageState
                       maxLines: 1,
                       showCount: false,
                     ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.forum_outlined),
+                      title: const Text('导入聊天记录'),
+                      subtitle: Text(
+                        _importStatus ??
+                            '从 DeepSeek 分享链接或粘贴文本里，让 TA 自己写记忆',
+                      ),
+                      trailing: _importBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right, size: 18),
+                      onTap: _importBusy ? null : _importChat,
+                    ),
                   ],
                 ),
+                if (widget.residentId != null)
+                  _Section(
+                    title: '日志',
+                    subtitle: 'TA 什么时候醒过、给自己留了什么话',
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.history),
+                        title: Text('「${_name.text.trim()}」的日志'),
+                        subtitle: Text(widget.residentId!),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                        onTap: () => context.push(
+                          RoutePaths.residentWakeLog(widget.residentId!),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
     );

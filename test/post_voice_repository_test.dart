@@ -2,8 +2,10 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo/data/db/app_database.dart';
+import 'package:echo/data/repositories/custom_resident_repository.dart';
 import 'package:echo/data/repositories/post_repository.dart';
 import 'package:echo/data/repositories/post_voice_repository.dart';
+import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/post_voice.dart';
 
 void main() {
@@ -81,6 +83,33 @@ void main() {
       // 池子是 0-based 的序号：avatar_001 对应 0
       expect(used.add(index - 1), isTrue, reason: '前 10 个不该重复');
     }
+  });
+
+  test('固定住民刷过之后，浏览名单里能看到 TA', () async {
+    await CustomResidentRepository(db).upsert(
+      CustomResident(id: 'r1', name: '小满', createdAt: DateTime(2026, 10, 1)),
+    );
+    await voices.insertAll([
+      PostVoice(
+        id: 'voice_r',
+        postId: postId,
+        kind: PostVoiceKind.custom,
+        residentId: 'r1',
+        name: '小满',
+        createdAt: DateTime(2026, 10, 27, 20),
+      ),
+    ]);
+
+    await voices.recordView(postId: postId, voiceId: 'voice_r');
+    await voices.recordView(postId: postId, voiceId: 'voice_r');
+
+    final viewers = await voices.viewers(postId);
+    expect(viewers, hasLength(1));
+    expect(viewers.single.voice.name, '小满');
+    expect(viewers.single.voice.residentId, 'r1');
+    expect(viewers.single.viewCount, 2, reason: '同一个人重复刷只累加次数');
+    // 浏览量数的是“几个人看过”，不是次数。
+    expect(await voices.viewCount(postId), 1);
   });
 
   test('转成 AiPersona 时不带样例台词和音色', () {

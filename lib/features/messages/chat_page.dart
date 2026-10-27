@@ -7,7 +7,6 @@ import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
-import '../../domain/models/resident_activity.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/photo_describer.dart';
 import '../../domain/services/resident_activity_controller.dart';
@@ -158,11 +157,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final thread = ref.watch(privateThreadProvider(widget.personaId));
     final activity = ref.watch(residentActivityProvider)[widget.personaId];
     final live = activity != null && !activity.isStale ? activity : null;
+    // 唤醒结束、但分段的私信还没发完：这几秒显示「正在打字」。
+    final typing =
+        ref.watch(privateTypingProvider(widget.personaId)).value ?? false;
     final name = storedResident?.name ?? '已离开的住民';
     final avatarRef = storedResident?.avatarAsset;
     // 没有人能接话了：固定住民已删除。保留历史，但不能再发。
     final canSend = resident != null;
     final departed = resident == null;
+    final status = departed
+        ? '已离开社区'
+        : (live?.label ?? (typing ? '正在打字…' : ''));
+    final statusActive = live != null || typing;
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -192,17 +198,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text(
-                    departed
-                        ? '已离开社区'
-                        : (live?.label ?? '固定住民'),
-                    style: TextStyle(
-                      color: live == null
-                          ? EchoColors.textFaint
-                          : EchoColors.primary,
-                      fontSize: 10.5,
+                  // 没有状态时不占这一行：以前那句「固定住民」是写死的标签，
+                  // 现在只在 TA 真的在想/在打字/已经离开时才出现。
+                  if (status.isNotEmpty)
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: statusActive
+                            ? EchoColors.primary
+                            : EchoColors.textFaint,
+                        fontSize: 10.5,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -253,13 +260,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
             ),
             if (canSend) ...[
-              if (live != null)
-                _ResidentActivityRow(
-                  name: name,
-                  avatarRef: avatarRef,
-                  label: live.label,
-                  kind: live.kind,
-                ),
               ChatComposer(
                 controller: _input,
                 sending: _sending,
@@ -332,122 +332,6 @@ class _MessageList extends StatelessWidget {
       itemCount: rows.length,
       itemBuilder: (context, index) => rows[rows.length - 1 - index],
     );
-  }
-}
-
-/// 住民此刻正在干什么（v41）。
-///
-/// 像常见 AI 助手的“正在思考”：不是假打字动画，
-/// 文案来自它这一轮真实走到哪一步——翻记忆、搜索、写回复、合成语音。
-class _ResidentActivityRow extends StatefulWidget {
-  const _ResidentActivityRow({
-    required this.name,
-    required this.avatarRef,
-    required this.label,
-    required this.kind,
-  });
-
-  final String name;
-  final String? avatarRef;
-  final String label;
-  final ResidentActivityKind kind;
-
-  @override
-  State<_ResidentActivityRow> createState() => _ResidentActivityRowState();
-}
-
-class _ResidentActivityRowState extends State<_ResidentActivityRow>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-      child: Row(
-        children: [
-          UserAvatar(
-            name: widget.name,
-            avatarRef: widget.avatarRef,
-            size: 26,
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-            decoration: BoxDecoration(
-              color: EchoColors.surface,
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: EchoColors.divider, width: 0.8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedBuilder(
-                  animation: _pulse,
-                  builder: (context, _) {
-                    final t = _pulse.value * 2 * 3.1415926;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < 3; i++)
-                          Container(
-                            width: 4,
-                            height: 4,
-                            margin: EdgeInsets.only(right: i == 2 ? 7 : 3),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: EchoColors.primary.withValues(
-                                alpha: 0.25 +
-                                    0.65 *
-                                        ((0.5 + 0.5 * _sin(t - i * 0.9))),
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                Icon(
-                  switch (widget.kind) {
-                    ResidentActivityKind.thinking => Icons.psychology_outlined,
-                    ResidentActivityKind.tool => Icons.build_circle_outlined,
-                    ResidentActivityKind.speaking => Icons.graphic_eq,
-                    ResidentActivityKind.reading => Icons.menu_book_outlined,
-                  },
-                  size: 13,
-                  color: EchoColors.primary,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    color: EchoColors.textMuted,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static double _sin(double value) {
-    // 只为了动画相位，不追求高精度；用 dart:math 的话这里要多一个 import。
-    final x = value % (2 * 3.1415926);
-    return x <= 3.1415926
-        ? (4 / 3.1415926) * x * (1 - x / 3.1415926)
-        : -(4 / 3.1415926) * (x - 3.1415926) * (1 - (x - 3.1415926) / 3.1415926);
   }
 }
 

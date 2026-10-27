@@ -68,7 +68,6 @@ class AudienceService {
   /// 固定住民的评论走它；与临时网民的“起名字+动作”分开。
   final ContentGenerator? contentGenerator;
 
-
   /// 帖子图片是原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
 
@@ -122,10 +121,7 @@ class AudienceService {
       // 先把 A+B+C 写进服务端缓存，再要第一批人（§4.3）。
       // 必须等它回来：并发发出去的话，第一批并不会命中这次"预热"。
       // 五秒封顶，失败就当这家不缓存前缀。
-      await contentGenerator?.prewarm(
-        post: post,
-        understanding: understanding,
-      );
+      await contentGenerator?.prewarm(post: post, understanding: understanding);
       added += await _addBatch(
         post: post,
         config: config,
@@ -140,10 +136,7 @@ class AudienceService {
   }
 
   /// 解析一次、落库、所有批次共享；解析失败就返回 null，评论照常生成。
-  Future<PostUnderstanding?> _understand(
-    Post post,
-    ModelConfig config,
-  ) async {
+  Future<PostUnderstanding?> _understand(Post post, ModelConfig config) async {
     final repo = understandings;
     if (repo == null) return null;
 
@@ -180,9 +173,16 @@ class AudienceService {
       if (age.isNegative || age > window) continue;
 
       final existing = await voices.byPost(post.id);
-      if (existing.length >= maxVoicesPerPost) continue;
+      // 固定住民的浏览快照也在这张表里，但“每帖最多几个人”和批次节奏
+      // 说的是临时网民——不能让 TA 刷一下就把名额和节奏占掉。
+      final ephemerals = existing
+          .where((voice) => voice.isEphemeral)
+          .toList(growable: false);
+      if (ephemerals.length >= maxVoicesPerPost) continue;
 
-      final lastAt = existing.isEmpty ? post.createdAt : existing.last.createdAt;
+      final lastAt = ephemerals.isEmpty
+          ? post.createdAt
+          : ephemerals.last.createdAt;
       final interval = _batchInterval(age);
       if (now.difference(lastAt) < interval) continue;
 
@@ -258,9 +258,7 @@ class AudienceService {
       }
     }
 
-    await Future.wait([
-      for (var i = 0; i < workerCount; i++) worker(),
-    ]);
+    await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
     return results;
   }
 
@@ -396,7 +394,7 @@ class AudienceService {
           now: now,
           index: i,
           total: built.length,
-          firstBatch: existing.isEmpty,
+          firstBatch: !existing.any((voice) => voice.isEphemeral),
         );
         planned.add(
           PlannedInteraction(
@@ -408,9 +406,7 @@ class AudienceService {
 
         if (action == VoiceAction.view) continue;
 
-        final likeAt = arrival.add(
-          Duration(seconds: 5 + _random.nextInt(31)),
-        );
+        final likeAt = arrival.add(Duration(seconds: 5 + _random.nextInt(31)));
         if (action.wantsLike) {
           planned.add(
             PlannedInteraction(
@@ -478,7 +474,8 @@ class AudienceService {
 
     try {
       await notifications?.insert(
-        id: 'n_ai_failure_'
+        id:
+            'n_ai_failure_'
             '${now.millisecondsSinceEpoch ~/ failureNoticeCooldown.inMilliseconds}',
         type: 'system',
         title: 'AI 回复暂时不可用',
@@ -491,11 +488,7 @@ class AudienceService {
   }
 
   /// 从用户头像池里挑一张，尽量避开这一帖已经用过的。
-  static String _pickFromPool(
-    List<String> pool,
-    int seed,
-    Set<String> used,
-  ) {
+  static String _pickFromPool(List<String> pool, int seed, Set<String> used) {
     final start = seed.abs() % pool.length;
     for (var step = 0; step < pool.length; step++) {
       final candidate = pool[(start + step) % pool.length];
@@ -520,9 +513,7 @@ class AudienceService {
     if (index == 0) {
       return now.add(Duration(seconds: 15 + _random.nextInt(16)));
     }
-    return now.add(
-      Duration(seconds: 30 + index * 20 + _random.nextInt(21)),
-    );
+    return now.add(Duration(seconds: 30 + index * 20 + _random.nextInt(21)));
   }
 }
 

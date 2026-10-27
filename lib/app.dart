@@ -93,7 +93,7 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           // 固定住民的行为统一走“唤醒”：醒来先看收件箱，没有待办才考虑
           // 自己发帖/刷帖子。这里不再单独跑世界 tick，否则同一件事会有
           // 两套排期（一套预生成、一套模型决定），迟早打架。
-          // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时三小时才醒一次。
+          // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时 1.5 小时才醒一次。
           await ref.read(residentWakeServiceProvider).wakeAll();
 
           // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。

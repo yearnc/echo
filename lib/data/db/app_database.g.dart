@@ -17119,6 +17119,530 @@ class ResidentMemoriesCompanion extends UpdateCompanion<ResidentMemoryRow> {
   }
 }
 
+class $ResidentWakeLogsTable extends ResidentWakeLogs
+    with TableInfo<$ResidentWakeLogsTable, ResidentWakeLogRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentWakeLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggerMeta = const VerificationMeta(
+    'trigger',
+  );
+  @override
+  late final GeneratedColumn<String> trigger = GeneratedColumn<String>(
+    'trigger',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wokeAtMeta = const VerificationMeta('wokeAt');
+  @override
+  late final GeneratedColumn<int> wokeAt = GeneratedColumn<int>(
+    'woke_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endedAtMeta = const VerificationMeta(
+    'endedAt',
+  );
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+    'ended_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _noteAtMeta = const VerificationMeta('noteAt');
+  @override
+  late final GeneratedColumn<int> noteAt = GeneratedColumn<int>(
+    'note_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteDeliveredAtMeta = const VerificationMeta(
+    'noteDeliveredAt',
+  );
+  @override
+  late final GeneratedColumn<int> noteDeliveredAt = GeneratedColumn<int>(
+    'note_delivered_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    trigger,
+    wokeAt,
+    endedAt,
+    note,
+    noteAt,
+    noteDeliveredAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_wake_logs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentWakeLogRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('trigger')) {
+      context.handle(
+        _triggerMeta,
+        trigger.isAcceptableOrUnknown(data['trigger']!, _triggerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerMeta);
+    }
+    if (data.containsKey('woke_at')) {
+      context.handle(
+        _wokeAtMeta,
+        wokeAt.isAcceptableOrUnknown(data['woke_at']!, _wokeAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_wokeAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(
+        _endedAtMeta,
+        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('note_at')) {
+      context.handle(
+        _noteAtMeta,
+        noteAt.isAcceptableOrUnknown(data['note_at']!, _noteAtMeta),
+      );
+    }
+    if (data.containsKey('note_delivered_at')) {
+      context.handle(
+        _noteDeliveredAtMeta,
+        noteDeliveredAt.isAcceptableOrUnknown(
+          data['note_delivered_at']!,
+          _noteDeliveredAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResidentWakeLogRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentWakeLogRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      trigger: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger'],
+      )!,
+      wokeAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}woke_at'],
+      )!,
+      endedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_at'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      )!,
+      noteAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}note_at'],
+      ),
+      noteDeliveredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}note_delivered_at'],
+      ),
+    );
+  }
+
+  @override
+  $ResidentWakeLogsTable createAlias(String alias) {
+    return $ResidentWakeLogsTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentWakeLogRow extends DataClass
+    implements Insertable<ResidentWakeLogRow> {
+  final String id;
+  final String residentId;
+
+  /// user_action / heartbeat / background / setup
+  final String trigger;
+  final int wokeAt;
+  final int? endedAt;
+
+  /// 留给下一次醒来的自己的话。空串 = 没留。
+  final String note;
+  final int? noteAt;
+
+  /// 这句话已经被哪一次醒来带进上下文了。只为 null 时才算“还没读到”，
+  /// 否则同一句留言会在之后每一轮里反复出现。
+  final int? noteDeliveredAt;
+  const ResidentWakeLogRow({
+    required this.id,
+    required this.residentId,
+    required this.trigger,
+    required this.wokeAt,
+    this.endedAt,
+    required this.note,
+    this.noteAt,
+    this.noteDeliveredAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['trigger'] = Variable<String>(trigger);
+    map['woke_at'] = Variable<int>(wokeAt);
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<int>(endedAt);
+    }
+    map['note'] = Variable<String>(note);
+    if (!nullToAbsent || noteAt != null) {
+      map['note_at'] = Variable<int>(noteAt);
+    }
+    if (!nullToAbsent || noteDeliveredAt != null) {
+      map['note_delivered_at'] = Variable<int>(noteDeliveredAt);
+    }
+    return map;
+  }
+
+  ResidentWakeLogsCompanion toCompanion(bool nullToAbsent) {
+    return ResidentWakeLogsCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      trigger: Value(trigger),
+      wokeAt: Value(wokeAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      note: Value(note),
+      noteAt: noteAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteAt),
+      noteDeliveredAt: noteDeliveredAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteDeliveredAt),
+    );
+  }
+
+  factory ResidentWakeLogRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentWakeLogRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      trigger: serializer.fromJson<String>(json['trigger']),
+      wokeAt: serializer.fromJson<int>(json['wokeAt']),
+      endedAt: serializer.fromJson<int?>(json['endedAt']),
+      note: serializer.fromJson<String>(json['note']),
+      noteAt: serializer.fromJson<int?>(json['noteAt']),
+      noteDeliveredAt: serializer.fromJson<int?>(json['noteDeliveredAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'trigger': serializer.toJson<String>(trigger),
+      'wokeAt': serializer.toJson<int>(wokeAt),
+      'endedAt': serializer.toJson<int?>(endedAt),
+      'note': serializer.toJson<String>(note),
+      'noteAt': serializer.toJson<int?>(noteAt),
+      'noteDeliveredAt': serializer.toJson<int?>(noteDeliveredAt),
+    };
+  }
+
+  ResidentWakeLogRow copyWith({
+    String? id,
+    String? residentId,
+    String? trigger,
+    int? wokeAt,
+    Value<int?> endedAt = const Value.absent(),
+    String? note,
+    Value<int?> noteAt = const Value.absent(),
+    Value<int?> noteDeliveredAt = const Value.absent(),
+  }) => ResidentWakeLogRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    trigger: trigger ?? this.trigger,
+    wokeAt: wokeAt ?? this.wokeAt,
+    endedAt: endedAt.present ? endedAt.value : this.endedAt,
+    note: note ?? this.note,
+    noteAt: noteAt.present ? noteAt.value : this.noteAt,
+    noteDeliveredAt: noteDeliveredAt.present
+        ? noteDeliveredAt.value
+        : this.noteDeliveredAt,
+  );
+  ResidentWakeLogRow copyWithCompanion(ResidentWakeLogsCompanion data) {
+    return ResidentWakeLogRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      trigger: data.trigger.present ? data.trigger.value : this.trigger,
+      wokeAt: data.wokeAt.present ? data.wokeAt.value : this.wokeAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      note: data.note.present ? data.note.value : this.note,
+      noteAt: data.noteAt.present ? data.noteAt.value : this.noteAt,
+      noteDeliveredAt: data.noteDeliveredAt.present
+          ? data.noteDeliveredAt.value
+          : this.noteDeliveredAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentWakeLogRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('trigger: $trigger, ')
+          ..write('wokeAt: $wokeAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('note: $note, ')
+          ..write('noteAt: $noteAt, ')
+          ..write('noteDeliveredAt: $noteDeliveredAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    residentId,
+    trigger,
+    wokeAt,
+    endedAt,
+    note,
+    noteAt,
+    noteDeliveredAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentWakeLogRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.trigger == this.trigger &&
+          other.wokeAt == this.wokeAt &&
+          other.endedAt == this.endedAt &&
+          other.note == this.note &&
+          other.noteAt == this.noteAt &&
+          other.noteDeliveredAt == this.noteDeliveredAt);
+}
+
+class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<String> trigger;
+  final Value<int> wokeAt;
+  final Value<int?> endedAt;
+  final Value<String> note;
+  final Value<int?> noteAt;
+  final Value<int?> noteDeliveredAt;
+  final Value<int> rowid;
+  const ResidentWakeLogsCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.trigger = const Value.absent(),
+    this.wokeAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.note = const Value.absent(),
+    this.noteAt = const Value.absent(),
+    this.noteDeliveredAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResidentWakeLogsCompanion.insert({
+    required String id,
+    required String residentId,
+    required String trigger,
+    required int wokeAt,
+    this.endedAt = const Value.absent(),
+    this.note = const Value.absent(),
+    this.noteAt = const Value.absent(),
+    this.noteDeliveredAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       trigger = Value(trigger),
+       wokeAt = Value(wokeAt);
+  static Insertable<ResidentWakeLogRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<String>? trigger,
+    Expression<int>? wokeAt,
+    Expression<int>? endedAt,
+    Expression<String>? note,
+    Expression<int>? noteAt,
+    Expression<int>? noteDeliveredAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (trigger != null) 'trigger': trigger,
+      if (wokeAt != null) 'woke_at': wokeAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (note != null) 'note': note,
+      if (noteAt != null) 'note_at': noteAt,
+      if (noteDeliveredAt != null) 'note_delivered_at': noteDeliveredAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResidentWakeLogsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<String>? trigger,
+    Value<int>? wokeAt,
+    Value<int?>? endedAt,
+    Value<String>? note,
+    Value<int?>? noteAt,
+    Value<int?>? noteDeliveredAt,
+    Value<int>? rowid,
+  }) {
+    return ResidentWakeLogsCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      trigger: trigger ?? this.trigger,
+      wokeAt: wokeAt ?? this.wokeAt,
+      endedAt: endedAt ?? this.endedAt,
+      note: note ?? this.note,
+      noteAt: noteAt ?? this.noteAt,
+      noteDeliveredAt: noteDeliveredAt ?? this.noteDeliveredAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (trigger.present) {
+      map['trigger'] = Variable<String>(trigger.value);
+    }
+    if (wokeAt.present) {
+      map['woke_at'] = Variable<int>(wokeAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (noteAt.present) {
+      map['note_at'] = Variable<int>(noteAt.value);
+    }
+    if (noteDeliveredAt.present) {
+      map['note_delivered_at'] = Variable<int>(noteDeliveredAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentWakeLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('trigger: $trigger, ')
+          ..write('wokeAt: $wokeAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('note: $note, ')
+          ..write('noteAt: $noteAt, ')
+          ..write('noteDeliveredAt: $noteDeliveredAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ResidentInboxItemsTable extends ResidentInboxItems
     with TableInfo<$ResidentInboxItemsTable, ResidentInboxRow> {
   @override
@@ -19744,6 +20268,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ResidentMemoriesTable residentMemories = $ResidentMemoriesTable(
     this,
   );
+  late final $ResidentWakeLogsTable residentWakeLogs = $ResidentWakeLogsTable(
+    this,
+  );
   late final $ResidentInboxItemsTable residentInboxItems =
       $ResidentInboxItemsTable(this);
   late final $ActionLogsTable actionLogs = $ActionLogsTable(this);
@@ -19794,6 +20321,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'post_views_by_post',
     'CREATE INDEX post_views_by_post ON post_views (post_id, last_viewed_at)',
   );
+  late final Index residentWakeLogsAt = Index(
+    'resident_wake_logs_at',
+    'CREATE INDEX resident_wake_logs_at ON resident_wake_logs (resident_id, woke_at)',
+  );
   late final Index residentInboxPending = Index(
     'resident_inbox_pending',
     'CREATE INDEX resident_inbox_pending ON resident_inbox_items (resident_id, handled_at)',
@@ -19841,6 +20372,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postViews,
     postUnderstandings,
     residentMemories,
+    residentWakeLogs,
     residentInboxItems,
     actionLogs,
     clearPhotos,
@@ -19857,6 +20389,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postVoicesByPost,
     aiThreadsByPost,
     postViewsByPost,
+    residentWakeLogsAt,
     residentInboxPending,
     actionLogsActor,
     clearPhotosCreated,
@@ -30581,6 +31114,288 @@ typedef $$ResidentMemoriesTableProcessedTableManager =
       ResidentMemoryRow,
       PrefetchHooks Function({bool residentId})
     >;
+typedef $$ResidentWakeLogsTableCreateCompanionBuilder =
+    ResidentWakeLogsCompanion Function({
+      required String id,
+      required String residentId,
+      required String trigger,
+      required int wokeAt,
+      Value<int?> endedAt,
+      Value<String> note,
+      Value<int?> noteAt,
+      Value<int?> noteDeliveredAt,
+      Value<int> rowid,
+    });
+typedef $$ResidentWakeLogsTableUpdateCompanionBuilder =
+    ResidentWakeLogsCompanion Function({
+      Value<String> id,
+      Value<String> residentId,
+      Value<String> trigger,
+      Value<int> wokeAt,
+      Value<int?> endedAt,
+      Value<String> note,
+      Value<int?> noteAt,
+      Value<int?> noteDeliveredAt,
+      Value<int> rowid,
+    });
+
+class $$ResidentWakeLogsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentWakeLogsTable> {
+  $$ResidentWakeLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get wokeAt => $composableBuilder(
+    column: $table.wokeAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get noteAt => $composableBuilder(
+    column: $table.noteAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get noteDeliveredAt => $composableBuilder(
+    column: $table.noteDeliveredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ResidentWakeLogsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentWakeLogsTable> {
+  $$ResidentWakeLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get wokeAt => $composableBuilder(
+    column: $table.wokeAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get noteAt => $composableBuilder(
+    column: $table.noteAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get noteDeliveredAt => $composableBuilder(
+    column: $table.noteDeliveredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ResidentWakeLogsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentWakeLogsTable> {
+  $$ResidentWakeLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get trigger =>
+      $composableBuilder(column: $table.trigger, builder: (column) => column);
+
+  GeneratedColumn<int> get wokeAt =>
+      $composableBuilder(column: $table.wokeAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get noteAt =>
+      $composableBuilder(column: $table.noteAt, builder: (column) => column);
+
+  GeneratedColumn<int> get noteDeliveredAt => $composableBuilder(
+    column: $table.noteDeliveredAt,
+    builder: (column) => column,
+  );
+}
+
+class $$ResidentWakeLogsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentWakeLogsTable,
+          ResidentWakeLogRow,
+          $$ResidentWakeLogsTableFilterComposer,
+          $$ResidentWakeLogsTableOrderingComposer,
+          $$ResidentWakeLogsTableAnnotationComposer,
+          $$ResidentWakeLogsTableCreateCompanionBuilder,
+          $$ResidentWakeLogsTableUpdateCompanionBuilder,
+          (
+            ResidentWakeLogRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ResidentWakeLogsTable,
+              ResidentWakeLogRow
+            >,
+          ),
+          ResidentWakeLogRow,
+          PrefetchHooks Function()
+        > {
+  $$ResidentWakeLogsTableTableManager(
+    _$AppDatabase db,
+    $ResidentWakeLogsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentWakeLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResidentWakeLogsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ResidentWakeLogsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<String> trigger = const Value.absent(),
+                Value<int> wokeAt = const Value.absent(),
+                Value<int?> endedAt = const Value.absent(),
+                Value<String> note = const Value.absent(),
+                Value<int?> noteAt = const Value.absent(),
+                Value<int?> noteDeliveredAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentWakeLogsCompanion(
+                id: id,
+                residentId: residentId,
+                trigger: trigger,
+                wokeAt: wokeAt,
+                endedAt: endedAt,
+                note: note,
+                noteAt: noteAt,
+                noteDeliveredAt: noteDeliveredAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                required String trigger,
+                required int wokeAt,
+                Value<int?> endedAt = const Value.absent(),
+                Value<String> note = const Value.absent(),
+                Value<int?> noteAt = const Value.absent(),
+                Value<int?> noteDeliveredAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentWakeLogsCompanion.insert(
+                id: id,
+                residentId: residentId,
+                trigger: trigger,
+                wokeAt: wokeAt,
+                endedAt: endedAt,
+                note: note,
+                noteAt: noteAt,
+                noteDeliveredAt: noteDeliveredAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ResidentWakeLogsTable, ResidentWakeLogRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ResidentWakeLogsTable,
+                    ResidentWakeLogRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ResidentWakeLogsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentWakeLogsTable,
+      ResidentWakeLogRow,
+      $$ResidentWakeLogsTableFilterComposer,
+      $$ResidentWakeLogsTableOrderingComposer,
+      $$ResidentWakeLogsTableAnnotationComposer,
+      $$ResidentWakeLogsTableCreateCompanionBuilder,
+      $$ResidentWakeLogsTableUpdateCompanionBuilder,
+      (
+        ResidentWakeLogRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ResidentWakeLogsTable,
+          ResidentWakeLogRow
+        >,
+      ),
+      ResidentWakeLogRow,
+      PrefetchHooks Function()
+    >;
 typedef $$ResidentInboxItemsTableCreateCompanionBuilder =
     ResidentInboxItemsCompanion Function({
       required String id,
@@ -32009,6 +32824,8 @@ class $AppDatabaseManager {
       $$PostUnderstandingsTableTableManager(_db, _db.postUnderstandings);
   $$ResidentMemoriesTableTableManager get residentMemories =>
       $$ResidentMemoriesTableTableManager(_db, _db.residentMemories);
+  $$ResidentWakeLogsTableTableManager get residentWakeLogs =>
+      $$ResidentWakeLogsTableTableManager(_db, _db.residentWakeLogs);
   $$ResidentInboxItemsTableTableManager get residentInboxItems =>
       $$ResidentInboxItemsTableTableManager(_db, _db.residentInboxItems);
   $$ActionLogsTableTableManager get actionLogs =>

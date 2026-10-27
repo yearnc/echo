@@ -53,6 +53,7 @@ part 'app_database.g.dart';
     PostUnderstandings,
     CustomResidents,
     ResidentMemories,
+    ResidentWakeLogs,
     ResidentInboxItems,
     ActionLogs,
     ClearPhotos,
@@ -67,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -871,6 +872,12 @@ class AppDatabase extends _$AppDatabase {
         if (await hasTable('custom_residents') &&
             !await hasColumn('custom_residents', 'voice_mode')) {
           await m.addColumn(customResidents, customResidents.voiceMode);
+        }
+      }
+      if (from < 42) {
+        // v42：固定住民的唤醒日志 + 给未来自己的留言。
+        if (!await hasTable('resident_wake_logs')) {
+          await m.createTable(residentWakeLogs);
         }
       }
     },

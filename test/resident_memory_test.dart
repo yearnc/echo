@@ -98,12 +98,8 @@ void main() {
   });
 
   test('关键词检索：多个词要同时命中', () async {
-    await memories.add(
-      memory('m1', summary: '喜欢拍天空', content: '上次拍了晚霞'),
-    );
-    await memories.add(
-      memory('m2', summary: '喜欢猫', content: '家里有两只'),
-    );
+    await memories.add(memory('m1', summary: '喜欢拍天空', content: '上次拍了晚霞'));
+    await memories.add(memory('m2', summary: '喜欢猫', content: '家里有两只'));
 
     final one = await memories.search(residentId, '天空');
     expect(one.single.id, 'm1');
@@ -115,14 +111,27 @@ void main() {
     expect(none, isEmpty);
   });
 
+  test('中文长句也能检索：整句查不到时按 2—3 字滑窗匹配', () async {
+    await memories.add(memory('m1', summary: '最近在准备考试', content: '下周三考高数'));
+    await memories.add(memory('m2', summary: '喜欢拍天空', content: '晚霞很好看'));
+
+    final exam = await memories.search(residentId, '上次考试的事');
+    expect(exam.map((m) => m.id), contains('m1'));
+    expect(exam.map((m) => m.id), isNot(contains('m2')));
+
+    // 一个字的查询仍然能命中。
+    final cat = await memories.search(residentId, '猫');
+    expect(cat, isEmpty);
+
+    // 纯停用词不拿来匹配，回落到最近几条，而不是把所有记忆都翻出来。
+    final stop = await memories.search(residentId, '的');
+    expect(stop.length, 2);
+  });
+
   test('超过上限时归档最旧的，不删除', () async {
     for (var i = 0; i < 5; i++) {
       await memories.add(
-        memory(
-          'm$i',
-          summary: '第 $i 条',
-          at: DateTime(2026, 10, 1 + i),
-        ),
+        memory('m$i', summary: '第 $i 条', at: DateTime(2026, 10, 1 + i)),
       );
     }
 

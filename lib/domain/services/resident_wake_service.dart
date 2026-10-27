@@ -13,11 +13,14 @@ import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/resident_inbox_repository.dart';
+import '../../data/repositories/resident_wake_log_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
+import '../models/post.dart';
 import '../models/private_message.dart';
 import '../models/resident_inbox.dart';
+import '../models/resident_wake_log.dart';
 import 'action_registry.dart';
 import 'comment_reply_service.dart';
 import 'content_generator.dart';
@@ -66,6 +69,7 @@ class ResidentWakeService {
     required this.messages,
     required this.media,
     required this.commentReplies,
+    required this.wakeLogs,
     this.dmVoice,
     this.activityDone,
   });
@@ -84,6 +88,9 @@ class ResidentWakeService {
   final PrivateMessageRepository messages;
   final MediaService media;
   final CommentReplyService commentReplies;
+
+  /// 每次醒来的记录，以及“给未来的自己留言”（v3.9）。
+  final ResidentWakeLogRepository wakeLogs;
 
   /// 私信回复可以变成语音条（可空：测试或关掉语音时保持文字）。
   final DmVoiceService? dmVoice;
@@ -105,7 +112,7 @@ class ResidentWakeService {
   final Map<String, DateTime> _lastWake = {};
 
   /// 没有待办时，主动找点事做的间隔。
-  static const Duration idleGap = Duration(hours: 3);
+  static const Duration idleGap = Duration(minutes: 90);
 
   /// 心跳唤醒的最小间隔。
   static const Duration heartbeatGap = Duration(minutes: 15);
@@ -142,23 +149,82 @@ class ResidentWakeService {
   /// 除了语音，后台能用完整的一套工具。
   Future<int> wakePending({int maxResidents = 3}) async {
     final pool = await residents.all();
-    var woken = 0;
-    var tried = 0;
+    if (pool.isEmpty) return 0;
+
+    // 先看每个人手里有没有待办、上次醒是什么时候，再统一排队。
+    // 以前是按住民创建顺序取前三个——前三个总有事的话，排在后面的
+    // 在后台永远轮不到（只有用户打开 APP 才会被 wakeAll 叫醒）。
+    final oldestPendingAt = <String, DateTime?>{};
+    final lastWakeAt = <String, DateTime?>{};
     for (final resident in pool) {
-      if (tried >= maxResidents) break;
       await inbox.sync(resident.id);
       final pending = await inbox.pending(resident.id);
-      if (pending.isEmpty && !await _idleDue(resident.id)) continue;
-      tried++;
-      woken += await wake(resident.id, trigger: WakeTrigger.background);
+      oldestPendingAt[resident.id] = pending.isEmpty
+          ? null
+          : pending.first.createdAt;
+      lastWakeAt[resident.id] = await _idleAt(resident.id);
+    }
+
+    final order = backgroundOrder(
+      ids: [for (final resident in pool) resident.id],
+      lastWakeAt: lastWakeAt,
+      oldestPendingAt: oldestPendingAt,
+      idleGap: idleGap,
+      now: DateTime.now(),
+    );
+
+    var woken = 0;
+    for (final id in order.take(maxResidents)) {
+      woken += await wake(id, trigger: WakeTrigger.background);
     }
     return woken;
   }
 
+  /// 后台唤醒的优先级：有待办的先（最早没处理的更急），
+  /// 再按“最久没醒”排（从没醒过的排最前）；没到空闲间隔的不参与。
+  @visibleForTesting
+  static List<String> backgroundOrder({
+    required List<String> ids,
+    required Map<String, DateTime?> lastWakeAt,
+    required Map<String, DateTime?> oldestPendingAt,
+    required Duration idleGap,
+    required DateTime now,
+  }) {
+    final candidates = <String>[];
+    for (final id in ids) {
+      if (oldestPendingAt[id] != null) {
+        candidates.add(id);
+        continue;
+      }
+      final last = lastWakeAt[id];
+      if (last == null || now.difference(last) >= idleGap) {
+        candidates.add(id);
+      }
+    }
+
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    candidates.sort((a, b) {
+      final aPending = oldestPendingAt[a];
+      final bPending = oldestPendingAt[b];
+      // 有待办的永远排在“只是闲着”的前面。
+      if ((aPending != null) != (bPending != null)) {
+        return aPending != null ? -1 : 1;
+      }
+      if (aPending != null && bPending != null) {
+        final byPending = aPending.compareTo(bPending);
+        if (byPending != 0) return byPending;
+      }
+      final byLast = (lastWakeAt[a] ?? epoch).compareTo(lastWakeAt[b] ?? epoch);
+      if (byLast != 0) return byLast;
+      // 时间完全一样时按 id 定序，保证结果稳定、测试不抖。
+      return a.compareTo(b);
+    });
+    return candidates;
+  }
+
   Future<bool> _idleDue(String residentId) async {
     final idleAt = await _idleAt(residentId);
-    return idleAt == null ||
-        DateTime.now().difference(idleAt) >= idleGap;
+    return idleAt == null || DateTime.now().difference(idleAt) >= idleGap;
   }
 
   /// “上一次醒来”的水位必须落盘：只放内存的话，每次冷启动都算
@@ -177,8 +243,7 @@ class ResidentWakeService {
   /// 不认的话，用户关了开关，住民照样在信息流里发帖。
   Future<bool> _residentPostsAllowed() async {
     const key = 'community.allowResidentPosts';
-    final query = db.select(db.appSettings)
-      ..where((t) => t.key.equals(key));
+    final query = db.select(db.appSettings)..where((t) => t.key.equals(key));
     final row = await query.getSingleOrNull();
     return row?.value == 'true';
   }
@@ -235,7 +300,7 @@ class ResidentWakeService {
     // 没整理出待办，也得让住民看一眼最近的对话。
     //
     // v41 起后台也不再只补待办：APP 长期不开时，固定住民也该有机会
-    // 刷到新帖子、自己发一条。仍按三小时空闲间隔限流，不会每 15 分钟吵醒。
+    // 刷到新帖子、自己发一条。仍按 1.5 小时空闲间隔限流，不会每 15 分钟吵醒。
     if (pending.isEmpty &&
         (trigger == WakeTrigger.heartbeat ||
             trigger == WakeTrigger.background)) {
@@ -254,6 +319,19 @@ class ResidentWakeService {
     }
 
     final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
+    // 日志失败不该拦住这一轮：它只是回忆，不是业务。
+    ResidentWakeLog? lastNote;
+    try {
+      await wakeLogs.start(
+        id: wakeId,
+        residentId: residentId,
+        trigger: _triggerKey(trigger),
+        at: now,
+      );
+      lastNote = await wakeLogs.lastNote(residentId, excludeId: wakeId);
+    } catch (error) {
+      debugPrint('[唤醒] 日志没记上：$error');
+    }
     // 一次最多看二十条。不按“最多回三个人”硬性截断——
     // 积攒的评论该回就回；真的处理不完的留在收件箱，下次醒来继续。
     // 不能把没展示过的待办也标成“已读”，那等于替模型做了决定。
@@ -303,6 +381,7 @@ class ResidentWakeService {
           trigger,
           ownActivity: ownActivity,
           unsent: unsent,
+          lastNote: lastNote,
         ),
         toolkit: toolkit,
         at: now,
@@ -345,9 +424,25 @@ class ResidentWakeService {
       await toolkit.flushImage();
       return 0;
     } finally {
+      try {
+        await wakeLogs.finish(wakeId, at: DateTime.now());
+        // 留言已经进过这一轮的上下文，之后不再反复带上。
+        if (lastNote != null) {
+          await wakeLogs.markNoteDelivered(lastNote.id);
+        }
+      } catch (error) {
+        debugPrint('[唤醒] 日志收尾没记上：$error');
+      }
       activityDone?.call(residentId);
     }
   }
+
+  static String _triggerKey(WakeTrigger trigger) => switch (trigger) {
+    WakeTrigger.userAction => 'user_action',
+    WakeTrigger.heartbeat => 'heartbeat',
+    WakeTrigger.background => 'background',
+    WakeTrigger.setup => 'setup',
+  };
 
   String _situation(
     CustomResident resident,
@@ -355,6 +450,7 @@ class ResidentWakeService {
     WakeTrigger trigger, {
     String ownActivity = '',
     List<PendingSegment> unsent = const [],
+    ResidentWakeLog? lastNote,
   }) {
     final String base;
     if (pending.isEmpty) {
@@ -413,24 +509,43 @@ class ResidentWakeService {
       );
       parts.add(buffer.toString().trimRight());
     }
+    if (lastNote != null && lastNote.hasNote) {
+      parts.add(
+        '上一次醒来时（${ResidentToolSession.timeLabel(lastNote.noteAt ?? lastNote.wokeAt)}）'
+        '你给现在的自己留了一句话：\n「${lastNote.note.trim()}」',
+      );
+    }
     if (ownActivity.trim().isNotEmpty) {
-      parts.add('你最近做过的事（只是给你回忆，记不记由你）：\n$ownActivity');
+      parts.add(
+        '你最近做过的事，以及它们的动静（只是给你信息；'
+        '要不要在意、要不要记、要不要接着说，都由你）：\n$ownActivity',
+      );
     }
     return parts.join('\n');
   }
 
-  /// 它自己最近发过的动态。只读，不替它写记忆。
+  /// 它自己最近发过的动态，以及这些动态收到的赞/评论/浏览。
+  ///
+  /// 只读、只给信息：TA 可以因此高兴，也可以完全不在意；平台不替它
+  /// 生成“被赞了”的情绪，也不把这件事塞进收件箱要求回应。
   Future<String> _recentOwnActivity(String residentId) async {
     try {
       final list = await posts.watchByResident(residentId).first;
       if (list.isEmpty) return '';
-      return list
-          .take(3)
-          .map(
-            (post) =>
-                '- ${_shortWhen(post.createdAt)} 发过动态：${_clip(post.content, 60)}',
-          )
-          .join('\n');
+      final lines = <String>[];
+      for (final post in list.take(3)) {
+        var views = 0;
+        try {
+          views = await voices.viewCount(post.id);
+        } catch (error) {
+          debugPrint('[唤醒] 这条动态的浏览量没读到：$error');
+        }
+        lines.add(
+          '- ${_shortWhen(post.createdAt)} 发过动态：${_clip(post.content, 60)}'
+          '（赞 ${post.likeCount} · 评论 ${post.commentCount} · 看过 $views）',
+        );
+      }
+      return lines.join('\n');
     } catch (error) {
       debugPrint('[唤醒] 这次没读到它自己的动态：$error');
       return '';
@@ -515,10 +630,10 @@ class ResidentWakeService {
     final speech = dmVoice;
     final wantsVoice = asVoice;
     if (wantsVoice) {
-      if (speech == null || !speech.enabled) {
+      if (speech == null) {
         return const ActionOutcome(
           ok: false,
-          message: '语音没有开启，改用 send_dm 发文字',
+          message: '当前不能合成语音，改用 send_dm 发文字',
         );
       }
       if (!resident.voiceEnabled) {
@@ -534,14 +649,12 @@ class ResidentWakeService {
     // 是改用文字、换句话再试，还是先解释一下。
     VoiceClip? clip;
     if (wantsVoice) {
-      final result = await speech!.synthesize(
-        resident: resident,
-        text: text,
-      );
+      final result = await speech!.synthesize(resident: resident, text: text);
       if (result.clip == null) {
         return ActionOutcome(
           ok: false,
-          message: '语音没合成出来：${result.error}。'
+          message:
+              '语音没合成出来：${result.error}。'
               '你可以先用 send_dm 发文字，或者换个说法再试一次。',
         );
       }
@@ -599,10 +712,7 @@ class ResidentWakeService {
       return const ActionOutcome(ok: false, message: '动态是空的');
     }
     if (!await _residentPostsAllowed()) {
-      return const ActionOutcome(
-        ok: false,
-        message: '用户关掉了“固定住民动态”，别发帖',
-      );
+      return const ActionOutcome(ok: false, message: '用户关掉了“固定住民动态”，别发帖');
     }
 
     Uint8List? bytes;
@@ -639,6 +749,49 @@ class ResidentWakeService {
 
     // 记忆不替它写：动态已经发出，它可以在同一轮里自己用 memory_write 记。
     return outcome;
+  }
+
+  /// 住民“看过了”这条帖子：在帖子里落一个身份快照，再写一条浏览记录。
+  ///
+  /// v3.9 修正：刷帖**要留痕**。以前 browse_feed 是纯读，用户点开浏览量
+  /// 名单找不到刚刷过、甚至刚点过赞的固定住民，看起来像数据丢了。
+  /// 自己的帖子不算“看过自己”，跳过。
+  Future<void> markSeen({
+    required CustomResident resident,
+    required Post post,
+  }) async {
+    if (post.authorResidentId == resident.id) return;
+    try {
+      final voice = await commentReplies.ensureVoice(
+        postId: post.id,
+        resident: resident,
+      );
+      if (voice == null) return;
+      await voices.recordView(postId: post.id, voiceId: voice.id);
+    } catch (error) {
+      // 浏览记录失败不该拦住刷帖本身。
+      debugPrint('[唤醒] ${resident.name} 的浏览没记上：$error');
+    }
+  }
+
+  /// 刷帖返回的一条帖子：把作者、时间、话题和计数都摊开。
+  ///
+  /// 纯函数，不写库；浏览记录由 [markSeen] 负责。
+  @visibleForTesting
+  static Map<String, Object?> feedEntry(Post post, {String? authorName}) {
+    return {
+      'id': post.id,
+      'author': post.authorResidentId == null ? '你' : (authorName ?? '已离开的住民'),
+      'author_type': post.authorResidentId == null ? '用户' : '固定住民',
+      'time': ResidentToolSession.timeLabel(post.createdAt),
+      'topic': post.topicName ?? '',
+      'content': post.content.length > 120
+          ? '${post.content.substring(0, 120)}…'
+          : post.content,
+      'likes': post.likeCount,
+      'comments': post.commentCount,
+      'images': post.images.length,
+    };
   }
 }
 
@@ -728,10 +881,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
   @override
   Future<ActionOutcome> sendVoice(String content, String callId) async {
     if (!allowVoice) {
-      return const ActionOutcome(
-        ok: false,
-        message: '后台唤醒不发语音，改用 send_dm 发文字',
-      );
+      return const ActionOutcome(ok: false, message: '后台唤醒不发语音，改用 send_dm 发文字');
     }
     final outcome = await service._sendDm(
       resident,
@@ -803,10 +953,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     final ok = await service.messages.cancelPendingSegment(segmentId.trim());
     return ok
         ? const ActionOutcome(ok: true, message: '这一段不发了')
-        : const ActionOutcome(
-            ok: false,
-            message: '这段已经发出去了，或者不在待发队列里',
-          );
+        : const ActionOutcome(ok: false, message: '这段已经发出去了，或者不在待发队列里');
   }
 
   @override
@@ -827,10 +974,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     );
     return ok
         ? const ActionOutcome(ok: true, message: '这一段已经改成新的话')
-        : const ActionOutcome(
-            ok: false,
-            message: '这段已经发出去了，或者不在待发队列里',
-          );
+        : const ActionOutcome(ok: false, message: '这段已经发出去了，或者不在待发队列里');
   }
 
   @override
@@ -850,18 +994,30 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (recent.isEmpty) {
       return const ActionOutcome(ok: true, message: '最近没什么新帖子');
     }
+    // 刷到就算看过：逐条落身份快照 + 浏览记录，
+    // 这样用户点开浏览量名单能看到 TA 来过。
+    for (final post in recent) {
+      await service.markSeen(resident: resident, post: post);
+    }
+    // 作者名要查住民表；用户在信息流里没有 id，直接标成「你」。
+    final names = <String, String>{};
+    for (final post in recent) {
+      final id = post.authorResidentId;
+      if (id == null || names.containsKey(id)) continue;
+      final author = await service.residents.findById(id);
+      names[id] = author?.name ?? '已离开的住民';
+    }
     return ActionOutcome(
       ok: true,
       data: {
         'posts': [
           for (final post in recent)
-            {
-              'id': post.id,
-              'content': post.content.length > 80
-                  ? '${post.content.substring(0, 80)}…'
-                  : post.content,
-              'comments': post.commentCount,
-            },
+            ResidentWakeService.feedEntry(
+              post,
+              authorName: post.authorResidentId == null
+                  ? null
+                  : names[post.authorResidentId],
+            ),
         ],
       },
     );
@@ -895,9 +1051,12 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (voice == null) {
       return const ActionOutcome(ok: false, message: '没能在这条帖子里找到身份');
     }
+    // 留过言的人当然算看过，浏览名单里也要有 TA。
+    await service.voices.recordView(postId: postId, voiceId: voice.id);
 
     await service.interactions.insertExecutedComment(
-      id: 'wake_comment_${resident.id}_'
+      id:
+          'wake_comment_${resident.id}_'
           '${DateTime.now().microsecondsSinceEpoch}',
       postId: postId,
       personaId: voice.id,
@@ -908,7 +1067,8 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (post.authorResidentId == null) {
       try {
         await service.notifications.insert(
-          id: 'n_wake_${resident.id}_'
+          id:
+              'n_wake_${resident.id}_'
               '${DateTime.now().microsecondsSinceEpoch}',
           postId: postId,
           type: 'comment',
@@ -929,6 +1089,8 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (post == null) {
       return const ActionOutcome(ok: false, message: '没有这条帖子');
     }
+    // 点过赞就是来过：先落身份快照和浏览记录，再记这一颗心。
+    await service.markSeen(resident: resident, post: post);
     final outcome = await service.actions.likePost(
       residentId: resident.id,
       postId: postId,
@@ -952,10 +1114,49 @@ class _WakeToolkit implements ResidentWakeToolkit {
       return const ActionOutcome(ok: false, message: '还没配置文生图模型');
     }
     _image = service.gateway.generateImage(config: config, prompt: clean);
-    return const ActionOutcome(
-      ok: true,
-      message: '已在后台开始画，继续做别的事；发动态时会带上这张图',
-    );
+    return const ActionOutcome(ok: true, message: '已在后台开始画，继续做别的事；发动态时会带上这张图');
+  }
+
+  @override
+  Future<ActionOutcome> checkWakeLog(int days) async {
+    final span = days.clamp(1, 7);
+    try {
+      final today = await service.wakeLogs.today(resident.id);
+      final recent = await service.wakeLogs.recent(resident.id, days: span);
+      return ActionOutcome(
+        ok: true,
+        data: {
+          'today_count': today.length,
+          'today_times': [
+            for (final log in today.reversed)
+              ResidentToolSession.timeLabel(log.wokeAt),
+          ],
+          'days': span,
+          'entries': [
+            for (final log in recent)
+              {
+                'time': ResidentToolSession.timeLabel(log.wokeAt),
+                'trigger': log.triggerLabel,
+                'note': log.note,
+              },
+          ],
+        },
+      );
+    } catch (error) {
+      return ActionOutcome(ok: false, message: '日志读不出来：$error');
+    }
+  }
+
+  @override
+  Future<ActionOutcome> leaveNote(String content) async {
+    final text = content.trim();
+    if (text.isEmpty) {
+      return const ActionOutcome(ok: false, message: '留言是空的');
+    }
+    final ok = await service.wakeLogs.setNote(wakeId, text);
+    return ok
+        ? const ActionOutcome(ok: true, message: '留好了，下一次醒来会先看到这句话')
+        : const ActionOutcome(ok: false, message: '这次醒来没有日志可写');
   }
 
   @override
@@ -992,9 +1193,9 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     messages: ref.watch(privateMessageRepositoryProvider),
     media: ref.watch(mediaServiceProvider),
     commentReplies: ref.watch(commentReplyServiceProvider),
+    wakeLogs: ref.watch(residentWakeLogRepositoryProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
-    activityDone: (residentId) => ref
-        .read(residentActivityProvider.notifier)
-        .clear(residentId),
+    activityDone: (residentId) =>
+        ref.read(residentActivityProvider.notifier).clear(residentId),
   ),
 );

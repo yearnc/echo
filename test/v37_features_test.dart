@@ -5,7 +5,6 @@ import 'package:echo/data/repositories/private_message_repository.dart';
 import 'package:echo/domain/models/custom_resident.dart';
 import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/tool_settings.dart';
-import 'package:echo/domain/models/voice_settings.dart';
 import 'package:echo/domain/services/resident_voice_profile_service.dart';
 import 'package:echo/domain/services/update_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,7 +74,6 @@ void main() {
           baseUrl: 'https://api.siliconflow.cn/v1',
           ttsReferenceTranscript: true,
         ),
-        source: VoiceSource.cloud,
       );
       expect(modes, [
         ResidentVoiceMode.description,
@@ -91,7 +89,6 @@ void main() {
           ttsReferenceDescription: true,
           ttsReferenceTranscript: true,
         ),
-        source: VoiceSource.cloud,
       );
       expect(modes, [
         ResidentVoiceMode.description,

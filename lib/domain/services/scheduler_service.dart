@@ -14,16 +14,12 @@ import '../../data/repositories/plan_event_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_understanding_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
-import '../models/ai_persona.dart';
 import '../models/pending_interaction.dart';
 import '../models/plan_script.dart';
 import '../models/post_voice.dart';
-import '../models/voice_settings.dart';
 import 'community_settings_controller.dart';
 import 'content_generator.dart';
 import 'notification_service.dart';
-import 'tts_service.dart';
-import 'voice_settings_controller.dart';
 
 // 策划脚本只安排"这条帖子会收到什么回应"，所以这里没有"切模式""跳页面"的
 // 入口：那些动作在拍摄时由人手动完成，不由脚本代劳。
@@ -51,8 +47,6 @@ class SchedulerService {
     this.understandings,
     this.readAiPeerLimit,
     this.readSendImagesDirectly,
-    this.voice,
-    this.readVoiceSettings,
     this.notify,
     this.scheduleNotification,
     this.cancelScheduledNotification,
@@ -80,12 +74,6 @@ class SchedulerService {
 
   /// 帖子图片原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
-
-  /// 住民说话的嗓子（B8）。可空：没有它就全发文字，社区照常运转。
-  final TtsService? voice;
-
-  /// 语音开关。关掉之后不再生成新的语音评论，历史语音照常能播。
-  final VoiceSettings Function()? readVoiceSettings;
 
   /// 往系统通知栏推一条（B10）。可空，而且**前台不接**：
   /// 用户正开着 APP 时，应用内的红点与列表已经够了，
@@ -256,19 +244,6 @@ class SchedulerService {
           notify?.call('n_${item.id}', '$name 评论了你的帖子', preview);
         }
 
-        // 合成语音（B8）。这一步跑在后台：语音要多等一两秒才出得来，
-        // 冷启动没道理停在这儿等一段音频——评论先以文字露面，
-        // 音频好了再换成语音条。
-        unawaited(
-          _maybeAttachVoice(
-            item: item,
-            persona: voiceMap[item.personaId]?.toPersona(),
-            // 固定住民在每条帖子里都有一个 voice 快照，但嗓子要认人，
-            // 不能认这个一帖一换的快照 id，否则同一个人每条帖子换声。
-            speakerId: voiceMap[item.personaId]?.residentId,
-          ),
-        );
-
         // 顺便点个赞：评论区里“看到了、顺手赞一下”比每句都回更常见。
         unawaited(_maybeLikeComment(item: item));
 
@@ -304,64 +279,6 @@ class SchedulerService {
       return false;
     }
   }
-
-  /// 把刚兑现的一条评论变成语音（B8）。
-  ///
-  /// 整段兜到底：它跑在后台，抛出去就是没人接的异常。而它可能失败的
-  /// 理由有一堆——没放模型、引擎起不来、磁盘写不动——那些情况下
-  /// 评论区保持纯文字就好，这不是塌天的事。
-  Future<void> _maybeAttachVoice({
-    required PendingInteraction item,
-    required AiPersona? persona,
-    String? speakerId,
-  }) async {
-    final speech = voice;
-    if (speech == null || persona == null) return;
-    // 临时网民还没定音色：先发文字，别拿默认嗓子冒充某个人。
-    if (persona.voiceModel.isEmpty) return;
-    if (!(readVoiceSettings?.call().enabled ?? true)) return;
-
-    // 固定住民是不是发语音，交给它自己在唤醒里用工具决定；
-    // 平台不替它掷这个骰子。
-    final snapshot = await voiceRepo?.findById(item.personaId);
-    if (snapshot?.residentId != null) return;
-
-    final content = (item.content ?? '').trim();
-    if (content.isEmpty) return;
-    if (_random.nextDouble() > _voiceChance(persona)) return;
-
-    try {
-      final existing = await interactions.countVoicesForPost(item.postId);
-      if (existing >= maxVoicesPerPost) return;
-
-      final clip = await speech.speak(
-        text: content,
-        personaId: speakerId ?? persona.id,
-        voiceModel: persona.voiceModel,
-      );
-      if (clip == null) return;
-
-      await interactions.attachVoice(
-        id: item.id,
-        voicePath: clip.ref,
-        transcript: clip.transcript,
-        durationMs: clip.durationMs,
-      );
-    } catch (error) {
-      debugPrint('[语音] 这条评论没能变成语音：$error');
-    }
-  }
-
-  /// 一条评论变成语音的概率。语气标签只做很小的区分。
-  static double _voiceChance(AiPersona persona) {
-    final model = persona.voiceModel;
-    if (model.contains('lazy') || model.contains('quiet')) return 0.34;
-    if (model.contains('warm') || model.contains('soft')) return 0.22;
-    return 0.16;
-  }
-
-  /// 一条帖子下面最多留几条语音。
-  static const int maxVoicesPerPost = 2;
 
   /// AI 给评论点赞：每条最多 2 个，不通知、不写关系。
   Future<void> _maybeLikeComment({
@@ -486,43 +403,17 @@ class SchedulerService {
           final seat = await _planSeat(event.postId, personaId);
 
           // 脚本里写死的语音素材不一定在仓库里（演示音频常由素材方另行提供）。
-          // 找不到那段音频就**现合成一条**：声音还是这位住民的固定音色，
-          // 内容就是脚本给的台词——总比镜头里挂着一个点不响的播放键强。
-          //
-          // 这一条刻意用 await（不像随机排期那样后补）：策划模式是要被拍进
-          // 片子的，画面里不能出现"文字先出来、两秒后变成语音条"的跳动。
+          // v3.9 起临时网民不再合成语音：素材在就照原样播，不在就退回文字。
+          // 脚本安排的是"收到一句回应"，那个回应本身比它用什么形式送到更重要。
           var mediaType = event.mediaType;
           var voicePath = event.voiceAsset;
           var transcript = event.transcript;
           var durationMs = event.voiceDurationMs;
-
-          // 语音开关关掉时，脚本里的语音也退回文字。已经生成的语音条
-          // 照常能播，这里管的只是"别再产生新语音"。
-          final voiceEnabled = readVoiceSettings?.call().enabled ?? true;
-          if (mediaType == 'voice' && !voiceEnabled) {
+          if (mediaType == 'voice' && !await _voiceAssetAvailable(voicePath)) {
             mediaType = 'text';
             voicePath = null;
             transcript = null;
             durationMs = null;
-          } else if (mediaType == 'voice' &&
-              !await _voiceAssetAvailable(voicePath)) {
-            final clip = await voice?.speak(
-              text: event.content ?? '',
-              personaId: seat.voiceId,
-              voiceModel: seat.voiceModel,
-            );
-            if (clip == null) {
-              // 合成不出来就退回文字：脚本安排的是"收到一句回应"，
-              // 那个回应本身比它用什么形式送到更重要。
-              mediaType = 'text';
-              voicePath = null;
-              transcript = null;
-              durationMs = null;
-            } else {
-              voicePath = clip.ref;
-              transcript = clip.transcript;
-              durationMs = clip.durationMs;
-            }
           }
 
           await interactions.insertExecutedComment(
@@ -652,8 +543,6 @@ final schedulerServiceProvider = Provider<SchedulerService>(
         ref.read(communitySettingsProvider).aiPeerInteractionLimit,
     readSendImagesDirectly: () =>
         ref.read(communitySettingsProvider).sendPostImagesDirectly,
-    voice: ref.watch(ttsServiceProvider),
-    readVoiceSettings: () => ref.read(voiceSettingsControllerProvider),
     // 只有后台补发才推通知栏（B10）：前台那条路上，应用内的红点已经够了。
     notify: ref.watch(inBackgroundTaskProvider)
         ? (key, title, body) => ref

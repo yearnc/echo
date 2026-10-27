@@ -69,23 +69,22 @@ class ResidentMemoryRepository {
     required String content,
     required List<String> tags,
   }) {
-    return (_db.update(_db.residentMemories)..where((t) => t.id.equals(id)))
-        .write(
-          ResidentMemoriesCompanion(
-            summary: Value(summary),
-            content: Value(content),
-            tags: Value(tags.join(',')),
-            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+    return (_db.update(
+      _db.residentMemories,
+    )..where((t) => t.id.equals(id))).write(
+      ResidentMemoriesCompanion(
+        summary: Value(summary),
+        content: Value(content),
+        tags: Value(tags.join(',')),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// 把归档的放回生效列表。
   Future<int> restore(String id) {
     return (_db.update(_db.residentMemories)..where((t) => t.id.equals(id)))
-        .write(
-          ResidentMemoriesCompanion(archivedAt: const Value<int?>(null)),
-        );
+        .write(ResidentMemoriesCompanion(archivedAt: const Value<int?>(null)));
   }
 
   Future<List<ResidentMemory>> recent(
@@ -93,14 +92,15 @@ class ResidentMemoryRepository {
     int limit = 5,
   }) async {
     final rows =
-        await (_db.select(_db.residentMemories)..where(
-              (t) =>
-                  t.residentId.equals(residentId) &
-                  t.archivedAt.isNull() &
-                  t.deletedAt.isNull(),
-            )
-            ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-            ..limit(limit))
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.archivedAt.isNull() &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+              ..limit(limit))
             .get();
     return rows.map(_toDomain).toList(growable: false);
   }
@@ -109,40 +109,134 @@ class ResidentMemoryRepository {
   ///
   /// 记忆量本来就有上限（默认 400），先拉出来在 Dart 里过滤，
   /// 比在 SQL 里拼一串 LIKE 更好读，也不会把用户输入当 SQL 用。
+  ///
+  /// 中文没有空格：直接把“上次考试的事”当整串去 contains 是查不到的。
+  /// 这里把每个空格/标点隔开的片段拆成 2—3 字滑窗，**片段之间仍是“都要命中”，
+  /// 片段内部只要任意一个滑窗命中就算**——中文长句能查，多个关键词也仍然能
+  /// 同时约束（“天空 晚霞”两个都要在）。
   Future<List<ResidentMemory>> search(
     String residentId,
     String query, {
     int limit = 5,
   }) async {
-    final terms = query
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((term) => term.trim().isNotEmpty)
-        .toList(growable: false);
-    if (terms.isEmpty) return recent(residentId, limit: limit);
+    final groups = termGroups(query);
+    if (groups.isEmpty) return recent(residentId, limit: limit);
 
     final rows =
-        await (_db.select(_db.residentMemories)..where(
-              (t) =>
-                  t.residentId.equals(residentId) &
-                  t.archivedAt.isNull() &
-                  t.deletedAt.isNull(),
-            )
-            ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-            ..limit(300))
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.archivedAt.isNull() &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+              ..limit(300))
             .get();
 
     return [
       for (final row in rows)
-        if (_matches(row, terms)) _toDomain(row),
+        if (_matches(row, groups)) _toDomain(row),
     ].take(limit).toList(growable: false);
   }
 
-  bool _matches(ResidentMemoryRow row, List<String> terms) {
-    final haystack =
-        '${row.summary}\n${row.content}\n${row.tags}'.toLowerCase();
-    return terms.every(haystack.contains);
+  /// 把查询拆成“关键词组”：组间 AND，组内 OR。
+  static List<List<String>> termGroups(String query) {
+    final groups = <List<String>>[];
+    for (final part in query.toLowerCase().split(
+      RegExp(r'[\s，。！？、；：,.!?;:（）()\[\]【】「」]+'),
+    )) {
+      final text = part.trim();
+      if (text.isEmpty) continue;
+
+      final terms = <String>{};
+      if (RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) {
+        final chars = text.runes.map(String.fromCharCode).toList();
+        for (final size in const [2, 3]) {
+          if (chars.length < size) continue;
+          for (var i = 0; i + size <= chars.length; i++) {
+            final term = chars.sublist(i, i + size).join();
+            if (_stopWords.contains(term)) continue;
+            terms.add(term);
+            if (terms.length >= 60) break;
+          }
+          if (terms.length >= 60) break;
+        }
+        // “猫”“晚霞”这种一两个字的查询：滑窗生成不出来，原样用。
+        if (terms.isEmpty && !_stopWords.contains(text)) terms.add(text);
+      } else if (text.length >= 2 && !_stopWords.contains(text)) {
+        terms.add(text);
+      }
+
+      if (terms.isNotEmpty) {
+        groups.add(terms.toList(growable: false));
+      }
+    }
+    return groups;
   }
+
+  bool _matches(ResidentMemoryRow row, List<List<String>> groups) {
+    final haystack = '${row.summary}\n${row.content}\n${row.tags}'
+        .toLowerCase();
+    for (final group in groups) {
+      if (!group.any(haystack.contains)) return false;
+    }
+    return true;
+  }
+
+  /// “的/了/我的/什么”这类词拆出来只会匹配到所有记忆，直接丢掉。
+  static const Set<String> _stopWords = {
+    '的',
+    '了',
+    '是',
+    '吗',
+    '呢',
+    '啊',
+    '呀',
+    '吧',
+    '我',
+    '你',
+    '他',
+    '她',
+    '它',
+    '们',
+    '这',
+    '那',
+    '和',
+    '与',
+    '在',
+    '有',
+    '个',
+    '一',
+    '不',
+    '就',
+    '都',
+    '也',
+    '还',
+    '很',
+    '要',
+    '把',
+    '被',
+    '给',
+    '对',
+    '从',
+    '到',
+    '我的',
+    '你的',
+    '他的',
+    '她的',
+    '这个',
+    '那个',
+    '一下',
+    '什么',
+    '怎么',
+    '可以',
+    '没有',
+    '我们',
+    '你们',
+    '他们',
+    '她们',
+  };
 
   /// 同一个来源（帖子/评论/私信）是否已经记过，避免重复写。
   Future<bool> hasSource({
@@ -193,14 +287,15 @@ class ResidentMemoryRepository {
     if (overflow <= 0) return 0;
 
     final rows =
-        await (_db.select(_db.residentMemories)..where(
-              (t) =>
-                  t.residentId.equals(residentId) &
-                  t.archivedAt.isNull() &
-                  t.deletedAt.isNull(),
-            )
-            ..orderBy([(t) => OrderingTerm.asc(t.updatedAt)])
-            ..limit(overflow))
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.archivedAt.isNull() &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.updatedAt)])
+              ..limit(overflow))
             .get();
 
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -260,15 +355,13 @@ final residentMemoryRepositoryProvider = Provider<ResidentMemoryRepository>(
 /// 某个固定住民正在生效的记忆。
 final activeMemoriesProvider = StreamProvider.autoDispose
     .family<List<ResidentMemory>, String>(
-      (ref, residentId) => ref
-          .watch(residentMemoryRepositoryProvider)
-          .watchActive(residentId),
+      (ref, residentId) =>
+          ref.watch(residentMemoryRepositoryProvider).watchActive(residentId),
     );
 
 /// 某个固定住民已归档的记忆。
 final archivedMemoriesProvider = StreamProvider.autoDispose
     .family<List<ResidentMemory>, String>(
-      (ref, residentId) => ref
-          .watch(residentMemoryRepositoryProvider)
-          .watchArchived(residentId),
+      (ref, residentId) =>
+          ref.watch(residentMemoryRepositoryProvider).watchArchived(residentId),
     );
