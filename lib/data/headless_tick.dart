@@ -23,6 +23,8 @@ Future<void> runHeadlessTick() async {
 
   try {
     await container.read(schedulerServiceProvider).flushDue();
+    // 住民自己定的闹钟：到点先叫醒它，再处理普通的待办补发。
+    await container.read(residentWakeServiceProvider).wakeDueAlarms();
     // 不在后台替固定住民发帖：它自己醒来后决定要不要 create_post。
     // 固定住民的待办也要在后台补上：以前只在前台心跳里唤醒，
     // APP 一划掉，用户发的私信就一直没人接——直到他再打开 APP。

@@ -132,6 +132,9 @@ class PostRepository {
     String? replyDensity,
     String? likeLevel,
     int? humanLevel,
+    String speechBy = '',
+    String voicePath = '',
+    int? speechDurationMs,
   }) async {
     final id = _newId();
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -150,6 +153,9 @@ class PostRepository {
             replyDensity: Value(replyDensity),
             likeLevel: Value(likeLevel),
             humanLevel: Value(humanLevel),
+            speechBy: Value(speechBy),
+            voicePath: Value(voicePath.isEmpty ? null : voicePath),
+            speechDurationMs: Value(speechDurationMs),
           ),
         );
     return id;
@@ -165,6 +171,7 @@ class PostRepository {
     required String content,
     DateTime? createdAt,
     String? topicName,
+    bool asVoice = false,
   }) async {
     final id = _newId();
     final at = (createdAt ?? DateTime.now()).millisecondsSinceEpoch;
@@ -181,6 +188,8 @@ class PostRepository {
             topicName: Value(topicName),
             isAiGenerated: const Value(true),
             authorResidentId: Value(residentId),
+            // 住民自己选的“用语音发”：只标来源，正文仍是转写稿。
+            speechBy: Value(asVoice ? residentId : ''),
             // 住民的动态下面也会有人来评论，那就是这个社区自己的呼吸
             allowAiReply: const Value(true),
           ),
@@ -332,6 +341,9 @@ class PostRepository {
       isHot: row.isHot,
       authorResidentId: row.authorResidentId,
       likedByMe: row.likedAt != null,
+      speechBy: row.speechBy,
+      voicePath: row.voicePath,
+      speechDurationMs: row.speechDurationMs,
     );
   }
 

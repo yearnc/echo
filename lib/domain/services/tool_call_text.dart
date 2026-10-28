@@ -102,19 +102,35 @@ Object? _typed(String raw) {
   }
 }
 
+/// 模型把历史里的时间前缀抄进正文时，开头的这一层要剥掉。
+///
+/// 只认**完整格式**（年月日 + 周几 + 时段 + 时分），而且只剥一层；
+/// 正文中间或句子里正常的“12:44”“明天中午”一律不动。
+/// 历史里带时间前缀是为了让住民知道消息是什么时候发的，不是为了教它
+/// 在每次说话前盖个戳。
+final RegExp _leadingTimeLabel = RegExp(
+  r'^\[\s*\d{4}年\d{1,2}月\d{1,2}日\s*周[一二三四五六日天]\s*'
+  r'(?:清晨|上午|中午|下午|傍晚|晚上|深夜)\s*\d{1,2}:\d{2}\s*\]\s*',
+);
+
+String stripLeadingTimeLabel(String raw) =>
+    raw.replaceFirst(_leadingTimeLabel, '').trim();
+
 /// 把模型文本里的工具调用标记洗掉，只留真正说的话。
 ///
 /// 清洗后可能什么都不剩（模型这一轮只是在调工具），返回空串，
 /// 调用方就知道“他没说话”。
 String sanitizeModelText(String raw) {
-  if (!hasToolCallMarkup(raw)) return raw.trim();
-  var text = raw.replaceAll(_toolCallsBlock, ' ');
-  // 没有 `<tool_calls>` 外壳时，逐段去掉 invoke 块。
-  text = text.replaceAll(_invoke, ' ');
-  // 兜底：没配对的半个标签、孤立的标记都清掉。
-  text = text.replaceAll(_tag, ' ');
-  text = text.replaceAll(_marker, ' ');
-  text = text.replaceAll(RegExp(r'[ \t]+\n'), '\n');
-  text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
-  return text.trim();
+  var text = raw;
+  if (hasToolCallMarkup(text)) {
+    text = text.replaceAll(_toolCallsBlock, ' ');
+    // 没有 `<tool_calls>` 外壳时，逐段去掉 invoke 块。
+    text = text.replaceAll(_invoke, ' ');
+    // 兜底：没配对的半个标签、孤立的标记都清掉。
+    text = text.replaceAll(_tag, ' ');
+    text = text.replaceAll(_marker, ' ');
+    text = text.replaceAll(RegExp(r'[ \t]+\n'), '\n');
+    text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  }
+  return stripLeadingTimeLabel(text);
 }

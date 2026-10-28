@@ -16,6 +16,7 @@ import 'domain/services/audience_service.dart';
 import 'domain/services/background_worker.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
+import 'domain/services/pet_controller.dart';
 import 'domain/services/resident_wake_service.dart';
 import 'domain/services/scheduler_service.dart';
 
@@ -76,6 +77,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       // 上次后台留下的预约先撤掉：现在人在 APP 里，不该再被系统通知打扰。
       // 切回后台时 SchedulerService 会按库里剩下的队列重排。
       unawaited(notifications.cancelAllScheduled());
+      // 桌宠如果还开着（前台服务会活过这次冷启动），把观察循环接回来。
+      unawaited(ref.read(petControllerProvider.notifier).refresh());
     });
     _heartbeat = Timer.periodic(_tick, (_) async {
       // 出错也不能让心跳断掉：这一拍没补上，下一拍还会再试
@@ -94,6 +97,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           // 自己发帖/刷帖子。这里不再单独跑世界 tick，否则同一件事会有
           // 两套排期（一套预生成、一套模型决定），迟早打架。
           // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时 1.5 小时才醒一次。
+          // 闹钟排在前面：到点的人先醒，再跑普通心跳；30 秒的粒度对闹钟足够。
+          await ref.read(residentWakeServiceProvider).wakeDueAlarms();
           await ref.read(residentWakeServiceProvider).wakeAll();
 
           // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。

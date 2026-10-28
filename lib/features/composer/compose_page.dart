@@ -13,12 +13,14 @@ import '../../data/repositories/post_repository.dart';
 import '../../domain/models/echo_settings.dart';
 import '../../domain/models/moderation_result.dart';
 import '../../domain/models/plan_script.dart';
+import '../../domain/services/asr_service.dart';
 import '../../domain/services/audience_service.dart';
 import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/content_moderator.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/scheduler_service.dart';
+import '../../domain/services/voice_recorder.dart';
 import '../shared_widgets/image_source_sheet.dart';
 
 /// 发布页（规划书 §6.1）。
@@ -57,10 +59,27 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   /// 已附图（`file:` 引用，已复制进 APP 私有目录）
   final List<String> _imageRefs = [];
 
+  /// 用语音说这条帖子（v4.0）：录下来的 wav 与识别出的文字。
+  /// 正文仍然可编辑，这个字段只负责“发出去时标成语音”。
+  final VoiceRecorder _recorder = VoiceRecorder();
+  String? _voicePath;
+  int? _voiceDurationMs;
+  bool _recording = false;
+  bool _voiceBusy = false;
+  int _recordSeconds = 0;
+  Timer? _recordTicker;
+
   static const List<String> _topics = ['日常', '随手拍', '学习', '运动', '深夜', '吐槽'];
 
   @override
   void dispose() {
+    _recordTicker?.cancel();
+    unawaited(_recorder.dispose());
+    // 录了语音但没发布就离开：音频不该留在私有目录里。
+    final voice = _voicePath;
+    if (voice != null) {
+      unawaited(const MediaService().deleteByRef(voice));
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -134,6 +153,13 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             isEcho: isEcho,
             onPick: _pickImage,
             onRemove: _removeImage,
+            recording: _recording,
+            voiceSeconds: _recordSeconds,
+            voiceBusy: _voiceBusy,
+            voiceDurationMs: _voiceDurationMs,
+            hasVoice: _voicePath != null,
+            onVoiceTap: _toggleVoice,
+            onRemoveVoice: _removeVoice,
           ),
           const SizedBox(height: 18),
           if (isEcho) ...[
@@ -168,6 +194,87 @@ class _ComposePageState extends ConsumerState<ComposePage> {
         ],
       ),
     );
+  }
+
+  /// 点一下开始录，再点一下结束：发布页比私信更需要“看着能操作”，
+  /// 不必像聊天那样一直按着。
+  Future<void> _toggleVoice() async {
+    if (_voiceBusy) return;
+    if (!_recording) {
+      final ok = await _recorder.start();
+      if (!ok) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('没有麦克风权限，去系统设置里打开再试')),
+        );
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordSeconds = 0;
+      });
+      _recordTicker?.cancel();
+      _recordTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recordSeconds++);
+        if (_recordSeconds >= VoiceRecorder.maxDuration.inSeconds) {
+          unawaited(_toggleVoice());
+        }
+      });
+      return;
+    }
+
+    _recordTicker?.cancel();
+    final recorded = await _recorder.stop();
+    if (!mounted) return;
+    setState(() => _recording = false);
+    if (recorded == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('按住时间太短了')));
+      return;
+    }
+
+    setState(() => _voiceBusy = true);
+    try {
+      final media = ref.read(mediaServiceProvider);
+      final target = await media.newVoiceFile();
+      await File(recorded.path).copy(target.path);
+      final result = await ref
+          .read(asrServiceProvider)
+          .transcribeWav(target.path);
+      if (!mounted) return;
+
+      final current = _controller.text.trim();
+      final next = current.isEmpty ? result.text : '$current\n${result.text}';
+      _controller.text = next;
+      _controller.selection = TextSelection.collapsed(offset: next.length);
+      // 换一段语音时把上一段文件清掉，别留孤儿。
+      final previous = _voicePath;
+      setState(() {
+        _voicePath = 'file:${target.path}';
+        _voiceDurationMs = result.durationMs;
+      });
+      if (previous != null && previous != _voicePath) {
+        unawaited(media.deleteByRef(previous));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('没识别出来：$error')));
+    } finally {
+      if (mounted) setState(() => _voiceBusy = false);
+    }
+  }
+
+  Future<void> _removeVoice() async {
+    final path = _voicePath;
+    if (path == null) return;
+    setState(() {
+      _voicePath = null;
+      _voiceDurationMs = null;
+    });
+    await ref.read(mediaServiceProvider).deleteByRef(path);
   }
 
   Future<void> _pickImage() async {
@@ -426,6 +533,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
             replyDensity: isEcho ? _density : null,
             likeLevel: isEcho ? _likeLevel : null,
             humanLevel: isEcho ? _humanLevel : null,
+            // 这条是用语音说的：正文是转写稿，原始音频留着给帖子播放。
+            speechBy: _voicePath != null ? 'me' : '',
+            voicePath: _voicePath ?? '',
+            speechDurationMs: _voiceDurationMs,
           );
 
       // 回响模式：帖子先落地，反馈在后台慢慢来。
@@ -459,6 +570,8 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       _controller.clear();
       setState(() {
         _imageRefs.clear();
+        _voicePath = null;
+        _voiceDurationMs = null;
         _busy = null;
       });
 
@@ -596,12 +709,26 @@ class _AttachRow extends StatelessWidget {
     required this.isEcho,
     required this.onPick,
     required this.onRemove,
+    required this.recording,
+    required this.voiceSeconds,
+    required this.voiceBusy,
+    required this.voiceDurationMs,
+    required this.hasVoice,
+    required this.onVoiceTap,
+    required this.onRemoveVoice,
   });
 
   final List<String> images;
   final bool isEcho;
   final VoidCallback onPick;
   final ValueChanged<String> onRemove;
+  final bool recording;
+  final int voiceSeconds;
+  final bool voiceBusy;
+  final int? voiceDurationMs;
+  final bool hasVoice;
+  final VoidCallback onVoiceTap;
+  final VoidCallback onRemoveVoice;
 
   static const int _maxImages = 9;
 
@@ -632,6 +759,72 @@ class _AttachRow extends StatelessWidget {
                 color: images.length >= _maxImages ? divider : muted,
                 size: 22,
               ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 语音帖：录完把识别稿填进正文，这里只显示“这段是语音”。
+          InkWell(
+            onTap: voiceBusy ? null : onVoiceTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: hasVoice ? 112 : 68,
+              height: 68,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: recording
+                    ? (isEcho ? EchoColors.primary : ClearColors.primary)
+                          .withValues(alpha: 0.12)
+                    : surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: recording
+                      ? (isEcho ? EchoColors.primary : ClearColors.primary)
+                      : divider,
+                ),
+              ),
+              child: voiceBusy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isEcho ? EchoColors.primary : ClearColors.primary,
+                      ),
+                    )
+                  : hasVoice
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.graphic_eq, size: 16, color: muted),
+                        const SizedBox(width: 5),
+                        Text(
+                          '语音 ${((voiceDurationMs ?? 0) / 1000).round()}s',
+                          style: TextStyle(color: muted, fontSize: 11.5),
+                        ),
+                        IconButton(
+                          onPressed: onRemoveVoice,
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(Icons.close, size: 14, color: muted),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          recording ? Icons.stop_circle_outlined : Icons.mic_none,
+                          color: muted,
+                          size: 22,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          recording
+                              ? '${voiceSeconds}s · 点停'
+                              : '语音',
+                          style: TextStyle(color: muted, fontSize: 11),
+                        ),
+                      ],
+                    ),
             ),
           ),
           const SizedBox(width: 8),

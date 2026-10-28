@@ -23,9 +23,13 @@ class SpeechModelStore {
 
   static const String _vitsAssetDir = 'assets/models/tts';
   static const String _zipVoiceAssetDir = 'assets/models/zipvoice';
+  static const String _asrAssetDir = 'assets/models/asr';
+  static const String _asrStreamAssetDir = 'assets/models/asr-stream';
 
   Future<ReleasedModels>? _vitsFuture;
   Future<ReleasedModels>? _zipVoiceFuture;
+  Future<ReleasedModels>? _asrFuture;
+  Future<ReleasedModels>? _asrStreamFuture;
 
   /// 文字描述那套（vits-zh-ll）。
   ///
@@ -38,6 +42,17 @@ class SpeechModelStore {
   /// 克隆那套（ZipVoice + vocos 声码器）。
   Future<ReleasedModels> prepareZipVoice() {
     return _zipVoiceFuture ??= _prepareZipVoice();
+  }
+
+  /// 本机识别：SenseVoice int8（私信 / 帖子语音转写）。
+  Future<ReleasedModels> prepareAsr() {
+    return _asrFuture ??= _releaseDirectory('asr', _asrAssetDir);
+  }
+
+  /// 流式识别模型（通话时边说边出字，P4 用）。本轮只负责随包释放，
+  /// 让下一轮接通话时不必再改安装包结构。
+  Future<ReleasedModels> prepareAsrStream() {
+    return _asrStreamFuture ??= _releaseDirectory('asr-stream', _asrStreamAssetDir);
   }
 
   Future<ReleasedModels> _prepareZipVoice() async {

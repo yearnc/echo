@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.10.0+19
+version: 4.0.0+45
 
 environment:
   sdk: ^3.13.3
@@ -56,6 +56,9 @@ dependencies:
   # 资源声明不会递归打包；压成一个 zip 再在运行时解开，省得手写几十条路径。
   archive: ^4.3.0
   cryptography: ^2.9.0
+  record: ^7.1.2
+  camera: ^0.12.2
+  image: ^4.12.0
 
 dev_dependencies:
   flutter_test:
@@ -124,12 +127,20 @@ flutter:
     - assets/avatars/           # 临时网民与固定住民的头像池
     - assets/audio/             # 语音条音频
     - assets/images/            # 其他图片
+    # 桌宠透明帧序列（PNG，带 alpha）。不用动画 WebP：部分 ROM 的
+    # ImageDecoder 会把透明区域画成黑框，PNG 序列最稳。
+    - assets/pet_frames/
     # 离线语音模型（B8 / v3.8）：不带进 git 仓库，按目录说明下载放好，
     # Flutter 打包时会一起打进 APK。
     # - tts/：vits-zh-ll，文字描述用的 5 个中文声线
     # - zipvoice/：ZipVoice INT8 + vocos，参考音频克隆
     - assets/models/tts/
     - assets/models/zipvoice/
+    # 离线语音识别（v4.0）：同样不进 git。
+    # - asr/：SenseVoice int8，私信 / 帖子 / 评论语音转写
+    # - asr-stream/：流式双语 zipformer，通话时边说边出字
+    - assets/models/asr/
+    - assets/models/asr-stream/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

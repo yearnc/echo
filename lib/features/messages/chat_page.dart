@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
@@ -66,17 +69,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String? text,
     StickerItem? sticker,
     String? imageRef,
+    String? voiceRef,
+    String? transcript,
+    int? voiceDurationMs,
   }) async {
     if (_sending) return;
-    final content = sticker?.path ?? imageRef ?? (text ?? '').trim();
+    final content =
+        sticker?.path ?? imageRef ?? voiceRef ?? (text ?? '').trim();
     if (content.isEmpty) return;
     final mediaType = sticker != null
         ? 'sticker'
-        : (imageRef != null ? 'image' : 'text');
-    final caption = sticker == null
-        ? ''
-        : '表情包「${sticker.name}」'
-              '${sticker.tags.isEmpty ? '' : '（标签：${sticker.tags.join('、')}）'}';
+        : (imageRef != null
+              ? 'image'
+              : (voiceRef != null ? 'voice' : 'text'));
+    final caption = sticker != null
+        ? '表情包「${sticker.name}」'
+              '${sticker.tags.isEmpty ? '' : '（标签：${sticker.tags.join('、')}）'}'
+        : (voiceRef != null
+              ? '语音 ${((voiceDurationMs ?? 0) / 1000).round()} 秒'
+              : '');
 
     setState(() => _sending = true);
     try {
@@ -88,6 +99,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             content: content,
             mediaType: mediaType,
             caption: caption,
+            voicePath: voiceRef ?? '',
+            transcript: transcript ?? '',
           );
 
       // v41：我在他还没说完的时候又插了一句——把上一轮还没到点的段先暂停，
@@ -144,6 +157,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           .read(residentWakeServiceProvider)
           .wake(widget.personaId, trigger: WakeTrigger.userAction);
     }
+  }
+
+  /// 通话入口：TA 正控制桌宠时不允许打给他。
+  ///
+  /// 这是单向的；反过来“通话中桌宠推迟接管”在 PetObserveService 里。
+  Future<void> _openCall({required bool video}) async {
+    try {
+      final repo = ref.read(petSettingsRepositoryProvider);
+      final settings = await repo.load();
+      if (settings.enabled) {
+        final controller = await repo.controllerAt(
+          DateTime.now(),
+          fallbackResidentId: settings.defaultResidentId,
+        );
+        if (controller == widget.personaId) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('TA 正在当桌宠，结束桌宠后再通话')),
+          );
+          return;
+        }
+      }
+    } catch (error) {
+      debugPrint('[通话] 控制者检查没成：$error');
+    }
+    if (!mounted) return;
+    context.push(RoutePaths.call(widget.personaId, video: video));
   }
 
   @override
@@ -264,6 +304,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 controller: _input,
                 sending: _sending,
                 onSend: _send,
+                onVoiceCall: () => _openCall(video: false),
+                onVideoCall: () => _openCall(video: true),
               ),
             ] else
               const _DepartedNotice(),

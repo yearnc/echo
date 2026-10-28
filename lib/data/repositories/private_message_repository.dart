@@ -238,6 +238,8 @@ class PrivateMessageRepository {
     required String content,
     String mediaType = 'text',
     String caption = '',
+    String voicePath = '',
+    String transcript = '',
   }) async {
     final id = _newId();
     await _db
@@ -250,6 +252,8 @@ class PrivateMessageRepository {
             content: Value(content),
             mediaType: Value(mediaType),
             caption: Value(caption),
+            voicePath: Value(voicePath.isEmpty ? null : voicePath),
+            transcript: Value(transcript.isEmpty ? null : transcript),
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );

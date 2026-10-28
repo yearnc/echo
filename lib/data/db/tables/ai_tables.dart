@@ -36,6 +36,10 @@ class AiInteractions extends Table {
   TextColumn get voicePath => text().nullable()();
   TextColumn get transcript => text().nullable()();
   IntColumn get voiceDurationMs => integer().nullable()();
+
+  /// 住民“用语音说的”时记下它的 id（v4.0）；空 = 打字。
+  /// 评论区只显示标签，不强行合成一段音频。
+  TextColumn get speechBy => text().withDefault(const Constant(''))();
   IntColumn get scheduledAt => integer()();
   IntColumn get executedAt => integer().nullable()();
 

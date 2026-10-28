@@ -67,6 +67,42 @@ void main() {
       expect(order, ['pending', 'never', 'idleLongAgo']);
     });
 
+    test('定了闹钟的人不被后台的空闲唤醒抢在前面', () {
+      final order = ResidentWakeService.backgroundOrder(
+        ids: ['alarmed', 'idle', 'waiting'],
+        lastWakeAt: {
+          'alarmed': now.subtract(const Duration(hours: 5)),
+          'idle': now.subtract(const Duration(hours: 3)),
+          'waiting': now.subtract(const Duration(hours: 2)),
+        },
+        oldestPendingAt: {
+          'alarmed': null,
+          'idle': null,
+          'waiting': now.subtract(const Duration(minutes: 3)),
+        },
+        upcomingAlarmIds: {'alarmed'},
+        idleGap: const Duration(minutes: 90),
+        now: now,
+      );
+
+      expect(order, ['waiting', 'idle']);
+      expect(order, isNot(contains('alarmed')));
+    });
+
+    test('有闹钟但也有待办的人照常处理', () {
+      final order = ResidentWakeService.backgroundOrder(
+        ids: ['alarmed'],
+        lastWakeAt: {'alarmed': now.subtract(const Duration(hours: 5))},
+        oldestPendingAt: {
+          'alarmed': now.subtract(const Duration(minutes: 1)),
+        },
+        upcomingAlarmIds: {'alarmed'},
+        idleGap: const Duration(minutes: 90),
+        now: now,
+      );
+      expect(order, ['alarmed']);
+    });
+
     test('时间完全一样时按 id 定序，结果稳定', () {
       final same = now.subtract(const Duration(hours: 3));
       final order = ResidentWakeService.backgroundOrder(
@@ -96,6 +132,16 @@ void main() {
           'finish',
           'check_wake_log',
           'leave_note',
+          'set_alarm',
+          'cancel_alarm',
+          'list_alarms',
+          'pet_status',
+          'pet_say',
+          'pet_react',
+          'pet_look',
+          'pet_request_watch',
+          'pet_sleep',
+          'pet_note',
         ]),
       );
 

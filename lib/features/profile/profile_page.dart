@@ -33,6 +33,11 @@ class ProfilePage extends ConsumerWidget {
             onTap: () => context.push(RoutePaths.settings),
           ),
           _Tile(
+            icon: Icons.pets_outlined,
+            title: '桌宠',
+            onTap: () => context.push(RoutePaths.pet),
+          ),
+          _Tile(
             icon: Icons.backup_outlined,
             title: '数据备份与恢复',
             onTap: () => context.push(RoutePaths.backup),

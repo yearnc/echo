@@ -82,6 +82,16 @@ class Posts extends Table {
   /// 而且这一列只回答"谁发的"，不承担级联语义。
   TextColumn get authorResidentId => text().nullable()();
 
+  /// 这条是“用语音发的”吗（v4.0）。
+  ///
+  /// 空串 = 打字发的；`me` = 用户自己的语音；其余 = 固定住民的 id。
+  /// 正文仍然是转写后的文字，这个字段只负责在界面上标一句“来自 XX 的语音”。
+  TextColumn get speechBy => text().withDefault(const Constant(''))();
+
+  /// 用户语音帖的原始音频（`file:` 引用）。住民语音帖只有转写稿，没有文件。
+  TextColumn get voicePath => text().nullable()();
+  IntColumn get speechDurationMs => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

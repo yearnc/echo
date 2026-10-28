@@ -104,6 +104,11 @@ class CustomResidentRepository {
       _db.residentInboxItems,
     )..where((t) => t.residentId.equals(id))).go();
 
+    // 闹钟也一起收掉：这个人已经不会再醒，留着只会在到点时白叫一次。
+    await (_db.delete(
+      _db.residentAlarms,
+    )..where((t) => t.residentId.equals(id))).go();
+
     return affected;
   }
 

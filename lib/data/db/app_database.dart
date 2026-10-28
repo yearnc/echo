@@ -54,6 +54,8 @@ part 'app_database.g.dart';
     CustomResidents,
     ResidentMemories,
     ResidentWakeLogs,
+    ResidentAlarms,
+    PetShifts,
     ResidentInboxItems,
     ActionLogs,
     ClearPhotos,
@@ -68,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 46;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -891,6 +893,49 @@ class AppDatabase extends _$AppDatabase {
         if (await hasTable('post_understandings') &&
             !await hasColumn('post_understandings', 'angles')) {
           await m.addColumn(postUnderstandings, postUnderstandings.angles);
+        }
+      }
+      if (from < 44) {
+        // v44：固定住民可以给自己定闹钟，决定下一次什么时候被叫醒。
+        if (!await hasTable('resident_alarms')) {
+          await m.createTable(residentAlarms);
+        }
+      }
+      if (from < 45) {
+        // v45：语音消息。正文仍然是转写后的文字，另外记下“这是谁发的语音”
+        // 以及用户语音帖的原始音频，界面才能标出来、点开听。
+        if (await hasTable('posts')) {
+          for (final entry in <String, GeneratedColumn>{
+            'speech_by': posts.speechBy,
+            'voice_path': posts.voicePath,
+            'speech_duration_ms': posts.speechDurationMs,
+          }.entries) {
+            if (!await hasColumn('posts', entry.key)) {
+              await m.addColumn(posts, entry.value);
+            }
+          }
+        }
+        if (await hasTable('user_comments')) {
+          for (final entry in <String, GeneratedColumn>{
+            'speech_by': userComments.speechBy,
+            'voice_path': userComments.voicePath,
+            'transcript': userComments.transcript,
+            'speech_duration_ms': userComments.speechDurationMs,
+          }.entries) {
+            if (!await hasColumn('user_comments', entry.key)) {
+              await m.addColumn(userComments, entry.value);
+            }
+          }
+        }
+        if (await hasTable('ai_interactions') &&
+            !await hasColumn('ai_interactions', 'speech_by')) {
+          await m.addColumn(aiInteractions, aiInteractions.speechBy);
+        }
+      }
+      if (from < 46) {
+        // v46：桌宠的时段值班表。
+        if (!await hasTable('pet_shifts')) {
+          await m.createTable(petShifts);
         }
       }
     },

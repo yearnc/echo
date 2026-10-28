@@ -80,6 +80,12 @@ GoogleService-Info.plist
 !/assets/models/tts/_placeholder.txt
 /assets/models/zipvoice/*
 !/assets/models/zipvoice/_placeholder.txt
+# 离线语音识别（v4.0）：SenseVoice 与流式 zipformer，同样不进仓库。
+/assets/models/asr/*
+!/assets/models/asr/_placeholder.txt
+!/assets/models/asr/LICENSE
+/assets/models/asr-stream/*
+!/assets/models/asr-stream/_placeholder.txt
 
 # 临时放模型压缩包、验证脚本的地方（不属于项目内容）
 /.models-tmp/

@@ -16,6 +16,7 @@ import '../../domain/models/post_voice.dart';
 import '../shared_widgets/like_button.dart';
 import '../shared_widgets/post_delete.dart';
 import '../shared_widgets/post_image_grid.dart';
+import '../shared_widgets/spoken_badge.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 回响模式首页：信息流（规划书 §3.4）。
@@ -252,6 +253,17 @@ class _PostCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
+            if (post.isSpoken) ...[
+              SpokenBadge(
+                label: spokenLabel(
+                  post.speechBy,
+                  residentName: post.speechBy == 'me' ? null : name,
+                ),
+                voicePath: post.voicePath ?? '',
+                durationMs: post.speechDurationMs,
+              ),
+              const SizedBox(height: 7),
+            ],
             Text(
               post.content,
               style: Theme.of(context).textTheme.bodyMedium

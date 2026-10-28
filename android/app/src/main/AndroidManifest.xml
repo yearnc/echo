@@ -7,8 +7,19 @@
          12 毫秒就报"连不上"，因为请求根本没出得去）。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 系统通知（B10）：Android 13 起要运行时授权，用户拒绝了也不影响 APP 运行 -->
-    <!-- 麦克风权限随"按住说话"一起去掉了：APP 现在只合成语音、不录音 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 录音（v4.0）：按住说话 → 本机离线识别成文字。
+         录音文件只在应用临时目录，不上传；识别完随消息一起保留或清理。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 桌宠（v4.0）：跨应用悬浮、前台服务常驻、屏幕观察。
+         屏幕观察必须由用户在系统弹窗里逐次授权（MediaProjection），
+         不能静默续期。 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
+    <!-- 视频通话（P4）：前置摄像头预览与取帧。 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <!-- 预约通知要在重启后还能响：不加这一条，手机重启会把排好的通知全丢掉 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
@@ -56,6 +67,20 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+        <!-- 桌宠悬浮窗（不采集屏幕，只维持一个小窗口常驻） -->
+        <service
+            android:name=".PetOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="floating desktop pet" />
+        </service>
+        <!-- 屏幕观察：只在用户授权后启动 -->
+        <service
+            android:name=".ScreenWatchService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

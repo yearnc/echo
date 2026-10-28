@@ -684,6 +684,16 @@ class _SourceStyle {
       label: '来自互动',
       color: EchoColors.hot,
     ),
+    'call' => _SourceStyle(
+      icon: Icons.phone_in_talk_outlined,
+      label: '来自通话',
+      color: EchoColors.success,
+    ),
+    'pet' => _SourceStyle(
+      icon: Icons.pets_outlined,
+      label: '来自桌宠',
+      color: EchoColors.primary,
+    ),
     'manual' => _SourceStyle(
       icon: Icons.edit_note,
       label: '手动添加',

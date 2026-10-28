@@ -129,6 +129,44 @@ class ResidentWakeLogs extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// 固定住民给自己定的闹钟（v4.0）。
+///
+/// 它决定“下一次什么时候被系统叫醒”，比心跳的 1.5 小时空闲间隔更自由。
+/// 一次性：触发即消费；取消过的保留行，方便日志里看出“定过又撤了”。
+@DataClassName('ResidentAlarmRow')
+@TableIndex(name: 'resident_alarms_due', columns: {#residentId, #fireAt})
+class ResidentAlarms extends Table {
+  TextColumn get id => text()();
+  TextColumn get residentId => text()();
+  IntColumn get fireAt => integer()();
+
+  /// 定闹钟时想做的事（给醒来后的自己看）。
+  TextColumn get reason => text().withDefault(const Constant(''))();
+  IntColumn get createdAt => integer()();
+  IntColumn get firedAt => integer().nullable()();
+  IntColumn get cancelledAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 桌宠的“值班表”（v4.0）。
+///
+/// 同一时刻只允许一位固定住民控制桌宠：按本地分钟划分时段，
+/// 不在任何时段里就用「我的 → 桌宠」里设的默认控制者。
+/// `startMinute > endMinute` 表示跨过零点（例如 22:00—06:00）。
+@DataClassName('PetShiftRow')
+class PetShifts extends Table {
+  TextColumn get id => text()();
+  TextColumn get residentId => text()();
+  IntColumn get startMinute => integer()();
+  IntColumn get endMinute => integer()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// 固定住民的长期记忆（v3.0）。
 ///
 /// 只写用户明确表达的事实/偏好/事件；删除条目不删对话原文。

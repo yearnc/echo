@@ -22,6 +22,9 @@ class Post {
     this.isHot = false,
     this.authorResidentId,
     this.likedByMe = false,
+    this.speechBy = '',
+    this.voicePath,
+    this.speechDurationMs,
   });
 
   final String id;
@@ -43,6 +46,13 @@ class Post {
 
   /// 我点过赞没有。住民当然不知道这件事——这颗心只属于这台设备。
   final bool likedByMe;
+
+  /// 空串 = 打字发的；`me` = 用户的语音；其余 = 固定住民 id。
+  final String speechBy;
+  final String? voicePath;
+  final int? speechDurationMs;
+
+  bool get isSpoken => speechBy.trim().isNotEmpty;
 
   bool get hasImages => images.isNotEmpty;
   bool get isByResident => authorResidentId != null;
@@ -67,6 +77,9 @@ class Post {
       isHot: isHot ?? this.isHot,
       authorResidentId: authorResidentId,
       likedByMe: likedByMe ?? this.likedByMe,
+      speechBy: speechBy,
+      voicePath: voicePath,
+      speechDurationMs: speechDurationMs,
     );
   }
 }
@@ -87,6 +100,7 @@ class PostComment {
     this.replyToName,
     this.likeCount = 0,
     this.isAi = true,
+    this.speechBy = '',
   });
 
   final String id;
@@ -115,5 +129,9 @@ class PostComment {
   final int likeCount;
   final bool isAi;
 
+  /// 空串 = 打字；`me` = 用户的语音；其余 = 固定住民 id。
+  final String speechBy;
+
   bool get isVoice => mediaType == CommentMedia.voice;
+  bool get isSpoken => speechBy.trim().isNotEmpty;
 }

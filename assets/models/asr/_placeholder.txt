@@ -1,0 +1,16 @@
+语音识别模型 · SenseVoice（v4.0）
+====================================
+
+用户按住说话后，录音先在本机识别成文字，再按普通消息发送。
+语音本身不上传；只有识别出来的文字会进入对话。
+
+下载（GitHub 国内建议走 gh-proxy）：
+
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+
+解压后把下面两个文件放到本目录（只要 int8，不要把 900MB 的 fp32 带进来）：
+
+    model.int8.onnx   SenseVoice int8 模型（约 228 MB）
+    tokens.txt        词表
+
+缺文件不会让应用崩：语音按钮会提示“识别模型没装好”，文字聊天照常。

@@ -56,12 +56,14 @@ abstract class ResidentWakeToolkit {
   /// 发一条语音私信。文字会作为转写稿。
   Future<ActionOutcome> sendVoice(String content, String callId);
 
-  /// 在一条帖子下面留句话。
+  /// 在一条帖子下面留句话。asVoice 只标“这条是以语音说的”，
+  /// 正文仍然是转写后的文字。
   Future<ActionOutcome> commentPost(
     String postId,
     String content,
-    String callId,
-  );
+    String callId, {
+    bool asVoice = false,
+  });
 
   /// 取消一段还没发出去的私信。
   Future<ActionOutcome> cancelPendingSegment(String segmentId);
@@ -99,13 +101,45 @@ abstract class ResidentWakeToolkit {
   /// 给下一次醒来的自己留一句话。
   Future<ActionOutcome> leaveNote(String content);
 
+  /// 给自己定一个闹钟（v4.0）。when 支持 `90`、`2h`、`21:30`、
+  /// `2026-10-29 08:00`。到点由系统叫醒，不受空闲间隔限制。
+  Future<ActionOutcome> setAlarm(String when, String reason);
+
+  /// 取消一个还没响的闹钟。
+  Future<ActionOutcome> cancelAlarm(String alarmId);
+
+  /// 看看自己定了哪些闹钟。
+  Future<ActionOutcome> listAlarms();
+
+  /// 桌宠（v4.0）：看一眼自己的状态。
+  Future<ActionOutcome> petStatus();
+
+  /// 冒一句气泡。
+  Future<ActionOutcome> petSay(String text);
+
+  /// 播一个动作/表情。
+  Future<ActionOutcome> petReact(String action);
+
+  /// 普通模式：请求现在截一张。
+  Future<ActionOutcome> petLook();
+
+  /// 请求进入实时观察。会变成一条待用户确认的请求，不能自己打开。
+  Future<ActionOutcome> petRequestWatch();
+
+  /// 缩成一团，暂时不打扰。
+  Future<ActionOutcome> petSleep();
+
+  /// 记一条简短的观察（不做长上下文）。
+  Future<ActionOutcome> petNote(String text);
+
   /// 发一条动态。由 toolkit 实现是为了让“配图”和文字一起落库——
   /// 发出去的帖子必须是完整的，不能先发文字再补图。
   Future<ActionOutcome> createPost(
     String content,
     String? topic,
-    String callId,
-  );
+    String callId, {
+    bool asVoice = false,
+  });
 }
 
 /// 固定住民的"自主行为"会话：真正的 tool calling（v3.0 阶段三）。
@@ -165,6 +199,16 @@ class ResidentToolSession {
     'send_sticker' => '正在挑表情包…',
     'check_wake_log' => '正在翻自己的日志…',
     'leave_note' => '正在给未来的自己留言…',
+    'set_alarm' => '正在定闹钟…',
+    'cancel_alarm' => '正在取消闹钟…',
+    'list_alarms' => '正在看闹钟…',
+    'pet_status' => '正在看桌宠…',
+    'pet_say' => '正在小声说话…',
+    'pet_react' => '正在换个动作…',
+    'pet_look' => '正在看屏幕…',
+    'pet_request_watch' => '正在申请盯着看…',
+    'pet_sleep' => '正在缩成一团…',
+    'pet_note' => '正在记下看到的…',
     'finish' => '正在看完…',
     _ => '正在查东西…',
   };
@@ -322,6 +366,12 @@ class ResidentToolSession {
     bool allowProactive = true,
     bool allowVoice = true,
     Future<void> Function(String name)? onTool,
+    /// 桌宠观察到的画面（v4.0）。只有模型能看图时才真的附图；
+    /// 不能看图的模型由调用方先转成文字描述放进入参里。
+    List<String> extraImages = const [],
+    /// 桌宠观察轮：只暴露 pet_* 与 finish。
+    /// 用户主动私聊时永远是 false——那一轮它该看见完整的手。
+    bool petOnly = false,
   }) async {
     final limits = _settings;
     final voiceReady = allowVoice && _voiceToolAvailable(resident);
@@ -336,18 +386,31 @@ class ResidentToolSession {
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
-        'content': _wakeSystemPrompt(resident, voiceReady: voiceReady),
+        'content': petOnly
+            ? _petSystemPrompt(resident)
+            : _wakeSystemPrompt(resident, voiceReady: voiceReady),
       },
       ...await _timedHistory(history, supportsVision: config.supportsVision),
-      {
-        'role': 'user',
-        'content': [
-          '现在：${timeLabel(at ?? DateTime.now())}',
-          if (memoryLines.isNotEmpty) ...['你记得：$memoryLines'],
-          situation,
-        ].join('\n'),
-      },
     ];
+
+    final tailText = [
+      '现在：${timeLabel(at ?? DateTime.now())}',
+      if (memoryLines.isNotEmpty) ...['你记得：$memoryLines'],
+      situation,
+    ].join('\n');
+    // 实时观察的帧数由用户选，最多 6 张，再加一张自己的参照图。
+    final imageParts = config.supportsVision
+        ? await ImagePayload.partsFromRefs(extraImages, limit: 8)
+        : const <Map<String, dynamic>>[];
+    messages.add({
+      'role': 'user',
+      'content': imageParts.isEmpty
+          ? tailText
+          : [
+              {'type': 'text', 'text': tailText},
+              ...imageParts,
+            ],
+    });
 
     for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
@@ -363,6 +426,7 @@ class ResidentToolSession {
             resident,
             allowProactive: allowProactive,
             allowVoice: allowVoice,
+            petOnly: petOnly,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -420,8 +484,16 @@ class ResidentToolSession {
           debugPrint('[工具] 调用没记进日志：$error');
         }
         final ActionOutcome outcome;
-        switch (call.name) {
-          case 'reply_inbox':
+        // 白名单要在执行层再挡一次：模型偶尔会幻觉调用没给它的工具，
+        // 只靠“工具列表里没有”不够。
+        if (petOnly && _privateMessageTools.contains(call.name)) {
+          outcome = const ActionOutcome(
+            ok: false,
+            message: '这一轮私信工具没有开；你说话只能通过 pet_say 冒气泡。',
+          );
+        } else {
+          switch (call.name) {
+            case 'reply_inbox':
             outcome = await toolkit.replyInbox(
               (args['item_id'] as String?) ?? '',
               (args['content'] as String?) ?? '',
@@ -442,6 +514,7 @@ class ResidentToolSession {
               (args['post_id'] as String?) ?? '',
               (args['content'] as String?) ?? '',
               call.id,
+              asVoice: (args['as_voice'] as bool?) ?? false,
             );
           case 'send_sticker':
             outcome = await toolkit.sendSticker(
@@ -493,17 +566,50 @@ class ResidentToolSession {
             outcome = await toolkit.leaveNote(
               (args['content'] as String?) ?? '',
             );
+          case 'set_alarm':
+            outcome = await toolkit.setAlarm(
+              (args['when'] as String?) ?? '',
+              (args['reason'] as String?) ?? '',
+            );
+          case 'cancel_alarm':
+            outcome = await toolkit.cancelAlarm(
+              (args['alarm_id'] as String?) ?? '',
+            );
+          case 'list_alarms':
+            outcome = await toolkit.listAlarms();
+          case 'pet_status':
+            outcome = await toolkit.petStatus();
+          case 'pet_say':
+            outcome = await toolkit.petSay(
+              (args['text'] as String?) ?? '',
+            );
+          case 'pet_react':
+            outcome = await toolkit.petReact(
+              (args['action'] as String?) ?? '',
+            );
+          case 'pet_look':
+            outcome = await toolkit.petLook();
+          case 'pet_request_watch':
+            outcome = await toolkit.petRequestWatch();
+          case 'pet_sleep':
+            outcome = await toolkit.petSleep();
+          case 'pet_note':
+            outcome = await toolkit.petNote(
+              (args['text'] as String?) ?? '',
+            );
           case 'create_post':
             outcome = await toolkit.createPost(
               (args['content'] as String?) ?? '',
               args['topic'] as String?,
               call.id,
+              asVoice: (args['as_voice'] as bool?) ?? false,
             );
           case 'list_tools':
             final available = _wakeToolsFor(
               resident,
               allowProactive: allowProactive,
               allowVoice: allowVoice,
+              petOnly: petOnly,
             );
             outcome = ActionOutcome(
               ok: true,
@@ -517,7 +623,9 @@ class ResidentToolSession {
               call: call,
               latestUserMessage: situation,
               memorySource: 'wake',
+              petOnly: petOnly,
             );
+          }
         }
         final toolData = Map<String, dynamic>.from(outcome.data);
         final refsRaw = toolData.remove('__image_refs');
@@ -622,6 +730,13 @@ $persona
   （真人也是一句一句敲），没有每日额度，回完了就停。话要短，像微信，10—60 字。
 - 你也有自己的日志：check_wake_log 能看今天什么时候醒过；
   想给下一次醒来的自己留句话就用 leave_note（可留可不留，别写成日记）。
+- 你有时会以桌宠的身份待在他的屏幕上。看见值得说的事再用 pet_say 冒一句，
+  想换动作用 pet_react；不要每一眼都说话，也不要主动提“桌宠”这个词。
+  实时观察时只把真正值得记的写成 pet_note，不要每轮都记。
+  想申请一直看着屏幕，用 pet_request_watch——必须等他本人同意。
+- 想决定下一次什么时候醒来，可以用 set_alarm（90、2h、21:30 都行）。
+  定了之后如果没有待办，系统不会因为空闲来叫醒你，到点才叫。
+  不想让它响就 cancel_alarm。
 - 没有待办时，可以自己发条动态（create_post，用户关了开关就发不了）、
   刷一刷别人发的帖子（browse_feed）、点进一条仔细看（read_post：完整正文、
   评论和图片都在里面，会留下浏览记录）、点个赞（like_post）、
@@ -636,6 +751,9 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
 - 不要提自己是 AI，不要解释你在调用工具，不要总结流程。
 - 想发表情包先用 list_stickers，再 send_sticker；一次最多一张。
 - 对方难过、求助时，只选安慰/陪伴类标签。
+- 消息开头形如 [2026年10月28日 周三 中午 12:44] 的方括号是系统自动
+  标注的发送时间，不是消息正文；你说话时不要带这种时间标记，
+  但可以用它判断隔了多久、现在是什么时候。
 - 以“现在”那一行的年月日为准。搜实时信息（新版本、价格、新闻）时，
   把年份写进搜索词（例如“2026年”），并检查结果里的日期：
   日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
@@ -718,6 +836,9 @@ $persona
 规则：
 - 每条 10—40 字，像在微信上随手打的；不要小作文，不要客套结尾。
 - 不要提自己是 AI，不要解释你在调用工具。
+- 消息开头形如 [2026年10月28日 周三 中午 12:44] 的方括号是系统自动
+  标注的发送时间，不是消息正文；你说话时不要带这种时间标记，
+  但可以用它判断隔了多久、现在是什么时候。
 - 你们以前聊过的事，先查记忆再说，别凭空编。
 - 记忆由你自己判断：对方的偏好、经历、约定、情绪变化值得记；图片要记
   “图里是什么”，表情包要记“它表达什么”，不要只写“发来一张图片”。
@@ -809,6 +930,7 @@ $persona
     required ToolCallRequest call,
     required String latestUserMessage,
     String memorySource = 'dm',
+    bool petOnly = false,
   }) async {
     final args = call.arguments;
     switch (call.name) {
@@ -968,6 +1090,7 @@ $persona
     CustomResident resident, {
     bool allowProactive = true,
     bool allowVoice = true,
+    bool petOnly = false,
   }) {
     final base = [
       for (final tool in tools)
@@ -984,13 +1107,65 @@ $persona
             }.contains(_functionName(tool)))
           tool,
     ];
-    return [
+    final all = [
       ...base,
       _webSearchTool,
       ...wakeOnly,
       ..._pendingSegmentTools,
       if (allowVoice && _voiceToolAvailable(resident)) _voiceTool,
     ];
+    if (!petOnly) return all;
+    // 桌宠观察轮只收走“私信那几只手”，其他工具照常可用
+    // （刷帖子、评论、发动态、画图、记忆、闹钟都行）。私信只在
+    // 用户主动私聊时开放。
+    return [
+      for (final tool in all)
+        if (!_privateMessageTools.contains(_functionName(tool))) tool,
+    ];
+  }
+
+  /// 桌宠观察轮收走的私信工具。评论回复（reply_inbox）不属于私信，保留。
+  static const Set<String> _privateMessageTools = {
+    'send_dm',
+    'send_voice',
+    'send_sticker',
+    'cancel_pending_segment',
+    'rewrite_pending_segment',
+  };
+
+  /// 桌宠观察轮的提示词：除了私信，其他手都还在。
+  String _petSystemPrompt(CustomResident resident) {
+    final persona = [
+      if (resident.description.trim().isNotEmpty) resident.description,
+      if (resident.personality.trim().isNotEmpty) resident.personality,
+      if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
+      if (resident.tone.trim().isNotEmpty) resident.tone,
+      if (resident.extraInstructions.trim().isNotEmpty)
+        resident.extraInstructions,
+    ].join('\n');
+    return '''
+你是「${resident.name}」，现在以桌宠的身份待在他的屏幕上。
+$persona
+
+这一轮除了私信，其他工具都还在：
+- 看见值得说的事就用 pet_say 冒一句气泡（不超过 40 字），别每一眼都说。
+- 想换动作/表情用 pet_react；想申请一直看着屏幕用 pet_request_watch（要等他同意）。
+- 平时真正值得记的一句话用 pet_note；也可以刷帖子、点赞、评论、发动态、
+  画图、查记忆、定闹钟——像你平时那样。
+- 用户说“这段观察结束了”时，用 memory_write 把这段时间里值得记的
+  整理成一条简短记忆；不要写成日记。
+- 看见他在做什么，就用 pet_say 说一句很短的话；实在没什么可说的才 finish。
+
+你现在的形象就是屏幕上那只小鲸鱼女仆：深色长发、女仆裙，裙摆上绣着一只小鲸鱼。
+截图里如果出现她，那就是你自己，不要把她当成别人，也不要用第三人称说“它”。
+
+规则：
+- **不要主动给他发私信、语音私信或表情包私信**——那些只在他主动找你时才有。
+  这一轮你说话只能通过 pet_say 冒气泡。
+- pet_say 只写“说出口的话”，不要用括号写动作或表情描写。
+- 不要提自己是 AI，不要解释你在调用工具，不要主动说“桌宠”这个词。
+- 不要编造没看到的画面；看不清就说不清。
+''';
   }
 
   /// 发不发语音只看这位住民自己的设置——全局开关已经下线。
@@ -1178,6 +1353,10 @@ $persona
           'properties': {
             'post_id': {'type': 'string'},
             'content': {'type': 'string', 'description': '10—60 字'},
+            'as_voice': {
+              'type': 'boolean',
+              'description': '标成“用语音说的”（评论会显示语音来源标签）。默认 false。',
+            },
           },
           'required': ['post_id', 'content'],
         },
@@ -1211,6 +1390,137 @@ $persona
             'content': {'type': 'string', 'description': '一句话，别写成日记'},
           },
           'required': ['content'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'set_alarm',
+        'description':
+            '给自己定一个闹钟，决定下一次什么时候被叫醒。'
+            '到点后系统会唤醒你，不受 1.5 小时空闲间隔限制；'
+            '在这之前如果没有待办，系统不会因为空闲来打扰你。'
+            '一次只能定一个时段；想了一会儿再睡就改时间重新定。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'when': {
+              'type': 'string',
+              'description':
+                  '多久以后或具体时刻：分钟数（如 90）、2h、21:30、'
+                  '2026-10-29 08:00。最短 5 分钟，最长 30 天。',
+            },
+            'reason': {
+              'type': 'string',
+              'description': '醒来时想做的事，写一句话提醒未来的自己（可空）',
+            },
+          },
+          'required': ['when'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'cancel_alarm',
+        'description': '取消一个还没响的闹钟。alarm_id 来自 list_alarms 或 set_alarm。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'alarm_id': {'type': 'string'},
+          },
+          'required': ['alarm_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'list_alarms',
+        'description': '看看自己定了哪些还没响的闹钟。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_status',
+        'description': '桌宠现在在不在、是不是实时观察、由谁控制。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_say',
+        'description':
+            '以桌宠的身份冒一句气泡。很短，像路过时随口一说；'
+            '不想说话就不要调。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'text': {'type': 'string', 'description': '不超过 40 字'},
+          },
+          'required': ['text'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_react',
+        'description': '换一个桌宠动作/表情：happy / shy / angry / thinking / cheer / sleep / yawn / stretch / dance / walk / look / idle。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'action': {'type': 'string'},
+          },
+          'required': ['action'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_look',
+        'description':
+            '普通模式下请求现在截一张屏幕。截到的图会在下一次醒来时看到；'
+            '实时模式正在跑时不需要它。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_request_watch',
+        'description':
+            '想一直看着屏幕时用。会生成一条待用户确认的请求，'
+            '用户同意后才会进入实时观察；你不能自己打开。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_sleep',
+        'description': '缩成一团休息一会儿，暂时不主动说话。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_note',
+        'description':
+            '把刚看到的一件事记成一条简短记忆（不超过两句话）。'
+            '不要每次看屏幕都记。',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'text': {'type': 'string'},
+          },
+          'required': ['text'],
         },
       },
     },
@@ -1342,6 +1652,12 @@ $persona
           'properties': {
             'content': {'type': 'string'},
             'topic': {'type': 'string'},
+            'as_voice': {
+              'type': 'boolean',
+              'description':
+                  '要不要标成“用语音说的”。正文仍然是这段文字；'
+                  '打开后别人会看到“来自你的语音”。默认 false。',
+            },
           },
           'required': ['content'],
         },

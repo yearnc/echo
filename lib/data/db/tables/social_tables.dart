@@ -61,8 +61,14 @@ class UserComments extends Table {
   TextColumn get postId => text().references(Posts, #id)();
   TextColumn get content => text()();
 
-  /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
+  /// text / image / voice（v4.0；voice 时 content 存音频引用）
   TextColumn get mediaType => text().withDefault(const Constant('text'))();
+
+  /// 空串 = 打字；`me` = 用户的语音；其余 = 固定住民 id。
+  TextColumn get speechBy => text().withDefault(const Constant(''))();
+  TextColumn get voicePath => text().nullable()();
+  TextColumn get transcript => text().nullable()();
+  IntColumn get speechDurationMs => integer().nullable()();
 
   /// 图片评论配的文字。图是内容、字是“顺便说一句”，两者可以一起发；
   /// 以前只有一个 content 字段，发图就必须把输入框里的话丢掉。

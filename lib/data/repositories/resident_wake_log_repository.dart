@@ -42,6 +42,59 @@ class ResidentWakeLogRepository {
         );
   }
 
+  /// 桌宠当前那一段“醒着”的日志（还没结束的那一条）。
+  ///
+  /// 桌宠开着的时候，每次观察都并进同一条，而不是每看一次就写一条
+  /// “桌宠看了一眼”。关闭桌宠时才收尾，时长就是整段陪伴时间。
+  Future<ResidentWakeLog?> openPetLog(String residentId) async {
+    final row =
+        await (_db.select(_db.residentWakeLogs)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.trigger.equals('pet') &
+                    t.endedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.wokeAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    return row == null ? null : _toDomain(row);
+  }
+
+  Future<String> startPetLog(String residentId, {DateTime? at}) async {
+    final when = at ?? DateTime.now();
+    final id = 'pet_session_${residentId}_${when.microsecondsSinceEpoch}';
+    await start(id: id, residentId: residentId, trigger: 'pet', at: when);
+    return id;
+  }
+
+  Future<void> finishPetLog(String residentId, {DateTime? at}) async {
+    final when = at ?? DateTime.now();
+    await (_db.update(_db.residentWakeLogs)..where(
+          (t) =>
+              t.residentId.equals(residentId) &
+              t.trigger.equals('pet') &
+              t.endedAt.isNull(),
+        ))
+        .write(
+          ResidentWakeLogsCompanion(
+            endedAt: Value(when.millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  Future<void> finishAllPetLogs({DateTime? at}) async {
+    final when = at ?? DateTime.now();
+    await (_db.update(_db.residentWakeLogs)..where(
+          (t) => t.trigger.equals('pet') & t.endedAt.isNull(),
+        ))
+        .write(
+          ResidentWakeLogsCompanion(
+            endedAt: Value(when.millisecondsSinceEpoch),
+          ),
+        );
+  }
+
   /// 最近一条“有人叫了 TA”的日志，且结束在合并窗口内。
   ///
   /// 返回它就是要把新的这一轮并进去，而不是再插一条。

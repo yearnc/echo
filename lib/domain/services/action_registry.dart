@@ -310,13 +310,14 @@ class ActionRegistry {
     String? topicName,
     DateTime? at,
     String source = 'tool',
+    bool asVoice = false,
   }) async {
     return run(
       actorId: residentId,
       actorKind: 'resident',
       action: 'create_post',
       idempotencyKey: idempotencyKey,
-      params: {'content': content, 'topic': ?topicName},
+      params: {'content': content, 'topic': ?topicName, 'asVoice': asVoice},
       source: source,
       body: () async {
         final resident = await residents.findById(residentId);
@@ -332,6 +333,7 @@ class ActionRegistry {
           content: text,
           topicName: topicName,
           createdAt: at,
+          asVoice: asVoice,
         );
         return ActionOutcome(ok: true, message: '已发布', data: {'postId': postId});
       },

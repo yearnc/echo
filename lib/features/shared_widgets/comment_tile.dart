@@ -12,6 +12,7 @@ import '../../domain/models/post_voice.dart';
 import '../../domain/services/voice_playback.dart';
 import '../../domain/services/voice_waveform.dart';
 import 'post_image.dart';
+import 'spoken_badge.dart';
 import 'user_avatar.dart';
 
 /// 评论底下那颗心。
@@ -167,6 +168,17 @@ class CommentTile extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
+                  ],
+                  if (comment.isSpoken) ...[
+                    SpokenBadge(
+                      label: spokenLabel(
+                        comment.speechBy,
+                        residentName: comment.speechBy == 'me' ? null : name,
+                      ),
+                      voicePath: comment.voiceAsset ?? '',
+                      durationMs: comment.voiceDurationMs,
+                    ),
+                    const SizedBox(height: 5),
                   ],
                   if (comment.isVoice)
                     VoiceBubble(comment: comment)

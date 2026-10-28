@@ -14,7 +14,9 @@ import '../../features/messages/messages_page.dart';
 import '../../features/models/model_edit_page.dart';
 import '../../features/models/models_page.dart';
 import '../../features/notifications/notifications_page.dart';
+import '../../features/messages/call_page.dart';
 import '../../features/onboarding/onboarding_page.dart';
+import '../../features/pet/pet_page.dart';
 import '../../features/post_detail/post_detail_page.dart';
 import '../../features/profile/identity_page.dart';
 import '../../features/profile/profile_edit_page.dart';
@@ -113,6 +115,9 @@ class RoutePaths {
   /// 全量数据备份与恢复。
   static const String backup = '/settings/backup';
 
+  /// 桌宠设置（v4.0）。
+  static const String pet = '/pet';
+
   /// 编辑我的资料（昵称 / 头像）。
   static const String profileEdit = '/settings/profile';
 
@@ -141,6 +146,10 @@ class RoutePaths {
 
   /// 和某一位住民的私信会话。
   static String chat(String personaId) => '/chat/$personaId';
+
+  /// 私信内通话（v4.0）。
+  static String call(String personaId, {bool video = false}) =>
+      '/call/$personaId${video ? '?video=1' : ''}';
 }
 
 /// 路由表。
@@ -286,6 +295,17 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.identity,
       builder: (context, state) => const IdentityPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.pet,
+      builder: (context, state) => const PetPage(),
+    ),
+    GoRoute(
+      path: '/call/:id',
+      builder: (context, state) => CallPage(
+        personaId: state.pathParameters['id'] ?? '',
+        video: state.uri.queryParameters['video'] == '1',
+      ),
     ),
     GoRoute(
       path: RoutePaths.help,

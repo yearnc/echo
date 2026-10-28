@@ -12,11 +12,14 @@ import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
+import '../../data/repositories/pet_settings_repository.dart';
+import '../../data/repositories/resident_alarm_repository.dart';
 import '../../data/repositories/resident_inbox_repository.dart';
 import '../../data/repositories/resident_wake_log_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
+import '../models/pet_observation.dart';
 import '../models/post.dart';
 import '../models/post_voice.dart';
 import '../models/private_message.dart';
@@ -27,6 +30,7 @@ import 'comment_reply_service.dart';
 import 'content_generator.dart';
 import 'dm_voice_service.dart';
 import 'model_gateway.dart';
+import 'pet_native.dart';
 import 'resident_activity_controller.dart';
 import 'tool_call_text.dart';
 import 'tts_service.dart';
@@ -45,6 +49,12 @@ enum WakeTrigger {
   /// 系统后台任务（WorkManager）叫醒。只处理收件箱里已有的待办，
   /// 不主动发帖、不主动私信——后台的时间预算和网络都不该拿来“创作”。
   background,
+
+  /// 住民自己定的闹钟响了（v4.0）。不受心跳冷却与空闲间隔限制。
+  alarm,
+
+  /// 桌宠看了一眼屏幕（v4.0）。普通模式隔一阵一次，实时模式持续。
+  pet,
 }
 
 /// 唤醒式交互（v3.3）。
@@ -72,6 +82,9 @@ class ResidentWakeService {
     required this.media,
     required this.commentReplies,
     required this.wakeLogs,
+    required this.alarms,
+    this.pet,
+    this.petSettings,
     this.dmVoice,
     this.activityDone,
   });
@@ -94,6 +107,13 @@ class ResidentWakeService {
   /// 每次醒来的记录，以及“给未来的自己留言”（v3.9）。
   final ResidentWakeLogRepository wakeLogs;
 
+  /// 住民给自己定的闹钟（v4.0）。
+  final ResidentAlarmRepository alarms;
+
+  /// 桌宠通道（v4.0）。没有原生插件（桌面预览 / 测试）时为空。
+  final PetNative? pet;
+  final PetSettingsRepository? petSettings;
+
   /// 私信回复可以变成语音条（可空：测试或关掉语音时保持文字）。
   final DmVoiceService? dmVoice;
 
@@ -112,6 +132,14 @@ class ResidentWakeService {
 
   /// 心跳唤醒的水位：每人每 15 分钟最多一次。
   final Map<String, DateTime> _lastWake = {};
+
+  /// 闹钟带的话，交给这一次唤醒的提示词；读过就清掉。
+  final Map<String, String> _alarmReason = {};
+
+  /// 桌宠刚刚用气泡说过的话。观察循环取走后，会进入这一段时间的上下文。
+  final Map<String, String> _petSaid = {};
+
+  String? takePetSaid(String residentId) => _petSaid.remove(residentId);
 
   /// 没有待办时，主动找点事做的间隔。
   static const Duration idleGap = Duration(minutes: 90);
@@ -142,6 +170,34 @@ class ResidentWakeService {
     }
   }
 
+  /// 处理到点的闹钟（v4.0）。
+  ///
+  /// 谁定的谁醒，一次最多叫醒 [maxResidents] 位；同一位住民有多个闹钟
+  /// 同时到点时只醒一次，其余的也一并消费，不留到下一拍重复响。
+  Future<int> wakeDueAlarms({int maxResidents = 2}) async {
+    final now = DateTime.now();
+    final due = await alarms.due(now: now);
+    if (due.isEmpty) return 0;
+
+    var woken = 0;
+    final seen = <String>{};
+    for (final alarm in due) {
+      final first = seen.add(alarm.residentId);
+      if (!first) {
+        await alarms.markFired(alarm.id, at: now);
+        continue;
+      }
+      if (woken >= maxResidents) break;
+      // 先消费再唤醒：唤醒可能跑十几秒，心跳下一秒不能把同一个闹钟再点一次。
+      if (!await alarms.markFired(alarm.id, at: now)) continue;
+      _alarmReason[alarm.residentId] = alarm.reason;
+      woken += await wake(alarm.residentId, trigger: WakeTrigger.alarm);
+      // 没真正醒（正在跑、没配模型）时这句话就作废，别留给下一轮普通唤醒。
+      _alarmReason.remove(alarm.residentId);
+    }
+    return woken;
+  }
+
   /// 后台任务用：只叫醒**真的有待办**的人，而且限制人数。
   ///
   /// WorkManager 一轮只有有限的执行时间，串行叫醒六个人、每人再跑最多
@@ -158,6 +214,7 @@ class ResidentWakeService {
     // 在后台永远轮不到（只有用户打开 APP 才会被 wakeAll 叫醒）。
     final oldestPendingAt = <String, DateTime?>{};
     final lastWakeAt = <String, DateTime?>{};
+    final hasAlarm = <String>{};
     for (final resident in pool) {
       await inbox.sync(resident.id);
       final pending = await inbox.pending(resident.id);
@@ -165,12 +222,14 @@ class ResidentWakeService {
           ? null
           : pending.first.createdAt;
       lastWakeAt[resident.id] = await _idleAt(resident.id);
+      if (await alarms.hasUpcoming(resident.id)) hasAlarm.add(resident.id);
     }
 
     final order = backgroundOrder(
       ids: [for (final resident in pool) resident.id],
       lastWakeAt: lastWakeAt,
       oldestPendingAt: oldestPendingAt,
+      upcomingAlarmIds: hasAlarm,
       idleGap: idleGap,
       now: DateTime.now(),
     );
@@ -189,6 +248,7 @@ class ResidentWakeService {
     required List<String> ids,
     required Map<String, DateTime?> lastWakeAt,
     required Map<String, DateTime?> oldestPendingAt,
+    Set<String> upcomingAlarmIds = const {},
     required Duration idleGap,
     required DateTime now,
   }) {
@@ -198,6 +258,8 @@ class ResidentWakeService {
         candidates.add(id);
         continue;
       }
+      // 定了闹钟的人由闹钟叫醒；没有待办时后台不要抢在闹钟前面叫它。
+      if (upcomingAlarmIds.contains(id)) continue;
       final last = lastWakeAt[id];
       if (last == null || now.difference(last) >= idleGap) {
         candidates.add(id);
@@ -224,7 +286,31 @@ class ResidentWakeService {
     return candidates;
   }
 
+  /// 这位住民此刻是不是桌宠的控制者。
+  ///
+  /// 是的话，普通心跳不再空闲唤醒它：桌宠的观察循环有自己的节奏，
+  /// 也不需要它借心跳去主动发私信。用户真发了消息（有待办）不受影响。
+  Future<bool> _petControls(String residentId) async {
+    final repo = petSettings;
+    if (repo == null) return false;
+    try {
+      final settings = await repo.load();
+      if (!settings.enabled) return false;
+      final controller = await repo.controllerAt(
+        DateTime.now(),
+        fallbackResidentId: settings.defaultResidentId,
+      );
+      return controller == residentId;
+    } catch (error) {
+      debugPrint('[桌宠] 控制者判断失败：$error');
+      return false;
+    }
+  }
+
   Future<bool> _idleDue(String residentId) async {
+    // 有未到点的闹钟时，空闲唤醒让位给闹钟：与其 1.5 小时戳它一次，
+    // 不如让它睡到自己定下的时间。有待办的路径走不到这里，不受影响。
+    if (await alarms.hasUpcoming(residentId)) return false;
     final idleAt = await _idleAt(residentId);
     return idleAt == null || DateTime.now().difference(idleAt) >= idleGap;
   }
@@ -264,6 +350,7 @@ class ResidentWakeService {
   Future<int> wake(
     String residentId, {
     WakeTrigger trigger = WakeTrigger.heartbeat,
+    PetObservation? pet,
   }) async {
     if (_running.contains(residentId)) {
       // 用户又发了一句：不能丢。等他这一轮收尾后马上再醒一次。
@@ -272,7 +359,7 @@ class ResidentWakeService {
     }
     _running.add(residentId);
     try {
-      return await _wake(residentId, trigger);
+      return await _wake(residentId, trigger, pet);
     } finally {
       _running.remove(residentId);
       if (_rerun.remove(residentId)) {
@@ -281,7 +368,11 @@ class ResidentWakeService {
     }
   }
 
-  Future<int> _wake(String residentId, WakeTrigger trigger) async {
+  Future<int> _wake(
+    String residentId,
+    WakeTrigger trigger, [
+    PetObservation? pet,
+  ]) async {
     final last = _lastWake[residentId];
     final now = DateTime.now();
     if (trigger == WakeTrigger.heartbeat &&
@@ -306,6 +397,9 @@ class ResidentWakeService {
     if (pending.isEmpty &&
         (trigger == WakeTrigger.heartbeat ||
             trigger == WakeTrigger.background)) {
+      // 正在控制桌宠的人，空闲时由桌宠观察循环负责叫醒；
+      // 心跳别再顺手把它叫起来“主动发条私信”。
+      if (await _petControls(residentId)) return 0;
       if (!await _idleDue(residentId)) return 0;
       // 内存里的冷却只防同一进程内的心跳扎堆；落盘的水位防冷启动扎堆。
       if (last != null && now.difference(last) < heartbeatGap) {
@@ -327,10 +421,18 @@ class ResidentWakeService {
     // 日志失败不该拦住这一轮：它只是回忆，不是业务。
     ResidentWakeLog? lastNote;
     try {
+      // 桌宠开着的时候整段算一次“醒着”：每次观察并进同一条日志，
+      // 而不是每看一次就多一条“桌宠看了一眼”。
+      final openPet = trigger == WakeTrigger.pet
+          ? await wakeLogs.openPetLog(residentId)
+          : null;
       final reusable = trigger == WakeTrigger.userAction
           ? await wakeLogs.reusableUserWake(residentId, now: now)
           : null;
-      if (reusable != null) {
+      if (openPet != null) {
+        logId = openPet.id;
+        await wakeLogs.reopen(logId);
+      } else if (reusable != null) {
         logId = reusable.id;
         await wakeLogs.reopen(logId);
       } else {
@@ -375,6 +477,10 @@ class ResidentWakeService {
             text: switch (turn.mediaType) {
               'image' => turn.fromMe ? '' : '[发来一张图片]',
               'sticker' => '[表情包]',
+              // 语音在历史里只放转写稿：路径不是一句话，模型看不懂。
+              'voice' => turn.transcript.trim().isEmpty
+                  ? (turn.fromMe ? '[我发了一条语音]' : '[发来一条语音]')
+                  : turn.transcript,
               _ => turn.content,
             },
             caption: turn.caption,
@@ -397,12 +503,22 @@ class ResidentWakeService {
           ownActivity: ownActivity,
           unsent: unsent,
           lastNote: lastNote,
+          alarmReason: _alarmReason.remove(residentId) ?? '',
+          petNote: pet?.note ?? '',
+          petRealtime: pet?.realtime ?? false,
         ),
         toolkit: toolkit,
         at: now,
         history: history,
         allowProactive: true,
         allowVoice: toolkit.allowVoice,
+        extraImages: [
+          ...?pet?.images,
+          if (pet?.selfImage != null) pet!.selfImage!,
+        ],
+        // 桌宠观察轮只露出 pet_*：避免它借着看屏幕去做别的事。
+        // 用户主动私聊走的是 user_action，仍然拿到完整工具。
+        petOnly: trigger == WakeTrigger.pet,
         // 日志里记的是它具体调了哪些工具，而不只是“醒了几分钟”。
         onTool: (name) => wakeLogs.recordTool(logId, name),
       );
@@ -410,7 +526,12 @@ class ResidentWakeService {
       // 模型没调工具、只回了一句话：当作私信发出去。
       // 这既兜住了不支持 tool calling 的模型，也兜住“它就是想直接说话”。
       if (said.trim().isNotEmpty && !toolkit.spokePrivately) {
-        await toolkit.sendDm(said.trim(), 'fallback');
+        if (trigger == WakeTrigger.pet) {
+          // 桌宠观察轮只说一句话时，那句话是气泡，不是私信。
+          await toolkit.petSay(said.trim());
+        } else {
+          await toolkit.sendDm(said.trim(), 'fallback');
+        }
       }
 
       // 交给它看过的暂停段，如果它既没改写也没取消，就当作不要了——
@@ -442,7 +563,10 @@ class ResidentWakeService {
       return 0;
     } finally {
       try {
-        await wakeLogs.finish(logId, at: DateTime.now());
+        // 桌宠那一段要等桌宠关掉才收尾；其他唤醒一轮结束就记时长。
+        if (trigger != WakeTrigger.pet) {
+          await wakeLogs.finish(logId, at: DateTime.now());
+        }
         // 留言已经进过这一轮的上下文，之后不再反复带上。
         if (lastNote != null) {
           await wakeLogs.markNoteDelivered(lastNote.id);
@@ -459,6 +583,8 @@ class ResidentWakeService {
     WakeTrigger.heartbeat => 'heartbeat',
     WakeTrigger.background => 'background',
     WakeTrigger.setup => 'setup',
+    WakeTrigger.alarm => 'alarm',
+    WakeTrigger.pet => 'pet',
   };
 
   String _situation(
@@ -468,6 +594,9 @@ class ResidentWakeService {
     String ownActivity = '',
     List<PendingSegment> unsent = const [],
     ResidentWakeLog? lastNote,
+    String alarmReason = '',
+    String petNote = '',
+    bool petRealtime = false,
   }) {
     final String base;
     if (pending.isEmpty) {
@@ -482,6 +611,15 @@ class ResidentWakeService {
           '手机上没有新消息。你可以自己发条动态、刷一刷别人发的帖子、'
               '点个赞，或者给聊过的人发条私信；也可以就搁着。',
         WakeTrigger.background => '手机上没有新消息。',
+        WakeTrigger.alarm =>
+          '你给自己定的闹钟响了。'
+              '${alarmReason.trim().isEmpty ? '' : '定的时候你写的是：${alarmReason.trim()}。'}'
+              '现在可以发条动态、刷帖子、给对方发条私信，'
+              '也可以再定一个闹钟接着忙自己的事；什么都不想做就 finish。',
+        WakeTrigger.pet =>
+          '你正以桌宠的身份待在他的屏幕上，刚刚看了一眼。'
+              '想说什么就用 pet_say 冒一句气泡，想换个动作就用 pet_react；'
+              '也可以什么都不做，安安静静待着。',
       };
     } else {
       final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
@@ -502,10 +640,23 @@ class ResidentWakeService {
         '评论类用 reply_inbox 回在评论下面；私信类用 send_dm 回。'
         '也可以只读不回：最后调用 finish。',
       );
+      if (trigger == WakeTrigger.alarm) {
+        buffer.writeln();
+        buffer.write(
+          '另外，你给自己定的闹钟刚好也响了'
+          '${alarmReason.trim().isEmpty ? '。' : '；定的时候你写的是：${alarmReason.trim()}。'}',
+        );
+      }
       base = buffer.toString();
     }
 
     final parts = <String>[base.trimRight()];
+    if (petNote.trim().isNotEmpty) {
+      parts.add(
+        '${petRealtime ? '这几秒一直看着屏幕，' : '刚才看了一眼屏幕，'}'
+        '看到的是：\n${petNote.trim()}',
+      );
+    }
     if (unsent.isNotEmpty) {
       final buffer = StringBuffer()
         ..writeln()
@@ -722,8 +873,9 @@ class ResidentWakeService {
     String content,
     String? topic,
     String callId,
-    Future<Uint8List?>? image,
-  ) async {
+    Future<Uint8List?>? image, {
+    bool asVoice = false,
+  }) async {
     final text = sanitizeModelText(content);
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '动态是空的');
@@ -748,6 +900,7 @@ class ResidentWakeService {
       topicName: topic,
       idempotencyKey: 'post:${resident.id}:$callId',
       source: 'wake',
+      asVoice: asVoice,
     );
     if (!outcome.ok) return outcome;
 
@@ -951,6 +1104,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
   bool spokePrivately = false;
   int _dmSegments = 0;
   final Set<String> _repliedDm = {};
+
+  /// 这一轮已经真正发出去的段（去掉空白后比较）。
+  /// 模型偶尔会照着历史把同一句话再发一遍——一次醒来里不该出现两条一模一样的私信。
+  final Set<String> _spokenThisWake = {};
+
+  static String _spokenKey(String content) =>
+      stripLeadingTimeLabel(content).replaceAll(RegExp(r'\s+'), '');
   Future<Uint8List?>? _image;
 
   Future<void> flushImage() async {
@@ -988,6 +1148,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
 
   @override
   Future<ActionOutcome> sendDm(String content, String callId) async {
+    final key = _spokenKey(content);
+    if (key.isNotEmpty && _spokenThisWake.contains(key)) {
+      return const ActionOutcome(
+        ok: false,
+        message: '这句和这一轮刚发出去的一段一模一样，别重复发；想补充就换个说法，不想说就 finish。',
+      );
+    }
     final outcome = await service._sendDm(
       resident,
       content,
@@ -1004,6 +1171,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (outcome.ok) {
       _dmSegments++;
       spokePrivately = true;
+      if (key.isNotEmpty) _spokenThisWake.add(key);
     }
     return outcome;
   }
@@ -1012,6 +1180,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
   Future<ActionOutcome> sendVoice(String content, String callId) async {
     if (!allowVoice) {
       return const ActionOutcome(ok: false, message: '后台唤醒不发语音，改用 send_dm 发文字');
+    }
+    final key = _spokenKey(content);
+    if (key.isNotEmpty && _spokenThisWake.contains(key)) {
+      return const ActionOutcome(
+        ok: false,
+        message: '这句和这一轮刚发出去的一段一模一样，别重复发；想补充就换个说法。',
+      );
     }
     final outcome = await service._sendDm(
       resident,
@@ -1028,6 +1203,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (outcome.ok) {
       _dmSegments++;
       spokePrivately = true;
+      if (key.isNotEmpty) _spokenThisWake.add(key);
     }
     return outcome;
   }
@@ -1214,8 +1390,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
   Future<ActionOutcome> commentPost(
     String postId,
     String content,
-    String callId,
-  ) async {
+    String callId, {
+    bool asVoice = false,
+  }) async {
     final text = content.trim();
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '评论是空的');
@@ -1249,6 +1426,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
       personaId: voice.id,
       mediaType: 'text',
       content: text,
+      speechBy: asVoice ? resident.id : '',
     );
     await service.posts.addCounters(postId, comments: 1);
     if (post.authorResidentId == null) {
@@ -1348,17 +1526,241 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
+  Future<ActionOutcome> setAlarm(String when, String reason) async {
+    final fireAt = parseAlarmWhen(when, now: now);
+    if (fireAt == null) {
+      return const ActionOutcome(
+        ok: false,
+        message:
+            '这个时间看不懂或超出范围。可以写分钟数（90）、2h、21:30，'
+            '或 2026-10-29 08:00；最短 5 分钟，最长 30 天。',
+      );
+    }
+    final pending = await service.alarms.pending(resident.id, now: now);
+    if (pending.length >= ResidentAlarmRepository.maxPending) {
+      return ActionOutcome(
+        ok: false,
+        message: '你已经有 ${pending.length} 个还没响的闹钟了，先取消一个再定新的。',
+        data: {
+          'alarms': [
+            for (final alarm in pending)
+              {
+                'alarm_id': alarm.id,
+                'fire_at': ResidentToolSession.timeLabel(alarm.fireAt),
+                'reason': alarm.reason,
+              },
+          ],
+        },
+      );
+    }
+    final id = await service.alarms.schedule(
+      residentId: resident.id,
+      fireAt: fireAt,
+      reason: reason,
+    );
+    return ActionOutcome(
+      ok: true,
+      message:
+          '闹钟定好了：${ResidentToolSession.timeLabel(fireAt)}。'
+          '在那之前如果没有待办，系统不会因为空闲来叫醒你。',
+      data: {
+        'alarm_id': id,
+        'fire_at': ResidentToolSession.timeLabel(fireAt),
+      },
+    );
+  }
+
+  @override
+  Future<ActionOutcome> cancelAlarm(String alarmId) async {
+    final ok = await service.alarms.cancel(alarmId, resident.id);
+    return ok
+        ? const ActionOutcome(ok: true, message: '闹钟取消了')
+        : const ActionOutcome(ok: false, message: '没有找到这个还没响的闹钟');
+  }
+
+  @override
+  Future<ActionOutcome> listAlarms() async {
+    final list = await service.alarms.pending(resident.id);
+    return ActionOutcome(
+      ok: true,
+      message: list.isEmpty ? '你还没定闹钟' : '还有 ${list.length} 个闹钟没响',
+      data: {
+        'alarms': [
+          for (final alarm in list)
+            {
+              'alarm_id': alarm.id,
+              'fire_at': ResidentToolSession.timeLabel(alarm.fireAt),
+              'reason': alarm.reason,
+            },
+        ],
+      },
+    );
+  }
+
+  @override
+  Future<ActionOutcome> petStatus() async {
+    final native = service.pet;
+    final repo = service.petSettings;
+    if (native == null || repo == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    final settings = await repo.load();
+    final running = await native.isPetRunning();
+    final watching = await native.isWatchRunning();
+    final controller = await repo.controllerAt(
+      now,
+      fallbackResidentId: settings.defaultResidentId,
+    );
+    return ActionOutcome(
+      ok: true,
+      message: running ? '桌宠在屏幕上' : '桌宠现在没出来',
+      data: {
+        'running': running,
+        'watching': watching,
+        'realtime': settings.realtime,
+        'controller_id': controller,
+        'is_you': controller == resident.id,
+      },
+    );
+  }
+
+  @override
+  Future<ActionOutcome> petSay(String text) async {
+    final native = service.pet;
+    if (native == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    if (!await native.isPetRunning()) {
+      return const ActionOutcome(ok: false, message: '桌宠不在屏幕上，说不了话');
+    }
+    final clean = text.trim();
+    if (clean.isEmpty) {
+      return const ActionOutcome(ok: false, message: '气泡是空的');
+    }
+    // 气泡最多两行；太长会被截断，所以在这里先收在 44 字以内。
+    final shown = await native.say(
+      clean.length > 44 ? '${clean.substring(0, 44)}…' : clean,
+    );
+    if (!shown) {
+      return const ActionOutcome(
+        ok: false,
+        message: '气泡没能显示：悬浮窗权限可能被关了，或者桌宠服务没在跑',
+      );
+    }
+    // 已经用气泡说过了：这一轮不要再走“只回一句话”的兜底重复说一遍。
+    spokePrivately = true;
+    service._petSaid[resident.id] = clean;
+    return const ActionOutcome(ok: true, message: '说出来了');
+  }
+
+  @override
+  Future<ActionOutcome> petReact(String action) async {
+    final native = service.pet;
+    if (native == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    if (!await native.isPetRunning()) {
+      return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
+    }
+    const allowed = {
+      'happy',
+      'shy',
+      'angry',
+      'thinking',
+      'cheer',
+      'sleep',
+      'yawn',
+      'stretch',
+      'dance',
+      'walk',
+      'look',
+      'idle',
+    };
+    final key = action.trim().toLowerCase();
+    if (!allowed.contains(key)) {
+      return const ActionOutcome(
+        ok: false,
+        message: '没有这个动作；可用：happy / shy / angry / thinking / cheer / sleep / yawn / stretch / dance / walk / look / idle',
+      );
+    }
+    await native.react(key);
+    return ActionOutcome(ok: true, message: '换成了 $key');
+  }
+
+  @override
+  Future<ActionOutcome> petLook() async {
+    final native = service.pet;
+    final repo = service.petSettings;
+    if (native == null || repo == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    if (!await native.isPetRunning()) {
+      return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
+    }
+    final settings = await repo.load();
+    if (settings.realtime) {
+      return const ActionOutcome(ok: true, message: '实时观察已经在跑了，不用单独截');
+    }
+    if (!await native.isWatchRunning()) {
+      return const ActionOutcome(ok: false, message: '没有屏幕授权，看不到屏幕');
+    }
+    await native.captureOnce();
+    return const ActionOutcome(ok: true, message: '截好了，下一次醒来会看到');
+  }
+
+  @override
+  Future<ActionOutcome> petRequestWatch() async {
+    final repo = service.petSettings;
+    if (repo == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    await repo.requestWatch();
+    return const ActionOutcome(
+      ok: true,
+      message: '已经把请求放在用户的桌宠设置里了；要等他本人同意才会开始',
+    );
+  }
+
+  @override
+  Future<ActionOutcome> petSleep() async {
+    final native = service.pet;
+    if (native == null || !await native.isPetRunning()) {
+      return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
+    }
+    await native.react('sleep');
+    return const ActionOutcome(ok: true, message: '缩成一团了');
+  }
+
+  @override
+  Future<ActionOutcome> petNote(String text) async {
+    final clean = text.trim();
+    if (clean.isEmpty) {
+      return const ActionOutcome(ok: false, message: '要记的是空的');
+    }
+    return service.actions.writeMemory(
+      residentId: resident.id,
+      summary: clean.length > 120 ? '${clean.substring(0, 120)}…' : clean,
+      content: clean,
+      source: 'pet',
+      idempotencyKey:
+          'petnote:${resident.id}:${DateTime.now().microsecondsSinceEpoch}',
+    );
+  }
+
+  @override
   Future<ActionOutcome> createPost(
     String content,
     String? topic,
-    String callId,
-  ) async {
+    String callId, {
+    bool asVoice = false,
+  }) async {
     final outcome = await service._createPost(
       resident,
       content,
       topic,
       callId,
       _image,
+      asVoice: asVoice,
     );
     if (outcome.ok) _image = null;
     return outcome;
@@ -1382,6 +1784,9 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     media: ref.watch(mediaServiceProvider),
     commentReplies: ref.watch(commentReplyServiceProvider),
     wakeLogs: ref.watch(residentWakeLogRepositoryProvider),
+    alarms: ref.watch(residentAlarmRepositoryProvider),
+    pet: ref.watch(petNativeProvider),
+    petSettings: ref.watch(petSettingsRepositoryProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
     activityDone: (residentId) =>
         ref.read(residentActivityProvider.notifier).clear(residentId),

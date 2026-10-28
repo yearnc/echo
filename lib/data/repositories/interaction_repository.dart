@@ -52,18 +52,18 @@ class InteractionRepository {
   /// 通知里却是"10 分钟前"——同一个事件两套时间。
   static const String _commentsSql = '''
 SELECT id, post_id, persona_id, content, media_type, caption, voice_path,
-       transcript, voice_duration_ms, parent_id, reply_to_name, like_count,
-       at, is_ai
+       transcript, voice_duration_ms, speech_by, parent_id, reply_to_name,
+       like_count, at, is_ai
 FROM (
   SELECT id, post_id, persona_id, content, media_type, caption,
-         voice_path, transcript, voice_duration_ms, parent_id, reply_to_name,
-         like_count, scheduled_at AS at, is_ai
+         voice_path, transcript, voice_duration_ms, speech_by,
+         parent_id, reply_to_name, like_count, scheduled_at AS at, is_ai
   FROM ai_interactions
   WHERE post_id = ? AND type = ? AND status = ? AND deleted_at IS NULL
   UNION ALL
   SELECT id, post_id, NULL AS persona_id, content, media_type, caption,
-         NULL AS voice_path, NULL AS transcript, NULL AS voice_duration_ms,
-         parent_id, reply_to_name, 0 AS like_count,
+         voice_path, transcript, speech_duration_ms AS voice_duration_ms,
+         speech_by, parent_id, reply_to_name, 0 AS like_count,
          created_at AS at, 0 AS is_ai
   FROM user_comments
   WHERE post_id = ? AND deleted_at IS NULL
@@ -187,6 +187,10 @@ ORDER BY at ASC
     String? parentId,
     String? replyToName,
     String mediaType = 'text',
+    String speechBy = '',
+    String voicePath = '',
+    String transcript = '',
+    int? speechDurationMs,
   }) async {
     final id = _newId('uc');
     await _db
@@ -200,6 +204,11 @@ ORDER BY at ASC
             mediaType: Value(mediaType),
             parentId: Value(parentId),
             replyToName: Value(replyToName),
+            // 语音评论：content 存音频引用，transcript 存识别出来的话。
+            speechBy: Value(speechBy),
+            voicePath: Value(voicePath.isEmpty ? null : voicePath),
+            transcript: Value(transcript.isEmpty ? null : transcript),
+            speechDurationMs: Value(speechDurationMs),
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );
@@ -276,6 +285,7 @@ ORDER BY at ASC
     String source = 'user_reply',
     String mediaType = 'text',
     String caption = '',
+    String speechBy = '',
   }) async {
     await _db
         .into(_db.aiInteractions)
@@ -288,6 +298,7 @@ ORDER BY at ASC
             mediaType: Value(mediaType),
             content: Value(content),
             caption: Value(caption),
+            speechBy: Value(speechBy),
             parentId: Value(parentId),
             replyToName: Value(replyToName),
             scheduledAt: scheduledAt.millisecondsSinceEpoch,
@@ -342,6 +353,7 @@ ORDER BY at ASC
     String? voicePath,
     String? transcript,
     int? voiceDurationMs,
+    String speechBy = '',
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db
@@ -358,6 +370,7 @@ ORDER BY at ASC
             voicePath: Value(voicePath),
             transcript: Value(transcript),
             voiceDurationMs: Value(voiceDurationMs),
+            speechBy: Value(speechBy),
             scheduledAt: now,
             executedAt: Value(now),
             status: const Value(statusDone),
@@ -627,6 +640,7 @@ WHERE al.action = 'like_post' AND al.target_id = ?
       replyToName: row.readNullable<String>('reply_to_name'),
       likeCount: row.read<int>('like_count'),
       isAi: row.read<int>('is_ai') != 0,
+      speechBy: row.readNullable<String>('speech_by') ?? '',
     );
   }
 

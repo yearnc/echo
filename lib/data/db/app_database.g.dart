@@ -1354,6 +1354,40 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _speechByMeta = const VerificationMeta(
+    'speechBy',
+  );
+  @override
+  late final GeneratedColumn<String> speechBy = GeneratedColumn<String>(
+    'speech_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _voicePathMeta = const VerificationMeta(
+    'voicePath',
+  );
+  @override
+  late final GeneratedColumn<String> voicePath = GeneratedColumn<String>(
+    'voice_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _speechDurationMsMeta = const VerificationMeta(
+    'speechDurationMs',
+  );
+  @override
+  late final GeneratedColumn<int> speechDurationMs = GeneratedColumn<int>(
+    'speech_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1375,6 +1409,9 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
     commentCount,
     likedAt,
     authorResidentId,
+    speechBy,
+    voicePath,
+    speechDurationMs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1518,6 +1555,27 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
         ),
       );
     }
+    if (data.containsKey('speech_by')) {
+      context.handle(
+        _speechByMeta,
+        speechBy.isAcceptableOrUnknown(data['speech_by']!, _speechByMeta),
+      );
+    }
+    if (data.containsKey('voice_path')) {
+      context.handle(
+        _voicePathMeta,
+        voicePath.isAcceptableOrUnknown(data['voice_path']!, _voicePathMeta),
+      );
+    }
+    if (data.containsKey('speech_duration_ms')) {
+      context.handle(
+        _speechDurationMsMeta,
+        speechDurationMs.isAcceptableOrUnknown(
+          data['speech_duration_ms']!,
+          _speechDurationMsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1603,6 +1661,18 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
         DriftSqlType.string,
         data['${effectivePrefix}author_resident_id'],
       ),
+      speechBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}speech_by'],
+      )!,
+      voicePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_path'],
+      ),
+      speechDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}speech_duration_ms'],
+      ),
     );
   }
 
@@ -1642,6 +1712,16 @@ class PostRow extends DataClass implements Insertable<PostRow> {
   /// 不设外键：固定住民可以被删除（软删除），而动态要留着；
   /// 而且这一列只回答"谁发的"，不承担级联语义。
   final String? authorResidentId;
+
+  /// 这条是“用语音发的”吗（v4.0）。
+  ///
+  /// 空串 = 打字发的；`me` = 用户自己的语音；其余 = 固定住民的 id。
+  /// 正文仍然是转写后的文字，这个字段只负责在界面上标一句“来自 XX 的语音”。
+  final String speechBy;
+
+  /// 用户语音帖的原始音频（`file:` 引用）。住民语音帖只有转写稿，没有文件。
+  final String? voicePath;
+  final int? speechDurationMs;
   const PostRow({
     required this.id,
     required this.content,
@@ -1662,6 +1742,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     required this.commentCount,
     this.likedAt,
     this.authorResidentId,
+    required this.speechBy,
+    this.voicePath,
+    this.speechDurationMs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1702,6 +1785,13 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     }
     if (!nullToAbsent || authorResidentId != null) {
       map['author_resident_id'] = Variable<String>(authorResidentId);
+    }
+    map['speech_by'] = Variable<String>(speechBy);
+    if (!nullToAbsent || voicePath != null) {
+      map['voice_path'] = Variable<String>(voicePath);
+    }
+    if (!nullToAbsent || speechDurationMs != null) {
+      map['speech_duration_ms'] = Variable<int>(speechDurationMs);
     }
     return map;
   }
@@ -1745,6 +1835,13 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       authorResidentId: authorResidentId == null && nullToAbsent
           ? const Value.absent()
           : Value(authorResidentId),
+      speechBy: Value(speechBy),
+      voicePath: voicePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voicePath),
+      speechDurationMs: speechDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speechDurationMs),
     );
   }
 
@@ -1773,6 +1870,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       commentCount: serializer.fromJson<int>(json['commentCount']),
       likedAt: serializer.fromJson<int?>(json['likedAt']),
       authorResidentId: serializer.fromJson<String?>(json['authorResidentId']),
+      speechBy: serializer.fromJson<String>(json['speechBy']),
+      voicePath: serializer.fromJson<String?>(json['voicePath']),
+      speechDurationMs: serializer.fromJson<int?>(json['speechDurationMs']),
     );
   }
   @override
@@ -1798,6 +1898,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       'commentCount': serializer.toJson<int>(commentCount),
       'likedAt': serializer.toJson<int?>(likedAt),
       'authorResidentId': serializer.toJson<String?>(authorResidentId),
+      'speechBy': serializer.toJson<String>(speechBy),
+      'voicePath': serializer.toJson<String?>(voicePath),
+      'speechDurationMs': serializer.toJson<int?>(speechDurationMs),
     };
   }
 
@@ -1821,6 +1924,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     int? commentCount,
     Value<int?> likedAt = const Value.absent(),
     Value<String?> authorResidentId = const Value.absent(),
+    String? speechBy,
+    Value<String?> voicePath = const Value.absent(),
+    Value<int?> speechDurationMs = const Value.absent(),
   }) => PostRow(
     id: id ?? this.id,
     content: content ?? this.content,
@@ -1843,6 +1949,11 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     authorResidentId: authorResidentId.present
         ? authorResidentId.value
         : this.authorResidentId,
+    speechBy: speechBy ?? this.speechBy,
+    voicePath: voicePath.present ? voicePath.value : this.voicePath,
+    speechDurationMs: speechDurationMs.present
+        ? speechDurationMs.value
+        : this.speechDurationMs,
   );
   PostRow copyWithCompanion(PostsCompanion data) {
     return PostRow(
@@ -1877,6 +1988,11 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       authorResidentId: data.authorResidentId.present
           ? data.authorResidentId.value
           : this.authorResidentId,
+      speechBy: data.speechBy.present ? data.speechBy.value : this.speechBy,
+      voicePath: data.voicePath.present ? data.voicePath.value : this.voicePath,
+      speechDurationMs: data.speechDurationMs.present
+          ? data.speechDurationMs.value
+          : this.speechDurationMs,
     );
   }
 
@@ -1901,13 +2017,16 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           ..write('likeCount: $likeCount, ')
           ..write('commentCount: $commentCount, ')
           ..write('likedAt: $likedAt, ')
-          ..write('authorResidentId: $authorResidentId')
+          ..write('authorResidentId: $authorResidentId, ')
+          ..write('speechBy: $speechBy, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('speechDurationMs: $speechDurationMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     content,
     images,
@@ -1927,7 +2046,10 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     commentCount,
     likedAt,
     authorResidentId,
-  );
+    speechBy,
+    voicePath,
+    speechDurationMs,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1950,7 +2072,10 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           other.likeCount == this.likeCount &&
           other.commentCount == this.commentCount &&
           other.likedAt == this.likedAt &&
-          other.authorResidentId == this.authorResidentId);
+          other.authorResidentId == this.authorResidentId &&
+          other.speechBy == this.speechBy &&
+          other.voicePath == this.voicePath &&
+          other.speechDurationMs == this.speechDurationMs);
 }
 
 class PostsCompanion extends UpdateCompanion<PostRow> {
@@ -1973,6 +2098,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
   final Value<int> commentCount;
   final Value<int?> likedAt;
   final Value<String?> authorResidentId;
+  final Value<String> speechBy;
+  final Value<String?> voicePath;
+  final Value<int?> speechDurationMs;
   final Value<int> rowid;
   const PostsCompanion({
     this.id = const Value.absent(),
@@ -1994,6 +2122,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.commentCount = const Value.absent(),
     this.likedAt = const Value.absent(),
     this.authorResidentId = const Value.absent(),
+    this.speechBy = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.speechDurationMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PostsCompanion.insert({
@@ -2016,6 +2147,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.commentCount = const Value.absent(),
     this.likedAt = const Value.absent(),
     this.authorResidentId = const Value.absent(),
+    this.speechBy = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.speechDurationMs = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt);
@@ -2039,6 +2173,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     Expression<int>? commentCount,
     Expression<int>? likedAt,
     Expression<String>? authorResidentId,
+    Expression<String>? speechBy,
+    Expression<String>? voicePath,
+    Expression<int>? speechDurationMs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2061,6 +2198,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       if (commentCount != null) 'comment_count': commentCount,
       if (likedAt != null) 'liked_at': likedAt,
       if (authorResidentId != null) 'author_resident_id': authorResidentId,
+      if (speechBy != null) 'speech_by': speechBy,
+      if (voicePath != null) 'voice_path': voicePath,
+      if (speechDurationMs != null) 'speech_duration_ms': speechDurationMs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2085,6 +2225,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     Value<int>? commentCount,
     Value<int?>? likedAt,
     Value<String?>? authorResidentId,
+    Value<String>? speechBy,
+    Value<String?>? voicePath,
+    Value<int?>? speechDurationMs,
     Value<int>? rowid,
   }) {
     return PostsCompanion(
@@ -2107,6 +2250,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       commentCount: commentCount ?? this.commentCount,
       likedAt: likedAt ?? this.likedAt,
       authorResidentId: authorResidentId ?? this.authorResidentId,
+      speechBy: speechBy ?? this.speechBy,
+      voicePath: voicePath ?? this.voicePath,
+      speechDurationMs: speechDurationMs ?? this.speechDurationMs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2171,6 +2317,15 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     if (authorResidentId.present) {
       map['author_resident_id'] = Variable<String>(authorResidentId.value);
     }
+    if (speechBy.present) {
+      map['speech_by'] = Variable<String>(speechBy.value);
+    }
+    if (voicePath.present) {
+      map['voice_path'] = Variable<String>(voicePath.value);
+    }
+    if (speechDurationMs.present) {
+      map['speech_duration_ms'] = Variable<int>(speechDurationMs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2199,6 +2354,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
           ..write('commentCount: $commentCount, ')
           ..write('likedAt: $likedAt, ')
           ..write('authorResidentId: $authorResidentId, ')
+          ..write('speechBy: $speechBy, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('speechDurationMs: $speechDurationMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2317,6 +2475,18 @@ class $AiInteractionsTable extends AiInteractions
     true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _speechByMeta = const VerificationMeta(
+    'speechBy',
+  );
+  @override
+  late final GeneratedColumn<String> speechBy = GeneratedColumn<String>(
+    'speech_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
     'scheduledAt',
@@ -2440,6 +2610,7 @@ class $AiInteractionsTable extends AiInteractions
     voicePath,
     transcript,
     voiceDurationMs,
+    speechBy,
     scheduledAt,
     executedAt,
     status,
@@ -2529,6 +2700,12 @@ class $AiInteractionsTable extends AiInteractions
           data['voice_duration_ms']!,
           _voiceDurationMsMeta,
         ),
+      );
+    }
+    if (data.containsKey('speech_by')) {
+      context.handle(
+        _speechByMeta,
+        speechBy.isAcceptableOrUnknown(data['speech_by']!, _speechByMeta),
       );
     }
     if (data.containsKey('scheduled_at')) {
@@ -2648,6 +2825,10 @@ class $AiInteractionsTable extends AiInteractions
         DriftSqlType.int,
         data['${effectivePrefix}voice_duration_ms'],
       ),
+      speechBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}speech_by'],
+      )!,
       scheduledAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}scheduled_at'],
@@ -2720,6 +2901,10 @@ class AiInteractionRow extends DataClass
   final String? voicePath;
   final String? transcript;
   final int? voiceDurationMs;
+
+  /// 住民“用语音说的”时记下它的 id（v4.0）；空 = 打字。
+  /// 评论区只显示标签，不强行合成一段音频。
+  final String speechBy;
   final int scheduledAt;
   final int? executedAt;
 
@@ -2749,6 +2934,7 @@ class AiInteractionRow extends DataClass
     this.voicePath,
     this.transcript,
     this.voiceDurationMs,
+    required this.speechBy,
     required this.scheduledAt,
     this.executedAt,
     required this.status,
@@ -2785,6 +2971,7 @@ class AiInteractionRow extends DataClass
     if (!nullToAbsent || voiceDurationMs != null) {
       map['voice_duration_ms'] = Variable<int>(voiceDurationMs);
     }
+    map['speech_by'] = Variable<String>(speechBy);
     map['scheduled_at'] = Variable<int>(scheduledAt);
     if (!nullToAbsent || executedAt != null) {
       map['executed_at'] = Variable<int>(executedAt);
@@ -2830,6 +3017,7 @@ class AiInteractionRow extends DataClass
       voiceDurationMs: voiceDurationMs == null && nullToAbsent
           ? const Value.absent()
           : Value(voiceDurationMs),
+      speechBy: Value(speechBy),
       scheduledAt: Value(scheduledAt),
       executedAt: executedAt == null && nullToAbsent
           ? const Value.absent()
@@ -2867,6 +3055,7 @@ class AiInteractionRow extends DataClass
       voicePath: serializer.fromJson<String?>(json['voicePath']),
       transcript: serializer.fromJson<String?>(json['transcript']),
       voiceDurationMs: serializer.fromJson<int?>(json['voiceDurationMs']),
+      speechBy: serializer.fromJson<String>(json['speechBy']),
       scheduledAt: serializer.fromJson<int>(json['scheduledAt']),
       executedAt: serializer.fromJson<int?>(json['executedAt']),
       status: serializer.fromJson<String>(json['status']),
@@ -2893,6 +3082,7 @@ class AiInteractionRow extends DataClass
       'voicePath': serializer.toJson<String?>(voicePath),
       'transcript': serializer.toJson<String?>(transcript),
       'voiceDurationMs': serializer.toJson<int?>(voiceDurationMs),
+      'speechBy': serializer.toJson<String>(speechBy),
       'scheduledAt': serializer.toJson<int>(scheduledAt),
       'executedAt': serializer.toJson<int?>(executedAt),
       'status': serializer.toJson<String>(status),
@@ -2917,6 +3107,7 @@ class AiInteractionRow extends DataClass
     Value<String?> voicePath = const Value.absent(),
     Value<String?> transcript = const Value.absent(),
     Value<int?> voiceDurationMs = const Value.absent(),
+    String? speechBy,
     int? scheduledAt,
     Value<int?> executedAt = const Value.absent(),
     String? status,
@@ -2940,6 +3131,7 @@ class AiInteractionRow extends DataClass
     voiceDurationMs: voiceDurationMs.present
         ? voiceDurationMs.value
         : this.voiceDurationMs,
+    speechBy: speechBy ?? this.speechBy,
     scheduledAt: scheduledAt ?? this.scheduledAt,
     executedAt: executedAt.present ? executedAt.value : this.executedAt,
     status: status ?? this.status,
@@ -2967,6 +3159,7 @@ class AiInteractionRow extends DataClass
       voiceDurationMs: data.voiceDurationMs.present
           ? data.voiceDurationMs.value
           : this.voiceDurationMs,
+      speechBy: data.speechBy.present ? data.speechBy.value : this.speechBy,
       scheduledAt: data.scheduledAt.present
           ? data.scheduledAt.value
           : this.scheduledAt,
@@ -2999,6 +3192,7 @@ class AiInteractionRow extends DataClass
           ..write('voicePath: $voicePath, ')
           ..write('transcript: $transcript, ')
           ..write('voiceDurationMs: $voiceDurationMs, ')
+          ..write('speechBy: $speechBy, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('executedAt: $executedAt, ')
           ..write('status: $status, ')
@@ -3014,7 +3208,7 @@ class AiInteractionRow extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     postId,
     personaId,
@@ -3025,6 +3219,7 @@ class AiInteractionRow extends DataClass
     voicePath,
     transcript,
     voiceDurationMs,
+    speechBy,
     scheduledAt,
     executedAt,
     status,
@@ -3035,7 +3230,7 @@ class AiInteractionRow extends DataClass
     replyToName,
     likeCount,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3050,6 +3245,7 @@ class AiInteractionRow extends DataClass
           other.voicePath == this.voicePath &&
           other.transcript == this.transcript &&
           other.voiceDurationMs == this.voiceDurationMs &&
+          other.speechBy == this.speechBy &&
           other.scheduledAt == this.scheduledAt &&
           other.executedAt == this.executedAt &&
           other.status == this.status &&
@@ -3073,6 +3269,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
   final Value<String?> voicePath;
   final Value<String?> transcript;
   final Value<int?> voiceDurationMs;
+  final Value<String> speechBy;
   final Value<int> scheduledAt;
   final Value<int?> executedAt;
   final Value<String> status;
@@ -3095,6 +3292,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     this.voicePath = const Value.absent(),
     this.transcript = const Value.absent(),
     this.voiceDurationMs = const Value.absent(),
+    this.speechBy = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.executedAt = const Value.absent(),
     this.status = const Value.absent(),
@@ -3118,6 +3316,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     this.voicePath = const Value.absent(),
     this.transcript = const Value.absent(),
     this.voiceDurationMs = const Value.absent(),
+    this.speechBy = const Value.absent(),
     required int scheduledAt,
     this.executedAt = const Value.absent(),
     this.status = const Value.absent(),
@@ -3145,6 +3344,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     Expression<String>? voicePath,
     Expression<String>? transcript,
     Expression<int>? voiceDurationMs,
+    Expression<String>? speechBy,
     Expression<int>? scheduledAt,
     Expression<int>? executedAt,
     Expression<String>? status,
@@ -3168,6 +3368,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
       if (voicePath != null) 'voice_path': voicePath,
       if (transcript != null) 'transcript': transcript,
       if (voiceDurationMs != null) 'voice_duration_ms': voiceDurationMs,
+      if (speechBy != null) 'speech_by': speechBy,
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (executedAt != null) 'executed_at': executedAt,
       if (status != null) 'status': status,
@@ -3193,6 +3394,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     Value<String?>? voicePath,
     Value<String?>? transcript,
     Value<int?>? voiceDurationMs,
+    Value<String>? speechBy,
     Value<int>? scheduledAt,
     Value<int?>? executedAt,
     Value<String>? status,
@@ -3216,6 +3418,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
       voicePath: voicePath ?? this.voicePath,
       transcript: transcript ?? this.transcript,
       voiceDurationMs: voiceDurationMs ?? this.voiceDurationMs,
+      speechBy: speechBy ?? this.speechBy,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       executedAt: executedAt ?? this.executedAt,
       status: status ?? this.status,
@@ -3262,6 +3465,9 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
     }
     if (voiceDurationMs.present) {
       map['voice_duration_ms'] = Variable<int>(voiceDurationMs.value);
+    }
+    if (speechBy.present) {
+      map['speech_by'] = Variable<String>(speechBy.value);
     }
     if (scheduledAt.present) {
       map['scheduled_at'] = Variable<int>(scheduledAt.value);
@@ -3312,6 +3518,7 @@ class AiInteractionsCompanion extends UpdateCompanion<AiInteractionRow> {
           ..write('voicePath: $voicePath, ')
           ..write('transcript: $transcript, ')
           ..write('voiceDurationMs: $voiceDurationMs, ')
+          ..write('speechBy: $speechBy, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('executedAt: $executedAt, ')
           ..write('status: $status, ')
@@ -4250,6 +4457,51 @@ class $UserCommentsTable extends UserComments
     requiredDuringInsert: false,
     defaultValue: const Constant('text'),
   );
+  static const VerificationMeta _speechByMeta = const VerificationMeta(
+    'speechBy',
+  );
+  @override
+  late final GeneratedColumn<String> speechBy = GeneratedColumn<String>(
+    'speech_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _voicePathMeta = const VerificationMeta(
+    'voicePath',
+  );
+  @override
+  late final GeneratedColumn<String> voicePath = GeneratedColumn<String>(
+    'voice_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transcriptMeta = const VerificationMeta(
+    'transcript',
+  );
+  @override
+  late final GeneratedColumn<String> transcript = GeneratedColumn<String>(
+    'transcript',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _speechDurationMsMeta = const VerificationMeta(
+    'speechDurationMs',
+  );
+  @override
+  late final GeneratedColumn<int> speechDurationMs = GeneratedColumn<int>(
+    'speech_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _captionMeta = const VerificationMeta(
     'caption',
   );
@@ -4312,6 +4564,10 @@ class $UserCommentsTable extends UserComments
     postId,
     content,
     mediaType,
+    speechBy,
+    voicePath,
+    transcript,
+    speechDurationMs,
     caption,
     parentId,
     replyToName,
@@ -4355,6 +4611,33 @@ class $UserCommentsTable extends UserComments
       context.handle(
         _mediaTypeMeta,
         mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
+    }
+    if (data.containsKey('speech_by')) {
+      context.handle(
+        _speechByMeta,
+        speechBy.isAcceptableOrUnknown(data['speech_by']!, _speechByMeta),
+      );
+    }
+    if (data.containsKey('voice_path')) {
+      context.handle(
+        _voicePathMeta,
+        voicePath.isAcceptableOrUnknown(data['voice_path']!, _voicePathMeta),
+      );
+    }
+    if (data.containsKey('transcript')) {
+      context.handle(
+        _transcriptMeta,
+        transcript.isAcceptableOrUnknown(data['transcript']!, _transcriptMeta),
+      );
+    }
+    if (data.containsKey('speech_duration_ms')) {
+      context.handle(
+        _speechDurationMsMeta,
+        speechDurationMs.isAcceptableOrUnknown(
+          data['speech_duration_ms']!,
+          _speechDurationMsMeta,
+        ),
       );
     }
     if (data.containsKey('caption')) {
@@ -4417,6 +4700,22 @@ class $UserCommentsTable extends UserComments
         DriftSqlType.string,
         data['${effectivePrefix}media_type'],
       )!,
+      speechBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}speech_by'],
+      )!,
+      voicePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_path'],
+      ),
+      transcript: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transcript'],
+      ),
+      speechDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}speech_duration_ms'],
+      ),
       caption: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}caption'],
@@ -4451,8 +4750,14 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
   final String postId;
   final String content;
 
-  /// text / image（image 时 content 存图片引用，评论区表情包也走这里）
+  /// text / image / voice（v4.0；voice 时 content 存音频引用）
   final String mediaType;
+
+  /// 空串 = 打字；`me` = 用户的语音；其余 = 固定住民 id。
+  final String speechBy;
+  final String? voicePath;
+  final String? transcript;
+  final int? speechDurationMs;
 
   /// 图片评论配的文字。图是内容、字是“顺便说一句”，两者可以一起发；
   /// 以前只有一个 content 字段，发图就必须把输入框里的话丢掉。
@@ -4472,6 +4777,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     required this.postId,
     required this.content,
     required this.mediaType,
+    required this.speechBy,
+    this.voicePath,
+    this.transcript,
+    this.speechDurationMs,
     required this.caption,
     this.parentId,
     this.replyToName,
@@ -4485,6 +4794,16 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     map['post_id'] = Variable<String>(postId);
     map['content'] = Variable<String>(content);
     map['media_type'] = Variable<String>(mediaType);
+    map['speech_by'] = Variable<String>(speechBy);
+    if (!nullToAbsent || voicePath != null) {
+      map['voice_path'] = Variable<String>(voicePath);
+    }
+    if (!nullToAbsent || transcript != null) {
+      map['transcript'] = Variable<String>(transcript);
+    }
+    if (!nullToAbsent || speechDurationMs != null) {
+      map['speech_duration_ms'] = Variable<int>(speechDurationMs);
+    }
     map['caption'] = Variable<String>(caption);
     if (!nullToAbsent || parentId != null) {
       map['parent_id'] = Variable<String>(parentId);
@@ -4505,6 +4824,16 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: Value(postId),
       content: Value(content),
       mediaType: Value(mediaType),
+      speechBy: Value(speechBy),
+      voicePath: voicePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voicePath),
+      transcript: transcript == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transcript),
+      speechDurationMs: speechDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speechDurationMs),
       caption: Value(caption),
       parentId: parentId == null && nullToAbsent
           ? const Value.absent()
@@ -4529,6 +4858,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: serializer.fromJson<String>(json['postId']),
       content: serializer.fromJson<String>(json['content']),
       mediaType: serializer.fromJson<String>(json['mediaType']),
+      speechBy: serializer.fromJson<String>(json['speechBy']),
+      voicePath: serializer.fromJson<String?>(json['voicePath']),
+      transcript: serializer.fromJson<String?>(json['transcript']),
+      speechDurationMs: serializer.fromJson<int?>(json['speechDurationMs']),
       caption: serializer.fromJson<String>(json['caption']),
       parentId: serializer.fromJson<String?>(json['parentId']),
       replyToName: serializer.fromJson<String?>(json['replyToName']),
@@ -4544,6 +4877,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       'postId': serializer.toJson<String>(postId),
       'content': serializer.toJson<String>(content),
       'mediaType': serializer.toJson<String>(mediaType),
+      'speechBy': serializer.toJson<String>(speechBy),
+      'voicePath': serializer.toJson<String?>(voicePath),
+      'transcript': serializer.toJson<String?>(transcript),
+      'speechDurationMs': serializer.toJson<int?>(speechDurationMs),
       'caption': serializer.toJson<String>(caption),
       'parentId': serializer.toJson<String?>(parentId),
       'replyToName': serializer.toJson<String?>(replyToName),
@@ -4557,6 +4894,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     String? postId,
     String? content,
     String? mediaType,
+    String? speechBy,
+    Value<String?> voicePath = const Value.absent(),
+    Value<String?> transcript = const Value.absent(),
+    Value<int?> speechDurationMs = const Value.absent(),
     String? caption,
     Value<String?> parentId = const Value.absent(),
     Value<String?> replyToName = const Value.absent(),
@@ -4567,6 +4908,12 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     postId: postId ?? this.postId,
     content: content ?? this.content,
     mediaType: mediaType ?? this.mediaType,
+    speechBy: speechBy ?? this.speechBy,
+    voicePath: voicePath.present ? voicePath.value : this.voicePath,
+    transcript: transcript.present ? transcript.value : this.transcript,
+    speechDurationMs: speechDurationMs.present
+        ? speechDurationMs.value
+        : this.speechDurationMs,
     caption: caption ?? this.caption,
     parentId: parentId.present ? parentId.value : this.parentId,
     replyToName: replyToName.present ? replyToName.value : this.replyToName,
@@ -4579,6 +4926,14 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
       postId: data.postId.present ? data.postId.value : this.postId,
       content: data.content.present ? data.content.value : this.content,
       mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
+      speechBy: data.speechBy.present ? data.speechBy.value : this.speechBy,
+      voicePath: data.voicePath.present ? data.voicePath.value : this.voicePath,
+      transcript: data.transcript.present
+          ? data.transcript.value
+          : this.transcript,
+      speechDurationMs: data.speechDurationMs.present
+          ? data.speechDurationMs.value
+          : this.speechDurationMs,
       caption: data.caption.present ? data.caption.value : this.caption,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
       replyToName: data.replyToName.present
@@ -4596,6 +4951,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           ..write('postId: $postId, ')
           ..write('content: $content, ')
           ..write('mediaType: $mediaType, ')
+          ..write('speechBy: $speechBy, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('transcript: $transcript, ')
+          ..write('speechDurationMs: $speechDurationMs, ')
           ..write('caption: $caption, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
@@ -4611,6 +4970,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
     postId,
     content,
     mediaType,
+    speechBy,
+    voicePath,
+    transcript,
+    speechDurationMs,
     caption,
     parentId,
     replyToName,
@@ -4625,6 +4988,10 @@ class UserCommentRow extends DataClass implements Insertable<UserCommentRow> {
           other.postId == this.postId &&
           other.content == this.content &&
           other.mediaType == this.mediaType &&
+          other.speechBy == this.speechBy &&
+          other.voicePath == this.voicePath &&
+          other.transcript == this.transcript &&
+          other.speechDurationMs == this.speechDurationMs &&
           other.caption == this.caption &&
           other.parentId == this.parentId &&
           other.replyToName == this.replyToName &&
@@ -4637,6 +5004,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
   final Value<String> postId;
   final Value<String> content;
   final Value<String> mediaType;
+  final Value<String> speechBy;
+  final Value<String?> voicePath;
+  final Value<String?> transcript;
+  final Value<int?> speechDurationMs;
   final Value<String> caption;
   final Value<String?> parentId;
   final Value<String?> replyToName;
@@ -4648,6 +5019,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     this.postId = const Value.absent(),
     this.content = const Value.absent(),
     this.mediaType = const Value.absent(),
+    this.speechBy = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.transcript = const Value.absent(),
+    this.speechDurationMs = const Value.absent(),
     this.caption = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
@@ -4660,6 +5035,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     required String postId,
     required String content,
     this.mediaType = const Value.absent(),
+    this.speechBy = const Value.absent(),
+    this.voicePath = const Value.absent(),
+    this.transcript = const Value.absent(),
+    this.speechDurationMs = const Value.absent(),
     this.caption = const Value.absent(),
     this.parentId = const Value.absent(),
     this.replyToName = const Value.absent(),
@@ -4675,6 +5054,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Expression<String>? postId,
     Expression<String>? content,
     Expression<String>? mediaType,
+    Expression<String>? speechBy,
+    Expression<String>? voicePath,
+    Expression<String>? transcript,
+    Expression<int>? speechDurationMs,
     Expression<String>? caption,
     Expression<String>? parentId,
     Expression<String>? replyToName,
@@ -4687,6 +5070,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       if (postId != null) 'post_id': postId,
       if (content != null) 'content': content,
       if (mediaType != null) 'media_type': mediaType,
+      if (speechBy != null) 'speech_by': speechBy,
+      if (voicePath != null) 'voice_path': voicePath,
+      if (transcript != null) 'transcript': transcript,
+      if (speechDurationMs != null) 'speech_duration_ms': speechDurationMs,
       if (caption != null) 'caption': caption,
       if (parentId != null) 'parent_id': parentId,
       if (replyToName != null) 'reply_to_name': replyToName,
@@ -4701,6 +5088,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     Value<String>? postId,
     Value<String>? content,
     Value<String>? mediaType,
+    Value<String>? speechBy,
+    Value<String?>? voicePath,
+    Value<String?>? transcript,
+    Value<int?>? speechDurationMs,
     Value<String>? caption,
     Value<String?>? parentId,
     Value<String?>? replyToName,
@@ -4713,6 +5104,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
       postId: postId ?? this.postId,
       content: content ?? this.content,
       mediaType: mediaType ?? this.mediaType,
+      speechBy: speechBy ?? this.speechBy,
+      voicePath: voicePath ?? this.voicePath,
+      transcript: transcript ?? this.transcript,
+      speechDurationMs: speechDurationMs ?? this.speechDurationMs,
       caption: caption ?? this.caption,
       parentId: parentId ?? this.parentId,
       replyToName: replyToName ?? this.replyToName,
@@ -4736,6 +5131,18 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
     }
     if (mediaType.present) {
       map['media_type'] = Variable<String>(mediaType.value);
+    }
+    if (speechBy.present) {
+      map['speech_by'] = Variable<String>(speechBy.value);
+    }
+    if (voicePath.present) {
+      map['voice_path'] = Variable<String>(voicePath.value);
+    }
+    if (transcript.present) {
+      map['transcript'] = Variable<String>(transcript.value);
+    }
+    if (speechDurationMs.present) {
+      map['speech_duration_ms'] = Variable<int>(speechDurationMs.value);
     }
     if (caption.present) {
       map['caption'] = Variable<String>(caption.value);
@@ -4765,6 +5172,10 @@ class UserCommentsCompanion extends UpdateCompanion<UserCommentRow> {
           ..write('postId: $postId, ')
           ..write('content: $content, ')
           ..write('mediaType: $mediaType, ')
+          ..write('speechBy: $speechBy, ')
+          ..write('voicePath: $voicePath, ')
+          ..write('transcript: $transcript, ')
+          ..write('speechDurationMs: $speechDurationMs, ')
           ..write('caption: $caption, ')
           ..write('parentId: $parentId, ')
           ..write('replyToName: $replyToName, ')
@@ -17735,6 +18146,846 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
   }
 }
 
+class $ResidentAlarmsTable extends ResidentAlarms
+    with TableInfo<$ResidentAlarmsTable, ResidentAlarmRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentAlarmsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fireAtMeta = const VerificationMeta('fireAt');
+  @override
+  late final GeneratedColumn<int> fireAt = GeneratedColumn<int>(
+    'fire_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _firedAtMeta = const VerificationMeta(
+    'firedAt',
+  );
+  @override
+  late final GeneratedColumn<int> firedAt = GeneratedColumn<int>(
+    'fired_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cancelledAtMeta = const VerificationMeta(
+    'cancelledAt',
+  );
+  @override
+  late final GeneratedColumn<int> cancelledAt = GeneratedColumn<int>(
+    'cancelled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    fireAt,
+    reason,
+    createdAt,
+    firedAt,
+    cancelledAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_alarms';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentAlarmRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('fire_at')) {
+      context.handle(
+        _fireAtMeta,
+        fireAt.isAcceptableOrUnknown(data['fire_at']!, _fireAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fireAtMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('fired_at')) {
+      context.handle(
+        _firedAtMeta,
+        firedAt.isAcceptableOrUnknown(data['fired_at']!, _firedAtMeta),
+      );
+    }
+    if (data.containsKey('cancelled_at')) {
+      context.handle(
+        _cancelledAtMeta,
+        cancelledAt.isAcceptableOrUnknown(
+          data['cancelled_at']!,
+          _cancelledAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResidentAlarmRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentAlarmRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      fireAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}fire_at'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      firedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}fired_at'],
+      ),
+      cancelledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cancelled_at'],
+      ),
+    );
+  }
+
+  @override
+  $ResidentAlarmsTable createAlias(String alias) {
+    return $ResidentAlarmsTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentAlarmRow extends DataClass
+    implements Insertable<ResidentAlarmRow> {
+  final String id;
+  final String residentId;
+  final int fireAt;
+
+  /// 定闹钟时想做的事（给醒来后的自己看）。
+  final String reason;
+  final int createdAt;
+  final int? firedAt;
+  final int? cancelledAt;
+  const ResidentAlarmRow({
+    required this.id,
+    required this.residentId,
+    required this.fireAt,
+    required this.reason,
+    required this.createdAt,
+    this.firedAt,
+    this.cancelledAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['fire_at'] = Variable<int>(fireAt);
+    map['reason'] = Variable<String>(reason);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || firedAt != null) {
+      map['fired_at'] = Variable<int>(firedAt);
+    }
+    if (!nullToAbsent || cancelledAt != null) {
+      map['cancelled_at'] = Variable<int>(cancelledAt);
+    }
+    return map;
+  }
+
+  ResidentAlarmsCompanion toCompanion(bool nullToAbsent) {
+    return ResidentAlarmsCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      fireAt: Value(fireAt),
+      reason: Value(reason),
+      createdAt: Value(createdAt),
+      firedAt: firedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firedAt),
+      cancelledAt: cancelledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledAt),
+    );
+  }
+
+  factory ResidentAlarmRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentAlarmRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      fireAt: serializer.fromJson<int>(json['fireAt']),
+      reason: serializer.fromJson<String>(json['reason']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      firedAt: serializer.fromJson<int?>(json['firedAt']),
+      cancelledAt: serializer.fromJson<int?>(json['cancelledAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'fireAt': serializer.toJson<int>(fireAt),
+      'reason': serializer.toJson<String>(reason),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'firedAt': serializer.toJson<int?>(firedAt),
+      'cancelledAt': serializer.toJson<int?>(cancelledAt),
+    };
+  }
+
+  ResidentAlarmRow copyWith({
+    String? id,
+    String? residentId,
+    int? fireAt,
+    String? reason,
+    int? createdAt,
+    Value<int?> firedAt = const Value.absent(),
+    Value<int?> cancelledAt = const Value.absent(),
+  }) => ResidentAlarmRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    fireAt: fireAt ?? this.fireAt,
+    reason: reason ?? this.reason,
+    createdAt: createdAt ?? this.createdAt,
+    firedAt: firedAt.present ? firedAt.value : this.firedAt,
+    cancelledAt: cancelledAt.present ? cancelledAt.value : this.cancelledAt,
+  );
+  ResidentAlarmRow copyWithCompanion(ResidentAlarmsCompanion data) {
+    return ResidentAlarmRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      fireAt: data.fireAt.present ? data.fireAt.value : this.fireAt,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      firedAt: data.firedAt.present ? data.firedAt.value : this.firedAt,
+      cancelledAt: data.cancelledAt.present
+          ? data.cancelledAt.value
+          : this.cancelledAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentAlarmRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('fireAt: $fireAt, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('firedAt: $firedAt, ')
+          ..write('cancelledAt: $cancelledAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    residentId,
+    fireAt,
+    reason,
+    createdAt,
+    firedAt,
+    cancelledAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentAlarmRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.fireAt == this.fireAt &&
+          other.reason == this.reason &&
+          other.createdAt == this.createdAt &&
+          other.firedAt == this.firedAt &&
+          other.cancelledAt == this.cancelledAt);
+}
+
+class ResidentAlarmsCompanion extends UpdateCompanion<ResidentAlarmRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<int> fireAt;
+  final Value<String> reason;
+  final Value<int> createdAt;
+  final Value<int?> firedAt;
+  final Value<int?> cancelledAt;
+  final Value<int> rowid;
+  const ResidentAlarmsCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.fireAt = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.firedAt = const Value.absent(),
+    this.cancelledAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResidentAlarmsCompanion.insert({
+    required String id,
+    required String residentId,
+    required int fireAt,
+    this.reason = const Value.absent(),
+    required int createdAt,
+    this.firedAt = const Value.absent(),
+    this.cancelledAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       fireAt = Value(fireAt),
+       createdAt = Value(createdAt);
+  static Insertable<ResidentAlarmRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<int>? fireAt,
+    Expression<String>? reason,
+    Expression<int>? createdAt,
+    Expression<int>? firedAt,
+    Expression<int>? cancelledAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (fireAt != null) 'fire_at': fireAt,
+      if (reason != null) 'reason': reason,
+      if (createdAt != null) 'created_at': createdAt,
+      if (firedAt != null) 'fired_at': firedAt,
+      if (cancelledAt != null) 'cancelled_at': cancelledAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResidentAlarmsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<int>? fireAt,
+    Value<String>? reason,
+    Value<int>? createdAt,
+    Value<int?>? firedAt,
+    Value<int?>? cancelledAt,
+    Value<int>? rowid,
+  }) {
+    return ResidentAlarmsCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      fireAt: fireAt ?? this.fireAt,
+      reason: reason ?? this.reason,
+      createdAt: createdAt ?? this.createdAt,
+      firedAt: firedAt ?? this.firedAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (fireAt.present) {
+      map['fire_at'] = Variable<int>(fireAt.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (firedAt.present) {
+      map['fired_at'] = Variable<int>(firedAt.value);
+    }
+    if (cancelledAt.present) {
+      map['cancelled_at'] = Variable<int>(cancelledAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentAlarmsCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('fireAt: $fireAt, ')
+          ..write('reason: $reason, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('firedAt: $firedAt, ')
+          ..write('cancelledAt: $cancelledAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PetShiftsTable extends PetShifts
+    with TableInfo<$PetShiftsTable, PetShiftRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PetShiftsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMinuteMeta = const VerificationMeta(
+    'startMinute',
+  );
+  @override
+  late final GeneratedColumn<int> startMinute = GeneratedColumn<int>(
+    'start_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMinuteMeta = const VerificationMeta(
+    'endMinute',
+  );
+  @override
+  late final GeneratedColumn<int> endMinute = GeneratedColumn<int>(
+    'end_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    startMinute,
+    endMinute,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pet_shifts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PetShiftRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('start_minute')) {
+      context.handle(
+        _startMinuteMeta,
+        startMinute.isAcceptableOrUnknown(
+          data['start_minute']!,
+          _startMinuteMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_startMinuteMeta);
+    }
+    if (data.containsKey('end_minute')) {
+      context.handle(
+        _endMinuteMeta,
+        endMinute.isAcceptableOrUnknown(data['end_minute']!, _endMinuteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMinuteMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PetShiftRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PetShiftRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      startMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minute'],
+      )!,
+      endMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minute'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PetShiftsTable createAlias(String alias) {
+    return $PetShiftsTable(attachedDatabase, alias);
+  }
+}
+
+class PetShiftRow extends DataClass implements Insertable<PetShiftRow> {
+  final String id;
+  final String residentId;
+  final int startMinute;
+  final int endMinute;
+  final int createdAt;
+  const PetShiftRow({
+    required this.id,
+    required this.residentId,
+    required this.startMinute,
+    required this.endMinute,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['start_minute'] = Variable<int>(startMinute);
+    map['end_minute'] = Variable<int>(endMinute);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  PetShiftsCompanion toCompanion(bool nullToAbsent) {
+    return PetShiftsCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      startMinute: Value(startMinute),
+      endMinute: Value(endMinute),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PetShiftRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PetShiftRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      startMinute: serializer.fromJson<int>(json['startMinute']),
+      endMinute: serializer.fromJson<int>(json['endMinute']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'startMinute': serializer.toJson<int>(startMinute),
+      'endMinute': serializer.toJson<int>(endMinute),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  PetShiftRow copyWith({
+    String? id,
+    String? residentId,
+    int? startMinute,
+    int? endMinute,
+    int? createdAt,
+  }) => PetShiftRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    startMinute: startMinute ?? this.startMinute,
+    endMinute: endMinute ?? this.endMinute,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  PetShiftRow copyWithCompanion(PetShiftsCompanion data) {
+    return PetShiftRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      startMinute: data.startMinute.present
+          ? data.startMinute.value
+          : this.startMinute,
+      endMinute: data.endMinute.present ? data.endMinute.value : this.endMinute,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PetShiftRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, residentId, startMinute, endMinute, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PetShiftRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.startMinute == this.startMinute &&
+          other.endMinute == this.endMinute &&
+          other.createdAt == this.createdAt);
+}
+
+class PetShiftsCompanion extends UpdateCompanion<PetShiftRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<int> startMinute;
+  final Value<int> endMinute;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const PetShiftsCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.startMinute = const Value.absent(),
+    this.endMinute = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PetShiftsCompanion.insert({
+    required String id,
+    required String residentId,
+    required int startMinute,
+    required int endMinute,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       startMinute = Value(startMinute),
+       endMinute = Value(endMinute),
+       createdAt = Value(createdAt);
+  static Insertable<PetShiftRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<int>? startMinute,
+    Expression<int>? endMinute,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (startMinute != null) 'start_minute': startMinute,
+      if (endMinute != null) 'end_minute': endMinute,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PetShiftsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<int>? startMinute,
+    Value<int>? endMinute,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return PetShiftsCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      startMinute: startMinute ?? this.startMinute,
+      endMinute: endMinute ?? this.endMinute,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (startMinute.present) {
+      map['start_minute'] = Variable<int>(startMinute.value);
+    }
+    if (endMinute.present) {
+      map['end_minute'] = Variable<int>(endMinute.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PetShiftsCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ResidentInboxItemsTable extends ResidentInboxItems
     with TableInfo<$ResidentInboxItemsTable, ResidentInboxRow> {
   @override
@@ -20363,6 +21614,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ResidentWakeLogsTable residentWakeLogs = $ResidentWakeLogsTable(
     this,
   );
+  late final $ResidentAlarmsTable residentAlarms = $ResidentAlarmsTable(this);
+  late final $PetShiftsTable petShifts = $PetShiftsTable(this);
   late final $ResidentInboxItemsTable residentInboxItems =
       $ResidentInboxItemsTable(this);
   late final $ActionLogsTable actionLogs = $ActionLogsTable(this);
@@ -20417,6 +21670,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'resident_wake_logs_at',
     'CREATE INDEX resident_wake_logs_at ON resident_wake_logs (resident_id, woke_at)',
   );
+  late final Index residentAlarmsDue = Index(
+    'resident_alarms_due',
+    'CREATE INDEX resident_alarms_due ON resident_alarms (resident_id, fire_at)',
+  );
   late final Index residentInboxPending = Index(
     'resident_inbox_pending',
     'CREATE INDEX resident_inbox_pending ON resident_inbox_items (resident_id, handled_at)',
@@ -20465,6 +21722,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postUnderstandings,
     residentMemories,
     residentWakeLogs,
+    residentAlarms,
+    petShifts,
     residentInboxItems,
     actionLogs,
     clearPhotos,
@@ -20482,6 +21741,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     aiThreadsByPost,
     postViewsByPost,
     residentWakeLogsAt,
+    residentAlarmsDue,
     residentInboxPending,
     actionLogsActor,
     clearPhotosCreated,
@@ -21102,6 +22362,9 @@ typedef $$PostsTableCreateCompanionBuilder = PostsCompanion Function({
   Value<int> commentCount,
   Value<int?> likedAt,
   Value<String?> authorResidentId,
+  Value<String> speechBy,
+  Value<String?> voicePath,
+  Value<int?> speechDurationMs,
   Value<int> rowid,
 });
 typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
@@ -21124,6 +22387,9 @@ typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
   Value<int> commentCount,
   Value<int?> likedAt,
   Value<String?> authorResidentId,
+  Value<String> speechBy,
+  Value<String?> voicePath,
+  Value<int?> speechDurationMs,
   Value<int> rowid,
 });
 
@@ -21384,6 +22650,21 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
 
   ColumnFilters<String> get authorResidentId => $composableBuilder(
     column: $table.authorResidentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -21691,6 +22972,21 @@ class $$PostsTableOrderingComposer
     column: $table.authorResidentId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PostsTableAnnotationComposer
@@ -21768,6 +23064,17 @@ class $$PostsTableAnnotationComposer
 
   GeneratedColumn<String> get authorResidentId => $composableBuilder(
     column: $table.authorResidentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get speechBy =>
+      $composableBuilder(column: $table.speechBy, builder: (column) => column);
+
+  GeneratedColumn<String> get voicePath =>
+      $composableBuilder(column: $table.voicePath, builder: (column) => column);
+
+  GeneratedColumn<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
     builder: (column) => column,
   );
 
@@ -22029,6 +23336,9 @@ class $$PostsTableTableManager
                 Value<int> commentCount = const Value.absent(),
                 Value<int?> likedAt = const Value.absent(),
                 Value<String?> authorResidentId = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<int?> speechDurationMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PostsCompanion(
                 id: id,
@@ -22050,6 +23360,9 @@ class $$PostsTableTableManager
                 commentCount: commentCount,
                 likedAt: likedAt,
                 authorResidentId: authorResidentId,
+                speechBy: speechBy,
+                voicePath: voicePath,
+                speechDurationMs: speechDurationMs,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -22073,6 +23386,9 @@ class $$PostsTableTableManager
                 Value<int> commentCount = const Value.absent(),
                 Value<int?> likedAt = const Value.absent(),
                 Value<String?> authorResidentId = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<int?> speechDurationMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PostsCompanion.insert(
                 id: id,
@@ -22094,6 +23410,9 @@ class $$PostsTableTableManager
                 commentCount: commentCount,
                 likedAt: likedAt,
                 authorResidentId: authorResidentId,
+                speechBy: speechBy,
+                voicePath: voicePath,
+                speechDurationMs: speechDurationMs,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -22341,6 +23660,7 @@ typedef $$AiInteractionsTableCreateCompanionBuilder =
       Value<String?> voicePath,
       Value<String?> transcript,
       Value<int?> voiceDurationMs,
+      Value<String> speechBy,
       required int scheduledAt,
       Value<int?> executedAt,
       Value<String> status,
@@ -22365,6 +23685,7 @@ typedef $$AiInteractionsTableUpdateCompanionBuilder =
       Value<String?> voicePath,
       Value<String?> transcript,
       Value<int?> voiceDurationMs,
+      Value<String> speechBy,
       Value<int> scheduledAt,
       Value<int?> executedAt,
       Value<String> status,
@@ -22456,6 +23777,11 @@ class $$AiInteractionsTableFilterComposer
 
   ColumnFilters<int> get voiceDurationMs => $composableBuilder(
     column: $table.voiceDurationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -22587,6 +23913,11 @@ class $$AiInteractionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get scheduledAt => $composableBuilder(
     column: $table.scheduledAt,
     builder: (column) => ColumnOrderings(column),
@@ -22701,6 +24032,9 @@ class $$AiInteractionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get speechBy =>
+      $composableBuilder(column: $table.speechBy, builder: (column) => column);
+
   GeneratedColumn<int> get scheduledAt => $composableBuilder(
     column: $table.scheduledAt,
     builder: (column) => column,
@@ -22801,6 +24135,7 @@ class $$AiInteractionsTableTableManager
                 Value<String?> voicePath = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 Value<int?> voiceDurationMs = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
                 Value<int> scheduledAt = const Value.absent(),
                 Value<int?> executedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
@@ -22823,6 +24158,7 @@ class $$AiInteractionsTableTableManager
                 voicePath: voicePath,
                 transcript: transcript,
                 voiceDurationMs: voiceDurationMs,
+                speechBy: speechBy,
                 scheduledAt: scheduledAt,
                 executedAt: executedAt,
                 status: status,
@@ -22847,6 +24183,7 @@ class $$AiInteractionsTableTableManager
                 Value<String?> voicePath = const Value.absent(),
                 Value<String?> transcript = const Value.absent(),
                 Value<int?> voiceDurationMs = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
                 required int scheduledAt,
                 Value<int?> executedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
@@ -22869,6 +24206,7 @@ class $$AiInteractionsTableTableManager
                 voicePath: voicePath,
                 transcript: transcript,
                 voiceDurationMs: voiceDurationMs,
+                speechBy: speechBy,
                 scheduledAt: scheduledAt,
                 executedAt: executedAt,
                 status: status,
@@ -23365,6 +24703,10 @@ typedef $$UserCommentsTableCreateCompanionBuilder =
       required String postId,
       required String content,
       Value<String> mediaType,
+      Value<String> speechBy,
+      Value<String?> voicePath,
+      Value<String?> transcript,
+      Value<int?> speechDurationMs,
       Value<String> caption,
       Value<String?> parentId,
       Value<String?> replyToName,
@@ -23378,6 +24720,10 @@ typedef $$UserCommentsTableUpdateCompanionBuilder =
       Value<String> postId,
       Value<String> content,
       Value<String> mediaType,
+      Value<String> speechBy,
+      Value<String?> voicePath,
+      Value<String?> transcript,
+      Value<int?> speechDurationMs,
       Value<String> caption,
       Value<String?> parentId,
       Value<String?> replyToName,
@@ -23429,6 +24775,26 @@ class $$UserCommentsTableFilterComposer
 
   ColumnFilters<String> get mediaType => $composableBuilder(
     column: $table.mediaType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23505,6 +24871,26 @@ class $$UserCommentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get speechBy => $composableBuilder(
+    column: $table.speechBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voicePath => $composableBuilder(
+    column: $table.voicePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get caption => $composableBuilder(
     column: $table.caption,
     builder: (column) => ColumnOrderings(column),
@@ -23571,6 +24957,22 @@ class $$UserCommentsTableAnnotationComposer
 
   GeneratedColumn<String> get mediaType =>
       $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
+  GeneratedColumn<String> get speechBy =>
+      $composableBuilder(column: $table.speechBy, builder: (column) => column);
+
+  GeneratedColumn<String> get voicePath =>
+      $composableBuilder(column: $table.voicePath, builder: (column) => column);
+
+  GeneratedColumn<String> get transcript => $composableBuilder(
+    column: $table.transcript,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get speechDurationMs => $composableBuilder(
+    column: $table.speechDurationMs,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get caption =>
       $composableBuilder(column: $table.caption, builder: (column) => column);
@@ -23645,6 +25047,10 @@ class $$UserCommentsTableTableManager
                 Value<String> postId = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<String> mediaType = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                Value<int?> speechDurationMs = const Value.absent(),
                 Value<String> caption = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
@@ -23656,6 +25062,10 @@ class $$UserCommentsTableTableManager
                 postId: postId,
                 content: content,
                 mediaType: mediaType,
+                speechBy: speechBy,
+                voicePath: voicePath,
+                transcript: transcript,
+                speechDurationMs: speechDurationMs,
                 caption: caption,
                 parentId: parentId,
                 replyToName: replyToName,
@@ -23669,6 +25079,10 @@ class $$UserCommentsTableTableManager
                 required String postId,
                 required String content,
                 Value<String> mediaType = const Value.absent(),
+                Value<String> speechBy = const Value.absent(),
+                Value<String?> voicePath = const Value.absent(),
+                Value<String?> transcript = const Value.absent(),
+                Value<int?> speechDurationMs = const Value.absent(),
                 Value<String> caption = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
                 Value<String?> replyToName = const Value.absent(),
@@ -23680,6 +25094,10 @@ class $$UserCommentsTableTableManager
                 postId: postId,
                 content: content,
                 mediaType: mediaType,
+                speechBy: speechBy,
+                voicePath: voicePath,
+                transcript: transcript,
+                speechDurationMs: speechDurationMs,
                 caption: caption,
                 parentId: parentId,
                 replyToName: replyToName,
@@ -31526,6 +32944,474 @@ typedef $$ResidentWakeLogsTableProcessedTableManager =
       ResidentWakeLogRow,
       PrefetchHooks Function()
     >;
+typedef $$ResidentAlarmsTableCreateCompanionBuilder =
+    ResidentAlarmsCompanion Function({
+      required String id,
+      required String residentId,
+      required int fireAt,
+      Value<String> reason,
+      required int createdAt,
+      Value<int?> firedAt,
+      Value<int?> cancelledAt,
+      Value<int> rowid,
+    });
+typedef $$ResidentAlarmsTableUpdateCompanionBuilder =
+    ResidentAlarmsCompanion Function({
+      Value<String> id,
+      Value<String> residentId,
+      Value<int> fireAt,
+      Value<String> reason,
+      Value<int> createdAt,
+      Value<int?> firedAt,
+      Value<int?> cancelledAt,
+      Value<int> rowid,
+    });
+
+class $$ResidentAlarmsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentAlarmsTable> {
+  $$ResidentAlarmsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get fireAt => $composableBuilder(
+    column: $table.fireAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get firedAt => $composableBuilder(
+    column: $table.firedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ResidentAlarmsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentAlarmsTable> {
+  $$ResidentAlarmsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get fireAt => $composableBuilder(
+    column: $table.fireAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get firedAt => $composableBuilder(
+    column: $table.firedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ResidentAlarmsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentAlarmsTable> {
+  $$ResidentAlarmsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get fireAt =>
+      $composableBuilder(column: $table.fireAt, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get firedAt =>
+      $composableBuilder(column: $table.firedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get cancelledAt => $composableBuilder(
+    column: $table.cancelledAt,
+    builder: (column) => column,
+  );
+}
+
+class $$ResidentAlarmsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentAlarmsTable,
+          ResidentAlarmRow,
+          $$ResidentAlarmsTableFilterComposer,
+          $$ResidentAlarmsTableOrderingComposer,
+          $$ResidentAlarmsTableAnnotationComposer,
+          $$ResidentAlarmsTableCreateCompanionBuilder,
+          $$ResidentAlarmsTableUpdateCompanionBuilder,
+          (
+            ResidentAlarmRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ResidentAlarmsTable,
+              ResidentAlarmRow
+            >,
+          ),
+          ResidentAlarmRow,
+          PrefetchHooks Function()
+        > {
+  $$ResidentAlarmsTableTableManager(
+    _$AppDatabase db,
+    $ResidentAlarmsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentAlarmsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResidentAlarmsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ResidentAlarmsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<int> fireAt = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> firedAt = const Value.absent(),
+                Value<int?> cancelledAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentAlarmsCompanion(
+                id: id,
+                residentId: residentId,
+                fireAt: fireAt,
+                reason: reason,
+                createdAt: createdAt,
+                firedAt: firedAt,
+                cancelledAt: cancelledAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                required int fireAt,
+                Value<String> reason = const Value.absent(),
+                required int createdAt,
+                Value<int?> firedAt = const Value.absent(),
+                Value<int?> cancelledAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentAlarmsCompanion.insert(
+                id: id,
+                residentId: residentId,
+                fireAt: fireAt,
+                reason: reason,
+                createdAt: createdAt,
+                firedAt: firedAt,
+                cancelledAt: cancelledAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ResidentAlarmsTable, ResidentAlarmRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ResidentAlarmsTable,
+                    ResidentAlarmRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ResidentAlarmsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentAlarmsTable,
+      ResidentAlarmRow,
+      $$ResidentAlarmsTableFilterComposer,
+      $$ResidentAlarmsTableOrderingComposer,
+      $$ResidentAlarmsTableAnnotationComposer,
+      $$ResidentAlarmsTableCreateCompanionBuilder,
+      $$ResidentAlarmsTableUpdateCompanionBuilder,
+      (
+        ResidentAlarmRow,
+        BaseReferences<_$AppDatabase, $ResidentAlarmsTable, ResidentAlarmRow>,
+      ),
+      ResidentAlarmRow,
+      PrefetchHooks Function()
+    >;
+typedef $$PetShiftsTableCreateCompanionBuilder = PetShiftsCompanion Function({
+  required String id,
+  required String residentId,
+  required int startMinute,
+  required int endMinute,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$PetShiftsTableUpdateCompanionBuilder = PetShiftsCompanion Function({
+  Value<String> id,
+  Value<String> residentId,
+  Value<int> startMinute,
+  Value<int> endMinute,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$PetShiftsTableFilterComposer
+    extends Composer<_$AppDatabase, $PetShiftsTable> {
+  $$PetShiftsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PetShiftsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PetShiftsTable> {
+  $$PetShiftsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PetShiftsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PetShiftsTable> {
+  $$PetShiftsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinute =>
+      $composableBuilder(column: $table.endMinute, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$PetShiftsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PetShiftsTable,
+          PetShiftRow,
+          $$PetShiftsTableFilterComposer,
+          $$PetShiftsTableOrderingComposer,
+          $$PetShiftsTableAnnotationComposer,
+          $$PetShiftsTableCreateCompanionBuilder,
+          $$PetShiftsTableUpdateCompanionBuilder,
+          (
+            PetShiftRow,
+            BaseReferences<_$AppDatabase, $PetShiftsTable, PetShiftRow>,
+          ),
+          PetShiftRow,
+          PrefetchHooks Function()
+        > {
+  $$PetShiftsTableTableManager(_$AppDatabase db, $PetShiftsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PetShiftsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PetShiftsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PetShiftsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<int> startMinute = const Value.absent(),
+                Value<int> endMinute = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PetShiftsCompanion(
+                id: id,
+                residentId: residentId,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                required int startMinute,
+                required int endMinute,
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PetShiftsCompanion.insert(
+                id: id,
+                residentId: residentId,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PetShiftsTable, PetShiftRow>(table),
+                  BaseReferences<_$AppDatabase, $PetShiftsTable, PetShiftRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PetShiftsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PetShiftsTable,
+      PetShiftRow,
+      $$PetShiftsTableFilterComposer,
+      $$PetShiftsTableOrderingComposer,
+      $$PetShiftsTableAnnotationComposer,
+      $$PetShiftsTableCreateCompanionBuilder,
+      $$PetShiftsTableUpdateCompanionBuilder,
+      (
+        PetShiftRow,
+        BaseReferences<_$AppDatabase, $PetShiftsTable, PetShiftRow>,
+      ),
+      PetShiftRow,
+      PrefetchHooks Function()
+    >;
 typedef $$ResidentInboxItemsTableCreateCompanionBuilder =
     ResidentInboxItemsCompanion Function({
       required String id,
@@ -32956,6 +34842,10 @@ class $AppDatabaseManager {
       $$ResidentMemoriesTableTableManager(_db, _db.residentMemories);
   $$ResidentWakeLogsTableTableManager get residentWakeLogs =>
       $$ResidentWakeLogsTableTableManager(_db, _db.residentWakeLogs);
+  $$ResidentAlarmsTableTableManager get residentAlarms =>
+      $$ResidentAlarmsTableTableManager(_db, _db.residentAlarms);
+  $$PetShiftsTableTableManager get petShifts =>
+      $$PetShiftsTableTableManager(_db, _db.petShifts);
   $$ResidentInboxItemsTableTableManager get residentInboxItems =>
       $$ResidentInboxItemsTableTableManager(_db, _db.residentInboxItems);
   $$ActionLogsTableTableManager get actionLogs =>

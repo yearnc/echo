@@ -54,6 +54,33 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 通话记录不套气泡：微信也只在会话中间写一行“通话 03:12”。
+    if (mediaType == 'call') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.call_outlined,
+                size: 12,
+                color: EchoColors.textFaint,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                content,
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final media = mediaType == 'image' || mediaType == 'sticker';
     final isImage = mediaType == 'image';
 

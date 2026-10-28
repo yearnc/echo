@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/resident_alarm_repository.dart';
 import '../../data/repositories/resident_wake_log_repository.dart';
+import '../../domain/models/resident_alarm.dart';
 import '../../domain/models/resident_wake_log.dart';
 
 /// 「固定住民 ID」的日志（v3.9）。
@@ -20,6 +22,9 @@ class ResidentWakeLogPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final resident = ref.watch(customResidentAnyByIdProvider(residentId));
     final logs = ref.watch(residentWakeLogsProvider(residentId));
+    final alarms =
+        ref.watch(residentAlarmsProvider(residentId)).value ??
+        const <ResidentAlarm>[];
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -60,7 +65,14 @@ class ResidentWakeLogPage extends ConsumerWidget {
         ),
         data: (list) {
           if (list.isEmpty) {
-            return const _Empty();
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+              children: [
+                if (alarms.isNotEmpty) _AlarmCard(alarms: alarms),
+                const SizedBox(height: 80),
+                const SizedBox(height: 260, child: _Empty()),
+              ],
+            );
           }
           final today = list.where(
             (log) => _sameDay(log.wokeAt, DateTime.now()),
@@ -83,6 +95,10 @@ class ResidentWakeLogPage extends ConsumerWidget {
                 todayCount: today.length,
                 latest: latest,
               ),
+              if (alarms.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _AlarmCard(alarms: alarms),
+              ],
               const SizedBox(height: 8),
               ...rows,
               const SizedBox(height: 10),
@@ -168,6 +184,74 @@ class _SummaryCard extends StatelessWidget {
   static String _short(DateTime at) =>
       '${at.month}月${at.day}日 ${at.hour.toString().padLeft(2, '0')}:'
       '${at.minute.toString().padLeft(2, '0')}';
+}
+
+/// 还没响的闹钟（v4.0）。住民给自己定的时间，用户也能看见——
+/// 不是监控，而是“TA 打算什么时候再来”。
+class _AlarmCard extends StatelessWidget {
+  const _AlarmCard({required this.alarms});
+
+  final List<ResidentAlarm> alarms;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: EchoColors.divider, width: 0.8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.alarm,
+                size: 15,
+                color: EchoColors.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                alarms.length == 1 ? 'TA 定了一个闹钟' : 'TA 定了 ${alarms.length} 个闹钟',
+                style: TextStyle(
+                  color: EchoColors.text,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          for (final alarm in alarms)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                '${_when(alarm.fireAt)}'
+                '${alarm.reason.trim().isEmpty ? '' : ' · ${alarm.reason.trim()}'}',
+                style: TextStyle(
+                  color: EchoColors.textMuted,
+                  fontSize: 12.5,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            '到时间之前，如果没有待办，系统不会因为空闲叫醒 TA。',
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _when(DateTime at) {
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${at.month}月${at.day}日 $hh:$mm';
+  }
 }
 
 class _DayHeader extends StatelessWidget {

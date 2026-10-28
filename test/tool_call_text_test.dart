@@ -67,4 +67,32 @@ void main() {
   test('普通文本原样返回（去掉首尾空白）', () {
     expect(sanitizeModelText('  在呢，你吃了吗？ '), '在呢，你吃了吗？');
   });
+
+  test('开头的完整时间标记会被剥掉，只剥一层', () {
+    const label = '[2026年10月28日 周三 中午 12:44] ';
+    expect(
+      sanitizeModelText('$label行吧，别磨蹭到天黑。'),
+      '行吧，别磨蹭到天黑。',
+    );
+    expect(
+      sanitizeModelText('$label$label行吧。'),
+      '$label行吧。',
+    );
+  });
+
+  test('句子中间的时间不误伤', () {
+    expect(
+      sanitizeModelText('12:44 了，你吃饭没有？'),
+      '12:44 了，你吃饭没有？',
+    );
+    expect(
+      sanitizeModelText('明天中午再说吧'),
+      '明天中午再说吧',
+    );
+    // 不是完整格式（少了周几/时段），不当成系统时间标记。
+    expect(
+      sanitizeModelText('[2026年10月28日] 那天我在郑州。'),
+      '[2026年10月28日] 那天我在郑州。',
+    );
+  });
 }
