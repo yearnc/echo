@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/services/post_voice_generator.dart';
 
 void main() {
@@ -103,6 +104,28 @@ void main() {
     test('关闭只读时明确要求至少点赞或评论', () {
       final prompt = ModelPostVoiceGenerator.systemPrompt(allowLurk: false);
       expect(prompt, contains('不能只看不说话'));
+    });
+
+    test('同一批人角度要错开', () {
+      final prompt = ModelPostVoiceGenerator.systemPrompt(allowLurk: true);
+      expect(prompt, contains('角度要错开'));
+    });
+
+    test('知识库内容放进 user 段，不污染 system', () {
+      final prompt = ModelPostVoiceGenerator.userPrompt(
+        post: Post(
+          id: 'p1',
+          content: '今天加班到十点',
+          createdAt: DateTime(2026, 10, 28, 12),
+        ),
+        count: 3,
+        knowledge: '【网民的说话方式（参考，别照抄）】\n- 共鸣：抓细节',
+      );
+      expect(prompt, contains('网民的说话方式'));
+      expect(
+        ModelPostVoiceGenerator.systemPrompt(allowLurk: true),
+        isNot(contains('网民的说话方式')),
+      );
     });
   });
 }

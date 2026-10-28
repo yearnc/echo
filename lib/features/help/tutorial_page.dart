@@ -161,6 +161,14 @@ class _TutorialPageState extends State<TutorialPage> {
                       child: Text(last ? '开始探索' : '下一步'),
                     ),
                   ),
+                  if (last) ...[
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: () => context.push(RoutePaths.models),
+                      icon: const Icon(Icons.settings_outlined, size: 16),
+                      label: const Text('先去配置模型'),
+                    ),
+                  ],
                 ],
               ),
             ),

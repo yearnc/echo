@@ -34,6 +34,9 @@ class PostUnderstandings extends Table {
   /// 游戏/行业：圈内人真正会接的点
   TextColumn get insiderAngle => text().withDefault(const Constant(''))();
 
+  /// 不同的人可能接话的角度（JSON 数组，v43）。每人挑一个不同的。
+  TextColumn get angles => text().withDefault(const Constant('[]'))();
+
   /// 是否需要外部知识（联网）
   BoolColumn get needsWeb => boolean().withDefault(const Constant(false))();
 

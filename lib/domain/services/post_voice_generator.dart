@@ -11,6 +11,7 @@ import '../models/post_understanding.dart';
 import '../models/sticker.dart';
 import 'content_moderator.dart';
 import 'model_gateway.dart';
+import 'net_knowledge.dart';
 
 /// 一个网民这次要做什么。
 enum VoiceAction {
@@ -112,6 +113,11 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
         at: at,
         avoidNames: avoidNames,
         stickers: catalog,
+        knowledge: NetKnowledge.blockFor(
+          tone: understanding?.tone ?? '',
+          domain: understanding?.domain ?? '',
+          entities: understanding?.entities ?? const [],
+        ),
       );
       final images = sendImagesDirectly && post.hasImages
           ? await ImagePayload.partsFromRefs(post.images)
@@ -176,6 +182,8 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       ..writeln('- 可以顺手带一张表情包（sticker_id）：既可以配一句话，也可以只发图；')
       ..writeln('  只在真的合适时用，没有合适的就留空')
       ..writeln('- 评论可以从这些角度挑：共鸣 / 吐槽 / 好奇提问 / 玩梗 / 说自己也这样 / 一句短评')
+      ..writeln('- 同一批人里，角度要错开：有人接梗、有人抓细节、有人只问一句，'
+          '不要每个人都表达同一种态度')
       ..writeln('- 如果给了「这条帖子已经看懂了」，顺着它写：玩梗就接梗，感伤就接情绪，游戏/行业用圈内角度')
       ..writeln('- 理解不确定时，宁可提问或围观，不要装懂')
       ..writeln('- 不总结、不升华、不说教；不用「加油哦」「抱抱你」「一切都会好的」「希望你能」')
@@ -205,6 +213,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     DateTime? at,
     Set<String> avoidNames = const {},
     List<StickerItem> stickers = const [],
+    String knowledge = '',
   }) {
     final moment = at ?? DateTime.now();
     final buffer = StringBuffer()
@@ -232,6 +241,12 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     if (understanding != null) {
       buffer.writeln();
       buffer.writeln(understanding.toPromptBlock());
+    }
+
+    if (knowledge.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln(knowledge.trim());
     }
 
     if (avoidNames.isNotEmpty) {

@@ -64,6 +64,12 @@ class _CustomResidentEditorPageState
   String? _voiceStatus;
   bool _voiceBusy = false;
 
+  /// 「编辑人设与说话方式」默认收着：这一页最长的两块，展开后要滚很久。
+  bool _personaExpanded = false;
+
+  /// 语音卡片默认只露开关；音色选项点开才出现。
+  bool _voiceOptionsExpanded = false;
+
   /// 新建住民时先读好、等保存后再写进记忆的对话。
   List<ImportedTurn> _pendingTurns = const [];
   bool _importBusy = false;
@@ -539,9 +545,13 @@ class _CustomResidentEditorPageState
                     }
                   },
                 ),
-                _Section(
-                  title: '人设',
-                  subtitle: 'TA 是谁、什么脾气、在哪儿遇到',
+                _CollapsibleSection(
+                  title: '编辑人设与说话方式',
+                  subtitle: 'TA 是谁、怎么开口、怎么接话',
+                  expanded: _personaExpanded,
+                  onToggle: () => setState(
+                    () => _personaExpanded = !_personaExpanded,
+                  ),
                   children: [
                     _Field(
                       controller: _description,
@@ -549,12 +559,6 @@ class _CustomResidentEditorPageState
                       hint: '身份、性格、在哪儿遇到、和你怎么认识的、关系到了哪一步，都可以写在这里',
                       maxLines: 6,
                     ),
-                  ],
-                ),
-                _Section(
-                  title: '说话',
-                  subtitle: '怎么开口、怎么接话',
-                  children: [
                     _Field(
                       controller: _languageStyle,
                       label: '说话方式',
@@ -590,10 +594,24 @@ class _CustomResidentEditorPageState
                       title: const Text('会发语音'),
                       subtitle: const Text('打开后模型多一个 send_voice 工具，由它自己决定用不用'),
                       value: _voiceEnabled,
-                      onChanged: (value) =>
-                          setState(() => _voiceEnabled = value),
+                      onChanged: (value) => setState(() {
+                        _voiceEnabled = value;
+                        // 关掉就把选项也收起来，下次打开还是干净的开关。
+                        if (!value) _voiceOptionsExpanded = false;
+                      }),
                     ),
-                    if (_voiceEnabled) ...[
+                    if (_voiceEnabled)
+                      _ExpandHeader(
+                        title: '音色设置',
+                        value: _voiceRef.isEmpty
+                            ? '还没选'
+                            : _voiceLabel(_voiceRef),
+                        expanded: _voiceOptionsExpanded,
+                        onTap: () => setState(
+                          () => _voiceOptionsExpanded = !_voiceOptionsExpanded,
+                        ),
+                      ),
+                    if (_voiceEnabled && _voiceOptionsExpanded) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: 4, bottom: 6),
                         child: Text(
@@ -984,6 +1002,152 @@ class _Section extends StatelessWidget {
             const SizedBox(height: 8),
             ...children,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 点击展开的卡片：标题 + 一句话说明，内容默认收着。
+///
+/// 人设与说话原本是两张长卡片，一进编辑页就要滚很久；合成一张、
+/// 点开再编辑，第一屏能看见完整的结构。
+class _CollapsibleSection extends StatelessWidget {
+  const _CollapsibleSection({
+    required this.title,
+    required this.subtitle,
+    required this.expanded,
+    required this.onToggle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 10, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.expand_more, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 卡片里的一行“点开更多”：语音的音色选项挂在这里。
+class _ExpandHeader extends StatelessWidget {
+  const _ExpandHeader({
+    required this.title,
+    required this.value,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final String title;
+
+  /// 右侧当前值（例如“本机音色 #1”），还没有就写“还没选”。
+  final String value;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(9),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(9),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(11, 9, 8, 9),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.record_voice_over_outlined,
+                  size: 17,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Text(title, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    Icons.expand_more,
+                    size: 18,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

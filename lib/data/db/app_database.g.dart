@@ -15797,6 +15797,16 @@ class $PostUnderstandingsTable extends PostUnderstandings
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _anglesMeta = const VerificationMeta('angles');
+  @override
+  late final GeneratedColumn<String> angles = GeneratedColumn<String>(
+    'angles',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _needsWebMeta = const VerificationMeta(
     'needsWeb',
   );
@@ -15856,6 +15866,7 @@ class $PostUnderstandingsTable extends PostUnderstandings
     jokeMechanism,
     emotion,
     insiderAngle,
+    angles,
     needsWeb,
     confidence,
     model,
@@ -15938,6 +15949,12 @@ class $PostUnderstandingsTable extends PostUnderstandings
         ),
       );
     }
+    if (data.containsKey('angles')) {
+      context.handle(
+        _anglesMeta,
+        angles.isAcceptableOrUnknown(data['angles']!, _anglesMeta),
+      );
+    }
     if (data.containsKey('needs_web')) {
       context.handle(
         _needsWebMeta,
@@ -16009,6 +16026,10 @@ class $PostUnderstandingsTable extends PostUnderstandings
         DriftSqlType.string,
         data['${effectivePrefix}insider_angle'],
       )!,
+      angles: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}angles'],
+      )!,
       needsWeb: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}needs_web'],
@@ -16063,6 +16084,9 @@ class PostUnderstandingRow extends DataClass
   /// 游戏/行业：圈内人真正会接的点
   final String insiderAngle;
 
+  /// 不同的人可能接话的角度（JSON 数组，v43）。每人挑一个不同的。
+  final String angles;
+
   /// 是否需要外部知识（联网）
   final bool needsWeb;
 
@@ -16080,6 +16104,7 @@ class PostUnderstandingRow extends DataClass
     required this.jokeMechanism,
     required this.emotion,
     required this.insiderAngle,
+    required this.angles,
     required this.needsWeb,
     required this.confidence,
     required this.model,
@@ -16097,6 +16122,7 @@ class PostUnderstandingRow extends DataClass
     map['joke_mechanism'] = Variable<String>(jokeMechanism);
     map['emotion'] = Variable<String>(emotion);
     map['insider_angle'] = Variable<String>(insiderAngle);
+    map['angles'] = Variable<String>(angles);
     map['needs_web'] = Variable<bool>(needsWeb);
     map['confidence'] = Variable<double>(confidence);
     map['model'] = Variable<String>(model);
@@ -16115,6 +16141,7 @@ class PostUnderstandingRow extends DataClass
       jokeMechanism: Value(jokeMechanism),
       emotion: Value(emotion),
       insiderAngle: Value(insiderAngle),
+      angles: Value(angles),
       needsWeb: Value(needsWeb),
       confidence: Value(confidence),
       model: Value(model),
@@ -16137,6 +16164,7 @@ class PostUnderstandingRow extends DataClass
       jokeMechanism: serializer.fromJson<String>(json['jokeMechanism']),
       emotion: serializer.fromJson<String>(json['emotion']),
       insiderAngle: serializer.fromJson<String>(json['insiderAngle']),
+      angles: serializer.fromJson<String>(json['angles']),
       needsWeb: serializer.fromJson<bool>(json['needsWeb']),
       confidence: serializer.fromJson<double>(json['confidence']),
       model: serializer.fromJson<String>(json['model']),
@@ -16156,6 +16184,7 @@ class PostUnderstandingRow extends DataClass
       'jokeMechanism': serializer.toJson<String>(jokeMechanism),
       'emotion': serializer.toJson<String>(emotion),
       'insiderAngle': serializer.toJson<String>(insiderAngle),
+      'angles': serializer.toJson<String>(angles),
       'needsWeb': serializer.toJson<bool>(needsWeb),
       'confidence': serializer.toJson<double>(confidence),
       'model': serializer.toJson<String>(model),
@@ -16173,6 +16202,7 @@ class PostUnderstandingRow extends DataClass
     String? jokeMechanism,
     String? emotion,
     String? insiderAngle,
+    String? angles,
     bool? needsWeb,
     double? confidence,
     String? model,
@@ -16187,6 +16217,7 @@ class PostUnderstandingRow extends DataClass
     jokeMechanism: jokeMechanism ?? this.jokeMechanism,
     emotion: emotion ?? this.emotion,
     insiderAngle: insiderAngle ?? this.insiderAngle,
+    angles: angles ?? this.angles,
     needsWeb: needsWeb ?? this.needsWeb,
     confidence: confidence ?? this.confidence,
     model: model ?? this.model,
@@ -16209,6 +16240,7 @@ class PostUnderstandingRow extends DataClass
       insiderAngle: data.insiderAngle.present
           ? data.insiderAngle.value
           : this.insiderAngle,
+      angles: data.angles.present ? data.angles.value : this.angles,
       needsWeb: data.needsWeb.present ? data.needsWeb.value : this.needsWeb,
       confidence: data.confidence.present
           ? data.confidence.value
@@ -16230,6 +16262,7 @@ class PostUnderstandingRow extends DataClass
           ..write('jokeMechanism: $jokeMechanism, ')
           ..write('emotion: $emotion, ')
           ..write('insiderAngle: $insiderAngle, ')
+          ..write('angles: $angles, ')
           ..write('needsWeb: $needsWeb, ')
           ..write('confidence: $confidence, ')
           ..write('model: $model, ')
@@ -16249,6 +16282,7 @@ class PostUnderstandingRow extends DataClass
     jokeMechanism,
     emotion,
     insiderAngle,
+    angles,
     needsWeb,
     confidence,
     model,
@@ -16267,6 +16301,7 @@ class PostUnderstandingRow extends DataClass
           other.jokeMechanism == this.jokeMechanism &&
           other.emotion == this.emotion &&
           other.insiderAngle == this.insiderAngle &&
+          other.angles == this.angles &&
           other.needsWeb == this.needsWeb &&
           other.confidence == this.confidence &&
           other.model == this.model &&
@@ -16284,6 +16319,7 @@ class PostUnderstandingsCompanion
   final Value<String> jokeMechanism;
   final Value<String> emotion;
   final Value<String> insiderAngle;
+  final Value<String> angles;
   final Value<bool> needsWeb;
   final Value<double> confidence;
   final Value<String> model;
@@ -16299,6 +16335,7 @@ class PostUnderstandingsCompanion
     this.jokeMechanism = const Value.absent(),
     this.emotion = const Value.absent(),
     this.insiderAngle = const Value.absent(),
+    this.angles = const Value.absent(),
     this.needsWeb = const Value.absent(),
     this.confidence = const Value.absent(),
     this.model = const Value.absent(),
@@ -16315,6 +16352,7 @@ class PostUnderstandingsCompanion
     this.jokeMechanism = const Value.absent(),
     this.emotion = const Value.absent(),
     this.insiderAngle = const Value.absent(),
+    this.angles = const Value.absent(),
     this.needsWeb = const Value.absent(),
     this.confidence = const Value.absent(),
     this.model = const Value.absent(),
@@ -16332,6 +16370,7 @@ class PostUnderstandingsCompanion
     Expression<String>? jokeMechanism,
     Expression<String>? emotion,
     Expression<String>? insiderAngle,
+    Expression<String>? angles,
     Expression<bool>? needsWeb,
     Expression<double>? confidence,
     Expression<String>? model,
@@ -16348,6 +16387,7 @@ class PostUnderstandingsCompanion
       if (jokeMechanism != null) 'joke_mechanism': jokeMechanism,
       if (emotion != null) 'emotion': emotion,
       if (insiderAngle != null) 'insider_angle': insiderAngle,
+      if (angles != null) 'angles': angles,
       if (needsWeb != null) 'needs_web': needsWeb,
       if (confidence != null) 'confidence': confidence,
       if (model != null) 'model': model,
@@ -16366,6 +16406,7 @@ class PostUnderstandingsCompanion
     Value<String>? jokeMechanism,
     Value<String>? emotion,
     Value<String>? insiderAngle,
+    Value<String>? angles,
     Value<bool>? needsWeb,
     Value<double>? confidence,
     Value<String>? model,
@@ -16382,6 +16423,7 @@ class PostUnderstandingsCompanion
       jokeMechanism: jokeMechanism ?? this.jokeMechanism,
       emotion: emotion ?? this.emotion,
       insiderAngle: insiderAngle ?? this.insiderAngle,
+      angles: angles ?? this.angles,
       needsWeb: needsWeb ?? this.needsWeb,
       confidence: confidence ?? this.confidence,
       model: model ?? this.model,
@@ -16420,6 +16462,9 @@ class PostUnderstandingsCompanion
     if (insiderAngle.present) {
       map['insider_angle'] = Variable<String>(insiderAngle.value);
     }
+    if (angles.present) {
+      map['angles'] = Variable<String>(angles.value);
+    }
     if (needsWeb.present) {
       map['needs_web'] = Variable<bool>(needsWeb.value);
     }
@@ -16450,6 +16495,7 @@ class PostUnderstandingsCompanion
           ..write('jokeMechanism: $jokeMechanism, ')
           ..write('emotion: $emotion, ')
           ..write('insiderAngle: $insiderAngle, ')
+          ..write('angles: $angles, ')
           ..write('needsWeb: $needsWeb, ')
           ..write('confidence: $confidence, ')
           ..write('model: $model, ')
@@ -17206,6 +17252,16 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _toolsMeta = const VerificationMeta('tools');
+  @override
+  late final GeneratedColumn<String> tools = GeneratedColumn<String>(
+    'tools',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -17216,6 +17272,7 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
     note,
     noteAt,
     noteDeliveredAt,
+    tools,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -17285,6 +17342,12 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
         ),
       );
     }
+    if (data.containsKey('tools')) {
+      context.handle(
+        _toolsMeta,
+        tools.isAcceptableOrUnknown(data['tools']!, _toolsMeta),
+      );
+    }
     return context;
   }
 
@@ -17326,6 +17389,10 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
         DriftSqlType.int,
         data['${effectivePrefix}note_delivered_at'],
       ),
+      tools: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tools'],
+      )!,
     );
   }
 
@@ -17352,6 +17419,9 @@ class ResidentWakeLogRow extends DataClass
   /// 这句话已经被哪一次醒来带进上下文了。只为 null 时才算“还没读到”，
   /// 否则同一句留言会在之后每一轮里反复出现。
   final int? noteDeliveredAt;
+
+  /// 这一轮调用过的工具名（JSON 数组，v43）。日志页据此显示 TA 干了什么。
+  final String tools;
   const ResidentWakeLogRow({
     required this.id,
     required this.residentId,
@@ -17361,6 +17431,7 @@ class ResidentWakeLogRow extends DataClass
     required this.note,
     this.noteAt,
     this.noteDeliveredAt,
+    required this.tools,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -17379,6 +17450,7 @@ class ResidentWakeLogRow extends DataClass
     if (!nullToAbsent || noteDeliveredAt != null) {
       map['note_delivered_at'] = Variable<int>(noteDeliveredAt);
     }
+    map['tools'] = Variable<String>(tools);
     return map;
   }
 
@@ -17398,6 +17470,7 @@ class ResidentWakeLogRow extends DataClass
       noteDeliveredAt: noteDeliveredAt == null && nullToAbsent
           ? const Value.absent()
           : Value(noteDeliveredAt),
+      tools: Value(tools),
     );
   }
 
@@ -17415,6 +17488,7 @@ class ResidentWakeLogRow extends DataClass
       note: serializer.fromJson<String>(json['note']),
       noteAt: serializer.fromJson<int?>(json['noteAt']),
       noteDeliveredAt: serializer.fromJson<int?>(json['noteDeliveredAt']),
+      tools: serializer.fromJson<String>(json['tools']),
     );
   }
   @override
@@ -17429,6 +17503,7 @@ class ResidentWakeLogRow extends DataClass
       'note': serializer.toJson<String>(note),
       'noteAt': serializer.toJson<int?>(noteAt),
       'noteDeliveredAt': serializer.toJson<int?>(noteDeliveredAt),
+      'tools': serializer.toJson<String>(tools),
     };
   }
 
@@ -17441,6 +17516,7 @@ class ResidentWakeLogRow extends DataClass
     String? note,
     Value<int?> noteAt = const Value.absent(),
     Value<int?> noteDeliveredAt = const Value.absent(),
+    String? tools,
   }) => ResidentWakeLogRow(
     id: id ?? this.id,
     residentId: residentId ?? this.residentId,
@@ -17452,6 +17528,7 @@ class ResidentWakeLogRow extends DataClass
     noteDeliveredAt: noteDeliveredAt.present
         ? noteDeliveredAt.value
         : this.noteDeliveredAt,
+    tools: tools ?? this.tools,
   );
   ResidentWakeLogRow copyWithCompanion(ResidentWakeLogsCompanion data) {
     return ResidentWakeLogRow(
@@ -17467,6 +17544,7 @@ class ResidentWakeLogRow extends DataClass
       noteDeliveredAt: data.noteDeliveredAt.present
           ? data.noteDeliveredAt.value
           : this.noteDeliveredAt,
+      tools: data.tools.present ? data.tools.value : this.tools,
     );
   }
 
@@ -17480,7 +17558,8 @@ class ResidentWakeLogRow extends DataClass
           ..write('endedAt: $endedAt, ')
           ..write('note: $note, ')
           ..write('noteAt: $noteAt, ')
-          ..write('noteDeliveredAt: $noteDeliveredAt')
+          ..write('noteDeliveredAt: $noteDeliveredAt, ')
+          ..write('tools: $tools')
           ..write(')'))
         .toString();
   }
@@ -17495,6 +17574,7 @@ class ResidentWakeLogRow extends DataClass
     note,
     noteAt,
     noteDeliveredAt,
+    tools,
   );
   @override
   bool operator ==(Object other) =>
@@ -17507,7 +17587,8 @@ class ResidentWakeLogRow extends DataClass
           other.endedAt == this.endedAt &&
           other.note == this.note &&
           other.noteAt == this.noteAt &&
-          other.noteDeliveredAt == this.noteDeliveredAt);
+          other.noteDeliveredAt == this.noteDeliveredAt &&
+          other.tools == this.tools);
 }
 
 class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
@@ -17519,6 +17600,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
   final Value<String> note;
   final Value<int?> noteAt;
   final Value<int?> noteDeliveredAt;
+  final Value<String> tools;
   final Value<int> rowid;
   const ResidentWakeLogsCompanion({
     this.id = const Value.absent(),
@@ -17529,6 +17611,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     this.note = const Value.absent(),
     this.noteAt = const Value.absent(),
     this.noteDeliveredAt = const Value.absent(),
+    this.tools = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ResidentWakeLogsCompanion.insert({
@@ -17540,6 +17623,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     this.note = const Value.absent(),
     this.noteAt = const Value.absent(),
     this.noteDeliveredAt = const Value.absent(),
+    this.tools = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        residentId = Value(residentId),
@@ -17554,6 +17638,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     Expression<String>? note,
     Expression<int>? noteAt,
     Expression<int>? noteDeliveredAt,
+    Expression<String>? tools,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17565,6 +17650,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
       if (note != null) 'note': note,
       if (noteAt != null) 'note_at': noteAt,
       if (noteDeliveredAt != null) 'note_delivered_at': noteDeliveredAt,
+      if (tools != null) 'tools': tools,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17578,6 +17664,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     Value<String>? note,
     Value<int?>? noteAt,
     Value<int?>? noteDeliveredAt,
+    Value<String>? tools,
     Value<int>? rowid,
   }) {
     return ResidentWakeLogsCompanion(
@@ -17589,6 +17676,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
       note: note ?? this.note,
       noteAt: noteAt ?? this.noteAt,
       noteDeliveredAt: noteDeliveredAt ?? this.noteDeliveredAt,
+      tools: tools ?? this.tools,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17620,6 +17708,9 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     if (noteDeliveredAt.present) {
       map['note_delivered_at'] = Variable<int>(noteDeliveredAt.value);
     }
+    if (tools.present) {
+      map['tools'] = Variable<String>(tools.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17637,6 +17728,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
           ..write('note: $note, ')
           ..write('noteAt: $noteAt, ')
           ..write('noteDeliveredAt: $noteDeliveredAt, ')
+          ..write('tools: $tools, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -30191,6 +30283,7 @@ typedef $$PostUnderstandingsTableCreateCompanionBuilder =
       Value<String> jokeMechanism,
       Value<String> emotion,
       Value<String> insiderAngle,
+      Value<String> angles,
       Value<bool> needsWeb,
       Value<double> confidence,
       Value<String> model,
@@ -30208,6 +30301,7 @@ typedef $$PostUnderstandingsTableUpdateCompanionBuilder =
       Value<String> jokeMechanism,
       Value<String> emotion,
       Value<String> insiderAngle,
+      Value<String> angles,
       Value<bool> needsWeb,
       Value<double> confidence,
       Value<String> model,
@@ -30292,6 +30386,11 @@ class $$PostUnderstandingsTableFilterComposer
 
   ColumnFilters<String> get insiderAngle => $composableBuilder(
     column: $table.insiderAngle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get angles => $composableBuilder(
+    column: $table.angles,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30388,6 +30487,11 @@ class $$PostUnderstandingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get angles => $composableBuilder(
+    column: $table.angles,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get needsWeb => $composableBuilder(
     column: $table.needsWeb,
     builder: (column) => ColumnOrderings(column),
@@ -30471,6 +30575,9 @@ class $$PostUnderstandingsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get angles =>
+      $composableBuilder(column: $table.angles, builder: (column) => column);
+
   GeneratedColumn<bool> get needsWeb =>
       $composableBuilder(column: $table.needsWeb, builder: (column) => column);
 
@@ -30551,6 +30658,7 @@ class $$PostUnderstandingsTableTableManager
                 Value<String> jokeMechanism = const Value.absent(),
                 Value<String> emotion = const Value.absent(),
                 Value<String> insiderAngle = const Value.absent(),
+                Value<String> angles = const Value.absent(),
                 Value<bool> needsWeb = const Value.absent(),
                 Value<double> confidence = const Value.absent(),
                 Value<String> model = const Value.absent(),
@@ -30566,6 +30674,7 @@ class $$PostUnderstandingsTableTableManager
                 jokeMechanism: jokeMechanism,
                 emotion: emotion,
                 insiderAngle: insiderAngle,
+                angles: angles,
                 needsWeb: needsWeb,
                 confidence: confidence,
                 model: model,
@@ -30583,6 +30692,7 @@ class $$PostUnderstandingsTableTableManager
                 Value<String> jokeMechanism = const Value.absent(),
                 Value<String> emotion = const Value.absent(),
                 Value<String> insiderAngle = const Value.absent(),
+                Value<String> angles = const Value.absent(),
                 Value<bool> needsWeb = const Value.absent(),
                 Value<double> confidence = const Value.absent(),
                 Value<String> model = const Value.absent(),
@@ -30598,6 +30708,7 @@ class $$PostUnderstandingsTableTableManager
                 jokeMechanism: jokeMechanism,
                 emotion: emotion,
                 insiderAngle: insiderAngle,
+                angles: angles,
                 needsWeb: needsWeb,
                 confidence: confidence,
                 model: model,
@@ -31124,6 +31235,7 @@ typedef $$ResidentWakeLogsTableCreateCompanionBuilder =
       Value<String> note,
       Value<int?> noteAt,
       Value<int?> noteDeliveredAt,
+      Value<String> tools,
       Value<int> rowid,
     });
 typedef $$ResidentWakeLogsTableUpdateCompanionBuilder =
@@ -31136,6 +31248,7 @@ typedef $$ResidentWakeLogsTableUpdateCompanionBuilder =
       Value<String> note,
       Value<int?> noteAt,
       Value<int?> noteDeliveredAt,
+      Value<String> tools,
       Value<int> rowid,
     });
 
@@ -31185,6 +31298,11 @@ class $$ResidentWakeLogsTableFilterComposer
 
   ColumnFilters<int> get noteDeliveredAt => $composableBuilder(
     column: $table.noteDeliveredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tools => $composableBuilder(
+    column: $table.tools,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -31237,6 +31355,11 @@ class $$ResidentWakeLogsTableOrderingComposer
     column: $table.noteDeliveredAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get tools => $composableBuilder(
+    column: $table.tools,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ResidentWakeLogsTableAnnotationComposer
@@ -31275,6 +31398,9 @@ class $$ResidentWakeLogsTableAnnotationComposer
     column: $table.noteDeliveredAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get tools =>
+      $composableBuilder(column: $table.tools, builder: (column) => column);
 }
 
 class $$ResidentWakeLogsTableTableManager
@@ -31322,6 +31448,7 @@ class $$ResidentWakeLogsTableTableManager
                 Value<String> note = const Value.absent(),
                 Value<int?> noteAt = const Value.absent(),
                 Value<int?> noteDeliveredAt = const Value.absent(),
+                Value<String> tools = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ResidentWakeLogsCompanion(
                 id: id,
@@ -31332,6 +31459,7 @@ class $$ResidentWakeLogsTableTableManager
                 note: note,
                 noteAt: noteAt,
                 noteDeliveredAt: noteDeliveredAt,
+                tools: tools,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -31344,6 +31472,7 @@ class $$ResidentWakeLogsTableTableManager
                 Value<String> note = const Value.absent(),
                 Value<int?> noteAt = const Value.absent(),
                 Value<int?> noteDeliveredAt = const Value.absent(),
+                Value<String> tools = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ResidentWakeLogsCompanion.insert(
                 id: id,
@@ -31354,6 +31483,7 @@ class $$ResidentWakeLogsTableTableManager
                 note: note,
                 noteAt: noteAt,
                 noteDeliveredAt: noteDeliveredAt,
+                tools: tools,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

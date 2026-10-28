@@ -46,6 +46,37 @@ void main() {
       expect(result.toPromptBlock(), contains('情绪落点'));
     });
 
+    test('接话角度解析出来，去重并最多 5 条', () {
+      final result = PostAnalyzer.parse(
+        '{"tone":"玩梗","domain":"游戏","point":"抽卡歪了",'
+        '"angles":["加班的共鸣","反讽吐槽","好奇问细节","反讽吐槽",'
+        '"自嘲更惨","圈内接梗","多出来的一条"],'
+        '"confidence":0.8}',
+        postId: 'p4',
+        model: 'm',
+      );
+
+      expect(result!.angles, [
+        '加班的共鸣',
+        '反讽吐槽',
+        '好奇问细节',
+        '自嘲更惨',
+        '圈内接梗',
+      ]);
+      expect(result.toPromptBlock(), contains('可以接的角度'));
+      expect(result.toPromptBlock(), contains('每人挑一个不同的角度'));
+    });
+
+    test('没有角度时提示块不硬加一行', () {
+      final result = PostAnalyzer.parse(
+        '{"tone":"日常","domain":"生活","point":"吃完饭了","confidence":0.7}',
+        postId: 'p5',
+        model: 'm',
+      );
+      expect(result!.angles, isEmpty);
+      expect(result.toPromptBlock(), isNot(contains('可以接的角度')));
+    });
+
     test('confidence 低时，提示块明确只许提问/围观', () {
       final result = PostAnalyzer.parse(
         '{"tone":"玩梗","domain":"其他","point":"没看懂",'

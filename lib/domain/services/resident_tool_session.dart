@@ -12,6 +12,7 @@ import 'action_registry.dart';
 import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
+import 'tool_call_text.dart';
 import 'tool_settings_controller.dart';
 import 'web_search.dart';
 
@@ -226,7 +227,10 @@ class ResidentToolSession {
       );
 
       if (result.toolCalls.isEmpty) {
-        return ResidentReply(text: result.content.trim(), stickers: stickers);
+        return ResidentReply(
+          text: sanitizeModelText(result.content),
+          stickers: stickers,
+        );
       }
 
       messages.add({
@@ -294,7 +298,7 @@ class ResidentToolSession {
         timeout: left,
       );
       return ResidentReply(
-        text: finalResult.content.trim(),
+        text: sanitizeModelText(finalResult.content),
         stickers: stickers,
       );
     } catch (error) {
@@ -317,6 +321,7 @@ class ResidentToolSession {
     List<DirectTurn> history = const [],
     bool allowProactive = true,
     bool allowVoice = true,
+    Future<void> Function(String name)? onTool,
   }) async {
     final limits = _settings;
     final voiceReady = allowVoice && _voiceToolAvailable(resident);
@@ -383,7 +388,9 @@ class ResidentToolSession {
         rethrow;
       }
 
-      if (result.toolCalls.isEmpty) return result.content.trim();
+      if (result.toolCalls.isEmpty) {
+        return sanitizeModelText(result.content);
+      }
 
       messages.add({
         'role': 'assistant',
@@ -405,6 +412,13 @@ class ResidentToolSession {
         if (deadline.difference(DateTime.now()) <= Duration.zero) break;
         final args = call.arguments;
         _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
+        // 日志要记的是“真的动手了”，所以放在执行之前；
+        // 记日志失败不允许影响这一轮的行为。
+        try {
+          await onTool?.call(call.name);
+        } catch (error) {
+          debugPrint('[工具] 调用没记进日志：$error');
+        }
         final ActionOutcome outcome;
         switch (call.name) {
           case 'reply_inbox':
@@ -566,7 +580,7 @@ class ResidentToolSession {
         maxTokens: 120,
         timeout: left,
       );
-      return finalResult.content.trim();
+      return sanitizeModelText(finalResult.content);
     } catch (error) {
       debugPrint('[唤醒] 收尾没成：$error');
       return '';

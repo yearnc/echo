@@ -8,6 +8,7 @@ import '../../data/repositories/model_config_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/model_config.dart';
 import 'model_call_common.dart';
+import 'tool_call_text.dart';
 import 'user_identity_prompt.dart';
 
 /// 模型要调用一个工具。
@@ -184,7 +185,8 @@ class ModelGateway {
       if (content == null) {
         throw const ModelCallException('模型没有返回内容');
       }
-      return content;
+      // 有些模型把工具调用当普通文本吐出来；这里挡住，别让标记流进正文。
+      return sanitizeModelText(content);
     } on DioException catch (error) {
       throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
     }
@@ -305,8 +307,24 @@ class ModelGateway {
         }
       }
 
+      final content = (message['content'] as String?)?.trim() ?? '';
+      // 服务商没给结构化的 tool_calls、正文里却是 DSML 标记：
+      // 说明模型走了“文本式工具调用”。把它还原成真正的调用，正文一并洗掉。
+      if (calls.isEmpty && hasToolCallMarkup(content)) {
+        final parsed = parseTextToolCalls(content);
+        for (var i = 0; i < parsed.length; i++) {
+          calls.add(
+            ToolCallRequest(
+              id: 'text_call_${i}_${DateTime.now().microsecondsSinceEpoch}',
+              name: parsed[i].name,
+              arguments: parsed[i].arguments,
+            ),
+          );
+        }
+      }
+
       return ToolChatResult(
-        content: (message['content'] as String?)?.trim() ?? '',
+        content: sanitizeModelText(content),
         toolCalls: calls,
       );
     } on DioException catch (error) {

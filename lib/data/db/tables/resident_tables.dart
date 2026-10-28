@@ -122,6 +122,9 @@ class ResidentWakeLogs extends Table {
   /// 否则同一句留言会在之后每一轮里反复出现。
   IntColumn get noteDeliveredAt => integer().nullable()();
 
+  /// 这一轮调用过的工具名（JSON 数组，v43）。日志页据此显示 TA 干了什么。
+  TextColumn get tools => text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

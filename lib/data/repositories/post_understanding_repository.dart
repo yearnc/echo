@@ -34,6 +34,7 @@ class PostUnderstandingRepository {
             jokeMechanism: Value(understanding.jokeMechanism),
             emotion: Value(understanding.emotion),
             insiderAngle: Value(understanding.insiderAngle),
+            angles: Value(jsonEncode(understanding.angles)),
             needsWeb: Value(understanding.needsWeb),
             confidence: Value(understanding.confidence),
             model: Value(understanding.model),
@@ -52,6 +53,7 @@ class PostUnderstandingRepository {
   PostUnderstanding _toDomain(PostUnderstandingRow row) {
     final decoded = _entities(row.entities);
     return PostUnderstanding(
+      angles: _entities(row.angles),
       postId: row.postId,
       tone: row.tone,
       domain: row.domain,

@@ -68,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -878,6 +878,19 @@ class AppDatabase extends _$AppDatabase {
         // v42：固定住民的唤醒日志 + 给未来自己的留言。
         if (!await hasTable('resident_wake_logs')) {
           await m.createTable(residentWakeLogs);
+        }
+      }
+      if (from < 43) {
+        // v43：
+        // - 唤醒日志记下这一轮实际调用了哪些工具；
+        // - 帖子解析多给几个接话角度，临时网民各挑一个，别挤在同一种态度上。
+        if (await hasTable('resident_wake_logs') &&
+            !await hasColumn('resident_wake_logs', 'tools')) {
+          await m.addColumn(residentWakeLogs, residentWakeLogs.tools);
+        }
+        if (await hasTable('post_understandings') &&
+            !await hasColumn('post_understandings', 'angles')) {
+          await m.addColumn(postUnderstandings, postUnderstandings.angles);
         }
       }
     },

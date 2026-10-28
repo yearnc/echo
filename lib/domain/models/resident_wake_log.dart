@@ -11,6 +11,7 @@ class ResidentWakeLog {
     this.endedAt,
     this.note = '',
     this.noteAt,
+    this.tools = const [],
   });
 
   final String id;
@@ -25,7 +26,36 @@ class ResidentWakeLog {
   final String note;
   final DateTime? noteAt;
 
+  /// 这一轮调用了哪些工具（原始名，按调用顺序）。v43 起记录。
+  final List<String> tools;
+
   bool get hasNote => note.trim().isNotEmpty;
+  bool get hasTools => tools.isNotEmpty;
+
+  /// 工具名给页面上看的中文说法。
+  static String toolLabel(String name) => switch (name) {
+    'memory_search' || 'memory_read' || 'memory_list_recent' => '翻记忆',
+    'memory_write' || 'memory_update' || 'memory_delete' => '记事情',
+    'web_search' => '联网搜索',
+    'browse_feed' => '刷帖子',
+    'read_post' => '看帖子',
+    'like_post' => '点赞',
+    'comment_post' => '写评论',
+    'reply_inbox' => '回评论',
+    'send_dm' => '发私信',
+    'send_voice' => '发语音',
+    'send_sticker' => '发表情',
+    'create_post' => '发动态',
+    'generate_image' => '画图',
+    'check_wake_log' => '看自己的日志',
+    'leave_note' => '留句话',
+    'list_tools' => '查工具',
+    'list_stickers' => '挑表情',
+    'cancel_pending_segment' => '取消待发',
+    'rewrite_pending_segment' => '改写待发',
+    'finish' => '已读不回',
+    _ => name,
+  };
 
   /// 触发方式的中文说法（日志页与工具结果共用一份）。
   String get triggerLabel => switch (trigger) {

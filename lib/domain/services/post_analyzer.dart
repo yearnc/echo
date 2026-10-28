@@ -106,6 +106,8 @@ class PostAnalyzer {
 - joke_mechanism：如果是玩梗，笑点是什么（谐音 / 反差 / 自嘲 / 圈内黑话 / 剧情梗）；不是玩梗留空
 - emotion：如果是感伤，情绪落在哪件事上；不是留空
 - insider_angle：如果是游戏或行业，圈内人真正会接的那个点；不是留空
+- angles：3—5 个**不同的人**可能接话的角度，每条 8 字以内，彼此不要重复
+  （例：加班的共鸣 / 反讽吐槽 / 好奇问细节 / 自嘲更惨 / 圈内接梗 / 一句短评）
 - needs_web：是否必须靠外部实时信息才能理解（新活动、新闻、刚发生的事）
 - confidence：0—1，拿不准就写低
 
@@ -163,6 +165,18 @@ class PostAnalyzer {
         }
       }
 
+      final angles = <String>[];
+      final rawAngles = data['angles'];
+      if (rawAngles is List) {
+        for (final item in rawAngles) {
+          if (item is! String) continue;
+          final value = item.trim();
+          if (value.isEmpty || angles.contains(value)) continue;
+          angles.add(value);
+          if (angles.length >= 5) break;
+        }
+      }
+
       final confidenceRaw = data['confidence'];
       final confidence = confidenceRaw is num
           ? confidenceRaw.toDouble().clamp(0.0, 1.0)
@@ -178,6 +192,7 @@ class PostAnalyzer {
         jokeMechanism: _string(data['joke_mechanism']) ?? '',
         emotion: _string(data['emotion']) ?? '',
         insiderAngle: _string(data['insider_angle']) ?? '',
+        angles: angles,
         needsWeb: data['needs_web'] == true,
         confidence: confidence,
         model: model,

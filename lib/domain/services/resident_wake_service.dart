@@ -28,6 +28,7 @@ import 'content_generator.dart';
 import 'dm_voice_service.dart';
 import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
+import 'tool_call_text.dart';
 import 'tts_service.dart';
 import 'resident_tool_session.dart';
 
@@ -320,16 +321,27 @@ class ResidentWakeService {
     }
 
     final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
+    // 日志行可能不是新的一条：用户连续发私信时，几分钟内的几轮并成一行，
+    // 免得日志页像被刷屏。wakeId 仍然每一轮独立——私信分段的幂等键靠它。
+    var logId = wakeId;
     // 日志失败不该拦住这一轮：它只是回忆，不是业务。
     ResidentWakeLog? lastNote;
     try {
-      await wakeLogs.start(
-        id: wakeId,
-        residentId: residentId,
-        trigger: _triggerKey(trigger),
-        at: now,
-      );
-      lastNote = await wakeLogs.lastNote(residentId, excludeId: wakeId);
+      final reusable = trigger == WakeTrigger.userAction
+          ? await wakeLogs.reusableUserWake(residentId, now: now)
+          : null;
+      if (reusable != null) {
+        logId = reusable.id;
+        await wakeLogs.reopen(logId);
+      } else {
+        await wakeLogs.start(
+          id: wakeId,
+          residentId: residentId,
+          trigger: _triggerKey(trigger),
+          at: now,
+        );
+      }
+      lastNote = await wakeLogs.lastNote(residentId, excludeId: logId);
     } catch (error) {
       debugPrint('[唤醒] 日志没记上：$error');
     }
@@ -344,6 +356,7 @@ class ResidentWakeService {
       service: this,
       resident: resident,
       wakeId: wakeId,
+      logId: logId,
       pending: visible,
       now: now,
       // v41：后台也允许主动行为（发帖/评论/点赞/刷帖子/画图），
@@ -390,6 +403,8 @@ class ResidentWakeService {
         history: history,
         allowProactive: true,
         allowVoice: toolkit.allowVoice,
+        // 日志里记的是它具体调了哪些工具，而不只是“醒了几分钟”。
+        onTool: (name) => wakeLogs.recordTool(logId, name),
       );
 
       // 模型没调工具、只回了一句话：当作私信发出去。
@@ -427,7 +442,7 @@ class ResidentWakeService {
       return 0;
     } finally {
       try {
-        await wakeLogs.finish(wakeId, at: DateTime.now());
+        await wakeLogs.finish(logId, at: DateTime.now());
         // 留言已经进过这一轮的上下文，之后不再反复带上。
         if (lastNote != null) {
           await wakeLogs.markNoteDelivered(lastNote.id);
@@ -572,7 +587,7 @@ class ResidentWakeService {
     String content,
     String callId,
   ) async {
-    final text = content.trim();
+    final text = sanitizeModelText(content);
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '回复是空的');
     }
@@ -622,7 +637,7 @@ class ResidentWakeService {
     int segmentGapSeconds, {
     bool asVoice = false,
   }) async {
-    final text = content.trim();
+    final text = sanitizeModelText(content);
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '消息是空的');
     }
@@ -709,7 +724,7 @@ class ResidentWakeService {
     String callId,
     Future<Uint8List?>? image,
   ) async {
-    final text = content.trim();
+    final text = sanitizeModelText(content);
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '动态是空的');
     }
@@ -907,6 +922,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     required this.service,
     required this.resident,
     required this.wakeId,
+    required this.logId,
     required this.pending,
     required this.now,
     required this.allowProactive,
@@ -917,6 +933,10 @@ class _WakeToolkit implements ResidentWakeToolkit {
   final ResidentWakeService service;
   final CustomResident resident;
   final String wakeId;
+
+  /// 本轮对应的日志行。连续对话会合并到同一行，所以它不一定等于 wakeId。
+  /// 私信分段的幂等键仍用 wakeId：合并不该让第二条消息被当成重复。
+  final String logId;
   final List<ResidentInboxItem> pending;
   final DateTime now;
   final bool allowProactive;
@@ -1304,6 +1324,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
               {
                 'time': ResidentToolSession.timeLabel(log.wokeAt),
                 'trigger': log.triggerLabel,
+                'did': [for (final tool in log.tools) ResidentWakeLog.toolLabel(tool)],
                 'note': log.note,
               },
           ],
@@ -1320,7 +1341,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '留言是空的');
     }
-    final ok = await service.wakeLogs.setNote(wakeId, text);
+    final ok = await service.wakeLogs.setNote(logId, text);
     return ok
         ? const ActionOutcome(ok: true, message: '留好了，下一次醒来会先看到这句话')
         : const ActionOutcome(ok: false, message: '这次醒来没有日志可写');

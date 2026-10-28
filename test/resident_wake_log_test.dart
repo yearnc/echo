@@ -72,6 +72,81 @@ void main() {
     expect(await logs.lastNote('r1', excludeId: 'w2'), isNull);
   });
 
+  test('工具调用按顺序记下来，连续同名只留一条', () async {
+    final at = DateTime(2026, 10, 28, 12);
+    await logs.start(
+      id: 'w1',
+      residentId: 'r1',
+      trigger: 'user_action',
+      at: at,
+    );
+    await logs.recordTool('w1', 'memory_list_recent');
+    await logs.recordTool('w1', 'send_dm');
+    await logs.recordTool('w1', 'send_dm');
+    await logs.recordTool('w1', 'send_dm');
+    await logs.finish('w1', at: at.add(const Duration(seconds: 30)));
+
+    final today = await logs.today('r1', now: at);
+    expect(today.single.tools, ['memory_list_recent', 'send_dm']);
+  });
+
+  test('十分钟内连续的 user_action 合并成一次', () async {
+    final first = DateTime(2026, 10, 28, 12);
+    await logs.start(
+      id: 'w1',
+      residentId: 'r1',
+      trigger: 'user_action',
+      at: first,
+    );
+    await logs.finish('w1', at: first.add(const Duration(seconds: 20)));
+
+    final next = await logs.reusableUserWake(
+      'r1',
+      now: first.add(const Duration(minutes: 3)),
+    );
+    expect(next?.id, 'w1');
+
+    // 超过窗口就是新的一次。
+    final far = await logs.reusableUserWake(
+      'r1',
+      now: first.add(const Duration(minutes: 11)),
+    );
+    expect(far, isNull);
+  });
+
+  test('心跳和后台不参与合并', () async {
+    final at = DateTime(2026, 10, 28, 12);
+    await logs.start(
+      id: 'w1',
+      residentId: 'r1',
+      trigger: 'heartbeat',
+      at: at,
+    );
+    await logs.finish('w1', at: at.add(const Duration(minutes: 1)));
+
+    expect(
+      await logs.reusableUserWake('r1', now: at.add(const Duration(minutes: 2))),
+      isNull,
+    );
+  });
+
+  test('合并后重新打开，结束时长按最后一次算', () async {
+    final at = DateTime(2026, 10, 28, 12);
+    await logs.start(
+      id: 'w1',
+      residentId: 'r1',
+      trigger: 'user_action',
+      at: at,
+    );
+    await logs.finish('w1', at: at.add(const Duration(minutes: 1)));
+    await logs.reopen('w1');
+    await logs.finish('w1', at: at.add(const Duration(minutes: 4)));
+
+    final list = await logs.today('r1', now: at);
+    expect(list, hasLength(1));
+    expect(list.single.awakeFor, const Duration(minutes: 4));
+  });
+
   test('空留言不会覆盖已有记录', () async {
     await logs.start(
       id: 'w1',

@@ -87,8 +87,8 @@ class ResidentWakeLogPage extends ConsumerWidget {
               ...rows,
               const SizedBox(height: 10),
               Text(
-                '日志只记“醒来的时间”和 TA 给自己留的话；'
-                '聊天内容仍然只在私信和评论里。',
+                '日志记“醒来的时间、调用了哪些工具、给自己留的话”；'
+                '几轮连续的对话会合并成一次，聊天内容仍然只在私信和评论里。',
                 style: TextStyle(
                   color: EchoColors.textFaint,
                   fontSize: 11.5,
@@ -235,6 +235,35 @@ class _LogTile extends StatelessWidget {
                 ),
             ],
           ),
+          if (log.hasTools) ...[
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final entry in _toolCounts(log.tools).entries)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: EchoColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      entry.value > 1
+                          ? '${entry.key} ×${entry.value}'
+                          : entry.key,
+                      style: TextStyle(
+                        color: EchoColors.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           if (log.hasNote) ...[
             const SizedBox(height: 7),
             Text(
@@ -249,6 +278,16 @@ class _LogTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 同一轮里同一个工具可能调了好几次；页面按“中文说法 + 次数”合并。
+  static Map<String, int> _toolCounts(List<String> tools) {
+    final counts = <String, int>{};
+    for (final tool in tools) {
+      final label = ResidentWakeLog.toolLabel(tool);
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    return counts;
   }
 
   static String _durationLabel(Duration span) {

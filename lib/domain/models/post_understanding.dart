@@ -12,6 +12,7 @@ class PostUnderstanding {
     this.jokeMechanism = '',
     this.emotion = '',
     this.insiderAngle = '',
+    this.angles = const [],
     this.needsWeb = false,
     this.confidence = 0,
     this.model = '',
@@ -36,6 +37,10 @@ class PostUnderstanding {
   final String jokeMechanism;
   final String emotion;
   final String insiderAngle;
+
+  /// 不同的人可能抓住的接话角度（v3.10）。最多 5 条，彼此不重复；
+  /// 生成评论时要求每个网民挑一个不同的，别都挤在同一种态度上。
+  final List<String> angles;
   final bool needsWeb;
   final double confidence;
   final String model;
@@ -61,6 +66,10 @@ class PostUnderstanding {
     if (jokeMechanism.isNotEmpty) buffer.writeln('笑点：$jokeMechanism');
     if (emotion.isNotEmpty) buffer.writeln('情绪落点：$emotion');
     if (insiderAngle.isNotEmpty) buffer.writeln('圈内角度：$insiderAngle');
+    if (angles.isNotEmpty) {
+      buffer.writeln('可以接的角度：${angles.join(' / ')}');
+      buffer.writeln('每人挑一个不同的角度，不要挤在同一种态度上。');
+    }
     buffer.writeln(
       isConfident
           ? '理解置信度：${confidence.toStringAsFixed(2)}'
