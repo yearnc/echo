@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// 桌宠素材清单的护栏：106 个动作、每个动作 24 帧、语义动作和素材一一对应。
+/// 桌宠素材清单的护栏：106 个动作、每个动作 48 帧、语义动作和素材一一对应。
 /// 换素材以后这里最先红，比等真机上“某几个动作播不出来”便宜。
 void main() {
   late Map<String, dynamic> manifest;
@@ -23,7 +23,7 @@ void main() {
       actions.every((a) => (a['key'] as String).startsWith('act_')),
       isTrue,
     );
-    expect(actions.every((a) => a['frames'] == 24), isTrue);
+    expect(actions.every((a) => a['frames'] == 48), isTrue);
 
     final kinds = <String, int>{};
     for (final action in actions) {
@@ -46,9 +46,9 @@ void main() {
         reason: '$key 缺第 0 帧',
       );
       expect(
-        File('assets/pet_frames/${key}_23.webp').existsSync(),
+        File('assets/pet_frames/${key}_47.webp').existsSync(),
         isTrue,
-        reason: '$key 缺第 23 帧',
+        reason: '$key 缺第 47 帧',
       );
     }
   });

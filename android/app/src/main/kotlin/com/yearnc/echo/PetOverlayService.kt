@@ -61,8 +61,6 @@ class PetOverlayService : Service() {
         const val ACTION_SAY = "com.yearnc.echo.pet.SAY"
         const val ACTION_REACT = "com.yearnc.echo.pet.REACT"
         const val ACTION_MOOD = "com.yearnc.echo.pet.MOOD"
-        const val ACTION_TRANSLUCENT = "com.yearnc.echo.pet.TRANSLUCENT"
-        const val EXTRA_TRANSLUCENT = "translucent"
         const val EXTRA_TEXT = "text"
         const val EXTRA_ACTION = "action"
         const val EXTRA_MOOD = "mood"
@@ -75,12 +73,7 @@ class PetOverlayService : Service() {
         var running: Boolean = false
             private set
 
-        /// [translucent] 非空时先落盘再启动；为空则沿用上次那份设置。
-        fun start(context: Context, translucent: Boolean? = null) {
-            if (translucent != null) {
-                context.getSharedPreferences("echo_pet", Context.MODE_PRIVATE)
-                    .edit().putBoolean(EXTRA_TRANSLUCENT, translucent).apply()
-            }
+        fun start(context: Context) {
             val intent = Intent(context, PetOverlayService::class.java)
                 .setAction(ACTION_START)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -110,14 +103,6 @@ class PetOverlayService : Service() {
                 Intent(context, PetOverlayService::class.java)
                     .setAction(ACTION_REACT)
                     .putExtra(EXTRA_ACTION, action)
-            )
-        }
-
-        fun setTranslucent(context: Context, translucent: Boolean) {
-            context.startService(
-                Intent(context, PetOverlayService::class.java)
-                    .setAction(ACTION_TRANSLUCENT)
-                    .putExtra(EXTRA_TRANSLUCENT, translucent)
             )
         }
 
@@ -175,7 +160,8 @@ class PetOverlayService : Service() {
     /// 每次换动作都 +1：同一种动作连着播两次时，旧的定时器不能把新的顶回待机。
     private var actionToken = 0
 
-    /// 帧序列解码后缓存最近几个动作。320×180×4B ≈ 225KB/帧，一个动作约 5.4MB。
+    /// 帧序列解码后缓存最近几个动作。320×180×4B ≈ 225KB/帧，48 帧约 10.8MB；
+    /// 只留 3 个，避免帧数翻倍后把堆内存顶穿。
     private val animationCache = LinkedHashMap<String, AnimationDrawable>()
 
     private val handler = Handler(Looper.getMainLooper())
@@ -284,12 +270,6 @@ class PetOverlayService : Service() {
                 ensureOverlay()
                 setMood(intent.getStringExtra(EXTRA_MOOD).orEmpty())
             }
-            ACTION_TRANSLUCENT -> {
-                ensureOverlay()
-                applyTranslucent(
-                    intent.getBooleanExtra(EXTRA_TRANSLUCENT, true),
-                )
-            }
             else -> ensureOverlay()
         }
         return START_STICKY
@@ -365,7 +345,7 @@ class PetOverlayService : Service() {
                     key = o.getString("key"),
                     name = o.optString("name"),
                     kind = o.optString("kind"),
-                    frames = o.optInt("frames", 24),
+                    frames = o.optInt("frames", 48),
                     expose = o.optString("expose").takeIf { it.isNotBlank() },
                     category = o.optString("category").takeIf { it.isNotBlank() },
                     move = moveObj?.let {
@@ -408,14 +388,24 @@ class PetOverlayService : Service() {
 
     private fun buildOverlay() {
         ensureManifest()
-        val stageWidth = dp(stageWidthDp)
-        val stageHeight = dp(stageHeightDp)
+        // v4.2.8：窗口只包住角色本体（整帧 197×111dp → 约 100×105dp），
+        // 用 CENTER_CROP 把周围的透明边裁掉。触摸范围不再比桌宠大两三倍。
+        // 代价：烟花、动物环绕这类超出本体的特效会被窗口裁掉。
+        val bodyWidthDp =
+            hitRect.width() * stageWidthDp / imageWidth.coerceAtLeast(1)
+        val bodyHeightDp =
+            hitRect.height() * stageHeightDp / imageHeight.coerceAtLeast(1)
+        val stageWidth = dp((bodyWidthDp + 8).coerceAtLeast(48))
+        val stageHeight = dp((bodyHeightDp + 8).coerceAtLeast(48))
 
-        // 舞台：整帧，背景必须显式透明；**不可触摸**，空白处让给下面的应用。
-        root = FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT) }
+        // 舞台：只显示本体，背景显式透明。
+        root = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            alpha = 1f
+        }
         pet = ImageView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER_CROP
             // 帧本身是不透明的（alpha 255）；显式锁一遍，避免任何继承下来的透明度。
             alpha = 1f
         }
@@ -464,20 +454,21 @@ class PetOverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
         }
 
+        // **不能**再带 FLAG_NOT_TOUCHABLE：Android 12+/部分 ROM 会把“允许点击穿透”
+        // 的悬浮窗最大不透明度压到 0.8，窗口 alpha 设 1.0 也没用——桌宠看起来永远发虚。
+        // v4.0.0 是单窗口、可触摸的，所以它一直是不透明的；v4.1 拆双窗口后才开始透。
+        // 代价：舞台窗的空白区会吞触摸（拖拽/点击仍由上层命中窗处理）。
         val lp = WindowManager.LayoutParams(
             stageWidth,
             stageHeight,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // 整只角色的透明度：默认半透明（能隐约看见后面的背景），
-            // 在「我的 → 桌宠 → 外观」里可以关掉改成完全不透明。
-            alpha = alphaForTranslucent(translucentEnabled())
+            // 窗口 alpha 保持默认 1.0：不设它，免得部分 ROM 把值粘在 surface 上。
             val prefs = getSharedPreferences("echo_pet", MODE_PRIVATE)
             val (screenW, screenH) = displaySize()
             x = prefs.getInt("x", screenW - stageWidth - dp(8))
@@ -486,16 +477,15 @@ class PetOverlayService : Service() {
         params = lp
         windowManager.addView(root, lp)
 
-        // 命中窗：只包住角色本体，拖拽/点击都落在这里。
-        val scaleX = stageWidth.toFloat() / imageWidth.coerceAtLeast(1)
-        val scaleY = stageHeight.toFloat() / imageHeight.coerceAtLeast(1)
-        val hitWidth = (hitRect.width() * scaleX).toInt().coerceAtLeast(dp(36))
-        val hitHeight = (hitRect.height() * scaleY).toInt().coerceAtLeast(dp(36))
-        hit = FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT) }
+        // 命中窗：和舞台完全重合——舞台已经裁到本体了，触摸范围就是本体。
+        hit = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            alpha = 1f
+        }
         attachDrag()
         val hp = WindowManager.LayoutParams(
-            hitWidth,
-            hitHeight,
+            stageWidth,
+            stageHeight,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -512,42 +502,13 @@ class PetOverlayService : Service() {
         clampPetPosition(keepBodyVisible = true)
         updateHitPosition()
         startIdle()
-        // 待机先解好，别等第一次互动时在主线程里一口气解 24 帧。
+        // 待机先解好，别等第一次互动时在主线程里一口气解 48 帧。
         idlePool.firstOrNull()?.let {
             try {
                 loadAnimated(it)
             } catch (_: Throwable) {
             }
         }
-    }
-
-    private fun translucentEnabled(): Boolean =
-        getSharedPreferences("echo_pet", MODE_PRIVATE)
-            .getBoolean(EXTRA_TRANSLUCENT, true)
-
-    private fun alphaForTranslucent(enabled: Boolean): Float =
-        if (enabled) 0.85f else 1f
-
-    /// 立刻改整只角色的透明度；没在屏幕上时只记下来，下次启动生效。
-    private fun applyTranslucent(enabled: Boolean) {
-        getSharedPreferences("echo_pet", MODE_PRIVATE)
-            .edit().putBoolean(EXTRA_TRANSLUCENT, enabled).apply()
-        val p = params ?: return
-        val alpha = alphaForTranslucent(enabled)
-        if (p.alpha != alpha) {
-            p.alpha = alpha
-            // 缓存里的帧是按旧的“透不透明”烘焙的，换档要重解。
-            animationCache.values.forEach { it.stop() }
-            animationCache.clear()
-            currentDrawable = null
-            if (::root.isInitialized) {
-                try {
-                    windowManager.updateViewLayout(root, p)
-                } catch (_: Throwable) {
-                }
-            }
-        }
-        if (::root.isInitialized) startIdle()
     }
 
     private fun overlayType(): Int =
@@ -590,22 +551,17 @@ class PetOverlayService : Service() {
         val p = params ?: return
         if (!::root.isInitialized) return
         val (screenW, screenH) = displaySize()
-        val scaleX = p.width.toFloat() / imageWidth.coerceAtLeast(1)
-        val scaleY = p.height.toFloat() / imageHeight.coerceAtLeast(1)
-        val bodyLeft = (hitRect.left * scaleX).toInt()
-        val bodyTop = (hitRect.top * scaleY).toInt()
-        val bodyWidth = (hitRect.width() * scaleX).toInt()
-        val bodyHeight = (hitRect.height() * scaleY).toInt()
         val margin = dp(8)
         val minX: Int
         val maxX: Int
         val minY: Int
         val maxY: Int
         if (keepBodyVisible) {
-            minX = -bodyLeft + margin
-            maxX = (screenW - bodyLeft - bodyWidth - margin).coerceAtLeast(minX)
-            minY = -bodyTop + margin
-            maxY = (screenH - bodyTop - bodyHeight - margin).coerceAtLeast(minY)
+            // v4.2.8 起窗口本身就只含角色本体，不用再从整帧里推算本体偏移。
+            minX = margin
+            maxX = (screenW - p.width - margin).coerceAtLeast(minX)
+            minY = margin
+            maxY = (screenH - p.height - margin).coerceAtLeast(minY)
         } else {
             val visibleX = (p.width * 0.25f).toInt().coerceAtLeast(dp(24))
             val visibleY = (p.height * 0.25f).toInt().coerceAtLeast(dp(18))
@@ -630,10 +586,11 @@ class PetOverlayService : Service() {
         if (!hitAdded) return
         val p = params ?: return
         val hp = hitParams ?: return
-        val scaleX = p.width.toFloat() / imageWidth.coerceAtLeast(1)
-        val scaleY = p.height.toFloat() / imageHeight.coerceAtLeast(1)
-        hp.x = p.x + (hitRect.left * scaleX).toInt()
-        hp.y = p.y + (hitRect.top * scaleY).toInt()
+        // 命中窗与舞台完全重合。
+        hp.x = p.x
+        hp.y = p.y
+        hp.width = p.width
+        hp.height = p.height
         try {
             windowManager.updateViewLayout(hit, hp)
         } catch (_: Throwable) {
@@ -946,10 +903,7 @@ class PetOverlayService : Service() {
             val name = String.format(Locale.US, "%s_%02d.webp", action.key, index)
             try {
                 assets.open("flutter_assets/assets/pet_frames/$name").use { stream ->
-                    val decoded = BitmapFactory.decodeStream(stream)
-                    val bitmap = decoded?.let {
-                        if (translucentEnabled()) it else forceOpaque(it)
-                    }
+                    val bitmap = BitmapFactory.decodeStream(stream)
                     if (bitmap != null) {
                         animation.addFrame(BitmapDrawable(resources, bitmap), frameMs.toInt())
                     }
@@ -962,36 +916,11 @@ class PetOverlayService : Service() {
             return null
         }
         animationCache[action.key] = animation
-        while (animationCache.size > 4) {
+        while (animationCache.size > 3) {
             val oldest = animationCache.keys.first()
             animationCache.remove(oldest)?.stop()
         }
         return animation
-    }
-
-    /// 关掉半透明时，把帧里非全透明的像素强行设为不透明。
-    ///
-    /// 这是第二道保险：正常情况只有窗口 alpha 在起作用，但个别 ROM 的
-    /// WebP 解码会把 alpha 弄得发虚；烘焙一遍就稳了，代价是边缘没有羽化。
-    private fun forceOpaque(source: android.graphics.Bitmap): android.graphics.Bitmap {
-        return try {
-            val copy = source.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-                ?: return source
-            val width = copy.width
-            val height = copy.height
-            val pixels = IntArray(width * height)
-            copy.getPixels(pixels, 0, width, 0, 0, width, height)
-            for (i in pixels.indices) {
-                val alpha = (pixels[i] ushr 24) and 0xFF
-                if (alpha > 0) {
-                    pixels[i] = pixels[i] or 0xFF000000.toInt()
-                }
-            }
-            copy.setPixels(pixels, 0, width, 0, 0, width, height)
-            copy
-        } catch (_: Throwable) {
-            source
-        }
     }
 
     // ---------------------------------------------------------------- 漫游
@@ -1009,15 +938,11 @@ class PetOverlayService : Service() {
         val dist = dp(randInt(spec.minDp, spec.maxDp))
         // 朝哪边就走哪边——和原项目一样，方向由朝向决定（转向动画才翻朝向）。
         val dir = if (facingRight) 1 else -1
-        // 走路时要求**角色本体**留在屏幕里（窗口里本体两侧是透明的，
-        // 按窗口算会让它走到看不见的地方）。拖拽仍然允许半贴边。
-        val scale = p.width.toFloat() / imageWidth.coerceAtLeast(1)
-        val bodyLeft = (hitRect.left * scale).toInt()
-        val bodyWidth = (hitRect.width() * scale).toInt()
+        // 走路时要求整只桌宠留在屏幕里（v4.2.8 起窗口就是本体）。
+        // 拖拽仍然允许半贴边。
         val margin = dp(8)
-        val minX = -bodyLeft + margin
-        val maxX = (screenW - bodyLeft - bodyWidth - margin)
-            .coerceAtLeast(minX)
+        val minX = margin
+        val maxX = (screenW - p.width - margin).coerceAtLeast(minX)
         val target = (p.x + dir * dist).coerceIn(minX, maxX)
         val startX = p.x
         if (abs(target - startX) < dp(12)) return false

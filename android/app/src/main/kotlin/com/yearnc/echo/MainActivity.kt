@@ -45,10 +45,7 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "startPet" -> {
-                    PetOverlayService.start(
-                        this,
-                        call.argument<Boolean>("translucent"),
-                    )
+                    PetOverlayService.start(this)
                     result.success(true)
                 }
                 "stopPet" -> {
@@ -80,17 +77,6 @@ class MainActivity : FlutterActivity() {
                         this,
                         call.argument<String>("mood").orEmpty(),
                     )
-                    result.success(true)
-                }
-                "setTranslucent" -> {
-                    // 桌宠没在屏幕上时就只落设置（Dart 已写库），
-                    // 别为了换个外观把服务叫起来，宠物会突然冒出来。
-                    if (PetOverlayService.running) {
-                        PetOverlayService.setTranslucent(
-                            this,
-                            call.argument<Boolean>("translucent") ?: true,
-                        )
-                    }
                     result.success(true)
                 }
                 "requestScreenCapture" -> requestCapture(result)

@@ -8,8 +8,11 @@ class PetSettings {
     this.realtimeFrames = 3,
     this.realtimeGapSeconds = 20,
     this.voiceEnabled = false,
-    this.translucent = true,
   });
+
+  /// 实时观察间隔：10 秒到 10 分钟，默认 20 秒。
+  static const int minRealtimeGapSeconds = 10;
+  static const int maxRealtimeGapSeconds = 600;
 
   final bool enabled;
 
@@ -25,23 +28,22 @@ class PetSettings {
   /// 每次唤醒附几张画面（从这段间隔里均匀抽，不是只拿最后几张）。
   final int realtimeFrames;
 
-  /// 实时模式两次观察之间隔多少秒。
+  /// 实时模式两次观察之间隔多少秒（10—600）。
   final int realtimeGapSeconds;
 
   /// 截屏间隔不再单独设置：用“观察间隔 ÷ 每次带几张”算出来，
   /// 这样每张截图都会落在一次观察的窗口里，不做无用功。
+  ///
+  /// 上限跟观察间隔一起放到 5 分钟：10 分钟窗、每次带 2 张时，
+  /// 每张间隔 5 分钟，压到 60 秒的话后半段窗口根本没人截。
   int get captureIntervalMs {
     final frames = realtimeFrames.clamp(1, 6);
     final ms = (realtimeGapSeconds * 1000 / frames).round();
-    return ms.clamp(400, 60000);
+    return ms.clamp(400, 300000);
   }
 
   /// 通话里住民要不要出声（P4 用；默认只发文字）。
   final bool voiceEnabled;
-
-  /// 角色身体是不是半透明（能隐约看到后面的背景）。默认开，
-  /// 也就是现在这一版看起来的样子；关掉后整只完全不透明。
-  final bool translucent;
 
   PetSettings copyWith({
     bool? enabled,
@@ -51,7 +53,6 @@ class PetSettings {
     int? realtimeFrames,
     int? realtimeGapSeconds,
     bool? voiceEnabled,
-    bool? translucent,
   }) => PetSettings(
     enabled: enabled ?? this.enabled,
     defaultResidentId: defaultResidentId ?? this.defaultResidentId,
@@ -60,7 +61,6 @@ class PetSettings {
     realtimeFrames: realtimeFrames ?? this.realtimeFrames,
     realtimeGapSeconds: realtimeGapSeconds ?? this.realtimeGapSeconds,
     voiceEnabled: voiceEnabled ?? this.voiceEnabled,
-    translucent: translucent ?? this.translucent,
   );
 }
 

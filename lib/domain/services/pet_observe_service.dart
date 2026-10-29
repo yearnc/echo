@@ -44,7 +44,8 @@ class PetObserveStatus {
 /// 桌宠的观察循环（v4.0）。
 ///
 /// 普通模式：隔十到二十分钟抓一张，交给当前控制住民点评一句。
-/// 实时模式：原生侧按 0.5/1 秒连续抓图，这里每 15 秒取最近几帧唤醒一次；
+/// 实时模式：原生侧按“观察间隔 ÷ 帧数”连续抓图，这里按用户选的间隔
+/// 从整个窗口里均匀取几帧唤醒一次；
 /// 关闭时先让住民把这段观察总结成一条记忆，写成功才清截图。
 ///
 /// 上下文只保留“这段时间的简短观察”，不把每一帧都永久塞进历史——
@@ -107,7 +108,7 @@ class PetObserveService {
   }
 
   /// 实时模式最多留这么多帧；旧的边收边删。
-  /// 按最长 120 秒、0.5 秒一张估算，留得下整个唤醒窗口。
+  /// 一个唤醒窗口只会截“每次带几张”那么多张，240 帧足够覆盖改设置前的残留。
   static const int maxFrames = 240;
 
   /// 桌宠自己的参照图：截图会把它截进去，模型得知道那是谁。
@@ -142,7 +143,12 @@ class PetObserveService {
     await controllerId();
     if (value.realtime) {
       _framesPerWake = value.realtimeFrames.clamp(1, 6);
-      _gap = Duration(seconds: value.realtimeGapSeconds.clamp(5, 120));
+      _gap = Duration(
+        seconds: value.realtimeGapSeconds.clamp(
+          PetSettings.minRealtimeGapSeconds,
+          PetSettings.maxRealtimeGapSeconds,
+        ),
+      );
       // 截屏间隔由“观察间隔 ÷ 每次带几张”算出来，不再单独设置。
       await native.setWatchInterval(value.captureIntervalMs);
       await native.setContinuous(true);

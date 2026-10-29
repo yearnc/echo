@@ -52,15 +52,29 @@ void main() {
     });
   });
 
-  group('外观', () {
-    test('半透明默认开，copyWith 只改这一项', () {
-      const settings = PetSettings(enabled: true, realtimeFrames: 4);
-      expect(settings.translucent, isTrue);
+  group('观察间隔', () {
+    test('10 分钟窗配 2 张，截屏间隔放到 5 分钟', () {
+      const settings = PetSettings(
+        realtimeGapSeconds: 600,
+        realtimeFrames: 2,
+      );
+      expect(settings.captureIntervalMs, 300000);
+    });
 
-      final solid = settings.copyWith(translucent: false);
-      expect(solid.translucent, isFalse);
-      expect(solid.enabled, isTrue);
-      expect(solid.realtimeFrames, 4);
+    test('最短窗配 6 张，按窗口均分', () {
+      const settings = PetSettings(
+        realtimeGapSeconds: 10,
+        realtimeFrames: 6,
+      );
+      expect(settings.captureIntervalMs, 1667);
+    });
+
+    test('间隔再短也不会低于 400 毫秒一张', () {
+      const settings = PetSettings(
+        realtimeGapSeconds: 1,
+        realtimeFrames: 6,
+      );
+      expect(settings.captureIntervalMs, 400);
     });
   });
 }

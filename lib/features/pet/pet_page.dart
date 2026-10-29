@@ -11,6 +11,7 @@ import '../../domain/models/pet_settings.dart';
 import '../../domain/services/pet_controller.dart';
 import '../../domain/services/pet_observe_service.dart';
 import '../shared_widgets/user_avatar.dart';
+import 'realtime_gap_picker.dart';
 
 /// 「我的 → 桌宠」（v4.0）。
 ///
@@ -133,33 +134,9 @@ class _PetPageState extends ConsumerState<PetPage> {
 
   Future<void> _pickRealtimeGap() async {
     final current = ref.read(petControllerProvider).realtimeGapSeconds;
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: EchoColors.surface,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final seconds in const [10, 15, 20, 30, 60])
-              ListTile(
-                title: Text('$seconds 秒'),
-                subtitle: seconds <= 15
-                    ? Text(
-                        '间隔越短，回看越勤、越费 token',
-                        style: TextStyle(
-                          color: EchoColors.textFaint,
-                          fontSize: 11,
-                        ),
-                      )
-                    : null,
-                trailing: current == seconds
-                    ? const Icon(Icons.check, size: 18)
-                    : null,
-                onTap: () => Navigator.of(sheet).pop(seconds),
-              ),
-          ],
-        ),
-      ),
+    final selected = await showRealtimeGapPicker(
+      context,
+      initialSeconds: current,
     );
     if (selected != null) {
       await ref
@@ -368,25 +345,6 @@ class _PetPageState extends ConsumerState<PetPage> {
                   .removeShift(shift.id),
             ),
           const SizedBox(height: 18),
-          const _Section('外观'),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: state.translucent,
-            title: Text(
-              '半透明身体',
-              style: TextStyle(color: EchoColors.text, fontSize: 14),
-            ),
-            subtitle: Text(
-              state.translucent
-                  ? '能隐约看见后面的背景；关掉后整只完全不透明。'
-                  : '完全不透明，后面是什么都被挡住。',
-              style: TextStyle(color: EchoColors.textMuted, fontSize: 11.5),
-            ),
-            onChanged: (value) => ref
-                .read(petControllerProvider.notifier)
-                .setTranslucent(value),
-          ),
-          const SizedBox(height: 18),
           const _Section('观察'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -412,7 +370,7 @@ class _PetPageState extends ConsumerState<PetPage> {
           _Tile(
             icon: Icons.timer_outlined,
             title: '观察间隔',
-            value: '${state.realtimeGapSeconds} 秒',
+            value: formatRealtimeGap(state.realtimeGapSeconds),
             onTap: _pickRealtimeGap,
           ),
           const _ObserveStatusCard(),

@@ -21,7 +21,6 @@ class PetRuntimeState {
     this.intervalMs = 1000,
     this.defaultResidentId = '',
     this.controllerId,
-    this.translucent = true,
     this.error = '',
   });
 
@@ -35,7 +34,6 @@ class PetRuntimeState {
   final int intervalMs;
   final String defaultResidentId;
   final String? controllerId;
-  final bool translucent;
   final String error;
 
   PetRuntimeState copyWith({
@@ -50,7 +48,6 @@ class PetRuntimeState {
     String? defaultResidentId,
     String? controllerId,
     bool clearController = false,
-    bool? translucent,
     String? error,
   }) => PetRuntimeState(
     busy: busy ?? this.busy,
@@ -63,7 +60,6 @@ class PetRuntimeState {
     intervalMs: intervalMs ?? this.intervalMs,
     defaultResidentId: defaultResidentId ?? this.defaultResidentId,
     controllerId: clearController ? null : (controllerId ?? this.controllerId),
-    translucent: translucent ?? this.translucent,
     error: error ?? this.error,
   );
 }
@@ -119,7 +115,6 @@ class PetController extends Notifier<PetRuntimeState> {
       intervalMs: value.intervalMs,
       defaultResidentId: value.defaultResidentId,
       controllerId: delayed ? null : controller,
-      translucent: value.translucent,
     );
     if (value.enabled && running) {
       _observe.attach();
@@ -144,7 +139,7 @@ class PetController extends Notifier<PetRuntimeState> {
 
       final value = await _settings.load();
       final captured = await _native.requestScreenCapture();
-      await _native.startPet(translucent: value.translucent);
+      await _native.startPet();
       if (captured) {
         await _native.startWatch(
           intervalMs: value.captureIntervalMs,
@@ -265,13 +260,6 @@ class PetController extends Notifier<PetRuntimeState> {
   /// 实时模式多久唤醒一次（秒）。
   Future<void> setRealtimeGap(int seconds) async {
     await _settings.setRealtimeGap(seconds);
-    await refresh();
-  }
-
-  /// 身体半透明 / 完全不透明。桌宠在屏幕上时立刻生效，否则下次启动生效。
-  Future<void> setTranslucent(bool value) async {
-    await _settings.setTranslucent(value);
-    await _native.setTranslucent(value);
     await refresh();
   }
 
