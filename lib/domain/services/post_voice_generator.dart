@@ -81,6 +81,7 @@ abstract interface class PostVoiceGenerator {
     DateTime? at,
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
+    List<String> recentComments = const [],
   });
 }
 
@@ -100,6 +101,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     DateTime? at,
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
+    List<String> recentComments = const [],
   }) async {
     if (count <= 0) return const [];
 
@@ -113,6 +115,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
         at: at,
         avoidNames: avoidNames,
         stickers: catalog,
+        recentComments: recentComments,
         knowledge: NetKnowledge.blockFor(
           tone: understanding?.tone ?? '',
           domain: understanding?.domain ?? '',
@@ -204,8 +207,11 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
 
   /// 用户提示词：这一帖的快照 + 这次要几个人。
   ///
-  /// 所有**会变**的东西都放这里：当前时间、已出现名单、这次几个人、
-  /// 表情包目录。system 保持逐字节一致，缓存前缀才不会每请求分叉。
+  /// **顺序就是缓存**：同一帖要发好几次请求（一人一次），服务商按前缀复用，
+  /// 所以"逐帖稳定"的内容必须全排在前面——帖子、发帖时刻、理解、说话分寸、
+  /// 表情包目录。凡是每次请求都会变的（当前时刻、距发帖多久、已出现的评论和
+  /// 人名、这次几个人）一律压到最后。把"现在"往前提一行，后面几百 token
+  /// 就再也不会命中。
   static String userPrompt({
     required Post post,
     required int count,
@@ -214,6 +220,7 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     Set<String> avoidNames = const {},
     List<StickerItem> stickers = const [],
     String knowledge = '',
+    List<String> recentComments = const [],
   }) {
     final moment = at ?? DateTime.now();
     final buffer = StringBuffer()
@@ -233,11 +240,10 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       );
     }
     buffer.writeln('（发帖人：这个社区里的一个普通用户）');
-    buffer.writeln(
-      '（发帖于：${_timeLabel(post.createdAt)}，距今约 ${_ageLabel(moment, post.createdAt)}）',
-    );
-    buffer.writeln('（现在：${_timeLabel(moment)}）');
+    // 只写绝对发帖时刻。它永远不变，属于稳定前缀。
+    buffer.writeln('（发帖于：${_timeLabel(post.createdAt)}）');
 
+    // —— 以下是逐帖稳定的部分，都能进缓存前缀 ——
     if (understanding != null) {
       buffer.writeln();
       buffer.writeln(understanding.toPromptBlock());
@@ -247,14 +253,6 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       buffer
         ..writeln()
         ..writeln(knowledge.trim());
-    }
-
-    if (avoidNames.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln(
-        '这一帖已经出现过的人：${avoidNames.take(24).join('、')}。'
-        '请不要再用这些名字，也不要重复他们的角度。',
-      );
     }
 
     if (stickers.isNotEmpty) {
@@ -269,6 +267,36 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       buffer.writeln(
         '规则：sticker_id 只能从上面选；求助/难过时只选安慰、抱抱、陪伴、'
         '鼓励这类标签，不要用吐槽/看戏类；不要每条都发。',
+      );
+    }
+
+    // —— 以下是每批/每次请求都会变的，只能放在缓存前缀之后 ——
+    buffer.writeln();
+    buffer.writeln(
+      '（现在：${_timeLabel(moment)}，距发帖约 ${_ageLabel(moment, post.createdAt)}）',
+    );
+
+    if (recentComments.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('这条帖子下已经有人说：');
+      for (final line in recentComments.take(3)) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        // 按 runes 截，别按 code unit——评论里带表情时会在中间切断代理对
+        final shown = trimmed.runes.length > 60
+            ? '${String.fromCharCodes(trimmed.runes.take(60))}…'
+            : trimmed;
+        buffer.writeln('- $shown');
+      }
+      buffer.writeln('不要再重复他们说过的话，也不要挤在同一种角度。');
+    }
+
+    if (avoidNames.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln(
+        '这一帖已经出现过的人：${avoidNames.take(24).join('、')}。'
+        '请不要再用这些名字，也不要重复他们的角度。',
       );
     }
 

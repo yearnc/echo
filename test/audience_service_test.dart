@@ -11,7 +11,6 @@ import 'package:echo/domain/models/model_config.dart';
 import 'package:echo/domain/models/post.dart';
 import 'package:echo/domain/models/post_understanding.dart';
 import 'package:echo/domain/services/audience_service.dart';
-import 'package:echo/domain/services/content_generator.dart';
 import 'package:echo/domain/services/post_voice_generator.dart';
 
 class _FakeGenerator implements PostVoiceGenerator {
@@ -33,6 +32,7 @@ class _FakeGenerator implements PostVoiceGenerator {
     DateTime? at,
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
+    List<String> recentComments = const [],
   }) async {
     calls++;
     lastAllowLurk = allowLurk;
@@ -80,7 +80,6 @@ void main() {
     _FakeGenerator generator, {
     ModelConfig? active,
     NotificationRepository? notifications,
-    ContentGenerator? contentGenerator,
   }) => AudienceService(
     posts: posts,
     voices: voices,
@@ -88,7 +87,6 @@ void main() {
     generator: generator,
     activeConfig: () async => active,
     notifications: notifications,
-    contentGenerator: contentGenerator,
   );
 
   test('三个人：一个只读、一个只赞、一个评论', () async {

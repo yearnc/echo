@@ -16,7 +16,6 @@ import '../models/post.dart';
 import '../models/post_understanding.dart';
 import '../models/post_voice.dart';
 import 'community_settings_controller.dart';
-import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'post_analyzer.dart';
 import 'post_voice_generator.dart';
@@ -39,7 +38,6 @@ class AudienceService {
     this.understandings,
     this.notifications,
     this.customAvatars,
-    this.contentGenerator,
     this.readSendImagesDirectly,
     VoiceNameGenerator? nameGenerator,
     Random? random,
@@ -64,9 +62,6 @@ class AudienceService {
 
   /// 用户导入的网友头像池；有图就优先用它，空池回落到内置素材。
   final CustomAvatarRepository? customAvatars;
-
-  /// 固定住民的评论走它；与临时网民的“起名字+动作”分开。
-  final ContentGenerator? contentGenerator;
 
   /// 帖子图片是原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
@@ -118,10 +113,9 @@ class AudienceService {
     // existing 是否为空，要看**有没有临时网民**。
     final hasEphemeral = existing.any((voice) => voice.isEphemeral);
     if (!hasEphemeral) {
-      // 先把 A+B+C 写进服务端缓存，再要第一批人（§4.3）。
-      // 必须等它回来：并发发出去的话，第一批并不会命中这次"预热"。
-      // 五秒封顶，失败就当这家不缓存前缀。
-      await contentGenerator?.prewarm(post: post, understanding: understanding);
+      // 第一批的第一个请求在 _draftOneByOne 里单独先跑：它把共享前缀写进
+      // 服务端缓存，后面并发出去的才命中。单独再发一次"预热"要多花一次
+      // 请求（而且提示词一旦对不上就白花），不如直接让第一枪先打。
       added += await _addBatch(
         post: post,
         config: config,
@@ -202,9 +196,10 @@ class AudienceService {
 
   /// 一个人一次请求：比一批更容易出不同的网名、状态和角度。
   ///
-  /// system（规则 + 帖子快照）逐字节不变，预热之后每次都能吃同一段前缀；
-  /// 当前时间、已出现名单、表情包目录全部放 user，不影响缓存。
-  /// 并发压到 3，避免服务商限流；重名就带着更新后的名单再要一次。
+  /// 缓存排序是硬要求（见 `ModelPostVoiceGenerator.userPrompt`）：帖子快照、
+  /// 理解、说话分寸、表情包目录全部在变的部分之前。**第一个请求单独先跑**，
+  /// 让它把这段前缀写进服务商缓存；一上来就三个并发，缓存还没来得及落地，
+  /// 三个请求都按"全新"计费。重名就带着更新后的名单再要一次。
   Future<List<PostVoiceDraft>> _draftOneByOne({
     required ModelConfig config,
     required Post post,
@@ -214,19 +209,35 @@ class AudienceService {
     required Set<String> takenNames,
     required DateTime at,
     required bool sendImagesDirectly,
+    required List<String> recentComments,
   }) async {
     if (count <= 0) return const [];
 
     final results = <PostVoiceDraft>[];
     final reserved = {...takenNames};
     final queue = <int>[for (var i = 0; i < count; i++) i];
-    final workerCount = count >= 3 ? 3 : 1;
 
-    Future<void> worker() async {
-      while (queue.isNotEmpty) {
-        queue.removeLast();
+    Future<void> one() async {
+      if (queue.isEmpty) return;
+      queue.removeLast();
 
-        var drafts = await generator.draft(
+      var drafts = await generator.draft(
+        config: config,
+        post: post,
+        count: 1,
+        allowLurk: allowLurk,
+        understanding: understanding,
+        at: at,
+        avoidNames: reserved,
+        sendImagesDirectly: sendImagesDirectly,
+        recentComments: recentComments,
+      );
+      if (drafts.isEmpty) return;
+      var draft = drafts.first;
+
+      // 并发请求互相看不见对方的名字，这里兜一次重名。
+      if (!reserved.add(draft.name)) {
+        drafts = await generator.draft(
           config: config,
           post: post,
           count: 1,
@@ -235,30 +246,26 @@ class AudienceService {
           at: at,
           avoidNames: reserved,
           sendImagesDirectly: sendImagesDirectly,
+          recentComments: recentComments,
         );
-        if (drafts.isEmpty) continue;
-        var draft = drafts.first;
+        if (drafts.isEmpty || !reserved.add(drafts.first.name)) return;
+        draft = drafts.first;
+      }
+      results.add(draft);
+    }
 
-        // 并发请求互相看不见对方的名字，这里兜一次重名。
-        if (!reserved.add(draft.name)) {
-          drafts = await generator.draft(
-            config: config,
-            post: post,
-            count: 1,
-            allowLurk: allowLurk,
-            understanding: understanding,
-            at: at,
-            avoidNames: reserved,
-            sendImagesDirectly: sendImagesDirectly,
-          );
-          if (drafts.isEmpty || !reserved.add(drafts.first.name)) continue;
-          draft = drafts.first;
-        }
-        results.add(draft);
+    Future<void> worker() async {
+      while (queue.isNotEmpty) {
+        await one();
       }
     }
 
-    await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+    // 第一枪先打，把共享前缀写进缓存；剩下的再并发（仍压到 3，防限流）。
+    await one();
+    final workerCount = min(3, queue.length);
+    if (workerCount > 0) {
+      await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+    }
     return results;
   }
 
@@ -287,6 +294,21 @@ class AudienceService {
         ...await voices.recentNames(),
       };
 
+      // 只给"已经出现过的人名"不够：模型不知道他们说了什么，照样会撞角度。
+      // 最近三条原话放在提示词最尾部（每批都可能变，不影响缓存前缀）。
+      final recentComments = <String>[];
+      try {
+        final comments = await interactions.watchComments(post.id).first;
+        for (final comment in comments.reversed) {
+          final text = (comment.content ?? '').trim();
+          if (text.isEmpty) continue;
+          recentComments.add(text);
+          if (recentComments.length >= 3) break;
+        }
+      } catch (error) {
+        debugPrint('[临时网民] 最近评论没取到，按没有走：$error');
+      }
+
       final now = DateTime.now();
       final drafts = await _draftOneByOne(
         config: config,
@@ -297,6 +319,7 @@ class AudienceService {
         takenNames: takenNames,
         at: now,
         sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
+        recentComments: recentComments,
       );
       if (drafts.isEmpty) {
         await _recordFailure('模型没生成出网民');
@@ -530,7 +553,6 @@ final audienceServiceProvider = Provider<AudienceService>(
     understandings: ref.watch(postUnderstandingRepositoryProvider),
     notifications: ref.watch(notificationRepositoryProvider),
     customAvatars: ref.watch(customAvatarRepositoryProvider),
-    contentGenerator: ref.watch(contentSourceProvider),
     readSendImagesDirectly: () =>
         ref.read(communitySettingsProvider).sendPostImagesDirectly,
   ),

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo/domain/models/post.dart';
+import 'package:echo/domain/models/post_understanding.dart';
+import 'package:echo/domain/models/sticker.dart';
 import 'package:echo/domain/services/post_voice_generator.dart';
 
 void main() {
@@ -109,6 +111,49 @@ void main() {
     test('同一批人角度要错开', () {
       final prompt = ModelPostVoiceGenerator.systemPrompt(allowLurk: true);
       expect(prompt, contains('角度要错开'));
+    });
+
+    test('逐帖稳定的内容排在“现在”之前，每次会变的压在最后', () {
+      final prompt = ModelPostVoiceGenerator.userPrompt(
+        post: Post(
+          id: 'p1',
+          content: '今天加班到十点',
+          createdAt: DateTime(2026, 10, 28, 12),
+        ),
+        count: 1,
+        at: DateTime(2026, 10, 28, 21),
+        avoidNames: const {'大肥鱼'},
+        recentComments: const ['我也刚下班'],
+        knowledge: '【网民的说话方式（参考，别照抄）】',
+        stickers: const [
+          StickerItem(
+            id: 's1',
+            name: '安慰·摸摸头',
+            category: '安慰',
+            path: 'asset:s1.png',
+            tags: ['安慰'],
+          ),
+        ],
+        understanding: PostUnderstanding(
+          postId: 'p1',
+          tone: '吐槽',
+          domain: '生活',
+          point: '加班到十点',
+          angles: const ['吐槽加班'],
+          confidence: 0.8,
+          updatedAt: DateTime(2026, 10, 28),
+        ),
+      );
+
+      final now = prompt.indexOf('现在：');
+      expect(now, greaterThan(prompt.indexOf('这条帖子已经看懂了')));
+      expect(now, greaterThan(prompt.indexOf('网民的说话方式')));
+      expect(now, greaterThan(prompt.indexOf('可用表情包')));
+      // 相对时长跟着“现在”走，不能留在发帖时间那一行破坏前缀
+      expect(prompt.indexOf('距发帖约'), greaterThan(now));
+      // 每批/每次都会变的两段只能出现在最后
+      expect(prompt.indexOf('已经有人说'), greaterThan(now));
+      expect(prompt.indexOf('已经出现过的人'), greaterThan(now));
     });
 
     test('知识库内容放进 user 段，不污染 system', () {

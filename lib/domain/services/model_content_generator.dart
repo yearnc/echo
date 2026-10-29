@@ -78,31 +78,6 @@ class ModelContentGenerator {
     return parseComments(raw, personas);
   }
 
-  /// 预热请求（§4.3）：只把共享前缀写进缓存，输出丢掉。
-  ///
-  /// 这里的 system **必须和 [comments] 用的逐字节一致**，否则等于没预热。
-  /// 所以两边都走 [sharedSystemPrompt]，谁也别手抄一份。
-  Future<void> prewarm({
-    required ModelConfig config,
-    required Post post,
-    PostUnderstanding? understanding,
-  }) async {
-    await _gateway.complete(
-      config: config,
-      messages: [
-        {
-          'role': 'system',
-          'content': sharedSystemPrompt(post, understanding: understanding),
-        },
-        {'role': 'user', 'content': '收到，等待下一批。'},
-      ],
-      temperature: 0,
-      maxTokens: 8,
-      // 预热是为了省下一批的钱，不是让用户等——超过五秒就当这家不缓存
-      timeout: const Duration(seconds: 5),
-    );
-  }
-
   /// 住民自己发的动态（B3）。同样是**一次请求写完整批**。
   ///
   /// 跟评论分两个方法而不是揉成一个，是因为口吻不同：评论是接别人的话，
@@ -357,6 +332,9 @@ class ModelContentGenerator {
   /// 这一整段在同一帖的所有批次之间**逐字节一致**，是缓存真正能命中的部分。
   /// 所以这里不能出现"第几批""现在几点""这批有几个人"——
   /// 那些全部放进 [batchPrompt]。
+  ///
+  /// 临时网民走的是另一套提示词（`ModelPostVoiceGenerator`），它按自己的
+  /// 顺序排稳定内容；这里只服务固定住民的评论。
   static String sharedSystemPrompt(
     Post post, {
     PostUnderstanding? understanding,
@@ -364,8 +342,7 @@ class ModelContentGenerator {
     final buffer = StringBuffer()
       ..writeln(_rules())
       ..writeln(postPrompt(post));
-    // 解析结果是一帖一份，仍然属于稳定前缀；图片摘要也在这里，
-    // 所以临时网民和固定住民都能“看到”同一段画面描述。
+    // 解析结果是一帖一份，仍然属于稳定前缀；图片摘要也在这里。
     if (understanding != null) {
       buffer.writeln(understanding.toPromptBlock());
     }

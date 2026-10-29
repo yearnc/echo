@@ -715,8 +715,9 @@ class ResidentToolSession {
 $persona
 
 你刚拿起手机，看到了一些消息和动静。像真人一样处理：
-- 你有一本自己的记忆。先看一眼最近记得什么（memory_list_recent /
-  memory_search），再决定这次怎么做；别凭空编以前的事。
+- 你有一本自己的记忆。最近的几条已经写在下面的“你记得”里，直接用；
+  要查更早的、或者想起某件具体的事，再用 memory_search，别凭空编以前的事。
+  已经给过的记忆不要再用 memory_list_recent 重看一遍。
 - 值得记的才记：对方说过的偏好、经历、约定、情绪变化，以及图片里是什么、
   表情包表达的是什么。不要写“他发来一张图片 / 一个表情包”这种空话。
 - 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
@@ -839,7 +840,8 @@ $persona
 - 消息开头形如 [2026年10月28日 周三 中午 12:44] 的方括号是系统自动
   标注的发送时间，不是消息正文；你说话时不要带这种时间标记，
   但可以用它判断隔了多久、现在是什么时候。
-- 你们以前聊过的事，先查记忆再说，别凭空编。
+- 你们以前聊过的事，最近的几条会在下面给你；要查更早的再用 memory_search，
+  别凭空编。已经给过的记忆不用再调 memory_list_recent 重看。
 - 记忆由你自己判断：对方的偏好、经历、约定、情绪变化值得记；图片要记
   “图里是什么”，表情包要记“它表达什么”，不要只写“发来一张图片”。
 - 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
@@ -909,19 +911,10 @@ $persona
     }
     tail.writeln('直接回他一句。');
 
-    final tailText = tail.toString().trim();
-    if (messages.isNotEmpty && messages.last['role'] == 'user') {
-      final content = messages.last['content'];
-      if (content is String) {
-        messages.last['content'] = [
-          {'type': 'text', 'text': '$content\n\n$tailText'},
-        ];
-      } else if (content is List) {
-        content.add({'type': 'text', 'text': tailText});
-      }
-    } else {
-      messages.add({'role': 'user', 'content': tailText});
-    }
+    // 尾注单独发一条 user 消息，**不拼进历史里那一条**。
+    // 拼进去的话，下一轮那条消息又变回原样，缓存前缀从它开始就分叉；
+    // 单独追加时历史逐字节不变，只有最后这条尾注是新的。
+    messages.add({'role': 'user', 'content': tail.toString().trim()});
     return messages;
   }
 
