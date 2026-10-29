@@ -398,8 +398,13 @@ APK 仍使用 Flutter 模板默认的调试签名，只用于侧载测试。
 
 ## 下载
 
-源码版本 **v4.2.8+57（待真机验收，schema v46）**。P0—P4 都写完了，
-但悬浮窗、屏幕截取、摄像头这些必须在真机上逐项验证，**暂不发布 4.x APK**。
+源码版本 **v4.2.8+57（schema v46）**。桌宠不透明、触摸范围与动画速度已在真机验收；
+悬浮窗授权、MediaProjection、锁屏跳过、视频通话相机权限仍需继续逐项验证。
+
+**v4.2.8** 的 arm64 APK 已发布：
+[**Releases v4.2.8**](https://github.com/yearnc/echo/releases/tag/v4.2.8)
+`echo-v4.2.8-arm64.apk`（728.7MB / 764,115,605 字节，
+SHA256 `e175897144260c071001234710b3ff02e623edcdc1c54ef5c7dc09ae0159de62`）。
 
 仍可下载的上一版是 **v3.10.0**（schema v43），arm64 APK 在
 [**Releases v3.10.0**](https://github.com/yearnc/echo/releases/tag/v3.10.0)：
