@@ -1470,7 +1470,10 @@ $persona
       'type': 'function',
       'function': {
         'name': 'pet_react',
-        'description': '换一个桌宠动作/表情：happy / shy / angry / thinking / cheer / sleep / yawn / stretch / dance / walk / look / idle。',
+        'description': '换一个桌宠动作/表情：happy / shy / angry / tickle / wave / '
+            'thinking / busy / cheer / sigh / sleep / yawn / stretch / dance / '
+            'look / walk / wander / idle。walk 和 wander 会让它在屏幕上走一段；'
+            '其余动作它本来也会自己随机做，不用一直点。',
         'parameters': {
           'type': 'object',
           'properties': {

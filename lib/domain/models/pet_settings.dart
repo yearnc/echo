@@ -8,6 +8,7 @@ class PetSettings {
     this.realtimeFrames = 3,
     this.realtimeGapSeconds = 20,
     this.voiceEnabled = false,
+    this.translucent = true,
   });
 
   final bool enabled;
@@ -38,6 +39,10 @@ class PetSettings {
   /// 通话里住民要不要出声（P4 用；默认只发文字）。
   final bool voiceEnabled;
 
+  /// 角色身体是不是半透明（能隐约看到后面的背景）。默认开，
+  /// 也就是现在这一版看起来的样子；关掉后整只完全不透明。
+  final bool translucent;
+
   PetSettings copyWith({
     bool? enabled,
     String? defaultResidentId,
@@ -46,6 +51,7 @@ class PetSettings {
     int? realtimeFrames,
     int? realtimeGapSeconds,
     bool? voiceEnabled,
+    bool? translucent,
   }) => PetSettings(
     enabled: enabled ?? this.enabled,
     defaultResidentId: defaultResidentId ?? this.defaultResidentId,
@@ -54,6 +60,7 @@ class PetSettings {
     realtimeFrames: realtimeFrames ?? this.realtimeFrames,
     realtimeGapSeconds: realtimeGapSeconds ?? this.realtimeGapSeconds,
     voiceEnabled: voiceEnabled ?? this.voiceEnabled,
+    translucent: translucent ?? this.translucent,
   );
 }
 

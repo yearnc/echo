@@ -48,9 +48,18 @@ class PetNative {
   Future<void> requestOverlayPermission() =>
       _invoke<bool>('requestOverlayPermission');
 
-  Future<bool> startPet() async => await _invoke<bool>('startPet') ?? false;
+  /// [translucent] 为 null 时由原生沿用上次的值（老调用点不受影响）。
+  Future<bool> startPet({bool? translucent}) async =>
+      await _invoke<bool>('startPet', {
+        'translucent': ?translucent,
+      }) ??
+      false;
 
   Future<void> stopPet() => _invoke<bool>('stopPet');
+
+  /// 角色身体半透明 / 完全不透明。桌宠没在屏幕上时也记下来，下次启动生效。
+  Future<void> setTranslucent(bool value) =>
+      _invoke<bool>('setTranslucent', {'translucent': value});
 
   Future<bool> isPetRunning() async =>
       await _invoke<bool>('isPetRunning') ?? false;

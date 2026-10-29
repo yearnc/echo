@@ -1662,25 +1662,34 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (!await native.isPetRunning()) {
       return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
     }
+    // 只暴露一小撮语义动作；桌宠自己还有 90 多个随机动作、点击回应和漫游，
+    // 那些不交给模型点名，免得提示词里塞一份长清单。
     const allowed = {
       'happy',
       'shy',
       'angry',
+      'tickle',
+      'wave',
       'thinking',
+      'busy',
       'cheer',
+      'sigh',
       'sleep',
       'yawn',
       'stretch',
       'dance',
-      'walk',
       'look',
+      'walk',
+      'wander',
       'idle',
     };
     final key = action.trim().toLowerCase();
     if (!allowed.contains(key)) {
       return const ActionOutcome(
         ok: false,
-        message: '没有这个动作；可用：happy / shy / angry / thinking / cheer / sleep / yawn / stretch / dance / walk / look / idle',
+        message: '没有这个动作；可用：happy / shy / angry / tickle / wave / '
+            'thinking / busy / cheer / sigh / sleep / yawn / stretch / '
+            'dance / look / walk / wander / idle',
       );
     }
     await native.react(key);

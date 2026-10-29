@@ -111,7 +111,8 @@ class PetObserveService {
   static const int maxFrames = 240;
 
   /// 桌宠自己的参照图：截图会把它截进去，模型得知道那是谁。
-  static const String selfImageRef = 'asset:assets/pet_frames/idle_00.png';
+  /// v4.1 起素材是 `manifest.json` 编号的无损 WebP 帧，act_001 = 待机呼吸。
+  static const String selfImageRef = 'asset:assets/pet_frames/act_001_00.webp';
 
   /// 每次唤醒附几张、隔多久唤醒一次，都由用户在桌宠页选。
   int _framesPerWake = 3;

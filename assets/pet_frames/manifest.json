@@ -1,0 +1,784 @@
+{
+  "version": 1,
+  "frameMs": 150,
+  "imageSize": {
+    "width": 320,
+    "height": 180
+  },
+  "stageDp": {
+    "width": 197,
+    "height": 111
+  },
+  "hitRect": {
+    "left": 85,
+    "top": 15,
+    "right": 235,
+    "bottom": 172
+  },
+  "categoryWeights": {
+    "小动作": 20,
+    "玩耍": 20,
+    "吃什么": 16,
+    "时节": 14,
+    "文字": 10
+  },
+  "weights": {
+    "idle": 10,
+    "turn": 5,
+    "move": 15,
+    "click": 10,
+    "category": 60
+  },
+  "actions": [
+    {
+      "key": "act_001",
+      "name": "待机呼吸休闲",
+      "kind": "idle",
+      "frames": 24
+    },
+    {
+      "key": "act_002",
+      "name": "东张西望",
+      "kind": "turn",
+      "frames": 24,
+      "expose": "look"
+    },
+    {
+      "key": "act_003",
+      "name": "被鼠标拖拽悬空反馈",
+      "kind": "drag",
+      "frames": 24
+    },
+    {
+      "key": "act_004",
+      "name": "点击回应-开心跃动",
+      "kind": "click",
+      "frames": 24,
+      "expose": "happy"
+    },
+    {
+      "key": "act_005",
+      "name": "点击回应-害羞惊讶",
+      "kind": "click",
+      "frames": 24,
+      "expose": "shy"
+    },
+    {
+      "key": "act_006",
+      "name": "点击回应-傲娇生气",
+      "kind": "click",
+      "frames": 24,
+      "expose": "angry"
+    },
+    {
+      "key": "act_007",
+      "name": "点击回应-挠痒咯咯笑",
+      "kind": "click",
+      "frames": 24,
+      "expose": "tickle"
+    },
+    {
+      "key": "act_008",
+      "name": "点击回应-元气挥手",
+      "kind": "click",
+      "frames": 24,
+      "expose": "wave"
+    },
+    {
+      "key": "act_009",
+      "name": "螃蟹走路",
+      "kind": "move",
+      "frames": 24,
+      "expose": "walk",
+      "move": {
+        "minDp": 60,
+        "maxDp": 160,
+        "lead": 0.18,
+        "tail": 0.18
+      }
+    },
+    {
+      "key": "act_010",
+      "name": "原地漂浮踏步",
+      "kind": "move",
+      "frames": 24,
+      "move": {
+        "minDp": 40,
+        "maxDp": 100,
+        "lead": 0.2,
+        "tail": 0.2
+      }
+    },
+    {
+      "key": "act_011",
+      "name": "原地左转奔跑",
+      "kind": "move",
+      "frames": 24,
+      "expose": "wander",
+      "move": {
+        "minDp": 120,
+        "maxDp": 260,
+        "lead": 0.18,
+        "tail": 0.42
+      }
+    },
+    {
+      "key": "act_012",
+      "name": "悠闲哼歌",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_013",
+      "name": "超大伸懒腰",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作",
+      "expose": "stretch"
+    },
+    {
+      "key": "act_014",
+      "name": "原地敲击桌面互动",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_015",
+      "name": "原地重力下蹲压缩",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_016",
+      "name": "哈欠连天",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作",
+      "expose": "yawn"
+    },
+    {
+      "key": "act_017",
+      "name": "原地小憩沉眠",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作",
+      "expose": "sleep"
+    },
+    {
+      "key": "act_018",
+      "name": "女仆屈膝礼仪",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_019",
+      "name": "被吓一跳",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_020",
+      "name": "小幅度原地360度旋转展示",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_021",
+      "name": "偷吃零食被抓住",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_022",
+      "name": "用鲸鱼尾巴拍打地面",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_023",
+      "name": "打瞌睡被惊醒",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_024",
+      "name": "照镜子",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_025",
+      "name": "整体换装试色",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_026",
+      "name": "轻快记录",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_027",
+      "name": "写代码",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_028",
+      "name": "摇扇纳凉",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_029",
+      "name": "晨间刷牙",
+      "kind": "category",
+      "frames": 24,
+      "category": "小动作"
+    },
+    {
+      "key": "act_030",
+      "name": "原地专心玩魔方",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_031",
+      "name": "原地蹲下玩玩具汽车",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_032",
+      "name": "鲸鱼吐泡泡特效",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_033",
+      "name": "原地跳跃抓碎头顶物品",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_034",
+      "name": "玩游戏气急败坏",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_035",
+      "name": "玩水枪",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_036",
+      "name": "小提琴演奏",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_037",
+      "name": "蓝鲸现世",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_038",
+      "name": "优雅女仆舞",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_039",
+      "name": "轻快摇摆舞",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍",
+      "expose": "dance"
+    },
+    {
+      "key": "act_040",
+      "name": "可爱宅舞",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_041",
+      "name": "吹气球",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_042",
+      "name": "动物环绕",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_043",
+      "name": "放风筝",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_044",
+      "name": "拆礼物",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_045",
+      "name": "变鸽子",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_046",
+      "name": "扑克魔术",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_047",
+      "name": "抽陀螺",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_048",
+      "name": "吹笛子",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_049",
+      "name": "蝴蝶蜜蜂环绕头顶开花",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_050",
+      "name": "撸猫",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_051",
+      "name": "凭空生花",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_052",
+      "name": "骑木马",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_053",
+      "name": "三球抛接",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_054",
+      "name": "踢毽子",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_055",
+      "name": "下五子棋",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_056",
+      "name": "荡秋千",
+      "kind": "category",
+      "frames": 24,
+      "category": "玩耍"
+    },
+    {
+      "key": "act_057",
+      "name": "吃白饭",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_058",
+      "name": "大口吃零食",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_059",
+      "name": "吃Token",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_060",
+      "name": "吃早餐",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_061",
+      "name": "吃午餐",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_062",
+      "name": "吃晚餐",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_063",
+      "name": "吃冰淇淋融化",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_064",
+      "name": "吃大闸蟹",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_065",
+      "name": "吃糖葫芦",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_066",
+      "name": "吃长寿面",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_067",
+      "name": "吃西瓜",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_068",
+      "name": "涮火锅",
+      "kind": "category",
+      "frames": 24,
+      "category": "吃什么"
+    },
+    {
+      "key": "act_069",
+      "name": "被落叶淹没",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_070",
+      "name": "中秋赏月吃月饼",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_071",
+      "name": "堆雪人",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_072",
+      "name": "放烟花",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_073",
+      "name": "吃粽子",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_074",
+      "name": "吃年糕",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_075",
+      "name": "吃青团",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_076",
+      "name": "吃腊八粥",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_077",
+      "name": "吃重阳糕",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_078",
+      "name": "收红包",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_079",
+      "name": "写福字",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_080",
+      "name": "穿针乞巧",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_081",
+      "name": "舞狮头",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_082",
+      "name": "讨糖南瓜灯",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_083",
+      "name": "插茱萸赏菊",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_084",
+      "name": "放河灯",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_085",
+      "name": "萌化小幽灵",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_086",
+      "name": "装点圣诞树",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_087",
+      "name": "放孔明灯",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_088",
+      "name": "吃汤圆",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_089",
+      "name": "吃饺子",
+      "kind": "category",
+      "frames": 24,
+      "category": "时节"
+    },
+    {
+      "key": "act_090",
+      "name": "是啊，吃什么",
+      "kind": "category",
+      "frames": 24,
+      "category": "文字"
+    },
+    {
+      "key": "act_091",
+      "name": "深度思考碎碎念",
+      "kind": "category",
+      "frames": 24,
+      "category": "文字"
+    },
+    {
+      "key": "act_092",
+      "name": "碎碎念-擦桌碎碎念",
+      "kind": "whisper",
+      "frames": 24
+    },
+    {
+      "key": "act_093",
+      "name": "碎碎念-发呆碎碎念",
+      "kind": "whisper",
+      "frames": 24
+    },
+    {
+      "key": "act_094",
+      "name": "碎碎念-对屏碎碎念",
+      "kind": "whisper",
+      "frames": 24
+    },
+    {
+      "key": "act_095",
+      "name": "工作状态-思考冒泡",
+      "kind": "workstatus",
+      "frames": 24,
+      "expose": "thinking"
+    },
+    {
+      "key": "act_096",
+      "name": "工作状态-忙碌点按",
+      "kind": "workstatus",
+      "frames": 24,
+      "expose": "busy"
+    },
+    {
+      "key": "act_097",
+      "name": "工作状态-清点归档",
+      "kind": "workstatus",
+      "frames": 24
+    },
+    {
+      "key": "act_098",
+      "name": "工作状态-原地踱步张望",
+      "kind": "workstatus",
+      "frames": 24
+    },
+    {
+      "key": "act_099",
+      "name": "工作状态-雀跃庆祝",
+      "kind": "workstatus",
+      "frames": 24,
+      "expose": "cheer"
+    },
+    {
+      "key": "act_100",
+      "name": "工作状态-垂头叹气冒汗",
+      "kind": "workstatus",
+      "frames": 24,
+      "expose": "sigh"
+    },
+    {
+      "key": "act_101",
+      "name": "余额-钱袋满溢",
+      "kind": "balance",
+      "frames": 24
+    },
+    {
+      "key": "act_102",
+      "name": "余额-金袋叮当",
+      "kind": "balance",
+      "frames": 24
+    },
+    {
+      "key": "act_103",
+      "name": "余额-钱袋如常",
+      "kind": "balance",
+      "frames": 24
+    },
+    {
+      "key": "act_104",
+      "name": "余额-数金皱眉",
+      "kind": "balance",
+      "frames": 24
+    },
+    {
+      "key": "act_105",
+      "name": "余额-袋空如洗",
+      "kind": "balance",
+      "frames": 24
+    },
+    {
+      "key": "act_106",
+      "name": "余额-分文不剩",
+      "kind": "balance",
+      "frames": 24
+    }
+  ]
+}

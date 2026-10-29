@@ -21,6 +21,7 @@ class PetRuntimeState {
     this.intervalMs = 1000,
     this.defaultResidentId = '',
     this.controllerId,
+    this.translucent = true,
     this.error = '',
   });
 
@@ -34,6 +35,7 @@ class PetRuntimeState {
   final int intervalMs;
   final String defaultResidentId;
   final String? controllerId;
+  final bool translucent;
   final String error;
 
   PetRuntimeState copyWith({
@@ -48,6 +50,7 @@ class PetRuntimeState {
     String? defaultResidentId,
     String? controllerId,
     bool clearController = false,
+    bool? translucent,
     String? error,
   }) => PetRuntimeState(
     busy: busy ?? this.busy,
@@ -60,6 +63,7 @@ class PetRuntimeState {
     intervalMs: intervalMs ?? this.intervalMs,
     defaultResidentId: defaultResidentId ?? this.defaultResidentId,
     controllerId: clearController ? null : (controllerId ?? this.controllerId),
+    translucent: translucent ?? this.translucent,
     error: error ?? this.error,
   );
 }
@@ -115,6 +119,7 @@ class PetController extends Notifier<PetRuntimeState> {
       intervalMs: value.intervalMs,
       defaultResidentId: value.defaultResidentId,
       controllerId: delayed ? null : controller,
+      translucent: value.translucent,
     );
     if (value.enabled && running) {
       _observe.attach();
@@ -139,7 +144,7 @@ class PetController extends Notifier<PetRuntimeState> {
 
       final value = await _settings.load();
       final captured = await _native.requestScreenCapture();
-      await _native.startPet();
+      await _native.startPet(translucent: value.translucent);
       if (captured) {
         await _native.startWatch(
           intervalMs: value.captureIntervalMs,
@@ -263,7 +268,14 @@ class PetController extends Notifier<PetRuntimeState> {
     await refresh();
   }
 
-  /// 从设置页手动叫它说一句（用于确认桌宠服务真的在跑）。
+  /// 身体半透明 / 完全不透明。桌宠在屏幕上时立刻生效，否则下次启动生效。
+  Future<void> setTranslucent(bool value) async {
+    await _settings.setTranslucent(value);
+    await _native.setTranslucent(value);
+    await refresh();
+  }
+
+  /// 从设置页手动叫它一句（用于确认桌宠服务真的在跑）。
   Future<bool> say(String text) => _native.say(text);
 
   Future<void> react(String action) => _native.react(action);

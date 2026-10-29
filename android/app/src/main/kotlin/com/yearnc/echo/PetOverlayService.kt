@@ -9,18 +9,22 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.graphics.BitmapFactory
-import android.text.TextUtils
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -29,15 +33,25 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import org.json.JSONObject
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.random.Random
 
 /**
  * 桌宠本体的悬浮窗（v4.0）。
  *
- * 只做“站在屏幕上”这一件事：透明动图、拖拽、点一下有反应、冒一句气泡。
+ * 只做“站在屏幕上”这一件事：透明动画、拖拽、点一下有反应、冒一句气泡。
  * 观察与唤醒都不在这里——那是 Dart 的事；这个服务只负责显示和把“被戳了”
  * 送回主 isolate。
  *
- * 用 specialUse 前台服务类型：它不采集屏幕，只维持一个小窗口常驻。
+ * v4.1 起是**两个窗口**：
+ * - 舞台窗：整帧 197×111dp，**不接收触摸**，特效（烟花、动物环绕…）不会
+ *   被裁掉，空白处也不会挡着下面的应用；
+ * - 命中窗：只盖住角色本体（约 92×97dp），拖拽/点击只在这块里生效。
+ * 气泡还是单独一层，不可触摸。
+ *
+ * 用 specialUse 前台服务类型：它不采集屏幕，只维持窗口常驻。
  * 真正截屏的是 ScreenWatchService，那边才需要 mediaProjection 类型。
  */
 class PetOverlayService : Service() {
@@ -47,6 +61,8 @@ class PetOverlayService : Service() {
         const val ACTION_SAY = "com.yearnc.echo.pet.SAY"
         const val ACTION_REACT = "com.yearnc.echo.pet.REACT"
         const val ACTION_MOOD = "com.yearnc.echo.pet.MOOD"
+        const val ACTION_TRANSLUCENT = "com.yearnc.echo.pet.TRANSLUCENT"
+        const val EXTRA_TRANSLUCENT = "translucent"
         const val EXTRA_TEXT = "text"
         const val EXTRA_ACTION = "action"
         const val EXTRA_MOOD = "mood"
@@ -59,7 +75,12 @@ class PetOverlayService : Service() {
         var running: Boolean = false
             private set
 
-        fun start(context: Context) {
+        /// [translucent] 非空时先落盘再启动；为空则沿用上次那份设置。
+        fun start(context: Context, translucent: Boolean? = null) {
+            if (translucent != null) {
+                context.getSharedPreferences("echo_pet", Context.MODE_PRIVATE)
+                    .edit().putBoolean(EXTRA_TRANSLUCENT, translucent).apply()
+            }
             val intent = Intent(context, PetOverlayService::class.java)
                 .setAction(ACTION_START)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -92,6 +113,14 @@ class PetOverlayService : Service() {
             )
         }
 
+        fun setTranslucent(context: Context, translucent: Boolean) {
+            context.startService(
+                Intent(context, PetOverlayService::class.java)
+                    .setAction(ACTION_TRANSLUCENT)
+                    .putExtra(EXTRA_TRANSLUCENT, translucent)
+            )
+        }
+
         fun setMood(context: Context, mood: String) {
             context.startService(
                 Intent(context, PetOverlayService::class.java)
@@ -101,19 +130,52 @@ class PetOverlayService : Service() {
         }
     }
 
+    /** 一个动作的规格，来自 `assets/pet_frames/manifest.json`。 */
+    private data class PetAction(
+        val key: String,
+        val name: String,
+        val kind: String,
+        val frames: Int,
+        val expose: String?,
+        val category: String?,
+        val move: MoveSpec?,
+    )
+
+    private data class MoveSpec(
+        val minDp: Int,
+        val maxDp: Int,
+        val lead: Float,
+        val tail: Float,
+    )
+
     private lateinit var windowManager: WindowManager
+    private lateinit var displayManager: DisplayManager
+
+    /// 舞台窗：整帧，不接收触摸。
     private lateinit var root: FrameLayout
     private lateinit var pet: ImageView
+
+    /// 命中窗：只盖住本体。
+    private lateinit var hit: View
+
     private lateinit var bubble: TextView
+
     private var params: WindowManager.LayoutParams? = null
+    private var hitParams: WindowManager.LayoutParams? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    private var hitAdded = false
     private var bubbleAdded = false
     private var bubbleVisible = false
     private var breathAnimator: ObjectAnimator? = null
-    private var mood = "idle"
-    private var currentDrawable: Drawable? = null
 
-    /// 桌宠帧序列解码后缓存最近几个动作，来回切换不用每次都解 24 张 PNG。
+    private var currentDrawable: Drawable? = null
+    private var currentAction: PetAction? = null
+    private var facingRight = false
+
+    /// 每次换动作都 +1：同一种动作连着播两次时，旧的定时器不能把新的顶回待机。
+    private var actionToken = 0
+
+    /// 帧序列解码后缓存最近几个动作。320×180×4B ≈ 225KB/帧，一个动作约 5.4MB。
     private val animationCache = LinkedHashMap<String, AnimationDrawable>()
 
     private val handler = Handler(Looper.getMainLooper())
@@ -121,28 +183,82 @@ class PetOverlayService : Service() {
     private var bubbleFullText = ""
     private var bubbleChars = 0
 
-    /// 待机时偶尔自己玩一下的动作。只放原本只能通过 pet_react 点播的那几个，
-    /// 点击/拖拽/说话等现有反应保持不变。
-    private val idleActions = listOf(
-        "look", "sleep", "shy", "angry", "thinking",
-        "cheer", "walk", "yawn", "stretch", "dance",
-    )
     private var idleTimer: Runnable? = null
-    private var idleActionRunning = false
 
-    /// 桌宠本体比最初大 1.5 倍：132×74 → 198×111dp。
-    private val petWidthDp = 198
-    private val petHeightDp = 111
+    // ---- 动作清单（manifest.json） ----
+    private var loadedActions = false
+    private var actions: List<PetAction> = emptyList()
+    private val byExpose = mutableMapOf<String, PetAction>()
+    private val actionsByName = mutableMapOf<String, PetAction>()
+    private val actionsByKey = mutableMapOf<String, PetAction>()
+    private var idlePool: List<PetAction> = emptyList()
+    private var clickPool: List<PetAction> = emptyList()
+    private var movePool: List<PetAction> = emptyList()
+    private var turnPool: List<PetAction> = emptyList()
+    private var dragAction: PetAction? = null
+    private var categoryWeights: Map<String, Int> = emptyMap()
+    private var kindWeights: Map<String, Int> = emptyMap()
+
+    private var frameMs = 150L
+    private var imageWidth = 320
+    private var imageHeight = 180
+    private var stageWidthDp = 197
+    private var stageHeightDp = 111
+    private var hitRect = Rect(85, 9, 235, 166)
+
+    /// 气泡宽度上限：280dp 时要二十多个字才折行，看着像“不换行”。
+    private val bubbleMaxWidthDp = 190
+
+    /// 横竖屏切换、分屏尺寸变化都要重新夹位置：x/y 是按像素存的，
+    /// 竖屏里宽 1080，横屏里挪到 2000 之后再转回来就整只在屏幕外了。
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            recoverAfterDisplayChange()
+        }
+    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private fun randInt(from: Int, to: Int): Int {
+        if (to <= from) return from
+        return Random.nextInt(from, to + 1)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        try {
+            displayManager.registerDisplayListener(displayListener, handler)
+        } catch (_: Throwable) {
+            // 拿不到 DisplayManager 也不致命：onConfigurationChanged 还会兜一层。
+        }
         createChannel()
+    }
+
+    /// 有些 ROM 不会给 Service 派发屏幕变化，DisplayListener 是主路，
+    /// 这个回调是兜底——两条路都只做同一件“夹回来”。
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        recoverAfterDisplayChange()
+    }
+
+    /// 旋转后立刻收一次；有的 ROM 尺寸报告慢半拍，再补一次。
+    private fun recoverAfterDisplayChange() {
+        handler.post {
+            clampPetPosition(keepBodyVisible = true)
+            if (bubbleVisible) syncBubblePosition()
+        }
+        handler.postDelayed({
+            clampPetPosition(keepBodyVisible = true)
+            updateHitPosition()
+            if (bubbleVisible) syncBubblePosition()
+        }, 350L)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -152,7 +268,7 @@ class PetOverlayService : Service() {
                 return START_NOT_STICKY
             }
             // 服务可能被系统重建过：说/换动作/改表情之前先把窗口搭回来，
-            // 否则 AVOID 拿到的是“bubble 还没初始化”，气泡就永远不出现。
+            // 否则主 isolate 拿到的是“bubble 还没初始化”，气泡就永远不出现。
             ACTION_SAY -> {
                 ensureOverlay()
                 showBubble(
@@ -162,11 +278,17 @@ class PetOverlayService : Service() {
             }
             ACTION_REACT -> {
                 ensureOverlay()
-                playAction(intent.getStringExtra(EXTRA_ACTION).orEmpty())
+                playNamedAction(intent.getStringExtra(EXTRA_ACTION).orEmpty())
             }
             ACTION_MOOD -> {
                 ensureOverlay()
                 setMood(intent.getStringExtra(EXTRA_MOOD).orEmpty())
+            }
+            ACTION_TRANSLUCENT -> {
+                ensureOverlay()
+                applyTranslucent(
+                    intent.getBooleanExtra(EXTRA_TRANSLUCENT, true),
+                )
             }
             else -> ensureOverlay()
         }
@@ -196,13 +318,106 @@ class PetOverlayService : Service() {
         running = true
     }
 
+    // ---------------------------------------------------------------- manifest
+
+    private fun ensureManifest(): Boolean {
+        if (loadedActions) return actions.isNotEmpty()
+        loadedActions = true
+        try {
+            val text = assets
+                .open("flutter_assets/assets/pet_frames/manifest.json")
+                .bufferedReader().use { it.readText() }
+            val json = JSONObject(text)
+            frameMs = json.optLong("frameMs", 150L)
+            json.optJSONObject("imageSize")?.let {
+                imageWidth = it.optInt("width", 320)
+                imageHeight = it.optInt("height", 180)
+            }
+            json.optJSONObject("stageDp")?.let {
+                stageWidthDp = it.optInt("width", 197)
+                stageHeightDp = it.optInt("height", 111)
+            }
+            json.optJSONObject("hitRect")?.let {
+                hitRect = Rect(
+                    it.optInt("left", 85),
+                    it.optInt("top", 9),
+                    it.optInt("right", 235),
+                    it.optInt("bottom", 166),
+                )
+            }
+            json.optJSONObject("categoryWeights")?.let { obj ->
+                categoryWeights = obj.keys().asSequence().associateWith { key ->
+                    obj.optInt(key, 0)
+                }
+            }
+            json.optJSONObject("weights")?.let { obj ->
+                kindWeights = obj.keys().asSequence().associateWith { key ->
+                    obj.optInt(key, 0)
+                }
+            }
+
+            val arr = json.getJSONArray("actions")
+            val list = ArrayList<PetAction>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val moveObj = o.optJSONObject("move")
+                val action = PetAction(
+                    key = o.getString("key"),
+                    name = o.optString("name"),
+                    kind = o.optString("kind"),
+                    frames = o.optInt("frames", 24),
+                    expose = o.optString("expose").takeIf { it.isNotBlank() },
+                    category = o.optString("category").takeIf { it.isNotBlank() },
+                    move = moveObj?.let {
+                        MoveSpec(
+                            minDp = it.optInt("minDp", 60),
+                            maxDp = it.optInt("maxDp", 160),
+                            lead = it.optDouble("lead", 0.18).toFloat(),
+                            tail = it.optDouble("tail", 0.18).toFloat(),
+                        )
+                    },
+                )
+                list.add(action)
+                actionsByKey[action.key] = action
+                if (action.name.isNotBlank()) actionsByName[action.name] = action
+                action.expose?.let { byExpose[it] = action }
+            }
+            actions = list
+            idlePool = list.filter { it.kind == "idle" }
+            clickPool = list.filter { it.kind == "click" }
+            movePool = list.filter { it.kind == "move" }
+            turnPool = list.filter { it.kind == "turn" }
+            dragAction = list.firstOrNull { it.kind == "drag" }
+            if (kindWeights.isEmpty()) {
+                kindWeights = mapOf(
+                    "idle" to 10,
+                    "turn" to 5,
+                    "move" to 15,
+                    "click" to 10,
+                    "category" to 60,
+                )
+            }
+            return actions.isNotEmpty()
+        } catch (error: Throwable) {
+            PetBridge.emit("error", mapOf("message" to "桌宠动作清单读不出来：${error.message}"))
+            return false
+        }
+    }
+
+    // ---------------------------------------------------------------- overlay
+
     private fun buildOverlay() {
-        // 窗口就是桌宠本体那么大：不再拿一块 320×190 的矩形去盖住桌面。
-        // 背景必须显式透明，否则某些系统会给悬浮窗套一层黑色主题底。
+        ensureManifest()
+        val stageWidth = dp(stageWidthDp)
+        val stageHeight = dp(stageHeightDp)
+
+        // 舞台：整帧，背景必须显式透明；**不可触摸**，空白处让给下面的应用。
         root = FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT) }
         pet = ImageView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             scaleType = ImageView.ScaleType.FIT_CENTER
+            // 帧本身是不透明的（alpha 255）；显式锁一遍，避免任何继承下来的透明度。
+            alpha = 1f
         }
         root.addView(
             pet,
@@ -211,13 +426,10 @@ class PetOverlayService : Service() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
-        root.setOnClickListener { onPetTapped() }
-        attachDrag()
 
         bubble = TextView(this).apply {
             // TextView 在 attach 之前收到 setText 会走 checkForRelayout，
-            // 那里直接读 layoutParams.width；null 会 NPE。先塞一个占位，
-            // 真正 addView 时 WindowManager 会换成自己的 LayoutParams。
+            // 那里直接读 layoutParams.width；null 会 NPE。先塞一个占位。
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -226,18 +438,19 @@ class PetOverlayService : Service() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
             typeface = Typeface.DEFAULT
             setPadding(dp(10), dp(6), dp(10), dp(6))
-            maxWidth = dp(280)
+            maxWidth = dp(bubbleMaxWidthDp)
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             setSingleLine(false)
             gravity = Gravity.CENTER
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(12).toFloat()
-                setColor(Color.parseColor("#F2FFFFFF"))
+                setColor(Color.parseColor("#FFFFFFFF"))
                 setStroke(dp(1), Color.parseColor("#22000000"))
             }
             visibility = View.GONE
         }
+
         bubbleParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -251,11 +464,38 @@ class PetOverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        val width = dp(petWidthDp)
-        val height = dp(petHeightDp)
         val lp = WindowManager.LayoutParams(
-            width,
-            height,
+            stageWidth,
+            stageHeight,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            // 整只角色的透明度：默认半透明（能隐约看见后面的背景），
+            // 在「我的 → 桌宠 → 外观」里可以关掉改成完全不透明。
+            alpha = alphaForTranslucent(translucentEnabled())
+            val prefs = getSharedPreferences("echo_pet", MODE_PRIVATE)
+            val (screenW, screenH) = displaySize()
+            x = prefs.getInt("x", screenW - stageWidth - dp(8))
+            y = prefs.getInt("y", screenH / 2)
+        }
+        params = lp
+        windowManager.addView(root, lp)
+
+        // 命中窗：只包住角色本体，拖拽/点击都落在这里。
+        val scaleX = stageWidth.toFloat() / imageWidth.coerceAtLeast(1)
+        val scaleY = stageHeight.toFloat() / imageHeight.coerceAtLeast(1)
+        val hitWidth = (hitRect.width() * scaleX).toInt().coerceAtLeast(dp(36))
+        val hitHeight = (hitRect.height() * scaleY).toInt().coerceAtLeast(dp(36))
+        hit = FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT) }
+        attachDrag()
+        val hp = WindowManager.LayoutParams(
+            hitWidth,
+            hitHeight,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -263,20 +503,51 @@ class PetOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val prefs = getSharedPreferences("echo_pet", MODE_PRIVATE)
-            x = prefs.getInt("x", resources.displayMetrics.widthPixels - width - dp(8))
-            y = prefs.getInt("y", resources.displayMetrics.heightPixels / 2)
         }
-        params = lp
-        windowManager.addView(root, lp)
-        applyMood("idle")
-        // 常用动作先解好，别等第一次互动时在主线程里一口气解 24 张 PNG。
-        for (key in listOf("happy", "shy", "sleep", "thinking")) {
+        hitParams = hp
+        windowManager.addView(hit, hp)
+        hitAdded = true
+
+        // 上次可能是横屏存下的坐标，也可能换了窗口尺寸：先把本体收进屏幕。
+        clampPetPosition(keepBodyVisible = true)
+        updateHitPosition()
+        startIdle()
+        // 待机先解好，别等第一次互动时在主线程里一口气解 24 帧。
+        idlePool.firstOrNull()?.let {
             try {
-                loadAnimated(key)
+                loadAnimated(it)
             } catch (_: Throwable) {
             }
         }
+    }
+
+    private fun translucentEnabled(): Boolean =
+        getSharedPreferences("echo_pet", MODE_PRIVATE)
+            .getBoolean(EXTRA_TRANSLUCENT, true)
+
+    private fun alphaForTranslucent(enabled: Boolean): Float =
+        if (enabled) 0.85f else 1f
+
+    /// 立刻改整只角色的透明度；没在屏幕上时只记下来，下次启动生效。
+    private fun applyTranslucent(enabled: Boolean) {
+        getSharedPreferences("echo_pet", MODE_PRIVATE)
+            .edit().putBoolean(EXTRA_TRANSLUCENT, enabled).apply()
+        val p = params ?: return
+        val alpha = alphaForTranslucent(enabled)
+        if (p.alpha != alpha) {
+            p.alpha = alpha
+            // 缓存里的帧是按旧的“透不透明”烘焙的，换档要重解。
+            animationCache.values.forEach { it.stop() }
+            animationCache.clear()
+            currentDrawable = null
+            if (::root.isInitialized) {
+                try {
+                    windowManager.updateViewLayout(root, p)
+                } catch (_: Throwable) {
+                }
+            }
+        }
+        if (::root.isInitialized) startIdle()
     }
 
     private fun overlayType(): Int =
@@ -287,6 +558,88 @@ class PetOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+    /// 当前屏幕尺寸（像素）。
+    ///
+    /// **不能问 `currentWindowMetrics`**：Service 不是 UI 上下文，API 30+ 对它
+    /// 返回的是「最大边界」（横竖屏合成后的 16:16），横屏里把宠物挪到右边、
+    /// 转回竖屏时它仍觉得没越界，于是宠物就留在屏幕外了。`getRealMetrics`
+    /// 给的是当前旋转后的真实尺寸。
+    private fun displaySize(): Pair<Int, Int> {
+        try {
+            val display = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+            if (display != null) {
+                val metrics = android.util.DisplayMetrics()
+                @Suppress("DEPRECATION")
+                display.getRealMetrics(metrics)
+                if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                    return metrics.widthPixels to metrics.heightPixels
+                }
+            }
+        } catch (_: Throwable) {
+        }
+        val dm = resources.displayMetrics
+        return dm.widthPixels to dm.heightPixels
+    }
+
+    /// 把舞台夹回可见范围，并带着命中窗与气泡一起动。
+    ///
+    /// - [keepBodyVisible] = true：**角色本体**必须整个留在屏幕里（旋转、冷启动）。
+    ///   窗口里本体两侧是透明的，只按窗口算的话，本体可能整只都在屏幕外。
+    /// - false：拖拽松手时允许半贴边，只要窗口还剩四分之一可见。
+    private fun clampPetPosition(keepBodyVisible: Boolean = false) {
+        val p = params ?: return
+        if (!::root.isInitialized) return
+        val (screenW, screenH) = displaySize()
+        val scaleX = p.width.toFloat() / imageWidth.coerceAtLeast(1)
+        val scaleY = p.height.toFloat() / imageHeight.coerceAtLeast(1)
+        val bodyLeft = (hitRect.left * scaleX).toInt()
+        val bodyTop = (hitRect.top * scaleY).toInt()
+        val bodyWidth = (hitRect.width() * scaleX).toInt()
+        val bodyHeight = (hitRect.height() * scaleY).toInt()
+        val margin = dp(8)
+        val minX: Int
+        val maxX: Int
+        val minY: Int
+        val maxY: Int
+        if (keepBodyVisible) {
+            minX = -bodyLeft + margin
+            maxX = (screenW - bodyLeft - bodyWidth - margin).coerceAtLeast(minX)
+            minY = -bodyTop + margin
+            maxY = (screenH - bodyTop - bodyHeight - margin).coerceAtLeast(minY)
+        } else {
+            val visibleX = (p.width * 0.25f).toInt().coerceAtLeast(dp(24))
+            val visibleY = (p.height * 0.25f).toInt().coerceAtLeast(dp(18))
+            minX = -p.width + visibleX
+            maxX = (screenW - visibleX).coerceAtLeast(minX)
+            minY = -p.height + visibleY
+            maxY = (screenH - visibleY).coerceAtLeast(minY)
+        }
+        p.x = p.x.coerceIn(minX, maxX)
+        p.y = p.y.coerceIn(minY, maxY)
+        try {
+            windowManager.updateViewLayout(root, p)
+        } catch (_: Throwable) {
+        }
+        updateHitPosition()
+        getSharedPreferences("echo_pet", MODE_PRIVATE)
+            .edit().putInt("x", p.x).putInt("y", p.y).apply()
+    }
+
+    /// 让命中窗贴在舞台里角色本体那一块。
+    private fun updateHitPosition() {
+        if (!hitAdded) return
+        val p = params ?: return
+        val hp = hitParams ?: return
+        val scaleX = p.width.toFloat() / imageWidth.coerceAtLeast(1)
+        val scaleY = p.height.toFloat() / imageHeight.coerceAtLeast(1)
+        hp.x = p.x + (hitRect.left * scaleX).toInt()
+        hp.y = p.y + (hitRect.top * scaleY).toInt()
+        try {
+            windowManager.updateViewLayout(hit, hp)
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun attachDrag() {
         var downX = 0f
         var downY = 0f
@@ -294,7 +647,7 @@ class PetOverlayService : Service() {
         var startY = 0
         var dragging = false
 
-        pet.setOnTouchListener { _, event ->
+        hit.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = event.rawX
@@ -302,20 +655,27 @@ class PetOverlayService : Service() {
                     startX = params?.x ?: 0
                     startY = params?.y ?: 0
                     dragging = false
+                    // 先别换成“被抓起”的姿势：轻点一下不该闪一下抓取动画。
+                    // 只是把待机轮盘停住，免得按着的这几秒里自己换动作。
+                    stopRoaming()
+                    stopIdleTimer()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downX
                     val dy = event.rawY - downY
-                    if (!dragging && (kotlin.math.abs(dx) > 12 || kotlin.math.abs(dy) > 12)) {
+                    if (!dragging && (abs(dx) > 12 || abs(dy) > 12)) {
                         dragging = true
-                        applyMood("drag")
+                        dragAction?.let {
+                            playAction(it, loop = true, autoIdle = false)
+                        }
                     }
                     if (dragging) {
                         params?.let {
                             it.x = startX + dx.toInt()
                             it.y = startY + dy.toInt()
                             if (::root.isInitialized) windowManager.updateViewLayout(root, it)
+                            updateHitPosition()
                             syncBubblePosition()
                         }
                     }
@@ -323,36 +683,19 @@ class PetOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (dragging) {
-                        params?.let {
-                            val dm = resources.displayMetrics
-                            // 允许半贴边/探出屏幕，只要还留着四分之一可见；
-                            // 以前松手就被夹回屏幕内，像“弹回来”一样。
-                            val visibleX = (it.width * 0.25f).toInt().coerceAtLeast(dp(24))
-                            val visibleY = (it.height * 0.25f).toInt().coerceAtLeast(dp(18))
-                            it.x = it.x.coerceIn(
-                                -it.width + visibleX,
-                                dm.widthPixels - visibleX,
-                            )
-                            it.y = it.y.coerceIn(
-                                -it.height + visibleY,
-                                dm.heightPixels - visibleY,
-                            )
-                            if (::root.isInitialized) windowManager.updateViewLayout(root, it)
-                            syncBubblePosition()
-                            getSharedPreferences("echo_pet", MODE_PRIVATE)
-                                .edit().putInt("x", it.x).putInt("y", it.y).apply()
-                        }
-                        applyMood("idle")
+                        // 允许半贴边/探出屏幕，只要还留着四分之一可见。
+                        clampPetPosition()
+                        syncBubblePosition()
                         PetBridge.emit("dropped", mapOf("x" to params?.x, "y" to params?.y))
+                        startIdle()
                     } else {
-                        // 只有按在宠物中间那一片才算互动；边缘透明的地方
-                        // 不该把点击抢走。
-                        val w = pet.width.toFloat()
-                        val h = pet.height.toFloat()
+                        val w = hit.width.toFloat()
+                        val h = hit.height.toFloat()
                         val inCenter =
-                            kotlin.math.abs(event.x - w / 2) < w * 0.38f &&
-                                kotlin.math.abs(event.y - h / 2) < h * 0.42f
-                        if (inCenter) performClick()
+                            abs(event.x - w / 2) < w * 0.46f &&
+                                abs(event.y - h / 2) < h * 0.46f
+                        // 点到了就让点击回应自己播完再回待机；别在这里把动作顶掉。
+                        if (inCenter) performClick() else startIdle()
                     }
                     true
                 }
@@ -369,81 +712,204 @@ class PetOverlayService : Service() {
     }
 
     private fun onPetTapped() {
-        applyMood("happy")
-        handler.postDelayed({ if (mood == "happy") applyMood("idle") }, 5000)
+        val pick = clickPool.randomOrNull() ?: byExpose["happy"]
+        if (pick != null) {
+            playAction(pick, loop = false, autoIdle = true)
+        } else {
+            startIdle()
+        }
         PetBridge.emit("tap")
+    }
+
+    // ---------------------------------------------------------------- actions
+
+    private fun resolveAction(raw: String): PetAction? {
+        val value = raw.trim()
+        if (value.isEmpty()) return null
+        val lower = value.lowercase(Locale.ROOT)
+        val alias = when (lower) {
+            "sleepy" -> "sleep"
+            "love" -> "shy"
+            "talking" -> "thinking"
+            else -> lower
+        }
+        if (alias == "idle") return idlePool.firstOrNull()
+        return byExpose[alias]
+            ?: byExpose[lower]
+            ?: actionsByName[value]
+            ?: actionsByKey[value]
+    }
+
+    /// 来自工具/桥的“点播”：走路类动作真的走起来，其余播一遍回待机。
+    private fun playNamedAction(raw: String) {
+        val action = resolveAction(raw)
+        if (action == null) {
+            PetBridge.emit("error", mapOf("message" to "没有这个动作：$raw"))
+            return
+        }
+        if (action.kind == "idle") {
+            startIdle()
+        } else if (action.kind == "move") {
+            startRoaming(action)
+        } else {
+            stopRoaming()
+            playAction(action, loop = false, autoIdle = true)
+        }
     }
 
     private fun setMood(value: String) {
         if (value.isBlank()) return
-        applyMood(value)
-        if (value != "happy" && value != "drag") {
-            handler.postDelayed({ if (mood == value) applyMood("idle") }, 6000)
-        }
+        playNamedAction(value)
     }
 
-    private fun playAction(action: String) {
-        val key = when (action) {
-            "happy", "开心" -> "happy"
-            "shy", "害羞" -> "shy"
-            "angry", "生气" -> "angry"
-            "think", "thinking", "思考" -> "thinking"
-            "cheer", "庆祝" -> "cheer"
-            "sleep", "睡" -> "sleep"
-            "yawn", "打哈欠" -> "yawn"
-            "stretch", "伸懒腰" -> "stretch"
-            "dance", "跳舞" -> "dance"
-            "walk", "走路" -> "walk"
-            "look", "张望" -> "look"
-            else -> "idle"
-        }
-        applyMood(key)
-        if (key != "sleep" && key != "idle") {
-            handler.postDelayed({ if (mood == key) applyMood("idle") }, 5000)
-        }
-    }
-
-    /// 在待机时排一个随机小动作；回到 idle 时重新计时。
-    private fun scheduleIdleAction() {
-        idleTimer?.let { handler.removeCallbacks(it) }
-        idleTimer = Runnable { playIdleAction() }
-        handler.postDelayed(idleTimer!!, (8000..18000L).random())
-    }
-
-    private fun playIdleAction() {
-        if (mood != "idle" || idleActionRunning) {
-            scheduleIdleAction()
+    private fun startIdle() {
+        stopRoaming()
+        stopIdleTimer()
+        val idle = idlePool.firstOrNull() ?: run {
+            PetBridge.emit("error", mapOf("message" to "没有待机动画"))
             return
         }
-        idleActionRunning = true
-        val key = idleActions.random()
-        applyMood(key)
-        // 24 帧 × 200ms = 4.8 秒，留一点余量。
-        handler.postDelayed({
-            idleActionRunning = false
-            if (mood == key) applyMood("idle")
-        }, 5000)
+        playAction(idle, loop = true, autoIdle = false)
+        scheduleIdleAction()
     }
 
-    private fun applyMood(key: String) {
-        // 任何主动动作/互动都会重置待机轮盘；只有回到 idle 才重新排。
+    private fun scheduleIdleAction() {
+        stopIdleTimer()
+        val runnable = Runnable { playRandomAction() }
+        idleTimer = runnable
+        handler.postDelayed(runnable, Random.nextLong(8000L, 18001L))
+    }
+
+    private fun stopIdleTimer() {
         idleTimer?.let { handler.removeCallbacks(it) }
         idleTimer = null
-        mood = key
-        val drawable = loadAnimated(key) ?: loadAnimated("idle")
-        if (drawable == null) {
-            PetBridge.emit("error", mapOf("message" to "桌宠素材没找到：$key"))
+    }
+
+    /// 待机时按权重掷一个：待机 / 转向 / 走路 / 点击回应 / 随机小动作。
+    private fun playRandomAction() {
+        if (!::root.isInitialized) return
+        if (roamRunnable != null) return
+        val kind = rollKind()
+        when (kind) {
+            "idle" -> {
+                startIdle()
+                return
+            }
+            "turn" -> {
+                val action = turnPool.randomOrNull()
+                if (action == null) {
+                    pickCategoryAction()
+                    return
+                }
+                playAction(action, loop = false, autoIdle = false) {
+                    facingRight = !facingRight
+                    applyFacing()
+                    startIdle()
+                }
+            }
+            "move" -> {
+                val action = movePool.randomOrNull()
+                if (action == null || !startRoaming(action)) pickCategoryAction()
+            }
+            "click" -> {
+                val action = clickPool.randomOrNull()
+                if (action == null) pickCategoryAction() else {
+                    playAction(action, loop = false, autoIdle = true)
+                }
+            }
+            else -> {
+                // 分类动作 60 / 余额 5 / 工作状态 5 / 碎碎念 5
+                when (randInt(0, 74)) {
+                    in 0..59 -> pickCategoryAction()
+                    in 60..64 -> pickEventAction("balance")
+                    in 65..69 -> pickEventAction("workstatus")
+                    else -> pickEventAction("whisper")
+                }
+            }
+        }
+    }
+
+    private fun rollKind(): String {
+        val weights = kindWeights
+        val total = weights.values.sum().coerceAtLeast(1)
+        var roll = Random.nextInt(total)
+        for (key in listOf("idle", "turn", "move", "click", "category")) {
+            roll -= (weights[key] ?: 0)
+            if (roll < 0) return key
+        }
+        return "category"
+    }
+
+    /// 余额 / 碎碎念 / 工作状态这三类原本是事件动画。这里没有余额概念，
+    /// 也不做工作状态监听，就让它们以低权重混进随机链——106 个动作
+    /// 每一个都有机会出现，而不是有十几个永远抽不到。
+    private fun pickEventAction(kind: String) {
+        val pool = actions.filter { it.kind == kind }
+        val action = pool.randomOrNull()
+        if (action == null) {
+            pickCategoryAction()
             return
         }
+        if (facingRight) {
+            facingRight = false
+            applyFacing()
+        }
+        playAction(action, loop = false, autoIdle = true)
+    }
+
+    private fun pickCategoryAction() {
+        val pool = actions.filter { it.kind == "category" }
+        if (pool.isEmpty()) {
+            startIdle()
+            return
+        }
+        val grouped = pool.groupBy { it.category.orEmpty() }
+        val candidates = grouped.keys.filter { (categoryWeights[it] ?: 0) > 0 }
+        val category = if (candidates.isEmpty()) {
+            grouped.keys.random()
+        } else {
+            val total = candidates.sumOf { categoryWeights[it] ?: 0 }
+            var roll = Random.nextInt(total)
+            var chosen = candidates.last()
+            for (key in candidates) {
+                roll -= (categoryWeights[key] ?: 0)
+                if (roll < 0) {
+                    chosen = key
+                    break
+                }
+            }
+            chosen
+        }
+        val direct = grouped[category].orEmpty()
+        val options = direct.filter { it.key != currentAction?.key }.ifEmpty { direct }
+        val action = options.randomOrNull() ?: pool.random()
+        // 带文字的动作镜像会反字：朝右时先转回来（和原项目同一处理）。
+        if (action.category == "文字" && facingRight) {
+            facingRight = false
+            applyFacing()
+        }
+        playAction(action, loop = false, autoIdle = true)
+    }
+
+    private fun playAction(
+        action: PetAction,
+        loop: Boolean,
+        autoIdle: Boolean,
+        after: (() -> Unit)? = null,
+    ) {
+        val drawable = loadAnimated(action) ?: return
+        stopIdleTimer()
+        currentAction = action
         val old = currentDrawable
         currentDrawable = drawable
         pet.setImageDrawable(drawable)
-        // 先换上新帧，再停旧的：反过来的话中间会闪一帧空白。
         if (old !== drawable) (old as? AnimationDrawable)?.stop()
         breathAnimator?.cancel()
         breathAnimator = null
         if (drawable is AnimationDrawable) {
-            drawable.isOneShot = false
+            // 缓存的动图上次可能停在最后一帧，重新播要从头开始。
+            drawable.selectDrawable(0)
+            drawable.isOneShot = !loop
             drawable.start()
         } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             breathAnimator = ObjectAnimator.ofPropertyValuesHolder(
@@ -456,47 +922,160 @@ class PetOverlayService : Service() {
                 start()
             }
         }
-        if (key == "idle") scheduleIdleAction()
-        PetBridge.emit("mood", mapOf("mood" to key))
+        applyFacing()
+        PetBridge.emit("mood", mapOf("mood" to action.key))
+        val token = ++actionToken
+        if (!loop) {
+            val duration = action.frames * frameMs + 80
+            handler.postDelayed({
+                if (actionToken != token) return@postDelayed
+                if (after != null) after() else if (autoIdle) startIdle()
+            }, duration)
+        }
     }
 
-    /// 从透明 PNG 序列装出一个 AnimationDrawable。
-    ///
-    /// 之前用动画 WebP + ImageDecoder，在部分 ROM 上透明区域会被画成黑框；
-    /// PNG 序列的 alpha 是所有版本都认的。每帧 150ms：比原来的 10fps
-    /// 慢一些，但不会慢到像卡住。
-    private fun loadAnimated(key: String): Drawable? {
-        animationCache[key]?.let { return it }
-        val dir = "flutter_assets/assets/pet_frames"
-        val names = try {
-            assets.list(dir)
-                ?.filter { it.startsWith("${key}_") && it.endsWith(".png") }
-                ?.sorted()
-        } catch (_: Throwable) {
-            null
-        } ?: return null
-        if (names.isEmpty()) return null
+    private fun applyFacing() {
+        if (!::pet.isInitialized) return
+        pet.scaleX = if (facingRight) -1f else 1f
+    }
 
+    private fun loadAnimated(action: PetAction): AnimationDrawable? {
+        animationCache[action.key]?.let { return it }
         val animation = AnimationDrawable()
-        for (name in names) {
+        for (index in 0 until action.frames) {
+            val name = String.format(Locale.US, "%s_%02d.webp", action.key, index)
             try {
-                assets.open("$dir/$name").use { stream ->
-                    val bitmap = BitmapFactory.decodeStream(stream)
+                assets.open("flutter_assets/assets/pet_frames/$name").use { stream ->
+                    val decoded = BitmapFactory.decodeStream(stream)
+                    val bitmap = decoded?.let {
+                        if (translucentEnabled()) it else forceOpaque(it)
+                    }
                     if (bitmap != null) {
-                        animation.addFrame(BitmapDrawable(resources, bitmap), 150)
+                        animation.addFrame(BitmapDrawable(resources, bitmap), frameMs.toInt())
                     }
                 }
             } catch (_: Throwable) {
             }
         }
-        if (animation.numberOfFrames == 0) return null
-        animationCache[key] = animation
-        while (animationCache.size > 5) {
+        if (animation.numberOfFrames == 0) {
+            PetBridge.emit("error", mapOf("message" to "桌宠素材没找到：${action.key}"))
+            return null
+        }
+        animationCache[action.key] = animation
+        while (animationCache.size > 4) {
             val oldest = animationCache.keys.first()
             animationCache.remove(oldest)?.stop()
         }
         return animation
     }
+
+    /// 关掉半透明时，把帧里非全透明的像素强行设为不透明。
+    ///
+    /// 这是第二道保险：正常情况只有窗口 alpha 在起作用，但个别 ROM 的
+    /// WebP 解码会把 alpha 弄得发虚；烘焙一遍就稳了，代价是边缘没有羽化。
+    private fun forceOpaque(source: android.graphics.Bitmap): android.graphics.Bitmap {
+        return try {
+            val copy = source.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+                ?: return source
+            val width = copy.width
+            val height = copy.height
+            val pixels = IntArray(width * height)
+            copy.getPixels(pixels, 0, width, 0, 0, width, height)
+            for (i in pixels.indices) {
+                val alpha = (pixels[i] ushr 24) and 0xFF
+                if (alpha > 0) {
+                    pixels[i] = pixels[i] or 0xFF000000.toInt()
+                }
+            }
+            copy.setPixels(pixels, 0, width, 0, 0, width, height)
+            copy
+        } catch (_: Throwable) {
+            source
+        }
+    }
+
+    // ---------------------------------------------------------------- 漫游
+
+    private var roamRunnable: Runnable? = null
+    private var roamToken = 0
+
+    /// 播一个走行动画并真的把窗口挪过去。算不出落点（贴边/取消）返回 false。
+    private fun startRoaming(action: PetAction): Boolean {
+        val spec = action.move ?: return false
+        val p = params ?: return false
+        if (!::root.isInitialized) return false
+        stopRoaming()
+        val (screenW, _) = displaySize()
+        val dist = dp(randInt(spec.minDp, spec.maxDp))
+        // 朝哪边就走哪边——和原项目一样，方向由朝向决定（转向动画才翻朝向）。
+        val dir = if (facingRight) 1 else -1
+        // 走路时要求**角色本体**留在屏幕里（窗口里本体两侧是透明的，
+        // 按窗口算会让它走到看不见的地方）。拖拽仍然允许半贴边。
+        val scale = p.width.toFloat() / imageWidth.coerceAtLeast(1)
+        val bodyLeft = (hitRect.left * scale).toInt()
+        val bodyWidth = (hitRect.width() * scale).toInt()
+        val margin = dp(8)
+        val minX = -bodyLeft + margin
+        val maxX = (screenW - bodyLeft - bodyWidth - margin)
+            .coerceAtLeast(minX)
+        val target = (p.x + dir * dist).coerceIn(minX, maxX)
+        val startX = p.x
+        if (abs(target - startX) < dp(12)) return false
+
+        playAction(action, loop = false, autoIdle = false)
+
+        val token = ++roamToken
+        val total = (action.frames * frameMs).coerceAtLeast(1L)
+        val lead = (total * spec.lead).toLong()
+        val tail = (total * spec.tail).toLong()
+        val travel = (total - lead - tail).coerceAtLeast(1L)
+        val startAt = SystemClock.uptimeMillis()
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (roamToken != token) return
+                val elapsed = SystemClock.uptimeMillis() - startAt
+                val progress = when {
+                    elapsed <= lead -> 0f
+                    elapsed >= lead + travel -> 1f
+                    else -> (elapsed - lead).toFloat() / travel
+                }
+                p.x = (startX + (target - startX) * progress).toInt()
+                try {
+                    windowManager.updateViewLayout(root, p)
+                } catch (_: Throwable) {
+                }
+                updateHitPosition()
+                syncBubblePosition()
+                if (elapsed < total) {
+                    handler.postDelayed(this, 16)
+                } else {
+                    p.x = target
+                    try {
+                        windowManager.updateViewLayout(root, p)
+                    } catch (_: Throwable) {
+                    }
+                    updateHitPosition()
+                    getSharedPreferences("echo_pet", MODE_PRIVATE)
+                        .edit().putInt("x", p.x).putInt("y", p.y).apply()
+                    PetBridge.emit("dropped", mapOf("x" to p.x, "y" to p.y))
+                    roamRunnable = null
+                    startIdle()
+                }
+            }
+        }
+        roamRunnable = runnable
+        handler.postDelayed(runnable, 16)
+        return true
+    }
+
+    private fun stopRoaming() {
+        roamToken++
+        roamRunnable?.let { handler.removeCallbacks(it) }
+        roamRunnable = null
+    }
+
+    // ---------------------------------------------------------------- 气泡
 
     private fun showBubble(text: String, requestId: String = "") {
         val clean = text.trim()
@@ -504,12 +1083,13 @@ class PetOverlayService : Service() {
         val lp = bubbleParams ?: return
 
         try {
-            // 先用完整文本量出“最多两行”需要多大，窗口固定成这个尺寸，
-            // 逐字出现时就不会一边打字一边把气泡撑大。
             bubbleFullText = clean.take(120)
             bubble.text = bubbleFullText
             bubble.measure(
-                View.MeasureSpec.makeMeasureSpec(dp(280), View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(
+                    dp(bubbleMaxWidthDp),
+                    View.MeasureSpec.AT_MOST,
+                ),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             )
             lp.width = bubble.measuredWidth.coerceAtLeast(dp(60))
@@ -533,8 +1113,10 @@ class PetOverlayService : Service() {
                 hideBubble,
                 (6000L + bubbleFullText.length * 35L).coerceAtMost(20000L),
             )
-            // 气泡不该重置待机轮盘：只有睡着时被气泡叫醒才需要换动作。
-            if (mood == "sleep") applyMood("happy")
+            if (currentAction != null && currentAction == byExpose["sleep"]) {
+                // 睡着时被气泡叫醒：换成开心的点击回应。
+                byExpose["happy"]?.let { playAction(it, loop = false, autoIdle = true) }
+            }
             PetBridge.emit(
                 "bubble",
                 mapOf(
@@ -544,7 +1126,6 @@ class PetOverlayService : Service() {
                 ),
             )
         } catch (error: Throwable) {
-            // 气泡失败不该把服务带崩；留下一条事件方便排查。
             PetBridge.emit(
                 "bubble",
                 mapOf(
@@ -569,7 +1150,7 @@ class PetOverlayService : Service() {
     }
 
     /// 气泡单独一个窗口：它不接收触摸，所以不会扩大桌宠的点击范围。
-    /// 垂直位置对齐到裙子上的小鲸鱼那一块，而不是压在头顶。
+    /// 叠在舞台里角色身上，垂直对齐裙子上的小鲸鱼那一块。
     private fun syncBubblePosition() {
         if (!::bubble.isInitialized) return
         val p = params ?: return
@@ -577,15 +1158,15 @@ class PetOverlayService : Service() {
         val dm = resources.displayMetrics
         val w = lp.width.takeIf { it > 0 } ?: dp(160)
         val h = lp.height.takeIf { it > 0 } ?: dp(36)
-        // 气泡叠在桌宠身上，而不是浮在旁边：水平对着宠物居中，
-        // 垂直中心落在裙摆小鲸鱼那一带（约 70% 高度）。
         lp.x = p.x + (p.width - w) / 2
-        val targetY = p.y + (p.height * 0.70f).toInt() - h / 2
-        lp.y = targetY
+        lp.y = p.y + (p.height * 0.70f).toInt() - h / 2
         lp.x = lp.x.coerceIn(0, (dm.widthPixels - w).coerceAtLeast(0))
         lp.y = lp.y.coerceIn(0, (dm.heightPixels - h).coerceAtLeast(0))
         if (bubbleAdded) {
-            windowManager.updateViewLayout(bubble, lp)
+            try {
+                windowManager.updateViewLayout(bubble, lp)
+            } catch (_: Throwable) {
+            }
         }
     }
 
@@ -594,6 +1175,8 @@ class PetOverlayService : Service() {
         handler.removeCallbacks(bubbleTyper)
         if (::bubble.isInitialized) bubble.visibility = View.GONE
     }
+
+    // ---------------------------------------------------------------- 前台服务
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -634,6 +1217,8 @@ class PetOverlayService : Service() {
     }
 
     private fun stopSelfSafely() {
+        stopRoaming()
+        stopIdleTimer()
         handler.removeCallbacks(hideBubble)
         (currentDrawable as? AnimationDrawable)?.stop()
         breathAnimator?.cancel()
@@ -643,6 +1228,13 @@ class PetOverlayService : Service() {
             } catch (_: Throwable) {
             }
             bubbleAdded = false
+        }
+        if (hitAdded && ::hit.isInitialized) {
+            try {
+                windowManager.removeView(hit)
+            } catch (_: Throwable) {
+            }
+            hitAdded = false
         }
         if (::root.isInitialized) {
             try {
@@ -659,9 +1251,24 @@ class PetOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        stopRoaming()
+        stopIdleTimer()
+        handler.removeCallbacksAndMessages(null)
+        if (::displayManager.isInitialized) {
+            try {
+                displayManager.unregisterDisplayListener(displayListener)
+            } catch (_: Throwable) {
+            }
+        }
         if (bubbleAdded && ::bubble.isInitialized) {
             try {
                 windowManager.removeView(bubble)
+            } catch (_: Throwable) {
+            }
+        }
+        if (hitAdded && ::hit.isInitialized) {
+            try {
+                windowManager.removeView(hit)
             } catch (_: Throwable) {
             }
         }

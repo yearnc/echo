@@ -21,6 +21,7 @@ class PetSettingsRepository {
   static const String _realtimeFramesKey = 'pet.realtimeFrames';
   static const String _realtimeGapKey = 'pet.realtimeGapSeconds';
   static const String _voiceKey = 'pet.voiceEnabled';
+  static const String _translucentKey = 'pet.translucent';
   static const String _watchRequestKey = 'pet.watchRequest';
 
   Future<String?> _read(String key) async {
@@ -46,6 +47,7 @@ class PetSettingsRepository {
     final frames = int.tryParse(await _read(_realtimeFramesKey) ?? '');
     final gap = int.tryParse(await _read(_realtimeGapKey) ?? '');
     final voice = await _read(_voiceKey);
+    final translucent = await _read(_translucentKey);
     return PetSettings(
       enabled: enabled == 'true',
       defaultResidentId: resident ?? '',
@@ -54,6 +56,8 @@ class PetSettingsRepository {
       realtimeFrames: (frames ?? 3).clamp(1, 6),
       realtimeGapSeconds: (gap ?? 20).clamp(5, 120),
       voiceEnabled: voice == 'true',
+      // 没写过就是半透明：这是 v4.1 之前看到的样子，不替用户改。
+      translucent: translucent != 'false',
     );
   }
 
@@ -74,6 +78,9 @@ class PetSettingsRepository {
       _write(_realtimeGapKey, '${seconds.clamp(5, 120)}');
 
   Future<void> setVoice(bool value) => _write(_voiceKey, '$value');
+
+  Future<void> setTranslucent(bool value) =>
+      _write(_translucentKey, '$value');
 
   /// 住民请求进入实时观察：只落一个待确认标记，用户同意后才真的开。
   Future<void> requestWatch() => _write(_watchRequestKey, 'true');

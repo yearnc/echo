@@ -368,6 +368,25 @@ class _PetPageState extends ConsumerState<PetPage> {
                   .removeShift(shift.id),
             ),
           const SizedBox(height: 18),
+          const _Section('外观'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: state.translucent,
+            title: Text(
+              '半透明身体',
+              style: TextStyle(color: EchoColors.text, fontSize: 14),
+            ),
+            subtitle: Text(
+              state.translucent
+                  ? '能隐约看见后面的背景；关掉后整只完全不透明。'
+                  : '完全不透明，后面是什么都被挡住。',
+              style: TextStyle(color: EchoColors.textMuted, fontSize: 11.5),
+            ),
+            onChanged: (value) => ref
+                .read(petControllerProvider.notifier)
+                .setTranslucent(value),
+          ),
+          const SizedBox(height: 18),
           const _Section('观察'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

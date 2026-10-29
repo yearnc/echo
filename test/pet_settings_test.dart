@@ -51,4 +51,16 @@ void main() {
       expect(day.label, '08:00—22:00');
     });
   });
+
+  group('外观', () {
+    test('半透明默认开，copyWith 只改这一项', () {
+      const settings = PetSettings(enabled: true, realtimeFrames: 4);
+      expect(settings.translucent, isTrue);
+
+      final solid = settings.copyWith(translucent: false);
+      expect(solid.translucent, isFalse);
+      expect(solid.enabled, isTrue);
+      expect(solid.realtimeFrames, 4);
+    });
+  });
 }

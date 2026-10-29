@@ -10,6 +10,7 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
+import 'data/db/database_provider.dart';
 import 'data/repositories/usage_repository.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/audience_service.dart';
@@ -166,6 +167,12 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       // 以为自己还没看。未到点的预约也一并撤，前台不靠系统提醒。
       unawaited(notifications.cancelAllShown());
       unawaited(notifications.cancelAllScheduled());
+      // 后台唤醒在 WorkManager 的独立 isolate 里开自己那条数据库连接，
+      // 写进来的私信和通知不会触发前台 Drift 的 tableUpdates，于是会话
+      // 列表和底部红点要等用户点进聊天页重新订阅才更新。回到前台时手动
+      // 标一次全表刷新（和备份导入同一套做法），让所有挂着的流自己重读。
+      final db = ref.read(databaseProvider);
+      db.markTablesUpdated(db.allTables);
     } else if (state == AppLifecycleState.paused) {
       _endSession();
       unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
