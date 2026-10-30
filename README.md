@@ -518,6 +518,11 @@ GitHub digest 与本地一致）。
 | `echo-models-zipvoice-v1.zip` | ZipVoice 音色克隆（约 187MB） |
 | `echo-models-asr-stream-v1.zip` | 流式识别，通话用（约 190MB） |
 
+模型资源已发布：
+[**Releases models-v1**](https://github.com/yearnc/echo/releases/tag/models-v1)
+（四个附件均已上传，SHA256 与 `resources/manifest.json` 一致；国内可用
+`gh-proxy.com` 镜像，下载页也会在官方源失败时自动换镜像）。
+
 清单在 `resources/manifest.json`；用 `tool/package_resources.py` 重新打包时会
 一并算出体积和 SHA256。旧的全量包 v4.3.0 **未发布**，仍可下载的上一版是
 **v4.2.9**（schema v46，已发布）：
