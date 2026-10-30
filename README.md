@@ -502,10 +502,12 @@ APK 仍使用 Flutter 模板默认的调试签名，只用于侧载测试。
 APK 不内置语音模型，装完 151.5MB；需要语音识别 / 合成时，在
 「我的 → 下载资源」里按需下载（约 117—229MB 一项）。
 
-**v4.6.0 精简版** arm64 包（本地构建，发布时用它即可）：
+**v4.6.0 精简版** 已发布：
+[**Releases v4.6.0**](https://github.com/yearnc/echo/releases/tag/v4.6.0)
 `echo-v4.6.0-arm64.apk`（151.5MB / 158,893,570 字节，
 versionName 4.6.0 / versionCode 2062，
-SHA256 `4f6e3b8364ccaaf364764ff1c26fa9da35bf536ee74b30ee762c271cc88fe0ff`）。
+SHA256 `4f6e3b8364ccaaf364764ff1c26fa9da35bf536ee74b30ee762c271cc88fe0ff`，
+GitHub digest 与本地一致）。
 包内已确认没有 `assets/models/`，权限含 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`。
 **GitHub 以后只上传这种精简包**；模型作为 Release `models-v1` 的独立附件：
 
