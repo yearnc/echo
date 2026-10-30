@@ -360,8 +360,9 @@ class PetObserveService {
       try {
         await timeline.appendScreen(
           residentId,
+          // 时间前缀由 appendScreen 统一加，这里只写看见了什么。
           content:
-              '[${_clock(now)}] 你看了屏幕：'
+              '你看了屏幕：'
               '${description.isEmpty ? '（没看清）' : description}',
           at: now,
           meta: 'pet_normal',
@@ -488,7 +489,8 @@ class PetObserveService {
         await timeline.appendScreen(
           residentId,
           content:
-              '[${_clock(recent.first.at)}—${_clock(recent.last.at)}] 你看了屏幕：'
+              '你看了 ${recent.length} 帧屏幕'
+              '（${_clock(recent.first.at)}—${_clock(recent.last.at)}）：'
               '${description.isEmpty ? '几帧画面' : description}',
           at: now,
           meta: 'pet_realtime',

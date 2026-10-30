@@ -53,6 +53,18 @@ void main() {
     expect(thread.first.content, '在吗');
   });
 
+  test('删除单条消息：只少这一条，别的还在', () async {
+    final keep = await messages.send(personaId: 'persona_001', content: '留下的');
+    final drop = await messages.send(personaId: 'persona_001', content: '要删的');
+    expect((await messages.watchThread('persona_001').first).length, 2);
+
+    await messages.deleteMessage(drop);
+
+    final thread = await messages.watchThread('persona_001').first;
+    expect(thread.map((item) => item.id), [keep]);
+    expect(thread.map((item) => item.content), ['留下的']);
+  });
+
   test('A 的唤醒历史里不会出现 B 的私信', () async {
     await messages.send(personaId: 'resident_a', content: '只给 A 的话');
     await messages.send(personaId: 'resident_b', content: '只给 B 的话');

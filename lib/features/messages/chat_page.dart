@@ -13,6 +13,7 @@ import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/photo_describer.dart';
 import '../../domain/services/resident_activity_controller.dart';
+import '../../domain/services/resident_timeline.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import '../shared_widgets/chat_bubble.dart';
@@ -295,6 +296,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           messages: list,
                           name: name,
                           avatarRef: avatarRef,
+                          residentId: widget.personaId,
                         );
                 },
               ),
@@ -316,19 +318,53 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 }
 
-class _MessageList extends StatelessWidget {
+class _MessageList extends ConsumerWidget {
   const _MessageList({
     required this.messages,
     required this.name,
     required this.avatarRef,
+    required this.residentId,
   });
 
   final List<PrivateMessage> messages;
+  final String residentId;
   final String name;
   final String? avatarRef;
 
+  /// 长按删除单条。聊天记录和上下文时间线一起删——
+  /// 只删界面的话，住民下次醒来还会记得这句话。
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    PrivateMessage message,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: const Text('删除这条消息？'),
+        content: Text('删掉后聊天记录里不会再显示，$name 也不会再记得这句话。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('删除', style: TextStyle(color: EchoColors.like)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(privateMessageRepositoryProvider).deleteMessage(message.id);
+    await ref.read(residentTimelineProvider).deleteDmEvent(message.id);
+    // 删掉的话不能还留在常驻窗口里。
+    ref.read(residentWakeServiceProvider).invalidateWindow(residentId);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final rows = <Widget>[];
     DateTime? day;
     String? previousSender;
@@ -363,6 +399,7 @@ class _MessageList extends StatelessWidget {
           createdAt: message.createdAt,
           showAvatar: previousSender != sender,
           showTime: !sameAsNext,
+          onLongPress: () => _delete(context, ref, message),
         ),
       );
       previousSender = sender;

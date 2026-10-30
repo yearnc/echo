@@ -68,16 +68,36 @@ void main() {
     expect(sanitizeModelText('  在呢，你吃了吗？ '), '在呢，你吃了吗？');
   });
 
-  test('开头的完整时间标记会被剥掉，只剥一层', () {
+  test('开头的时间标记会被剥干净，叠几层都不留', () {
     const label = '[2026年10月28日 周三 中午 12:44] ';
     expect(
       sanitizeModelText('$label行吧，别磨蹭到天黑。'),
       '行吧，别磨蹭到天黑。',
     );
+    expect(sanitizeModelText('$label$label行吧。'), '行吧。');
+  });
+
+  test('旧时间线的短格式和人称前缀也会被剥掉', () {
+    const short = '[10月30日 21:32] ';
     expect(
-      sanitizeModelText('$label$label行吧。'),
-      '$label行吧。',
+      sanitizeModelText('$short你：没找到也正常。'),
+      '没找到也正常。',
     );
+    expect(
+      sanitizeModelText('$short对方：那你复习了吗？'),
+      '那你复习了吗？',
+    );
+    expect(sanitizeModelText('[21:32] 你看了屏幕：编辑器'), '你看了屏幕：编辑器');
+  });
+
+  test('模型一次抄回多条记录时，逐行洗掉前缀', () {
+    const raw = '[10月30日 21:32] 你：没找到也正常。\n'
+        '[10月30日 21:32] 你：复习了一遍也算数。';
+    expect(
+      sanitizeMessageBody(raw),
+      '没找到也正常。\n复习了一遍也算数。',
+    );
+    expect(sanitizeMessageBody('在呢，你吃了吗？'), '在呢，你吃了吗？');
   });
 
   test('句子中间的时间不误伤', () {

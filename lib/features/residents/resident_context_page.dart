@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../domain/services/resident_timeline.dart';
+import '../../domain/services/resident_wake_service.dart';
 
 /// 「住民的上下文」：唯一时间线的查看与清空（v4.5）。
 ///
@@ -56,6 +57,10 @@ class _ResidentContextPageState extends ConsumerState<ResidentContextPage> {
       await ref
           .read(residentTimelineProvider)
           .clearContext(widget.residentId);
+      // 常驻窗口里还留着旧私信，必须一起作废，否则清了也没清。
+      ref
+          .read(residentWakeServiceProvider)
+          .invalidateWindow(widget.residentId);
       ref.invalidate(residentContextEventsProvider(widget.residentId));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

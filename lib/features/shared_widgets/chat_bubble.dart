@@ -25,6 +25,7 @@ class ChatBubble extends StatelessWidget {
     this.showAvatar = true,
     this.showName = false,
     this.showTime = true,
+    this.onLongPress,
   });
 
   final String content;
@@ -49,6 +50,9 @@ class ChatBubble extends StatelessWidget {
   /// 是否显示发送者名字。私信里 AppBar 已经写着名字，默认不显示。
   final bool showName;
   final bool showTime;
+
+  /// 长按这条消息（删除等操作由调用方决定）。
+  final VoidCallback? onLongPress;
 
   static const double _avatarSize = 34;
 
@@ -84,7 +88,7 @@ class ChatBubble extends StatelessWidget {
     final media = mediaType == 'image' || mediaType == 'sticker';
     final isImage = mediaType == 'image';
 
-    return Padding(
+    final bubble = Padding(
       padding: EdgeInsets.only(
         left: 14,
         right: 14,
@@ -140,6 +144,13 @@ class ChatBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (onLongPress == null) return bubble;
+    return GestureDetector(
+      onLongPress: onLongPress,
+      behavior: HitTestBehavior.translucent,
+      child: bubble,
     );
   }
 

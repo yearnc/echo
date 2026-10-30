@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/agent_time.dart';
 import '../../data/media/image_payload.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import '../models/resident_activity.dart';
 import '../models/tool_settings.dart';
 import 'action_registry.dart';
-import 'content_generator.dart';
 import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
 import 'tool_call_text.dart';
@@ -205,22 +205,7 @@ class ResidentToolSession {
 
   /// 这次回复排在什么时候。固定住民自己、以及给模型的提示词共用一份格式：
   /// 年月日、周几、24 小时制精确到分钟。只写“10月24日”会让模型不知道今年是哪年。
-  static String timeLabel(DateTime at) {
-    final phase = switch (at.hour) {
-      >= 5 && < 8 => '清晨',
-      >= 8 && < 11 => '上午',
-      >= 11 && < 14 => '中午',
-      >= 14 && < 17 => '下午',
-      >= 17 && < 19 => '傍晚',
-      >= 19 && < 23 => '晚上',
-      _ => '深夜',
-    };
-    final hh = at.hour.toString().padLeft(2, '0');
-    final mm = at.minute.toString().padLeft(2, '0');
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    final week = weekdays[at.weekday - 1];
-    return '${at.year}年${at.month}月${at.day}日 周$week $phase $hh:$mm';
-  }
+  static String timeLabel(DateTime at) => agentTimeLabel(at);
 
   /// 唤醒式交互（v3.3）：一次醒来，先把收件箱里的待办处理掉。
   ///
@@ -233,9 +218,8 @@ class ResidentToolSession {
     required String situation,
     required ResidentWakeToolkit toolkit,
     DateTime? at,
-    List<DirectTurn> history = const [],
-    /// 唯一的持久上下文时间线。传了就用它，不再现场拼私信历史。
-    List<Map<String, dynamic>>? timeline,
+    /// 常驻上下文窗口：system + 记忆 + 最近私信。由唤醒服务维护并追加。
+    required List<Map<String, dynamic>> history,
     bool allowProactive = true,
     bool allowVoice = true,
     Future<void> Function(String name)? onTool,
@@ -251,25 +235,16 @@ class ResidentToolSession {
       voiceReady ? limits.voiceTimeout : limits.timeout,
     );
     _report(resident, '正在看消息…', ResidentActivityKind.reading);
-    final memoryLines = await _prefetch(resident);
     // 一轮里附加的原图总额度：一次 read_post 最多 4 张，整轮最多 8 张，
     // 免得连着点开好几条带图的帖子把上下文撑爆。
     var imagesAttached = 0;
-    // 桌宠轮和私信轮共用同一套 system 与同一条时间线；
-    // 屏幕上和私信里是同一个自己，提示词不再分裂。
-    final messages = <Map<String, dynamic>>[
-      {
-        'role': 'system',
-        'content': _residentSystemPrompt(resident, voiceReady: voiceReady),
-      },
-      ...?timeline,
-      if (timeline == null)
-        ...await _timedHistory(history, supportsVision: config.supportsVision),
-    ];
+    // history 是常驻窗口（system + 记忆 + 私信），由唤醒服务维护；
+    // 这一轮只往后追加载荷，绝不重排它 —— 前缀稳定，缓存才命得中。
+    // 工具调用与结果全部留在下面的临时数组里，当轮结束即丢。
+    final messages = <Map<String, dynamic>>[...history];
 
     final tailText = [
       '现在：${timeLabel(at ?? DateTime.now())}',
-      if (memoryLines.isNotEmpty) ...['你记得：$memoryLines'],
       situation,
     ].join('\n');
     // 实时观察的帧数由用户选，最多 6 张，再加一张自己的参照图。
@@ -645,53 +620,27 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
 - 不要提自己是 AI，不要解释你在调用工具，不要总结流程。
 - 想发表情包先用 list_stickers，再 send_sticker；一次最多一张。
 - 对方难过、求助时，只选安慰/陪伴类标签。
-- 消息开头形如 [2026年10月28日 周三 中午 12:44] 的方括号是系统自动
-  标注的发送时间，不是消息正文；你说话时不要带这种时间标记，
-  但可以用它判断隔了多久、现在是什么时候。
+- 记录里每条开头的方括号（如 [2026年10月28日 周三 中午 12:44]
+  或 [10月30日 21:32]）都是系统自动标注的发送时间，不是消息正文；
+  前面的“对方：”也是系统标的人称。你说话时不要带时间、不要带
+  “你：/对方：”，也不要照着记录的样子把好几条拼进同一条——
+  send_dm 一次只说眼前这一句。你可以用记录里的时间判断隔了多久。
+- 上下文里可能出现 <system-reminder> 标签包裹的内容（屏幕里看到了什么、
+  你在屏幕上冒过什么气泡、做过什么动作）。那些是系统自动加的记录，
+  不是对方说的话，也不是你要接着说的正文；不要复述标签，也不要把
+  “你看了屏幕：…”“你在屏幕上说：…”抄进私信。
 - 以“现在”那一行的年月日为准。搜实时信息（新版本、价格、新闻）时，
   把年份写进搜索词（例如“2026年”），并检查结果里的日期：
   日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
 ''';
   }
 
-  /// 唤醒时也把最近的私信带上，而且每句都标明时间。
-  ///
-  /// 以前醒来只有“收件箱摘要”，住民不知道前文，也不知道对方是什么时候说的；
-  /// 回出来的话就容易像第一次见面。历史放在 system 之后、本轮提示之前，
-  /// 内容稳定，不会把缓存前缀打碎。
-  Future<List<Map<String, dynamic>>> _timedHistory(
-    List<DirectTurn> history, {
-    required bool supportsVision,
-  }) async {
-    final messages = <Map<String, dynamic>>[];
-    for (final turn in history) {
-      final when = turn.at == null ? '' : '[${timeLabel(turn.at!)}] ';
-      if (turn.fromMe) {
-        messages.add({
-          'role': 'assistant',
-          'content':
-              '$when${turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim()}',
-        });
-        continue;
-      }
+  /// 窗口构建时用：这台设备上这位住民的 system 提示。
+  String systemPromptFor(CustomResident resident, {bool voiceReady = true}) =>
+      _residentSystemPrompt(resident, voiceReady: voiceReady);
 
-      final text = turn.displayText;
-      Map<String, dynamic>? image;
-      if (turn.imageRef != null && supportsVision) {
-        image = await ImagePayload.partFromRef(turn.imageRef!);
-      }
-      messages.add({
-        'role': 'user',
-        'content': image == null
-            ? '$when$text'
-            : [
-                {'type': 'text', 'text': '$when$text'},
-                image,
-              ],
-      });
-    }
-    return messages;
-  }
+  /// 窗口构建时用：最近 5 条记忆，拼成一行。
+  Future<String> memoryLinesFor(CustomResident resident) => _prefetch(resident);
 
   Future<String> _prefetch(CustomResident resident) async {
     if (!resident.memoryEnabled) return '';

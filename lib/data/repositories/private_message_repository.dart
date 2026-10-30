@@ -455,6 +455,18 @@ class PrivateMessageRepository {
     );
   }
 
+  /// 删掉一条消息（软删）。上下文事件由调用方一起移出——
+  /// 只删聊天记录不删时间线的话，住民下次醒来还会记得这句话。
+  Future<void> deleteMessage(String id) async {
+    await (_db.update(_db.privateMessages)
+          ..where((t) => t.id.equals(id) & t.deletedAt.isNull()))
+        .write(
+          PrivateMessagesCompanion(
+            deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
   /// 删掉一段会话：只软删消息，不碰住民、记忆或帖子。
   ///
   /// 已经离开的住民不会再有新消息，所以这段历史可以彻底从消息页消失；

@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../domain/services/appearance_controller.dart';
 import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/pet_native.dart';
 import '../../domain/services/tool_settings_controller.dart';
 import '../../domain/services/web_search.dart';
 import '../shared_widgets/mode_switch_flow.dart';
@@ -26,6 +27,39 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 回响模式默认只露常用的三项；其余收在「高级设置」里。
   bool _showEchoAdvanced = false;
+
+  /// 系统有没有把本应用放进电池优化白名单。null = 还在查。
+  bool? _ignoringBattery;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshBattery());
+  }
+
+  Future<void> _refreshBattery() async {
+    final ignoring = await ref
+        .read(petNativeProvider)
+        .isIgnoringBatteryOptimizations();
+    if (mounted) setState(() => _ignoringBattery = ignoring);
+  }
+
+  Future<void> _requestBatteryExemption() async {
+    await ref.read(petNativeProvider).requestIgnoreBatteryOptimizations();
+    // 用户可能在系统弹窗里停留一会儿；回来后再核对一次。
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await _refreshBattery();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _ignoringBattery == true
+              ? '已经允许后台运行了'
+              : '系统还没放行；国产手机还要在「应用启动管理」里允许自启动',
+        ),
+      ),
+    );
+  }
 
   /// 搜索能力来自服务商本身：智谱用 `web_search` 工具，百炼用 `enable_search`。
   /// DeepSeek 走独立搜索接口，只要模型配置里有它填好的 Key 就行，不需要切过去当对话模型；
@@ -215,6 +249,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 title: '联网搜索',
                 subtitle: '默认关闭；开启后住民能查实时信息',
                 onTap: () => _pickSearchProvider(context, ref),
+              ),
+            ],
+          ),
+          _Group(
+            title: '后台',
+            isEcho: isEcho,
+            children: [
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.battery_saver_outlined,
+                title: '允许后台运行',
+                subtitle: '关掉电池优化，桌宠和后台唤醒更稳；国产系统还要开自启动',
+                value: _ignoringBattery == null
+                    ? '检查中'
+                    : (_ignoringBattery! ? '已允许' : '受系统限制'),
+                onTap: _requestBatteryExemption,
+              ),
+              _Row(
+                isEcho: isEcho,
+                icon: Icons.settings_applications_outlined,
+                title: '自启动 / 应用详情',
+                subtitle: '荣耀、华为、小米这类系统要在这里手动允许',
+                value: '去系统设置',
+                onTap: () => ref.read(petNativeProvider).openAppSettings(),
               ),
             ],
           ),

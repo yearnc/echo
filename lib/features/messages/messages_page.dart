@@ -9,6 +9,7 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/services/resident_activity_controller.dart';
+import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/resident_timeline.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -240,6 +241,7 @@ class _ConversationTile extends ConsumerWidget {
     await ref
         .read(residentTimelineProvider)
         .deleteDmEvents(conversation.personaId);
+    ref.read(residentWakeServiceProvider).invalidateWindow(conversation.personaId);
   }
 
   /// 已离开的住民不会再有新消息，这段历史可以整段删掉。

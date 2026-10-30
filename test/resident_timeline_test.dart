@@ -38,14 +38,73 @@ void main() {
     expect(list.length, 30);
     expect(list.where((item) => item['role'] == 'user').length, 15);
     expect(list.where((item) => item['role'] == 'assistant').length, 15);
-    // 住民视角：用户发来的是“对方”，住民自己说的是“你”。
+    // 住民视角：用户发来的标“对方”，住民自己说的不加人称——
+    // “你：”曾让模型照着抄进正文（v4.6.1）。
     final users = list.where((item) => item['role'] == 'user');
     final assistants = list.where((item) => item['role'] == 'assistant');
-    expect(users.every((item) => '${item['content']}'.contains('对方')), isTrue);
+    expect(users.every((item) => '${item['content']}'.contains('对方：')), isTrue);
     expect(
-      assistants.every((item) => '${item['content']}'.contains('你：')),
+      assistants.every((item) => !'${item['content']}'.contains('你：')),
       isTrue,
     );
+    expect(
+      assistants.every(
+        (item) => RegExp(r'^\[\d{4}年\d{1,2}月\d{1,2}日 周').hasMatch(
+          '${item['content']}',
+        ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('旧时间线的短前缀会被一次性洗掉，历史不清空', () async {
+    await messages.scheduleIncoming(
+      personaId: 'a',
+      content: '[10月30日 21:32] 你：没找到也正常。',
+      at: DateTime.now(),
+    );
+    await timeline.syncMessages('a');
+    final list = await timeline.messages('a');
+    final content = '${list.single['content']}';
+    // 规范时间前缀保留，旧短前缀与“你：”被洗掉。
+    expect(content, endsWith('没找到也正常。'));
+    expect(content, isNot(contains('你：')));
+    expect(content, isNot(contains('[10月30日')));
+  });
+
+  test('屏幕/气泡/动作包进 system-reminder，私信保持裸文本', () async {
+    await messages.send(personaId: 'a', content: '对方说的话');
+    await timeline.syncMessages('a');
+    await timeline.appendScreen('a', content: '你看了屏幕：编辑器', at: DateTime.now());
+    await timeline.appendBubble('a', content: '我在呢', at: DateTime.now());
+
+    final list = await timeline.messages('a');
+    final screen = list.firstWhere(
+      (item) => '${item['content']}'.contains('编辑器'),
+    );
+    final bubble = list.firstWhere(
+      (item) => '${item['content']}'.contains('我在呢'),
+    );
+    final dm = list.firstWhere(
+      (item) => '${item['content']}'.contains('对方说的话'),
+    );
+    expect('${screen['content']}', startsWith('<system-reminder>'));
+    expect('${screen['content']}', endsWith('</system-reminder>'));
+    expect('${bubble['content']}', startsWith('<system-reminder>'));
+    expect('${dm['content']}', isNot(contains('<system-reminder>')));
+  });
+
+  test('删掉一条私信时，上下文里也不见了', () async {
+    final gone = await messages.send(personaId: 'a', content: '会被删');
+    await messages.send(personaId: 'a', content: '留着');
+    await timeline.syncMessages('a');
+
+    await timeline.deleteDmEvent(gone);
+
+    final list = await timeline.messages('a');
+    expect(list.length, 1);
+    expect('${list.single['content']}', contains('留着'));
+    expect('${list.single['content']}', isNot(contains('会被删')));
   });
 
   test('重复同步幂等；新事件只追加，旧前缀逐字节不变', () async {
@@ -59,7 +118,7 @@ void main() {
 
     await timeline.appendScreen(
       'a',
-      content: '[10:00] 你看了屏幕：编辑器',
+      content: '你看了屏幕：编辑器',
       at: DateTime.now(),
     );
     final after = await timeline.messages('a');
@@ -87,7 +146,7 @@ void main() {
     await timeline.syncMessages('a');
     await timeline.appendScreen(
       'a',
-      content: '[10:00] 你看了屏幕：窗外',
+      content: '你看了屏幕：窗外',
       at: DateTime.now(),
     );
 

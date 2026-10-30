@@ -104,17 +104,70 @@ Object? _typed(String raw) {
 
 /// 模型把历史里的时间前缀抄进正文时，开头的这一层要剥掉。
 ///
-/// 只认**完整格式**（年月日 + 周几 + 时段 + 时分），而且只剥一层；
-/// 正文中间或句子里正常的“12:44”“明天中午”一律不动。
+/// 三种都认：完整格式（`[2026年10月28日 周三 中午 12:44]`）、
+/// 旧时间线的短格式（`[10月30日 21:32]`）、屏幕观察的纯时刻（`[21:32]`）。
 /// 历史里带时间前缀是为了让住民知道消息是什么时候发的，不是为了教它
-/// 在每次说话前盖个戳。
+/// 在每次说话前盖个戳；2026-10-30 真机就是短格式没被认出来，
+/// 模型把「[10月30日 21:32] 你：…」原样发进了私信。
 final RegExp _leadingTimeLabel = RegExp(
-  r'^\[\s*\d{4}年\d{1,2}月\d{1,2}日\s*周[一二三四五六日天]\s*'
-  r'(?:清晨|上午|中午|下午|傍晚|晚上|深夜)\s*\d{1,2}:\d{2}\s*\]\s*',
+  r'^\[\s*(?:\d{4}年\s*)?\d{1,2}月\d{1,2}日\s*'
+  r'(?:周[一二三四五六日天]\s*)?'
+  r'(?:(?:清晨|上午|中午|下午|傍晚|晚上|深夜)\s*)?'
+  r'\d{1,2}:\d{2}\s*\]\s*',
 );
 
-String stripLeadingTimeLabel(String raw) =>
-    raw.replaceFirst(_leadingTimeLabel, '').trim();
+/// 只有时刻的旧前缀（`[21:32]`）。
+final RegExp _leadingClock = RegExp(r'^\[\s*\d{1,2}:\d{2}\s*\]\s*');
+
+/// 对话记录里的人称前缀（`你：` / `对方：`）。
+final RegExp _leadingSpeaker = RegExp(r'^(?:你|对方)\s*[：:]\s*');
+
+/// 只剥时间前缀，不动人称——清洗旧记录时，用户那侧的“对方：”要留着。
+String stripTimePrefixes(String raw) {
+  var text = raw.trim();
+  for (var i = 0; i < 4; i++) {
+    final before = text;
+    text = text
+        .replaceFirst(_leadingTimeLabel, '')
+        .replaceFirst(_leadingClock, '')
+        .trim();
+    if (text == before) break;
+  }
+  return text;
+}
+
+String stripLeadingTimeLabel(String raw) {
+  var text = raw.trim();
+  // 前缀可能叠着出现（时间 + 人称），一次剥一层、剥干净为止。
+  for (var i = 0; i < 4; i++) {
+    final before = text;
+    text = text
+        .replaceFirst(_leadingTimeLabel, '')
+        .replaceFirst(_leadingClock, '')
+        .replaceFirst(_leadingSpeaker, '')
+        .trim();
+    if (text == before) break;
+  }
+  return text;
+}
+
+/// 私信正文可能一次抄回好几行历史记录（每行都带 `[时间] 你：`）。
+/// 逐行洗掉记录前缀、丢掉空行；正文中间的时间照旧不动。
+///
+/// [stripSpeaker] 只在模型要说的话上用；清洗历史记录时要按 role 区分，
+/// 用户那侧的“对方：”是记录的一部分，不能剥。
+String sanitizeMessageBody(String raw, {bool stripSpeaker = true}) {
+  final source = hasToolCallMarkup(raw) ? sanitizeModelText(raw) : raw;
+  final kept = <String>[];
+  for (final line in source.split('\n')) {
+    var clean = stripTimePrefixes(line);
+    if (stripSpeaker) {
+      clean = clean.replaceFirst(_leadingSpeaker, '').trim();
+    }
+    if (clean.isNotEmpty) kept.add(clean);
+  }
+  return kept.join('\n').trim();
+}
 
 /// 把模型文本里的工具调用标记洗掉，只留真正说的话。
 ///

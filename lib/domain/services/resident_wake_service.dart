@@ -33,6 +33,7 @@ import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'photo_describer.dart';
 import 'resident_activity_controller.dart';
+import 'resident_context_window.dart';
 import 'resident_timeline.dart';
 import 'tool_call_text.dart';
 import 'tts_service.dart';
@@ -154,6 +155,36 @@ class ResidentWakeService {
 
   /// 桌宠刚刚用气泡说过的话。观察循环取走后，会进入这一段时间的上下文。
   final Map<String, String> _petSaid = {};
+
+  /// 常驻上下文窗口（v4.7）：私信与桌宠共用，30 分钟滑动续期。
+  /// 窗口里只有 system + 记忆 + 私信；本轮载荷（画面、场景、工具）用完即弃。
+  final Map<String, ResidentContextWindow> _windows = {};
+
+  /// 这一轮看到的画面摘要，气泡要带上“当时看到什么”，否则进私信答不上来。
+  final Map<String, String> _petNoteNow = {};
+
+  /// 窗口作废：删私信、清空上下文、改人设时调用。
+  void invalidateWindow(String residentId) => _windows.remove(residentId);
+
+  /// 往活跃窗口里追加一条气泡（assistant 侧）。
+  ///
+  /// 气泡不是私信，不落 `private_messages`，但它是住民说过的话；
+  /// 不追加的话，它进私信就否认自己说过。看过的画面只留一句摘要。
+  void appendBubbleToWindow(
+    String residentId,
+    String text, {
+    String seen = '',
+  }) {
+    final window = _windows[residentId];
+    if (window == null || window.expired(DateTime.now())) return;
+    final note = seen.trim();
+    window.messages.add({
+      'role': 'assistant',
+      'content': note.isEmpty
+          ? '[屏幕气泡] $text'
+          : '[屏幕气泡] $text\n（当时看到：${_clip(note, 60)}）',
+    });
+  }
 
   String? takePetSaid(String residentId) => _petSaid.remove(residentId);
 
@@ -450,12 +481,19 @@ class ResidentWakeService {
       return 0;
     }
 
-    // 到高水位才压缩一次；平时一条都不砍，缓存前缀保持只追加。
+    // 时间线仍然记着全部事件，只在快撑爆模型窗口时才压缩一次。
     await timeline.compactIfNeeded(residentId: residentId, config: config);
-    final contextMessages = await timeline.messages(residentId);
+    // 模型看到的是常驻窗口：system + 5 条记忆 + 最近 20 条私信，
+    // 半小时内只追加不重建；窗口里没有屏幕帧和工具调用。
+    final window = await _openWindow(
+      resident,
+      allowVoice: trigger != WakeTrigger.background,
+    );
+    final history = window.messages;
+    _petNoteNow[residentId] = pet?.note ?? '';
     debugPrint(
-      '[上下文] ${resident.name}：${contextMessages.length} 条 / '
-      '约 ${await timeline.estimatedTokens(residentId)} token',
+      '[上下文] ${resident.name}：窗口 ${history.length} 条 / '
+      '剩 ${window.expiresAt.difference(now).inMinutes} 分钟',
     );
 
     final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
@@ -531,7 +569,7 @@ class ResidentWakeService {
         ),
         toolkit: toolkit,
         at: now,
-        timeline: contextMessages,
+        history: history,
         allowProactive: true,
         allowVoice: toolkit.allowVoice,
         extraImages: [
@@ -605,6 +643,62 @@ class ResidentWakeService {
     WakeTrigger.alarm => 'alarm',
     WakeTrigger.pet => 'pet',
   };
+
+  /// 取这位住民的常驻窗口。
+  ///
+  /// 没过期、人设没变 → 只把新私信追加到末尾；
+  /// 过期 / 人设变了 → 按「最近 20 条私信 + 5 条记忆」重建。
+  /// 每次用过都续期半小时，窗口存在期间不再回头重写前缀。
+  Future<ResidentContextWindow> _openWindow(
+    CustomResident resident, {
+    required bool allowVoice,
+  }) async {
+    final now = DateTime.now();
+    final system = session.systemPromptFor(resident, voiceReady: allowVoice);
+    final hash = system.hashCode.toString();
+    var window = _windows[resident.id];
+    if (window != null && (window.expired(now) || window.promptHash != hash)) {
+      window = null;
+    }
+    if (window == null) {
+      final memory = (await session.memoryLinesFor(resident)).trim();
+      final recent = await messages.recentTurns(
+        resident.id,
+        limit: ResidentContextWindow.baseDmCount,
+      );
+      window = ResidentContextWindow(
+        residentId: resident.id,
+        promptHash: hash,
+        messages: [
+          {
+            'role': 'system',
+            'content': memory.isEmpty ? system : '$system\n\n你记得：$memory',
+          },
+        ],
+        syncedThroughMs: 0,
+        dmIds: {},
+        now: now,
+      );
+      for (final turn in recent) {
+        window.appendDm(turn);
+      }
+      _windows[resident.id] = window;
+      debugPrint('[上下文] ${resident.name}：新建窗口（${recent.length} 条私信）');
+    } else {
+      final fresh = await messages.turnsSince(
+        resident.id,
+        afterMs: window.syncedThroughMs,
+      );
+      for (final turn in fresh) {
+        window.appendDm(turn);
+      }
+      if (fresh.isNotEmpty) {
+        debugPrint('[上下文] ${resident.name}：追加入窗口 ${fresh.length} 条');
+      }
+    }
+    window.touch(now);
+    return window;
+  }
 
   String _situation(
     CustomResident resident,
@@ -834,7 +928,9 @@ class ResidentWakeService {
     int segmentGapSeconds, {
     bool asVoice = false,
   }) async {
-    final text = sanitizeModelText(content);
+    // 私信正文逐行洗：模型偶尔把历史记录整行抄回来，
+    // 正文里就会出现「[10月30日 21:32] 你：…」这种系统前缀。
+    final text = sanitizeMessageBody(content);
     if (text.isEmpty) {
       return const ActionOutcome(ok: false, message: '消息是空的');
     }
@@ -1735,6 +1831,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
     // 已经用气泡说过了：这一轮不要再走“只回一句话”的兜底重复说一遍。
     spokePrivately = true;
     service._petSaid[resident.id] = clean;
+    // 气泡是住民说过的话，要进窗口——否则它进私信会否认自己说过。
+    // 顺带记下“当时看到什么”，主人追问时它才答得上前因。
+    service.appendBubbleToWindow(
+      resident.id,
+      clean,
+      seen: service._petNoteNow[resident.id] ?? '',
+    );
     // 气泡也进唯一时间线：下一次无论是看屏幕还是回私信，
     // 读到的都是同一段“我说过什么”。写上下文失败不能反过来算气泡失败。
     try {

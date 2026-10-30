@@ -2,12 +2,13 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/agent_time.dart';
 import '../../data/db/app_database.dart';
 import '../../data/db/database_provider.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../models/model_config.dart';
-import '../models/private_message.dart';
 import 'model_gateway.dart';
+import 'resident_context_window.dart';
 
 /// 固定住民的唯一上下文时间线（v4.5 / schema v47）。
 ///
@@ -39,7 +40,11 @@ class ResidentTimeline {
 
   static const String _watermarkPrefix = 'resident.context.watermark.';
 
+  /// v4.6.1 一次性清洗旧前缀的标记，落在 app_settings，每个库只跑一次。
+  static const String _prefixRepairKey = 'resident.context.prefixRepair.v1';
+
   final Set<String> _compacting = {};
+  bool _prefixRepairChecked = false;
 
   // ---------------------------------------------------------------------------
   // 写入
@@ -66,7 +71,7 @@ class ResidentTimeline {
           residentId: residentId,
           kind: turn.fromMe ? 'dm_in' : 'dm_out',
           role: turn.fromMe ? 'user' : 'assistant',
-          content: _dmLine(turn),
+          content: ResidentContextWindow.dmLine(turn),
           caption: turn.caption,
           at: turn.createdAt,
           meta: 'message:${turn.id}',
@@ -93,7 +98,7 @@ class ResidentTimeline {
     residentId: residentId,
     kind: 'screen',
     role: 'user',
-    content: content,
+    content: '[${agentTimeLabel(at)}] $content',
     caption: caption,
     at: at,
     meta: meta,
@@ -108,7 +113,7 @@ class ResidentTimeline {
     residentId: residentId,
     kind: 'bubble',
     role: 'assistant',
-    content: '[${_timeLabel(at)}] 你在屏幕上说：“$content”',
+    content: '[${agentTimeLabel(at)}] 你在屏幕上说：“$content”',
     at: at,
   );
 
@@ -122,7 +127,7 @@ class ResidentTimeline {
     residentId: residentId,
     kind: 'action',
     role: 'assistant',
-    content: '[${_timeLabel(at)}] 你做了：$content',
+    content: '[${agentTimeLabel(at)}] 你做了：$content',
     at: at,
     meta: meta,
   );
@@ -196,16 +201,28 @@ class ResidentTimeline {
   ///
   /// 摘要永远排在最前，其余按 seq 只追加——摘要本身是在压缩时补写的，
   /// 它的 seq 比保留下来的最近一段还大，不能直接按 seq 丢进中间。
+  /// 系统记录类事件：屏幕、气泡、动作。它们不是任何一方说的话，
+  /// 组装时用 `<system-reminder>` 包起来（参考 Open-ClaudeCode 的做法：
+  /// 系统注入的内容有硬边界，模型才知道哪些是对话、哪些只是记录）。
+  static const Set<String> _systemKinds = {'screen', 'bubble', 'action', 'summary'};
+
   Future<List<Map<String, dynamic>>> messages(String residentId) async {
+    await _repairLegacyPrefixes();
     final rows = await _ordered(residentId);
     return [
       for (final row in rows)
         if (row.content.trim().isNotEmpty)
           {
             'role': row.role == 'assistant' ? 'assistant' : 'user',
-            'content': row.content,
+            'content': _contentForModel(row),
           },
     ];
+  }
+
+  static String _contentForModel(ResidentContextEventRow row) {
+    if (!_systemKinds.contains(row.kind)) return row.content;
+    if (row.content.startsWith('<system-reminder>')) return row.content;
+    return '<system-reminder>\n${row.content}\n</system-reminder>';
   }
 
   /// 把所有还没被压缩的上下文拼成一段文字（关闭实时观察时写记忆用）。
@@ -243,6 +260,13 @@ class ResidentTimeline {
     return [...summaries, ...rest];
   }
 
+  /// 用户删掉一条私信时，把对应事件一起移出上下文。
+  Future<void> deleteDmEvent(String messageId) async {
+    await (_db.delete(_db.residentContextEvents)
+          ..where((t) => t.id.equals('dm:$messageId')))
+        .go();
+  }
+
   /// 用户删掉整段私信时，把对应事件也移出上下文，别让住民还“记得”删掉的话。
   Future<void> deleteDmEvents(String residentId) async {
     await (_db.delete(_db.residentContextEvents)..where(
@@ -251,6 +275,72 @@ class ResidentTimeline {
               t.kind.isIn(const ['dm_in', 'dm_out']),
         ))
         .go();
+  }
+
+  /// v4.6.1 一次性修复：旧时间线里的私信行写成 `[10月30日 21:32] 你：…`，
+  /// 模型会照着这个模板把时间和人称一起抄进正文，而且越抄越像。
+  /// 这里把已经落库的事件洗一遍——只剥记录前缀，不清空历史；
+  /// 洗完打标记，之后不再扫描。
+  Future<void> _repairLegacyPrefixes() async {
+    if (_prefixRepairChecked) return;
+    _prefixRepairChecked = true;
+    try {
+      final done =
+          await (_db.select(_db.appSettings)
+                ..where((t) => t.key.equals(_prefixRepairKey)))
+              .getSingleOrNull();
+      if (done != null) return;
+      final rows = await _db.select(_db.residentContextEvents).get();
+      for (final row in rows) {
+        // 只动旧格式（短时间 + 住民那侧的“你：”）；完整时间格式是
+        // 现在的规范，用户那侧的“对方：”也是记录的一部分，都保留。
+        final fixed = _stripLegacyPrefixes(row.content);
+        if (fixed.isEmpty || fixed == row.content) continue;
+        await (_db.update(_db.residentContextEvents)
+              ..where((t) => t.id.equals(row.id)))
+            .write(
+              ResidentContextEventsCompanion(
+                content: Value(fixed),
+                tokens: Value(estimateTokens(fixed)),
+              ),
+            );
+      }
+      await _db
+          .into(_db.appSettings)
+          .insertOnConflictUpdate(
+            AppSettingsCompanion.insert(key: _prefixRepairKey, value: '1'),
+          );
+    } catch (error) {
+      debugPrint('[上下文] 旧前缀清洗没成：$error');
+    }
+  }
+
+  /// v4.6.0 及以前的记录前缀：`[10月30日 21:32] ` 和住民侧的 `你：`。
+  /// 完整时间格式（`[2026年10月30日 周五 晚上 21:32]`）是现在的规范，
+  /// 放在捕获组里原样保留；只剥它后面那段旧前缀。
+  static final RegExp _legacyPrefix = RegExp(
+    r'^(\[\s*(?:\d{4}年\s*)?\d{1,2}月\d{1,2}日\s*'
+    r'(?:周[一二三四五六日天]\s*)?'
+    r'(?:(?:清晨|上午|中午|下午|傍晚|晚上|深夜)\s*)?'
+    r'\d{1,2}:\d{2}\s*\]\s*)?'
+    r'\[\s*(?:\d{1,2}月\d{1,2}日\s*)?\d{1,2}:\d{2}\s*\]\s*'
+    r'(?:你\s*[：:]\s*)?',
+  );
+
+  static String _stripLegacyPrefixes(String content) {
+    final kept = <String>[];
+    for (final line in content.split('\n')) {
+      var clean = line.trim();
+      for (var i = 0; i < 3; i++) {
+        final before = clean;
+        clean = clean
+            .replaceFirstMapped(_legacyPrefix, (match) => match.group(1) ?? '')
+            .trim();
+        if (clean == before) break;
+      }
+      if (clean.isNotEmpty) kept.add(clean);
+    }
+    return kept.join('\n').trim();
   }
 
   Future<int> estimatedTokens(String residentId) async {
@@ -407,32 +497,6 @@ class ResidentTimeline {
         );
   }
 
-  static String _dmLine(PrivateMessage message) {
-    final when = _timeLabel(message.createdAt);
-    // 时间线是住民视角：用户发来的叫“对方”，住民自己发的叫“你”。
-    final who = message.fromMe ? '对方' : '你';
-    final body = switch (message.mediaType) {
-      'image' => message.caption.trim().isEmpty
-          ? '[发来一张图片]'
-          : '[发来一张图片] ${message.caption.trim()}',
-      'sticker' => message.caption.trim().isEmpty
-          ? '[表情包]'
-          : '[表情包] ${message.caption.trim()}',
-      'voice' => message.transcript.trim().isEmpty
-          ? '[语音]'
-          : '（语音）${message.transcript.trim()}',
-      'call' => message.content.trim().isEmpty ? '[通话]' : message.content.trim(),
-      _ => message.content.trim().isEmpty
-          ? '[空消息]'
-          : message.content.trim(),
-    };
-    return '[$when] $who：$body';
-  }
-
-  static String _timeLabel(DateTime at) =>
-      '${at.month}月${at.day}日 '
-      '${at.hour.toString().padLeft(2, '0')}:'
-      '${at.minute.toString().padLeft(2, '0')}';
 }
 
 final residentTimelineProvider = Provider<ResidentTimeline>((ref) {
