@@ -46,6 +46,7 @@ class ScreenWatchService : Service() {
         const val EXTRA_DATA = "data"
         const val EXTRA_INTERVAL = "interval"
         const val EXTRA_CONTINUOUS = "continuous"
+        const val EXTRA_REQUEST_ID = "requestId"
 
         private const val CHANNEL_ID = "echo_screen_watch"
         private const val NOTIFICATION_ID = 4402
@@ -81,9 +82,11 @@ class ScreenWatchService : Service() {
             )
         }
 
-        fun captureOnce(context: Context) {
+        fun captureOnce(context: Context, requestId: String = "") {
             context.startService(
-                Intent(context, ScreenWatchService::class.java).setAction(ACTION_CAPTURE)
+                Intent(context, ScreenWatchService::class.java)
+                    .setAction(ACTION_CAPTURE)
+                    .putExtra(EXTRA_REQUEST_ID, requestId)
             )
         }
 
@@ -127,16 +130,20 @@ class ScreenWatchService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_CAPTURE -> {
+                val requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
                 if (!started) {
                     // 服务可能被系统回收过：没有授权不能自己重建投影，
                     // 只能让 Dart 侧提示用户重新开一次桌宠。
                     PetBridge.emit(
                         "captureError",
-                        mapOf("message" to "没有屏幕授权，重新打开桌宠试一次"),
+                        mapOf(
+                            "message" to "没有屏幕授权，重新打开桌宠试一次",
+                            "requestId" to requestId,
+                        ),
                     )
                     return START_STICKY
                 }
-                grabOnce()
+                grabOnce(requestId)
             }
             ACTION_INTERVAL -> {
                 intervalMs = (intent.getIntExtra(EXTRA_INTERVAL, 1000)).toLong()
@@ -243,16 +250,33 @@ class ScreenWatchService : Service() {
         handler?.postDelayed(loop, intervalMs)
     }
 
-    private fun grabOnce() {
+    private fun grabOnce(requestId: String = "") {
         val reader = imageReader ?: return
         val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (!power.isInteractive) return
+        if (!power.isInteractive) {
+            if (requestId.isNotEmpty()) {
+                PetBridge.emit(
+                    "captureError",
+                    mapOf("message" to "锁屏时不截取屏幕", "requestId" to requestId),
+                )
+            }
+            return
+        }
 
         val image = try {
             reader.acquireLatestImage()
         } catch (_: Throwable) {
             null
-        } ?: return
+        }
+        if (image == null) {
+            if (requestId.isNotEmpty()) {
+                PetBridge.emit(
+                    "captureError",
+                    mapOf("message" to "这一拍没有画面，稍后再试", "requestId" to requestId),
+                )
+            }
+            return
+        }
         try {
             val plane = image.planes[0]
             val pixelStride = plane.pixelStride
@@ -297,10 +321,17 @@ class ScreenWatchService : Service() {
                     "at" to stamp,
                     "width" to image.width,
                     "height" to image.height,
+                    "requestId" to requestId,
                 ),
             )
         } catch (error: Throwable) {
-            PetBridge.emit("captureError", mapOf("message" to (error.message ?: "截图失败")))
+            PetBridge.emit(
+                "captureError",
+                mapOf(
+                    "message" to (error.message ?: "截图失败"),
+                    "requestId" to requestId,
+                ),
+            )
         } finally {
             image.close()
         }

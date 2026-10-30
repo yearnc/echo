@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "tag": "models-v1",
+  "note": "模型资源清单。升级资源时改 version 并换 releaseTag；APK 只带这份清单的内置副本，远程清单存在时以远程为准。",
+  "resources": [
+    {
+      "id": "asr",
+      "name": "语音识别（SenseVoice）",
+      "description": "按住说话转文字、私信语音转写。约 229 MB。",
+      "storage_dir": "asr",
+      "required_files": ["model.int8.onnx", "tokens.txt"],
+      "version": 1,
+      "bytes": 240123456,
+      "sha256": "",
+      "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-v1.zip",
+      "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-v1.zip"
+    },
+    {
+      "id": "tts",
+      "name": "文字语音（VITS 中文）",
+      "description": "住民用文字描述说话时的本机嗓音，5 个中文声线。约 117 MB。",
+      "storage_dir": "vits-zh-ll",
+      "required_files": [
+        "model.onnx",
+        "lexicon.txt",
+        "tokens.txt",
+        "date.fst",
+        "number.fst",
+        "phone.fst"
+      ],
+      "version": 1,
+      "bytes": 122683392,
+      "sha256": "",
+      "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-tts-v1.zip",
+      "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-tts-v1.zip"
+    },
+    {
+      "id": "zipvoice",
+      "name": "音色克隆（ZipVoice）",
+      "description": "上传参考音频后，用同一把嗓子说话。约 187 MB。",
+      "storage_dir": "zipvoice",
+      "required_files": [
+        "encoder.int8.onnx",
+        "decoder.int8.onnx",
+        "vocos_24khz.onnx",
+        "tokens.txt",
+        "lexicon.txt",
+        "espeak-ng-data.zip"
+      ],
+      "version": 1,
+      "bytes": 196083712,
+      "sha256": "",
+      "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-zipvoice-v1.zip",
+      "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-zipvoice-v1.zip"
+    },
+    {
+      "id": "asr-stream",
+      "name": "流式识别（通话用）",
+      "description": "通话时边说边出字；不装也能用普通语音消息。约 190 MB。",
+      "storage_dir": "asr-stream",
+      "required_files": [
+        "encoder.int8.onnx",
+        "decoder.int8.onnx",
+        "joiner.int8.onnx",
+        "tokens.txt"
+      ],
+      "version": 1,
+      "bytes": 199229440,
+      "sha256": "",
+      "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-stream-v1.zip",
+      "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-stream-v1.zip"
+    }
+  ]
+}

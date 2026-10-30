@@ -22,6 +22,7 @@ import '../../features/profile/identity_page.dart';
 import '../../features/profile/profile_edit_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/records/records_page.dart';
+import '../../features/resources/resource_page.dart';
 import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
 import '../../features/residents/resident_memories_page.dart';
@@ -117,6 +118,9 @@ class RoutePaths {
 
   /// 桌宠设置（v4.0）。
   static const String pet = '/pet';
+
+  /// 下载本机模型资源（v4.4）。
+  static const String resources = '/resources';
 
   /// 编辑我的资料（昵称 / 头像）。
   static const String profileEdit = '/settings/profile';
@@ -299,6 +303,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.pet,
       builder: (context, state) => const PetPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.resources,
+      builder: (context, state) => const ResourcePage(),
     ),
     GoRoute(
       path: '/call/:id',

@@ -86,6 +86,13 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
         return;
       }
       await ref.read(voicePlaybackProvider.notifier).toggle(clip.ref);
+    } catch (error) {
+      // 精简版没下载语音模型时，异常里带着“去我的 → 下载资源”，原样告诉用户。
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _speaking = false);
     }

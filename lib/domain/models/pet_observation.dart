@@ -8,6 +8,9 @@ class PetObservation {
     this.note = '',
     this.realtime = false,
     this.selfImage,
+    this.sessionStartedAt,
+    this.lastWakeAt,
+    this.handoff = false,
   });
 
   /// `file:` 引用。只有对话模型能看图时才会真的附进消息。
@@ -23,6 +26,15 @@ class PetObservation {
   /// 屏幕截图会把它自己一起截进去；不给一张参照图，模型会把那个小家伙
   /// 当成屏幕上的另一个人。每轮附一张，代价很小。
   final String? selfImage;
+
+  /// 这一轮“桌宠醒着”的起点。唤醒服务用它筛出开始之后新到的私信。
+  final DateTime? sessionStartedAt;
+
+  /// 上一次观察的时刻。让住民知道两次唤醒之间隔了多久。
+  final DateTime? lastWakeAt;
+
+  /// 刚换了控制者：这一轮是新住民接手的第一眼。
+  final bool handoff;
 
   bool get isEmpty => images.isEmpty && note.trim().isEmpty;
 }

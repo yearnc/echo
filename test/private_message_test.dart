@@ -53,6 +53,17 @@ void main() {
     expect(thread.first.content, '在吗');
   });
 
+  test('A 的唤醒历史里不会出现 B 的私信', () async {
+    await messages.send(personaId: 'resident_a', content: '只给 A 的话');
+    await messages.send(personaId: 'resident_b', content: '只给 B 的话');
+
+    final a = await messages.recentTurns('resident_a');
+    final b = await messages.recentTurns('resident_b');
+
+    expect(a.map((item) => item.content), ['只给 A 的话']);
+    expect(b.map((item) => item.content), ['只给 B 的话']);
+  });
+
   test('还没到点的话不在会话里，到点了才出现', () async {
     await messages.scheduleIncoming(
       personaId: 'persona_001',

@@ -107,6 +107,57 @@ class PetNative {
 
   Future<void> captureOnce() => _invoke<bool>('captureOnce');
 
+  /// 立刻截一张，并等它真的落盘。
+  ///
+  /// `captureOnce` 只负责把 Intent 丢给服务，截没截到、什么时候截到都不知道。
+  /// 实时观察要“通信前 0.5 秒补一张”，住民要“自己现在看一眼”，
+  /// 都必须在拿到这张图之后才能继续，所以这里等原生回一个带 requestId 的帧。
+  Future<CapturedFrame?> captureNow({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    final requestId = 'cap_${DateTime.now().microsecondsSinceEpoch}';
+    final completer = Completer<CapturedFrame?>();
+    late StreamSubscription<Map<String, Object?>> subscription;
+    subscription = events.listen((event) {
+      if (event['requestId'] != requestId) return;
+      if (event['event'] == 'captureError') {
+        if (!completer.isCompleted) completer.complete(null);
+        return;
+      }
+      if (event['event'] != 'frame') return;
+      final path = event['path'];
+      if (path is! String || path.isEmpty) return;
+      final at = event['at'] is int
+          ? DateTime.fromMillisecondsSinceEpoch(event['at'] as int)
+          : DateTime.now();
+      if (!completer.isCompleted) {
+        completer.complete(CapturedFrame(path: path, at: at));
+      }
+    });
+    final accepted = await _invoke<bool>('captureOnce', {'requestId': requestId});
+    if (accepted != true && !completer.isCompleted) completer.complete(null);
+    try {
+      return await completer.future.timeout(
+        timeout,
+        onTimeout: () => null,
+      );
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  /// 系统有没有把本应用放进“电池优化白名单”。
+  ///
+  /// 国产 ROM 还会另有自己的自启动/后台管理，那个系统没有统一接口，
+  /// 只能在页面上给一个跳应用详情的入口。
+  Future<bool> isIgnoringBatteryOptimizations() async =>
+      await _invoke<bool>('isIgnoringBatteryOptimizations') ?? false;
+
+  Future<void> requestIgnoreBatteryOptimizations() =>
+      _invoke<bool>('requestIgnoreBatteryOptimizations');
+
+  Future<void> openAppSettings() => _invoke<bool>('openAppSettings');
+
   Future<void> setWatchInterval(int intervalMs) =>
       _invoke<bool>('setWatchInterval', {'interval': intervalMs});
 
@@ -120,6 +171,14 @@ class PetNative {
     _channel.setMethodCallHandler(null);
     _events.close();
   }
+}
+
+/// 一张已经落盘的屏幕截图。
+class CapturedFrame {
+  const CapturedFrame({required this.path, required this.at});
+
+  final String path;
+  final DateTime at;
 }
 
 final petNativeProvider = Provider<PetNative>((ref) {

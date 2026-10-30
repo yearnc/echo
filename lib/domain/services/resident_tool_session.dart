@@ -102,6 +102,10 @@ abstract class ResidentWakeToolkit {
   /// 普通模式：请求现在截一张。
   Future<ActionOutcome> petLook();
 
+  /// 立刻截一张，并把画面内容直接交回给模型。
+  /// 和 petLook 的区别：不用等下一次醒来，这一轮就能知道屏幕上是什么。
+  Future<ActionOutcome> petCapture();
+
   /// 请求进入实时观察。会变成一条待用户确认的请求，不能自己打开。
   Future<ActionOutcome> petRequestWatch();
 
@@ -468,6 +472,8 @@ class ResidentToolSession {
               outcome = await toolkit.petReact(textArg(args, 'action'));
             case 'pet_look':
               outcome = await toolkit.petLook();
+            case 'pet_capture':
+              outcome = await toolkit.petCapture();
             case 'pet_request_watch':
               outcome = await toolkit.petRequestWatch();
             case 'pet_sleep':
@@ -962,6 +968,8 @@ $persona
 - 私信规则和平时一样：一次醒来最多三段，话短一点；真的想说再发，
   不要因为看着他屏幕就找话说。
 - 想换动作/表情用 pet_react；想申请一直看着屏幕用 pet_request_watch（要等他同意）。
+- 想主动看一眼现在屏幕上是什么，用 pet_capture：会立刻截一张并把画面描述给你。
+  不要每一轮都截；只是“现在发生了什么”时才值得花这一次。
 - 平时真正值得记的一句话用 pet_note；也可以刷帖子、点赞、评论、发动态、
   画图、查记忆、定闹钟——像你平时那样。
 - 用户说“这段观察结束了”时，用 memory_write 把这段时间里值得记的
@@ -1302,6 +1310,17 @@ $persona
         'description':
             '普通模式下请求现在截一张屏幕。截到的图会在下一次醒来时看到；'
             '实时模式正在跑时不需要它。',
+        'parameters': {'type': 'object', 'properties': {}},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'pet_capture',
+        'description':
+            '现在立刻截一张屏幕，并把画面内容作为文字结果返回给你。'
+            '适合想主动确认“现在屏幕上是什么、他在做什么”的时候；'
+            '不要每一轮都调用，也不要拿它代替看已经附上的画面。',
         'parameters': {'type': 'object', 'properties': {}},
       },
     },

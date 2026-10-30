@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,7 @@ import 'content_generator.dart';
 import 'dm_voice_service.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
+import 'photo_describer.dart';
 import 'resident_activity_controller.dart';
 import 'resident_context_log.dart';
 import 'tool_call_text.dart';
@@ -86,6 +88,7 @@ class ResidentWakeService {
     required this.alarms,
     this.pet,
     this.petSettings,
+    this.photos,
     this.dmVoice,
     this.activityDone,
     required this.contextLog,
@@ -115,6 +118,9 @@ class ResidentWakeService {
   /// 桌宠通道（v4.0）。没有原生插件（桌面预览 / 测试）时为空。
   final PetNative? pet;
   final PetSettingsRepository? petSettings;
+
+  /// 住民自己要求“现在看一眼”时，把截图转成一句描述。
+  final PhotoDescriber? photos;
 
   /// 私信回复可以变成语音条（可空：测试或关掉语音时保持文字）。
   final DmVoiceService? dmVoice;
@@ -498,6 +504,12 @@ class ResidentWakeService {
       // 把它自己最近做过的事告诉它——这是信息，不是决定。
       // 要不要记进记忆、要不要接着说，由它自己判断。
       final ownActivity = await _recentOwnActivity(residentId);
+      // 桌宠是一段连续会话：只给“开机前那十句”不够，
+      // 开启之后新到的私信也要单独摘出来给它看。
+      final petDmDelta =
+          trigger == WakeTrigger.pet && pet?.sessionStartedAt != null
+          ? await _petDmDelta(residentId, pet!.sessionStartedAt!)
+          : '';
       final said = await session.act(
         resident: resident,
         config: config,
@@ -511,6 +523,8 @@ class ResidentWakeService {
           alarmReason: _alarmReason.remove(residentId) ?? '',
           petNote: pet?.note ?? '',
           petRealtime: pet?.realtime ?? false,
+          petDmDelta: petDmDelta,
+          petHandoff: pet?.handoff ?? false,
         ),
         toolkit: toolkit,
         at: now,
@@ -602,6 +616,8 @@ class ResidentWakeService {
     String alarmReason = '',
     String petNote = '',
     bool petRealtime = false,
+    String petDmDelta = '',
+    bool petHandoff = false,
   }) {
     final String base;
     if (pending.isEmpty) {
@@ -622,9 +638,13 @@ class ResidentWakeService {
               '现在可以发条动态、刷帖子、给对方发条私信，'
               '也可以再定一个闹钟接着忙自己的事；什么都不想做就 finish。',
         WakeTrigger.pet =>
-          '你正以桌宠的身份待在他的屏幕上，刚刚看了一眼。'
-              '想说什么就用 pet_say 冒一句气泡，想换个动作就用 pet_react；'
-              '也可以什么都不做，安安静静待着。',
+          petHandoff
+              ? '桌宠这一班刚刚结束/交接，先把这段时间的观察收尾。'
+                    '这一轮不需要再冒气泡，也不要用 pet_* 继续做事，'
+                    '把值得留的写进记忆就好。'
+              : '你正以桌宠的身份待在他的屏幕上，刚刚看了一眼。'
+                    '想说什么就用 pet_say 冒一句气泡，想换个动作就用 pet_react；'
+                    '也可以什么都不做，安安静静待着。',
       };
     } else {
       final buffer = StringBuffer()..writeln('你醒来看到这些还没处理：');
@@ -660,6 +680,12 @@ class ResidentWakeService {
       parts.add(
         '${petRealtime ? '这几秒一直看着屏幕，' : '刚才看了一眼屏幕，'}'
         '看到的是：\n${petNote.trim()}',
+      );
+    }
+    if (petDmDelta.trim().isNotEmpty) {
+      parts.add(
+        '你开始陪他之后，私信里新收到的（更早的对话已经在上面）：\n'
+        '${petDmDelta.trim()}',
       );
     }
     if (unsent.isNotEmpty) {
@@ -706,6 +732,40 @@ class ResidentWakeService {
       }
     }
     return parts.join('\n');
+  }
+
+  /// 桌宠这一班开始之后，对方新发来的私信。
+  ///
+  /// `_wake` 里的 history 是“最近 10 句”，如果这一班开了很久，
+  /// 最早的几句会被挤掉；而且模型容易以为桌面上的它只认得开机前的话。
+  /// 这里单独按时间摘出来，明确告诉它“这些是你陪着他以后新到的”。
+  Future<String> _petDmDelta(String residentId, DateTime since) async {
+    try {
+      final turns = await messages.recentTurns(residentId, limit: 24);
+      final lines = <String>[];
+      for (final turn in turns) {
+        if (turn.fromMe || turn.createdAt.isBefore(since)) continue;
+        final text = switch (turn.mediaType) {
+          'image' => '[发来一张图片]${turn.caption.trim().isEmpty ? '' : '：${turn.caption.trim()}'}',
+          'sticker' => '[表情包]${turn.caption.trim().isEmpty ? '' : '：${turn.caption.trim()}'}',
+          'voice' => turn.transcript.trim().isEmpty
+              ? '[发来一条语音]'
+              : '（语音）${turn.transcript.trim()}',
+          _ => turn.content.trim().isEmpty ? '[空消息]' : turn.content.trim(),
+        };
+        lines.add(
+          '- [${ResidentToolSession.timeLabel(turn.createdAt)}] 对方：$text',
+        );
+      }
+      if (lines.isEmpty) return '';
+      const max = 8;
+      if (lines.length <= max) return lines.join('\n');
+      return '（这段时间新消息较多，只列最近 $max 条）\n'
+          '${lines.sublist(lines.length - max).join('\n')}';
+    } catch (error) {
+      debugPrint('[唤醒] 桌宠新私信没读到：$error');
+      return '';
+    }
   }
 
   /// 它自己最近发过的动态，以及这些动态收到的赞/评论/浏览。
@@ -1644,12 +1704,27 @@ class _WakeToolkit implements ResidentWakeToolkit {
     );
   }
 
+  /// 换班之后，上一位不能再借桌宠的嘴说话/做动作。
+  Future<bool> _stillControls() async {
+    try {
+      return await service._petControls(resident.id);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static const ActionOutcome _notController = ActionOutcome(
+    ok: false,
+    message: '现在不是你在控制桌宠，这一班已经交给别人了',
+  );
+
   @override
   Future<ActionOutcome> petSay(String text) async {
     final native = service.pet;
     if (native == null) {
       return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
     }
+    if (!await _stillControls()) return _notController;
     if (!await native.isPetRunning()) {
       return const ActionOutcome(ok: false, message: '桌宠不在屏幕上，说不了话');
     }
@@ -1686,6 +1761,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (native == null) {
       return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
     }
+    if (!await _stillControls()) return _notController;
     if (!await native.isPetRunning()) {
       return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
     }
@@ -1731,6 +1807,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (native == null || repo == null) {
       return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
     }
+    if (!await _stillControls()) return _notController;
     if (!await native.isPetRunning()) {
       return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
     }
@@ -1743,6 +1820,53 @@ class _WakeToolkit implements ResidentWakeToolkit {
     }
     await native.captureOnce();
     return const ActionOutcome(ok: true, message: '截好了，下一次醒来会看到');
+  }
+
+  @override
+  Future<ActionOutcome> petCapture() async {
+    final native = service.pet;
+    if (native == null) {
+      return const ActionOutcome(ok: false, message: '这台设备上没有桌宠能力');
+    }
+    if (!await _stillControls()) return _notController;
+    if (!await native.isPetRunning()) {
+      return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
+    }
+    if (!await native.isWatchRunning()) {
+      return const ActionOutcome(ok: false, message: '没有屏幕授权，看不到屏幕');
+    }
+    final frame = await native.captureNow();
+    if (frame == null) {
+      return const ActionOutcome(
+        ok: false,
+        message: '这次没截到（可能锁屏了，或者屏幕授权被系统收回了）',
+      );
+    }
+    final at = ResidentToolSession.timeLabel(frame.at);
+    String description = '';
+    try {
+      description = await service.photos?.describe('file:${frame.path}') ?? '';
+    } finally {
+      // 描述已经进文字了，临时截图不必留着占空间。
+      try {
+        File(frame.path).delete().ignore();
+      } catch (_) {
+        // 删不掉交给系统缓存清理。
+      }
+    }
+    final shown = description.trim().isEmpty
+        ? '这张图没有可用的描述（当前没有配置图片理解模型）'
+        : '画面：${description.trim()}';
+    service.contextLog.add(
+      resident.id,
+      '${ResidentWakeService._shortWhen(frame.at)} 你自己看了一眼屏幕：'
+      '${description.trim().isEmpty ? '（看不清）' : description.trim()}',
+    );
+    return ActionOutcome(
+      ok: true,
+      message: '已截图（$at）。$shown',
+      data: {'at': at, 'description': description.trim()},
+    );
   }
 
   @override
@@ -1764,6 +1888,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (native == null || !await native.isPetRunning()) {
       return const ActionOutcome(ok: false, message: '桌宠不在屏幕上');
     }
+    if (!await _stillControls()) return _notController;
     await native.react('sleep');
     return const ActionOutcome(ok: true, message: '缩成一团了');
   }
@@ -1825,6 +1950,7 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     alarms: ref.watch(residentAlarmRepositoryProvider),
     pet: ref.watch(petNativeProvider),
     petSettings: ref.watch(petSettingsRepositoryProvider),
+    photos: ref.watch(photoDescriberProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
     contextLog: ref.watch(residentContextLogProvider),
     activityDone: (residentId) =>

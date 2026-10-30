@@ -22,6 +22,10 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- 预约通知要在重启后还能响：不加这一条，手机重启会把排好的通知全丢掉 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 后台保持运行（v4.4）：让用户把本应用从系统电池优化里放行。
+         桌宠与实时观察是前台服务，但国产 ROM 仍可能把它们一并清掉；
+         这一步能明显减少“过一会儿就停了”。 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="echo"
         android:name="${applicationName}"

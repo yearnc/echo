@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -91,7 +93,26 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "captureOnce" -> {
-                    ScreenWatchService.captureOnce(this)
+                    ScreenWatchService.captureOnce(
+                        this,
+                        call.argument<String>("requestId").orEmpty(),
+                    )
+                    result.success(true)
+                }
+                "isIgnoringBatteryOptimizations" -> {
+                    result.success(isIgnoringBatteryOptimizations())
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    requestIgnoreBatteryOptimizations()
+                    result.success(true)
+                }
+                "openAppSettings" -> {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:$packageName"),
+                        )
+                    )
                     result.success(true)
                 }
                 "setWatchInterval" -> {
@@ -111,6 +132,44 @@ class MainActivity : FlutterActivity() {
                 "isWatchRunning" -> result.success(ScreenWatchService.running)
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val power = getSystemService(POWER_SERVICE) as PowerManager
+        return power.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /**
+     * 申请“不受电池优化限制”。
+     *
+     * 原生接口在国产 ROM 上不一定弹得出来（有的会跳自家的后台管理）；
+     * 跳不过去就退到“电池优化设置列表”，让用户自己找一下本应用。
+     */
+    private fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        if (isIgnoringBatteryOptimizations()) return
+        val direct = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:$packageName"),
+        )
+        try {
+            startActivity(direct)
+            return
+        } catch (_: Throwable) {
+            // 继续试下面的系统列表。
+        }
+        try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        } catch (_: Throwable) {
+            // 最后退到应用详情页：至少让用户能看到“耗电管理”。
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName"),
+                )
+            )
         }
     }
 

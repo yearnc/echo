@@ -21,6 +21,7 @@ void main() {
     expect(names, contains('cancel_pending_segment'));
     expect(names, contains('rewrite_pending_segment'));
     expect(names, contains('pet_say'));
+    expect(names, contains('pet_capture'));
     expect(names, contains('browse_feed'));
   });
 

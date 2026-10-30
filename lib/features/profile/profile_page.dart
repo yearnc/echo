@@ -38,6 +38,11 @@ class ProfilePage extends ConsumerWidget {
             onTap: () => context.push(RoutePaths.pet),
           ),
           _Tile(
+            icon: Icons.download_outlined,
+            title: '下载资源',
+            onTap: () => context.push(RoutePaths.resources),
+          ),
+          _Tile(
             icon: Icons.backup_outlined,
             title: '数据备份与恢复',
             onTap: () => context.push(RoutePaths.backup),

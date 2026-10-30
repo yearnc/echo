@@ -9,6 +9,7 @@ import '../../data/repositories/pet_settings_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/pet_settings.dart';
 import '../../domain/services/pet_controller.dart';
+import '../../domain/services/pet_native.dart';
 import '../../domain/services/pet_observe_service.dart';
 import '../shared_widgets/user_avatar.dart';
 import 'realtime_gap_picker.dart';
@@ -26,6 +27,7 @@ class PetPage extends ConsumerStatefulWidget {
 
 class _PetPageState extends ConsumerState<PetPage> {
   bool _watchRequest = false;
+  bool? _ignoringBattery;
 
   @override
   void initState() {
@@ -35,8 +37,40 @@ class _PetPageState extends ConsumerState<PetPage> {
       final pending = await ref
           .read(petSettingsRepositoryProvider)
           .hasWatchRequest();
-      if (mounted) setState(() => _watchRequest = pending);
+      final ignoring = await ref
+          .read(petNativeProvider)
+          .isIgnoringBatteryOptimizations();
+      if (mounted) {
+        setState(() {
+          _watchRequest = pending;
+          _ignoringBattery = ignoring;
+        });
+      }
     });
+  }
+
+  Future<void> _refreshBattery() async {
+    final ignoring = await ref
+        .read(petNativeProvider)
+        .isIgnoringBatteryOptimizations();
+    if (mounted) setState(() => _ignoringBattery = ignoring);
+  }
+
+  Future<void> _requestBatteryExemption() async {
+    await ref.read(petNativeProvider).requestIgnoreBatteryOptimizations();
+    // 用户可能在系统弹窗里停留一会儿；回来后再核对一次。
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await _refreshBattery();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _ignoringBattery == true
+              ? '已经允许后台运行了'
+              : '系统还没放行；国产手机还要在「应用启动管理」里允许自启动',
+        ),
+      ),
+    );
   }
 
   Future<void> _toggle(bool value) async {
@@ -374,6 +408,34 @@ class _PetPageState extends ConsumerState<PetPage> {
             onTap: _pickRealtimeGap,
           ),
           const _ObserveStatusCard(),
+          const SizedBox(height: 18),
+          const _Section('后台'),
+          _Tile(
+            icon: Icons.battery_saver_outlined,
+            title: '允许后台运行',
+            value: _ignoringBattery == null
+                ? '检查中'
+                : (_ignoringBattery! ? '已允许' : '受系统限制'),
+            onTap: _requestBatteryExemption,
+          ),
+          _Tile(
+            icon: Icons.settings_applications_outlined,
+            title: '自启动 / 应用详情',
+            value: '去系统设置',
+            onTap: () => ref.read(petNativeProvider).openAppSettings(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 4),
+            child: Text(
+              '关掉电池优化能让桌宠和后台唤醒更稳；荣耀、华为、小米这类系统'
+              '还会另有一层「自启动管理」，需要在应用详情里手动允许。',
+              style: TextStyle(
+                color: EchoColors.textFaint,
+                fontSize: 11,
+                height: 1.5,
+              ),
+            ),
+          ),
           const SizedBox(height: 12),
           Text(
             '桌宠看到的画面只会发给你在「模型配置」里选定的服务商；'

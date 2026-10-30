@@ -82,9 +82,27 @@ class PetObserveService {
   final Random _random = Random();
   StreamSubscription<Map<String, Object?>>? _subscription;
   Timer? _timer;
+  Timer? _shiftTimer;
   bool _busy = false;
+  bool _observing = false;
   bool _captureWaiting = false;
+  bool _handingOff = false;
+  bool _checkpointing = false;
+  final Set<String> _recovering = {};
+  int _wakesSinceCheckpoint = 0;
   final List<_PetFrame> _frames = [];
+
+  /// 每位控制者这一班是几点开始的；私信增量从这里往后筛。
+  final Map<String, DateTime> _sessionStartedAt = {};
+
+  /// 每位控制者上一次被观察的时刻（换班时清空）。
+  final Map<String, DateTime> _lastWakeAt = {};
+
+  /// 刚接手的那一位：下一轮观察要告诉它“这是我第一次看”。
+  final Set<String> _handoffPending = {};
+
+  /// 实时观察每看这么多轮，就强制整理一次记忆，避免早期观察被挤掉。
+  static const int checkpointEvery = 8;
 
   /// 给桌宠页看的状态（收到几帧、上次唤醒结果、错误）。
   final ValueNotifier<PetObserveStatus> status = ValueNotifier(
@@ -127,10 +145,15 @@ class PetObserveService {
   Future<void> detach() async {
     _timer?.cancel();
     _timer = null;
+    _shiftTimer?.cancel();
+    _shiftTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     _clearFrames();
     contextLog.clearAll();
+    _sessionStartedAt.clear();
+    _lastWakeAt.clear();
+    _handoffPending.clear();
     status.value = const PetObserveStatus();
     await _endLogSession();
   }
@@ -139,9 +162,20 @@ class PetObserveService {
   Future<void> sync(PetSettings value) async {
     _timer?.cancel();
     _timer = null;
+    _shiftTimer?.cancel();
+    _shiftTimer = null;
     if (!value.enabled) return;
     // 先把“醒着”的日志建立起来：时长从桌宠打开算，不是从第一次截图算。
-    await controllerId();
+    final controller = await controllerId();
+    // 换班检查独立于观察间隔：观察间隔可能被用户调到 10 分钟，
+    // 但值班表整点换人时不能让它再多看十分钟才认新的控制者。
+    _shiftTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => unawaited(controllerId()),
+    );
+    if (controller != null) {
+      await _recoverDigest(controller);
+    }
     if (value.realtime) {
       _framesPerWake = value.realtimeFrames.clamp(1, 6);
       _gap = Duration(
@@ -203,29 +237,71 @@ class PetObserveService {
   }
 
   Future<String?> controllerId() async {
+    // 换班收尾可能正在跑：等它跑完再决定这一轮是谁的。
+    for (var i = 0; i < 300 && _handingOff; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
     final value = await settings.load();
     final candidate = await settings.controllerAt(
       DateTime.now(),
       fallbackResidentId: value.defaultResidentId,
     );
-    String? result;
-    if (candidate == null) {
-      result = null;
-    } else if (!CallRegistry.isActive(candidate)) {
-      result = candidate;
-    } else {
-      // 正在通话的住民不接管桌宠：控制时段先让给通话，
-      // 等通话结束后的下一次观察再由它接手。
-      final fallback = value.defaultResidentId;
-      result =
-          fallback.isNotEmpty &&
-              fallback != candidate &&
-              !CallRegistry.isActive(fallback)
-          ? fallback
-          : null;
+    var result = await _validController(candidate, value.defaultResidentId);
+    if (result == null && candidate != null) {
+      // 排班表里的人已经被删了：别让它继续“控制”一只没人管的桌宠，
+      // 能回落到默认控制者就回落，不然这一班先停。
+      result = await _validController(value.defaultResidentId, '');
     }
+    await _maybeHandoff(result);
     await _ensureLogSession(result);
     return result;
+  }
+
+  /// 只认还在的住民；正在通话的人这一班让给通话。
+  Future<String?> _validController(String? id, String fallback) async {
+    final clean = id?.trim() ?? '';
+    if (clean.isEmpty) return null;
+    final resident = await residents.findById(clean);
+    if (resident == null) return null;
+    if (CallRegistry.isActive(clean)) {
+      if (fallback.trim().isEmpty || fallback == clean) return null;
+      return _validController(fallback, '');
+    }
+    return clean;
+  }
+
+  /// 到点换人（或有人被删）时，先让上一位把这班收尾成记忆，
+  /// 再清掉这一班拍的画面，最后才把新的一班交给下一位。
+  Future<void> _maybeHandoff(String? next) async {
+    final previous = _logResidentId;
+    if (previous == next || _handingOff) return;
+    _handingOff = true;
+    try {
+      if (previous != null) {
+        // 等正在看的那一眼结束，避免同一位住民两轮唤醒打架。
+        for (var i = 0; i < 60 && _busy; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        await _summarizeSession(
+          previous,
+          reason: next == null ? '这一班先到这里' : '下面换人来陪他',
+          clearOnSuccess: true,
+        );
+      }
+      // 上一位拍到的画面不该给下一位看。
+      _clearFrames();
+      _lastWakeAt.remove(previous);
+      _wakesSinceCheckpoint = 0;
+      if (next != null && previous != null) {
+        _handoffPending.add(next);
+        _sessionStartedAt[next] = DateTime.now();
+      }
+      _setStatus(
+        wake: next == null ? '暂时没人接手，先停下观察' : '控制权已交给下一位',
+      );
+    } finally {
+      _handingOff = false;
+    }
   }
 
   /// 桌宠的“醒着”是一段连续日志：控制者变了就先收尾旧的、再开新的；
@@ -235,6 +311,7 @@ class PetObserveService {
     await _endLogSession();
     _logResidentId = residentId;
     if (residentId == null) return;
+    _sessionStartedAt.putIfAbsent(residentId, DateTime.now);
     final open = await wakeLogs.openPetLog(residentId);
     if (open == null) {
       await wakeLogs.startPetLog(residentId);
@@ -250,11 +327,13 @@ class PetObserveService {
   }
 
   Future<void> _observeFrame(String ref) async {
-    if (_busy) return;
-    _busy = true;
+    if (_observing) return;
+    _observing = true;
     try {
+      // 先换班再开始忙：否则换班收尾会等这一轮结束，白白卡 6 秒。
       final residentId = await controllerId();
       if (residentId == null) return;
+      _busy = true;
       final resident = await residents.findById(residentId);
       if (resident == null) return;
       final config =
@@ -264,7 +343,12 @@ class PetObserveService {
 
       final description = await photos.describe(ref);
       final shared = contextLog.recent(residentId);
+      final previousWake = _lastWakeAt[residentId];
+      final now = DateTime.now();
       final note = [
+        '这是 ${_clock(now)} 刚刚截的一张（${_ago(now)}）。',
+        if (previousWake != null)
+          '距上一次观察过去了 ${_durationLabel(now.difference(previousWake))}。',
         description.isEmpty ? '画面已经附在后面；如果你看不懂图，就说没看清。' : '画面：$description',
         if (shared.isNotEmpty) '这段时间此前的上下文：\n${shared.join('\n')}',
       ].join('\n');
@@ -276,8 +360,12 @@ class PetObserveService {
           images: canSee ? [ref] : const [],
           note: note,
           selfImage: canSee ? selfImageRef : null,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: previousWake,
+          handoff: _handoffPending.remove(residentId),
         ),
       );
+      _lastWakeAt[residentId] = now;
       _deleteFile(ref.replaceFirst('file:', ''));
       // 气泡说过的话已经在 pet_say 那一刻写进共享上下文；这里只补
       // “看到了什么”，私信下一次醒来也能接上。
@@ -293,32 +381,63 @@ class PetObserveService {
       _setStatus(error: '$error');
     } finally {
       _busy = false;
+      _observing = false;
     }
   }
 
   /// 按时间均匀挑 [count] 帧，首尾都包含。
-  List<_PetFrame> _pickFrames(int count) {
-    if (_frames.isEmpty) return const [];
+  List<_PetFrame> _pickFrames(int count, {List<_PetFrame>? pool}) {
+    final source = pool ?? _frames;
+    if (source.isEmpty) return const [];
     final wanted = count.clamp(1, 6);
-    if (_frames.length <= wanted) return List<_PetFrame>.of(_frames);
-    if (wanted == 1) return [_frames.last];
+    if (source.length <= wanted) return List<_PetFrame>.of(source);
+    if (wanted == 1) return [source.last];
     return [
       for (var i = 0; i < wanted; i++)
-        _frames[((_frames.length - 1) * i / (wanted - 1)).round()],
+        source[((source.length - 1) * i / (wanted - 1)).round()],
     ];
   }
 
   Future<void> _observeRealtime() async {
-    if (_busy) return;
-    // 从整个唤醒窗口里均匀抽，而不是只拿最后几张：
-    // 1 秒一张、20 秒唤醒一次时，前面那些帧也该被看到。
-    final recent = _pickFrames(_framesPerWake);
-    if (recent.isEmpty) return;
-
-    _busy = true;
+    if (_observing || _handingOff) return;
+    _observing = true;
     try {
+      // 换班要发生在这一轮开始之前，而且这时 _busy 还是 false：
+      // 否则收尾等待会把自己等成 6 秒超时。
       final residentId = await controllerId();
       if (residentId == null) return;
+
+      _busy = true;
+      // 唤醒前补截一张：原来的“最后一张”可能已经是几秒前（间隔 20 秒、
+      // 带 3 张时约 6.7 秒），这就叫“看到的是上一幕”。现在先截，
+      // 停 0.5 秒再叫醒，模型看到的就是说话前那一刻的屏幕。
+      CapturedFrame? fresh;
+      try {
+        fresh = await native.captureNow();
+        if (fresh != null) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      } catch (error) {
+        debugPrint('[桌宠] 唤醒前补截没成：$error');
+      }
+
+      // 从整个唤醒窗口里均匀抽，而不是只拿最后几张：
+      // 1 秒一张、20 秒唤醒一次时，前面那些帧也该被看到。
+      // 补截的那张单独放在最后，不挤掉窗口里的取样名额。
+      final wanted = _framesPerWake.clamp(1, 6);
+      final pool = _frames
+          .where((frame) => fresh == null || frame.path != fresh.path)
+          .toList(growable: false);
+      final picked = _pickFrames(
+        fresh == null ? wanted : wanted - 1,
+        pool: pool,
+      );
+      final recent = <_PetFrame>[
+        ...picked,
+        if (fresh != null) _PetFrame(fresh.path, fresh.at),
+      ];
+      if (recent.isEmpty) return;
+
       final resident = await residents.findById(residentId);
       if (resident == null) return;
       final config =
@@ -332,9 +451,22 @@ class PetObserveService {
           ? ''
           : await photos.describe('file:${recent.last.path}');
       final shared = contextLog.recent(residentId);
+      final previousWake = _lastWakeAt[residentId];
+      final now = DateTime.now();
+      final frameTimes = [
+        for (var i = 0; i < recent.length; i++)
+          '第 ${i + 1} 张 ${_clock(recent[i].at)}'
+              '（${_ago(recent[i].at, now: now)}）',
+      ].join('；');
       final note = [
-        '这是过去 ${_gap.inSeconds} 秒里均匀抽出的 ${recent.length} 帧'
-            '（${_clock(recent.first.at)}—${_clock(recent.last.at)}）。',
+        '这是过去 ${_gap.inSeconds} 秒里抽出的 ${recent.length} 张画面。',
+        '各张时间：$frameTimes。',
+        if (fresh != null)
+          '最后一张是在叫醒你之前 0.5 秒刚截的，就是此刻的屏幕。',
+        if (previousWake != null)
+          '距上一次观察过去了 ${_durationLabel(now.difference(previousWake))}。',
+        if (_handoffPending.contains(residentId))
+          '你刚接手这只桌宠，新的一班从现在开始。',
         if (description.isNotEmpty) '最后一张的画面：$description',
         if (shared.isNotEmpty) '这段时间此前的观察和你说过的话：\n${shared.join('\n')}',
       ].join('\n');
@@ -349,6 +481,9 @@ class PetObserveService {
           note: note,
           realtime: true,
           selfImage: canSee ? selfImageRef : null,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: previousWake,
+          handoff: _handoffPending.remove(residentId),
         ),
       );
       debugPrint(
@@ -363,17 +498,195 @@ class PetObserveService {
         '${_clock(recent.first.at)}—${_clock(recent.last.at)}：'
         '${description.isEmpty ? '看了屏幕' : description}',
       );
+      _lastWakeAt[residentId] = now;
+      _wakesSinceCheckpoint++;
+      // 每轮都落一次盘：进程下一秒被清掉，这段观察也还在。
+      await _persistDigest(residentId);
       _setStatus(
-        wakeAt: DateTime.now(),
+        wakeAt: now,
         wake: '唤醒 $handled（${recent.length} 帧）',
         error: '',
       );
+
+      // 早期观察会被 12 行上限挤掉，所以在挤掉之前先让住民整理一次。
+      if (_wakesSinceCheckpoint >= checkpointEvery ||
+          contextLog.recent(residentId).length >=
+              ResidentContextLog.maxLines - 2) {
+        unawaited(_writeCheckpoint(residentId));
+      }
     } catch (error) {
       debugPrint('[桌宠] 实时观察没成：$error');
       _setStatus(error: '$error');
     } finally {
       _busy = false;
+      _observing = false;
     }
+  }
+
+  /// 把这一班还没整理成记忆的文字落盘（只是几行字，不调模型）。
+  Future<void> _persistDigest(String residentId) async {
+    final lines = contextLog.recent(residentId);
+    if (lines.isEmpty) return;
+    await settings.saveDigest(residentId, lines.join('\n'));
+  }
+
+  /// 定期检查点：让住民把这段观察真正写进长期记忆，写成功才清短期上下文。
+  ///
+  /// 不做这一步的话，12 行上限一到，最早的观察就被挤掉了；做的话，
+  /// 即使之后进程被杀，也已经有一条记忆留在库里。
+  Future<void> _writeCheckpoint(String residentId) async {
+    if (_checkpointing) return;
+    _checkpointing = true;
+    try {
+      final shared = contextLog.recent(residentId);
+      if (shared.isEmpty) {
+        await settings.clearDigest(residentId);
+        _wakesSinceCheckpoint = 0;
+        return;
+      }
+      await _persistDigest(residentId);
+      final before = DateTime.now();
+      await wake.wake(
+        residentId,
+        trigger: WakeTrigger.pet,
+        pet: PetObservation(
+          note:
+              '你已经看了一段时间屏幕，先停一下把值得留下的整理成记忆。'
+              '下面这些是你这段时间看到和说过的：\n${shared.join('\n')}\n'
+              '用 memory_write 写一条简短记忆（不要写成日记，也不要提“截图”）。'
+              '写完之后可以继续安静待着。',
+          realtime: true,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: _lastWakeAt[residentId],
+        ),
+      );
+      final recent = await memories.recent(residentId, limit: 1);
+      final wrote =
+          recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
+      if (wrote) {
+        contextLog.clear(residentId);
+        await settings.clearDigest(residentId);
+        _wakesSinceCheckpoint = 0;
+        _setStatus(wake: '已把这段观察整理成记忆');
+      }
+    } catch (error) {
+      debugPrint('[桌宠] 检查点没写成：$error');
+    } finally {
+      _checkpointing = false;
+    }
+  }
+
+  /// 收尾一位控制者的这一班：先落盘，再让模型整理，成功才清文字和截图。
+  Future<bool> _summarizeSession(
+    String residentId, {
+    required String reason,
+    bool clearOnSuccess = true,
+  }) async {
+    final shared = contextLog.recent(residentId);
+    if (shared.isEmpty) {
+      // 只有截图、没有一条“看到了什么”，不值得为它编一条记忆。
+      await settings.clearDigest(residentId);
+      contextLog.clear(residentId);
+      return true;
+    }
+    await _persistDigest(residentId);
+    final before = DateTime.now();
+    try {
+      await wake.wake(
+        residentId,
+        trigger: WakeTrigger.pet,
+        pet: PetObservation(
+          note:
+              '桌宠这一班要结束了（$reason）。这段时间你一直看着屏幕，'
+              '下面是看到的和你说过的话：\n'
+              '${shared.isEmpty ? '（没有更多细节）' : shared.join('\n')}\n'
+              '把真正值得记的整理成一条简短记忆，用 memory_write 写下来。'
+              '不要写成日记，也不要提“截图”；如果画面里有你自己，'
+              '那是你，不要当成别人。这一轮不用再冒气泡。',
+          realtime: true,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: _lastWakeAt[residentId],
+          handoff: true,
+        ),
+      );
+    } catch (error) {
+      debugPrint('[桌宠] 这一班收尾没成：$error');
+      return false;
+    }
+    final recent = await memories.recent(residentId, limit: 1);
+    final wrote = recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
+    if (wrote) {
+      if (clearOnSuccess) {
+        contextLog.clear(residentId);
+        await settings.clearDigest(residentId);
+      }
+      return true;
+    }
+    // 没写成也先把文字留着（digest 已落盘）；截图由调用方决定清不清。
+    return false;
+  }
+
+  /// 所有还没收尾的观察都补写一次。
+  ///
+  /// APP 被更新 / 清后台时，桌宠服务可能已经不在了；下次打开不会再走
+  /// `sync`（因为 enabled 已被收回 false），所以这里必须单独扫一遍。
+  Future<void> recoverPendingDigests() async {
+    try {
+      final ids = await settings.digestResidentIds();
+      for (final id in ids) {
+        if (id == _logResidentId) continue;
+        await _recoverDigest(id);
+      }
+    } catch (error) {
+      debugPrint('[桌宠] 检查未收尾观察失败：$error');
+    }
+  }
+
+  /// 上次进程被杀 / 被更新打断时留下的文字，补交给住民写成记忆。
+  Future<void> _recoverDigest(String residentId) async {
+    if (!_recovering.add(residentId)) return;
+    try {
+      final digest = await settings.digest(residentId);
+      if (digest == null || digest.trim().isEmpty) return;
+      final before = DateTime.now();
+      await wake.wake(
+        residentId,
+        trigger: WakeTrigger.pet,
+        pet: PetObservation(
+          note:
+              '上一次桌宠观察没有正常结束（APP 被关掉或更新了），'
+              '这是最后留下的记录：\n$digest\n'
+              '把其中真正值得记的整理成一条简短记忆，用 memory_write 写下来；'
+              '不要写成日记，也不要提“截图”。',
+          realtime: true,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: _lastWakeAt[residentId],
+          handoff: true,
+        ),
+      );
+      final recent = await memories.recent(residentId, limit: 1);
+      final wrote =
+          recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
+      if (wrote) {
+        await settings.clearDigest(residentId);
+        contextLog.clear(residentId);
+        _setStatus(wake: '补写了上次没来得及记的观察');
+      }
+    } catch (error) {
+      debugPrint('[桌宠] 补写上次观察没成：$error');
+    } finally {
+      _recovering.remove(residentId);
+    }
+  }
+
+  /// APP 要切后台 / 被系统收走前调一次：至少把文字落盘。
+  ///
+  /// 不在这里强等模型：切后台只有几秒，等模型返回多半来不及。
+  /// 落盘之后，下一次打开（或服务恢复）会走 [_recoverDigest]。
+  Future<void> checkpointNow() async {
+    final residentId = _logResidentId;
+    if (residentId == null) return;
+    await _persistDigest(residentId);
   }
 
   /// 关闭实时模式：先总结写记忆，成功才清截图。
@@ -385,9 +698,13 @@ class PetObserveService {
     final hadAnything = _frames.isNotEmpty || shared.isNotEmpty;
     if (residentId == null || !hadAnything) {
       _clearFrames();
-      if (residentId != null) contextLog.clear(residentId);
+      if (residentId != null) {
+        contextLog.clear(residentId);
+        await settings.clearDigest(residentId);
+      }
       return (ok: true, error: '');
     }
+    await _persistDigest(residentId);
 
     final before = DateTime.now();
     try {
@@ -405,6 +722,9 @@ class PetObserveService {
               '不要写成日记，也不要提“截图”；如果画面里有你自己，'
               '那是你，不要当成别人。',
           realtime: true,
+          sessionStartedAt: _sessionStartedAt[residentId],
+          lastWakeAt: _lastWakeAt[residentId],
+          handoff: true,
         ),
       );
     } catch (error) {
@@ -419,6 +739,9 @@ class PetObserveService {
     }
     _clearFrames();
     contextLog.clear(residentId);
+    await settings.clearDigest(residentId);
+    _wakesSinceCheckpoint = 0;
+    _lastWakeAt.remove(residentId);
     _setStatus(wake: '观察结束，记忆已写入');
     return (ok: true, error: '');
   }
@@ -434,8 +757,14 @@ class PetObserveService {
   Future<void> purge() async {
     _timer?.cancel();
     _timer = null;
+    _shiftTimer?.cancel();
+    _shiftTimer = null;
     _clearFrames();
     contextLog.clearAll();
+    _sessionStartedAt.clear();
+    _lastWakeAt.clear();
+    _handoffPending.clear();
+    _wakesSinceCheckpoint = 0;
     _captureWaiting = false;
     await _endLogSession();
     await wakeLogs.finishAllPetLogs();
@@ -460,6 +789,18 @@ class PetObserveService {
       '${at.hour.toString().padLeft(2, '0')}:'
       '${at.minute.toString().padLeft(2, '0')}:'
       '${at.second.toString().padLeft(2, '0')}';
+
+  static String _ago(DateTime at, {DateTime? now}) {
+    final diff = (now ?? DateTime.now()).difference(at);
+    if (diff.inSeconds <= 1) return '刚刚';
+    return '${_durationLabel(diff)}前';
+  }
+
+  static String _durationLabel(Duration diff) {
+    if (diff.inSeconds < 60) return '${diff.inSeconds} 秒';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟';
+    return '${diff.inHours} 小时';
+  }
 }
 
 final petObserveServiceProvider = Provider<PetObserveService>(

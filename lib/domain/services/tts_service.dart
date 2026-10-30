@@ -81,6 +81,7 @@ class TtsService {
   }) async {
     final transcript = _clean(text);
     if (transcript.isEmpty) return null;
+    _lastLocalMissing = null;
 
     // 用户的帖子里会出现话题标签、@、"哈哈哈哈"这类东西，
     // 念出来很奇怪；能读出人话才合成，读不出来就退回文字。
@@ -155,7 +156,7 @@ class TtsService {
 
     // 用户选的是本机，但本机模型没放、引擎起不来；这时有云端配置就补上。
     if (!forceLocal && !preferCloud && cloudConfig != null) {
-      return _speakCloud(
+      final cloud = await _speakCloud(
         config: cloudConfig,
         transcript: transcript,
         personaId: personaId,
@@ -163,7 +164,11 @@ class TtsService {
         voiceOverride: cloudVoice,
         instructions: wantsDescription ? voiceDescription : '',
       );
+      if (cloud != null) return cloud;
     }
+    // 两条路都没成，但本机是“模型没下载”而不是合成失败：把下载提示抛出去。
+    final missing = _lastLocalMissing;
+    if (missing != null) throw missing;
     return null;
   }
 
@@ -296,6 +301,8 @@ class TtsService {
   }
 
   /// 本机离线合成。
+  SpeechModelMissing? _lastLocalMissing;
+
   Future<VoiceClip?> _speakLocal({
     required String transcript,
     required String personaId,
@@ -336,6 +343,11 @@ class TtsService {
         durationMs: reply.durationMs,
         waveform: reply.waveform,
       );
+    } on SpeechModelMissing catch (error) {
+      // 精简版没内置模型。先记住原因：如果云端还能合成，就继续走云端；
+      // 最后还是没合成出来，再把“去下载”这句话原样交给调用方。
+      _lastLocalMissing = error;
+      return null;
     } catch (error) {
       debugPrint('[语音] 本机这句没合成出来：$error');
       return null;

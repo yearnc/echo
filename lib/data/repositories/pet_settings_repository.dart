@@ -22,6 +22,7 @@ class PetSettingsRepository {
   static const String _realtimeGapKey = 'pet.realtimeGapSeconds';
   static const String _voiceKey = 'pet.voiceEnabled';
   static const String _watchRequestKey = 'pet.watchRequest';
+  static const String _digestPrefix = 'pet.digest.';
 
   Future<String?> _read(String key) async {
     final row = await (_db.select(
@@ -90,6 +91,41 @@ class PetSettingsRepository {
       (await _read(_watchRequestKey)) == 'true';
 
   Future<void> clearWatchRequest() => _write(_watchRequestKey, 'false');
+
+  /// 实时观察的“未收尾记录”。
+  ///
+  /// 每看一轮就落一次盘，内容只是文字（几行“看了什么、说了什么”）。
+  /// APP 被清后台、更新重启、甚至写完这段就被杀，下次打开都能把它
+  /// 交给住民补写成记忆，而不是让这段观察凭空消失。
+  Future<void> saveDigest(String residentId, String digest) async {
+    if (digest.trim().isEmpty) {
+      await clearDigest(residentId);
+      return;
+    }
+    await _write('$_digestPrefix$residentId', digest);
+  }
+
+  Future<String?> digest(String residentId) async =>
+      _read('$_digestPrefix$residentId');
+
+  Future<void> clearDigest(String residentId) async {
+    await (_db.delete(
+      _db.appSettings,
+    )..where((t) => t.key.equals('$_digestPrefix$residentId'))).go();
+  }
+
+  /// 所有还有未收尾记录的住民（换班、崩溃恢复时要用）。
+  Future<List<String>> digestResidentIds() async {
+    final rows =
+        await (_db.select(_db.appSettings)
+              ..where((t) => t.key.like('$_digestPrefix%')))
+            .get();
+    return [
+      for (final row in rows)
+        if (row.value.trim().isNotEmpty)
+          row.key.substring(_digestPrefix.length),
+    ];
+  }
 
   /// 某个时刻由谁控制：先看时段，再看默认控制者。
   Future<String?> controllerAt(

@@ -18,6 +18,7 @@ import 'domain/services/background_worker.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
 import 'domain/services/pet_controller.dart';
+import 'domain/services/pet_observe_service.dart';
 import 'domain/services/resident_wake_service.dart';
 import 'domain/services/scheduler_service.dart';
 
@@ -175,9 +176,12 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       db.markTablesUpdated(db.allTables);
     } else if (state == AppLifecycleState.paused) {
       _endSession();
+      // 实时观察的文字先落盘：用户可能顺手清后台、或者系统直接把进程收走。
+      unawaited(ref.read(petObserveServiceProvider).checkpointNow());
       unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
     } else if (state == AppLifecycleState.detached) {
       _endSession();
+      unawaited(ref.read(petObserveServiceProvider).checkpointNow());
     }
   }
 

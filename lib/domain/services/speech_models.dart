@@ -26,6 +26,43 @@ class SpeechModelStore {
   static const String _asrAssetDir = 'assets/models/asr';
   static const String _asrStreamAssetDir = 'assets/models/asr-stream';
 
+  /// 每个模型“装好了”的最低标准。
+  ///
+  /// 精简版 APK 没有 asset 模型，用户从资源页下载后这里直接命中；
+  /// 完整版（开发者本地打包）仍然走下面的 asset 释放路径。
+  static const Map<String, List<String>> requiredFiles = {
+    'vits-zh-ll': [
+      'model.onnx',
+      'lexicon.txt',
+      'tokens.txt',
+      'date.fst',
+      'number.fst',
+      'phone.fst',
+    ],
+    'zipvoice': [
+      'encoder.int8.onnx',
+      'decoder.int8.onnx',
+      'vocos_24khz.onnx',
+      'tokens.txt',
+      'lexicon.txt',
+      'espeak-ng-data.zip',
+    ],
+    'asr': ['model.int8.onnx', 'tokens.txt'],
+    'asr-stream': [
+      'encoder.int8.onnx',
+      'decoder.int8.onnx',
+      'joiner.int8.onnx',
+      'tokens.txt',
+    ],
+  };
+
+  static const Map<String, String> displayNames = {
+    'vits-zh-ll': '文字语音',
+    'zipvoice': '音色克隆',
+    'asr': '语音识别',
+    'asr-stream': '流式识别',
+  };
+
   Future<ReleasedModels>? _vitsFuture;
   Future<ReleasedModels>? _zipVoiceFuture;
   Future<ReleasedModels>? _asrFuture;
@@ -53,6 +90,21 @@ class SpeechModelStore {
   /// 让下一轮接通话时不必再改安装包结构。
   Future<ReleasedModels> prepareAsrStream() {
     return _asrStreamFuture ??= _releaseDirectory('asr-stream', _asrStreamAssetDir);
+  }
+
+  /// 资源页删掉某套模型后，把缓存的 Future 清掉；下次再点语音会重新检查，
+  /// 不会拿着一个“已经成功过”的旧结果继续读已经被删的路径。
+  void invalidate(String storageDir) {
+    switch (storageDir) {
+      case 'vits-zh-ll':
+        _vitsFuture = null;
+      case 'zipvoice':
+        _zipVoiceFuture = null;
+      case 'asr':
+        _asrFuture = null;
+      case 'asr-stream':
+        _asrStreamFuture = null;
+    }
   }
 
   Future<ReleasedModels> _prepareZipVoice() async {
@@ -98,12 +150,24 @@ class SpeechModelStore {
       await dir.create(recursive: true);
     }
 
+    // 1) 用户已经从「下载资源」装好了：直接用，不再碰 asset。
+    if (await _hasRequiredFiles(kind, dir)) {
+      return ReleasedModels(
+        directory: dir.path,
+        pathOf: (name) => p.join(dir.path, name),
+      );
+    }
+
+    // 2) 完整版 APK 里带了模型：首次启动释放出来。
     final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
     final prefix = '$assetDir/';
     final assets = manifest
         .listAssets()
         .where((asset) => asset.startsWith(prefix))
         .toList(growable: false);
+    if (assets.isEmpty) {
+      throw SpeechModelMissing(kind);
+    }
 
     for (final asset in assets) {
       final relative = asset.substring(prefix.length);
@@ -123,10 +187,23 @@ class SpeechModelStore {
       );
     }
 
+    if (!await _hasRequiredFiles(kind, dir)) {
+      throw SpeechModelMissing(kind);
+    }
     return ReleasedModels(
       directory: dir.path,
       pathOf: (name) => p.join(dir.path, name),
     );
+  }
+
+  static Future<bool> _hasRequiredFiles(String kind, Directory dir) async {
+    final required = requiredFiles[kind] ?? const <String>[];
+    if (required.isEmpty) return false;
+    for (final name in required) {
+      final file = File(p.joinAll([dir.path, ...name.split('/')]));
+      if (!await file.exists() || await file.length() == 0) return false;
+    }
+    return true;
   }
 }
 
@@ -134,6 +211,21 @@ class SpeechModelStore {
 final speechModelStoreProvider = Provider<SpeechModelStore>(
   (ref) => SpeechModelStore(),
 );
+
+/// 精简版 APK 没有内置、用户也还没下载这套模型。
+///
+/// 调用方把这句话原样告诉用户，并引导去「我的 → 下载资源」，
+/// 不要吞成“语音坏了”这种没法处理的错误。
+class SpeechModelMissing implements Exception {
+  const SpeechModelMissing(this.kind);
+
+  final String kind;
+
+  String get label => SpeechModelStore.displayNames[kind] ?? kind;
+
+  @override
+  String toString() => '「$label」模型还没下载，去「我的 → 下载资源」下载后就能用';
+}
 
 /// 一次释放的结果：模型所在目录，以及按名字取路径的小工具。
 class ReleasedModels {
