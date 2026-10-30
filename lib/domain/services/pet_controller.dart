@@ -263,10 +263,6 @@ class PetController extends Notifier<PetRuntimeState> {
     await refresh();
   }
 
-  /// 从设置页手动叫它一句（用于确认桌宠服务真的在跑）。
-  Future<bool> say(String text) => _native.say(text);
-
-  Future<void> react(String action) => _native.react(action);
 }
 
 final petControllerProvider = NotifierProvider<PetController, PetRuntimeState>(

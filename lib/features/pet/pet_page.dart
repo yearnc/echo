@@ -462,34 +462,6 @@ class _ObserveStatusCard extends ConsumerWidget {
                   style: TextStyle(color: EchoColors.like, fontSize: 11),
                 ),
               ],
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 4,
-                    ),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () async {
-                    final ok = await ref
-                        .read(petControllerProvider.notifier)
-                        .say('桌宠在吗');
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(ok ? '气泡应该出现了' : '气泡没显示：检查悬浮窗权限'),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    '试一下气泡',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                ),
-              ),
             ],
           ),
         );

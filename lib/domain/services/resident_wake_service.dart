@@ -32,6 +32,7 @@ import 'dm_voice_service.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'resident_activity_controller.dart';
+import 'resident_context_log.dart';
 import 'tool_call_text.dart';
 import 'tts_service.dart';
 import 'resident_tool_session.dart';
@@ -87,6 +88,7 @@ class ResidentWakeService {
     this.petSettings,
     this.dmVoice,
     this.activityDone,
+    required this.contextLog,
   });
 
   final AppDatabase db;
@@ -119,6 +121,9 @@ class ResidentWakeService {
 
   /// 一轮结束后收掉聊天页上的“正在思考…”。
   final void Function(String residentId)? activityDone;
+
+  /// 桌宠与私信共用的短期上下文（屏幕上看到的、冒过的气泡）。
+  final ResidentContextLog contextLog;
 
   /// 同一个人不要被同时叫醒两次（用户点发送 + 心跳撞在一起）。
   final Set<String> _running = {};
@@ -461,9 +466,8 @@ class ResidentWakeService {
       logId: logId,
       pending: visible,
       now: now,
-      // v41：后台也允许主动行为（发帖/评论/点赞/刷帖子/画图），
+      // 后台也允许主动行为（发帖/评论/点赞/刷帖子/画图），
       // 只有语音因为耗时太长、后台预算不稳定而不开放。
-      allowProactive: true,
       allowVoice: trigger != WakeTrigger.background,
       visionEnabled: config.supportsVision,
     );
@@ -478,9 +482,10 @@ class ResidentWakeService {
               'image' => turn.fromMe ? '' : '[发来一张图片]',
               'sticker' => '[表情包]',
               // 语音在历史里只放转写稿：路径不是一句话，模型看不懂。
-              'voice' => turn.transcript.trim().isEmpty
-                  ? (turn.fromMe ? '[我发了一条语音]' : '[发来一条语音]')
-                  : turn.transcript,
+              'voice' =>
+                turn.transcript.trim().isEmpty
+                    ? (turn.fromMe ? '[我发了一条语音]' : '[发来一条语音]')
+                    : turn.transcript,
               _ => turn.content,
             },
             caption: turn.caption,
@@ -689,6 +694,17 @@ class ResidentWakeService {
         '要不要在意、要不要记、要不要接着说，都由你）：\n$ownActivity',
       );
     }
+    // 桌宠那一侧看到的、冒过的气泡，私信这一轮也要知道——同一个人，
+    // 不该因为换了块屏幕就失忆。桌宠轮自己已经带着这段上下文，不重复。
+    if (trigger != WakeTrigger.pet) {
+      final shared = contextLog.recent(resident.id);
+      if (shared.isNotEmpty) {
+        parts.add(
+          '你最近在屏幕上看到的、说过的（和私信是同一段关系，不是两件事）：\n'
+          '${shared.join('\n')}',
+        );
+      }
+    }
     return parts.join('\n');
   }
 
@@ -872,6 +888,7 @@ class ResidentWakeService {
     CustomResident resident,
     String content,
     String? topic,
+    String wakeId,
     String callId,
     Future<Uint8List?>? image, {
     bool asVoice = false,
@@ -898,7 +915,7 @@ class ResidentWakeService {
       residentId: resident.id,
       content: text,
       topicName: topic,
-      idempotencyKey: 'post:${resident.id}:$callId',
+      idempotencyKey: 'post:$wakeId:$callId',
       source: 'wake',
       asVoice: asVoice,
     );
@@ -1078,7 +1095,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
     required this.logId,
     required this.pending,
     required this.now,
-    required this.allowProactive,
     required this.allowVoice,
     required this.visionEnabled,
   });
@@ -1092,7 +1108,6 @@ class _WakeToolkit implements ResidentWakeToolkit {
   final String logId;
   final List<ResidentInboxItem> pending;
   final DateTime now;
-  final bool allowProactive;
 
   /// 后台唤醒不给语音：合成一句话几十秒，后台预算扛不住。
   final bool allowVoice;
@@ -1100,9 +1115,11 @@ class _WakeToolkit implements ResidentWakeToolkit {
   /// 对话模型能不能看图。能看就直接附原图，不能就只告诉它有几张。
   final bool visionEnabled;
 
+  @override
   bool finished = false;
   bool spokePrivately = false;
   int _dmSegments = 0;
+  bool _stickerSent = false;
   final Set<String> _repliedDm = {};
 
   /// 这一轮已经真正发出去的段（去掉空白后比较）。
@@ -1214,6 +1231,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
     String tag,
     String callId,
   ) async {
+    if (_stickerSent) {
+      return const ActionOutcome(ok: false, message: '一次醒来最多发一张表情包');
+    }
     if (_dmSegments >= ResidentWakeService.maxDmSegments) {
       return const ActionOutcome(ok: false, message: '一次醒来最多发三段');
     }
@@ -1231,12 +1251,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
       residentId: resident.id,
       stickerPath: path,
       at: at,
-      idempotencyKey: 'sticker:${resident.id}:$callId',
+      idempotencyKey: 'sticker:$wakeId:$callId',
       deliveryGroup: wakeId,
       deliveryIndex: _dmSegments,
     );
     if (!outcome.ok) return outcome;
 
+    _stickerSent = true;
     _dmSegments++;
     spokePrivately = true;
     final dmIds = [
@@ -1502,7 +1523,9 @@ class _WakeToolkit implements ResidentWakeToolkit {
               {
                 'time': ResidentToolSession.timeLabel(log.wokeAt),
                 'trigger': log.triggerLabel,
-                'did': [for (final tool in log.tools) ResidentWakeLog.toolLabel(tool)],
+                'did': [
+                  for (final tool in log.tools) ResidentWakeLog.toolLabel(tool),
+                ],
                 'note': log.note,
               },
           ],
@@ -1563,10 +1586,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
       message:
           '闹钟定好了：${ResidentToolSession.timeLabel(fireAt)}。'
           '在那之前如果没有待办，系统不会因为空闲来叫醒你。',
-      data: {
-        'alarm_id': id,
-        'fire_at': ResidentToolSession.timeLabel(fireAt),
-      },
+      data: {'alarm_id': id, 'fire_at': ResidentToolSession.timeLabel(fireAt)},
     );
   }
 
@@ -1650,6 +1670,13 @@ class _WakeToolkit implements ResidentWakeToolkit {
     // 已经用气泡说过了：这一轮不要再走“只回一句话”的兜底重复说一遍。
     spokePrivately = true;
     service._petSaid[resident.id] = clean;
+    // 气泡也是“他说过的话”。私信那边下一次醒来要能看到，
+    // 不能让它觉得私信和屏幕上坐着的是两个人。
+    service.contextLog.add(
+      resident.id,
+      '${ResidentWakeService._shortWhen(DateTime.now())} '
+      '你在屏幕上冒了一句：「${clean.length > 60 ? '${clean.substring(0, 60)}…' : clean}」',
+    );
     return const ActionOutcome(ok: true, message: '说出来了');
   }
 
@@ -1687,7 +1714,8 @@ class _WakeToolkit implements ResidentWakeToolkit {
     if (!allowed.contains(key)) {
       return const ActionOutcome(
         ok: false,
-        message: '没有这个动作；可用：happy / shy / angry / tickle / wave / '
+        message:
+            '没有这个动作；可用：happy / shy / angry / tickle / wave / '
             'thinking / busy / cheer / sigh / sleep / yawn / stretch / '
             'dance / look / walk / wander / idle',
       );
@@ -1767,6 +1795,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
       resident,
       content,
       topic,
+      wakeId,
       callId,
       _image,
       asVoice: asVoice,
@@ -1797,6 +1826,7 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     pet: ref.watch(petNativeProvider),
     petSettings: ref.watch(petSettingsRepositoryProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
+    contextLog: ref.watch(residentContextLogProvider),
     activityDone: (residentId) =>
         ref.read(residentActivityProvider.notifier).clear(residentId),
   ),

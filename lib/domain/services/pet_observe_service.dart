@@ -15,6 +15,7 @@ import 'call_registry.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'photo_describer.dart';
+import 'resident_context_log.dart';
 import 'resident_wake_service.dart';
 
 class _PetFrame {
@@ -60,6 +61,7 @@ class PetObserveService {
     required this.photos,
     required this.gateway,
     required this.wakeLogs,
+    required this.contextLog,
   });
 
   final PetNative native;
@@ -71,6 +73,9 @@ class PetObserveService {
   final ModelGateway gateway;
   final ResidentWakeLogRepository wakeLogs;
 
+  /// 屏幕这一侧看到/说过的东西，私信那一轮也要读到。
+  final ResidentContextLog contextLog;
+
   /// 当前这段“桌宠醒着”的日志属于谁；换控制者时先收尾再开新的。
   String? _logResidentId;
 
@@ -81,14 +86,10 @@ class PetObserveService {
   bool _captureWaiting = false;
   final List<_PetFrame> _frames = [];
 
-  /// 这段观察的上下文：每轮看到的画面和它自己说过的话。
-  /// 关闭时只把这段交给它去写记忆，不再重新附最后两张图。
-  final List<String> _history = [];
-  static const int maxHistoryLines = 10;
-
   /// 给桌宠页看的状态（收到几帧、上次唤醒结果、错误）。
-  final ValueNotifier<PetObserveStatus> status =
-      ValueNotifier(const PetObserveStatus());
+  final ValueNotifier<PetObserveStatus> status = ValueNotifier(
+    const PetObserveStatus(),
+  );
 
   void _setStatus({
     int? frames,
@@ -129,7 +130,7 @@ class PetObserveService {
     await _subscription?.cancel();
     _subscription = null;
     _clearFrames();
-    _history.clear();
+    contextLog.clearAll();
     status.value = const PetObserveStatus();
     await _endLogSession();
   }
@@ -216,7 +217,8 @@ class PetObserveService {
       // 正在通话的住民不接管桌宠：控制时段先让给通话，
       // 等通话结束后的下一次观察再由它接手。
       final fallback = value.defaultResidentId;
-      result = fallback.isNotEmpty &&
+      result =
+          fallback.isNotEmpty &&
               fallback != candidate &&
               !CallRegistry.isActive(fallback)
           ? fallback
@@ -261,9 +263,11 @@ class PetObserveService {
       final canSee = config?.supportsVision ?? false;
 
       final description = await photos.describe(ref);
-      final note = description.isEmpty
-          ? '画面已经附在后面；如果你看不懂图，就说没看清。'
-          : '画面：$description';
+      final shared = contextLog.recent(residentId);
+      final note = [
+        description.isEmpty ? '画面已经附在后面；如果你看不懂图，就说没看清。' : '画面：$description',
+        if (shared.isNotEmpty) '这段时间此前的上下文：\n${shared.join('\n')}',
+      ].join('\n');
       // 普通模式只留这一张，看完就删；不把一整天都存成图库。
       await wake.wake(
         residentId,
@@ -275,8 +279,14 @@ class PetObserveService {
         ),
       );
       _deleteFile(ref.replaceFirst('file:', ''));
-      // 普通模式每轮都是独立的一眼，不跨轮累积。
-      _history.clear();
+      // 气泡说过的话已经在 pet_say 那一刻写进共享上下文；这里只补
+      // “看到了什么”，私信下一次醒来也能接上。
+      wake.takePetSaid(residentId);
+      contextLog.add(
+        residentId,
+        '${_clock(DateTime.now())} 你看了屏幕：'
+        '${description.isEmpty ? '（没看清）' : description}',
+      );
       _setStatus(wakeAt: DateTime.now(), wake: '普通模式点评完成');
     } catch (error) {
       debugPrint('[桌宠] 这次观察没成：$error');
@@ -321,12 +331,12 @@ class PetObserveService {
       final description = canSee
           ? ''
           : await photos.describe('file:${recent.last.path}');
+      final shared = contextLog.recent(residentId);
       final note = [
         '这是过去 ${_gap.inSeconds} 秒里均匀抽出的 ${recent.length} 帧'
             '（${_clock(recent.first.at)}—${_clock(recent.last.at)}）。',
         if (description.isNotEmpty) '最后一张的画面：$description',
-        if (_history.isNotEmpty)
-          '这段时间此前的观察和你说过的话：\n${_history.join('\n')}',
+        if (shared.isNotEmpty) '这段时间此前的观察和你说过的话：\n${shared.join('\n')}',
       ].join('\n');
 
       final handled = await wake.wake(
@@ -345,17 +355,14 @@ class PetObserveService {
         '[桌宠] 实时观察：${recent.length} 帧，控制者 $residentId，'
         '唤醒结果 $handled',
       );
-      final said = wake.takePetSaid(residentId);
-      final line = StringBuffer()
-        ..write('${_clock(recent.first.at)}—${_clock(recent.last.at)}：')
-        ..write(description.isEmpty ? '看了屏幕' : description)
-        ..write(
-          said == null || said.trim().isEmpty ? '' : '；你说：「${said.trim()}」',
-        );
-      _history.add(line.toString());
-      while (_history.length > maxHistoryLines) {
-        _history.removeAt(0);
-      }
+      // 气泡本身在 pet_say 那一刻已经写进共享上下文，这里只记画面；
+      // takePetSaid 仍要调用，把“这一轮说过什么”的标记取走。
+      wake.takePetSaid(residentId);
+      contextLog.add(
+        residentId,
+        '${_clock(recent.first.at)}—${_clock(recent.last.at)}：'
+        '${description.isEmpty ? '看了屏幕' : description}',
+      );
       _setStatus(
         wakeAt: DateTime.now(),
         wake: '唤醒 $handled（${recent.length} 帧）',
@@ -372,10 +379,13 @@ class PetObserveService {
   /// 关闭实时模式：先总结写记忆，成功才清截图。
   Future<({bool ok, String error})> finishRealtime() async {
     final residentId = await controllerId();
-    final hadAnything = _frames.isNotEmpty || _history.isNotEmpty;
+    final shared = residentId == null
+        ? const <String>[]
+        : contextLog.recent(residentId);
+    final hadAnything = _frames.isNotEmpty || shared.isNotEmpty;
     if (residentId == null || !hadAnything) {
       _clearFrames();
-      _history.clear();
+      if (residentId != null) contextLog.clear(residentId);
       return (ok: true, error: '');
     }
 
@@ -390,7 +400,7 @@ class PetObserveService {
           note:
               '这段桌宠观察结束了。这段时间你一直看着屏幕，'
               '以下是看到的和你说过的话：\n'
-              '${_history.isEmpty ? '（没有更多细节）' : _history.join('\n')}\n'
+              '${shared.isEmpty ? '（没有更多细节）' : shared.join('\n')}\n'
               '把真正值得记的整理成一条简短记忆，用 memory_write 写下来。'
               '不要写成日记，也不要提“截图”；如果画面里有你自己，'
               '那是你，不要当成别人。',
@@ -403,13 +413,12 @@ class PetObserveService {
 
     // 工具调用的结果不直接回传，所以用“有没有新记忆”判断写没写成功。
     final recent = await memories.recent(residentId, limit: 1);
-    final wrote =
-        recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
+    final wrote = recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
     if (!wrote) {
       return (ok: false, error: '住民没有写成记忆，截图先留着，可以再试一次');
     }
     _clearFrames();
-    _history.clear();
+    contextLog.clear(residentId);
     _setStatus(wake: '观察结束，记忆已写入');
     return (ok: true, error: '');
   }
@@ -426,7 +435,7 @@ class PetObserveService {
     _timer?.cancel();
     _timer = null;
     _clearFrames();
-    _history.clear();
+    contextLog.clearAll();
     _captureWaiting = false;
     await _endLogSession();
     await wakeLogs.finishAllPetLogs();
@@ -463,5 +472,6 @@ final petObserveServiceProvider = Provider<PetObserveService>(
     photos: ref.watch(photoDescriberProvider),
     gateway: ref.watch(modelGatewayProvider),
     wakeLogs: ref.watch(residentWakeLogRepositoryProvider),
+    contextLog: ref.watch(residentContextLogProvider),
   ),
 );

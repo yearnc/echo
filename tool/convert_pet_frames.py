@@ -71,8 +71,21 @@ def pick_indices(total: int, count: int) -> list[int]:
 
 
 def write_frames(action: dict, raw: bytes) -> int:
+    if len(raw) % FRAME_BYTES != 0:
+        raise RuntimeError(
+            f"解码结果不是 {SOURCE_SIZE[0]}x{SOURCE_SIZE[1]} 的整帧"
+            f"（{len(raw)} 字节除不尽 {FRAME_BYTES}）；先确认源片分辨率"
+        )
     total = len(raw) // FRAME_BYTES
     indices = pick_indices(total, FRAME_COUNT)
+    if len(indices) < FRAME_COUNT:
+        # 少写几帧也会让 manifest 与实际素材对不上，宁可不覆盖旧的一整套。
+        raise RuntimeError(
+            f"源片只有 {total} 帧，凑不满 {FRAME_COUNT} 帧；"
+            "请换更长的源片，或先改 FRAME_COUNT 和护栏测试"
+        )
+
+    written = set()
     for index, source_index in enumerate(indices):
         offset = source_index * FRAME_BYTES
         frame = Image.frombytes(
@@ -90,11 +103,17 @@ def write_frames(action: dict, raw: bytes) -> int:
             quality=100,
             method=4,
         )
-    # 顺手清掉同动作的旧 PNG 帧，避免两套素材一起进 APK。
+        written.add(name)
+
+    # 清掉这个动作多出来的旧帧（以前帧数更多、或旧版留下的 PNG），
+    # 否则它们会一起进 APK，而护栏只查首尾帧，看不出来。
+    prefix = f"{action['key']}_"
     for old in os.listdir(FRAME_DIR):
-        if old.startswith(f"{action['key']}_") and old.endswith(".png"):
+        if not old.startswith(prefix) or old in written:
+            continue
+        if old.endswith(".webp") or old.endswith(".png"):
             os.remove(os.path.join(FRAME_DIR, old))
-    return total
+    return len(indices)
 
 
 def main() -> int:
@@ -122,29 +141,49 @@ def main() -> int:
     actions = manifest["actions"]
     if args.only:
         actions = [a for a in actions if a["key"] == args.only]
+        if not actions:
+            print(f"manifest 里没有动作 {args.only}", flush=True)
+            return 2
     if args.limit:
         actions = actions[: args.limit]
 
+    failures = 0
     for position, action in enumerate(actions, 1):
         source = os.path.join(WEBM_DIR, f"{action['name']}.webm")
         if not os.path.exists(source):
             print(f"[{position}/{len(actions)}] 找不到 {source}", flush=True)
+            failures += 1
             continue
-        raw = decode_rgba(source)
-        total = write_frames(action, raw)
+        try:
+            raw = decode_rgba(source)
+            written = write_frames(action, raw)
+        except Exception as error:  # noqa: BLE001 - 一个坏片不该拖死整批
+            print(
+                f"[{position}/{len(actions)}] {action['key']} "
+                f"{action['name']} 失败：{error}",
+                flush=True,
+            )
+            failures += 1
+            continue
         print(
             f"[{position}/{len(actions)}] {action['key']} {action['name']} "
-            f"({total} 帧 → {FRAME_COUNT} 帧)",
+            f"({written} 帧)",
             flush=True,
         )
 
-    if not args.limit and not args.only:
+    if not args.limit and not args.only and failures == 0:
         for action in manifest["actions"]:
             action["frames"] = FRAME_COUNT
         with open(MANIFEST, "w", encoding="utf-8") as handle:
             json.dump(manifest, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
-        print("manifest.json 已更新为 48 帧", flush=True)
+        print(f"manifest.json 已更新为 {FRAME_COUNT} 帧", flush=True)
+    if failures:
+        print(
+            f"有 {failures} 个动作没转成功；manifest 保持原样，先修好再重跑",
+            flush=True,
+        )
+        return 1
     return 0
 
 

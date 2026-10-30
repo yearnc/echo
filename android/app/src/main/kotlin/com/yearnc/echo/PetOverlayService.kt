@@ -145,12 +145,17 @@ class PetOverlayService : Service() {
 
     private lateinit var bubble: TextView
 
+    private data class BubbleRequest(val text: String, val requestId: String)
+
     private var params: WindowManager.LayoutParams? = null
     private var hitParams: WindowManager.LayoutParams? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var hitAdded = false
     private var bubbleAdded = false
     private var bubbleVisible = false
+
+    /// 正在显示的气泡没看完时，新气泡排队，而不是把它顶掉。
+    private val bubbleQueue = ArrayDeque<BubbleRequest>()
     private var breathAnimator: ObjectAnimator? = null
 
     private var currentDrawable: Drawable? = null
@@ -1005,10 +1010,31 @@ class PetOverlayService : Service() {
     private fun showBubble(text: String, requestId: String = "") {
         val clean = text.trim()
         if (clean.isEmpty() || !::bubble.isInitialized) return
-        val lp = bubbleParams ?: return
+        if (bubbleParams == null) return
 
+        // 上一条还在说：排队，不把它顶掉。每条完整说完再换下一条。
+        if (bubbleVisible) {
+            if (bubbleQueue.size >= 6) bubbleQueue.removeFirst()
+            bubbleQueue.addLast(BubbleRequest(clean.take(120), requestId))
+            PetBridge.emit(
+                "bubble",
+                mapOf(
+                    "ok" to true,
+                    "text" to clean,
+                    "requestId" to requestId,
+                    "queued" to true,
+                ),
+            )
+            return
+        }
+        displayBubble(clean.take(120), requestId)
+    }
+
+    private fun displayBubble(clean: String, requestId: String) {
+        if (!::bubble.isInitialized) return
+        val lp = bubbleParams ?: return
         try {
-            bubbleFullText = clean.take(120)
+            bubbleFullText = clean
             bubble.text = bubbleFullText
             bubble.measure(
                 View.MeasureSpec.makeMeasureSpec(
@@ -1034,10 +1060,6 @@ class PetOverlayService : Service() {
             handler.removeCallbacks(bubbleTyper)
             handler.removeCallbacks(hideBubble)
             handler.post(bubbleTyper)
-            handler.postDelayed(
-                hideBubble,
-                (6000L + bubbleFullText.length * 35L).coerceAtMost(20000L),
-            )
             if (currentAction != null && currentAction == byExpose["sleep"]) {
                 // 睡着时被气泡叫醒：换成开心的点击回应。
                 byExpose["happy"]?.let { playAction(it, loop = false, autoIdle = true) }
@@ -1051,6 +1073,7 @@ class PetOverlayService : Service() {
                 ),
             )
         } catch (error: Throwable) {
+            bubbleVisible = false
             PetBridge.emit(
                 "bubble",
                 mapOf(
@@ -1063,13 +1086,17 @@ class PetOverlayService : Service() {
     }
 
     /// 逐字出现。模型仍然是一次把整句交过来，这里只负责让它“说”出来。
-    private val bubbleTyper = object : Runnable {
+    private val bubbleTyper: Runnable = object : Runnable {
         override fun run() {
             if (bubbleFullText.isEmpty() || !::bubble.isInitialized) return
             bubbleChars = (bubbleChars + 2).coerceAtMost(bubbleFullText.length)
             bubble.text = bubbleFullText.substring(0, bubbleChars)
             if (bubbleChars < bubbleFullText.length) {
                 handler.postDelayed(this, 70)
+            } else {
+                // 打完字再完整停留 3 秒；排队的下一条等这 3 秒过去才出现。
+                handler.removeCallbacks(hideBubble)
+                handler.postDelayed(hideBubble, 3000L)
             }
         }
     }
@@ -1095,10 +1122,14 @@ class PetOverlayService : Service() {
         }
     }
 
-    private val hideBubble = Runnable {
+    private val hideBubble: Runnable = Runnable {
         bubbleVisible = false
         handler.removeCallbacks(bubbleTyper)
         if (::bubble.isInitialized) bubble.visibility = View.GONE
+        // 这一条完整晾够了，再放下一条。直接接上，不留空档——
+        // 留延迟的话，这 150ms 里来的新气泡会和排队的这条抢显示。
+        val next = bubbleQueue.removeFirstOrNull()
+        if (next != null) displayBubble(next.text, next.requestId)
     }
 
     // ---------------------------------------------------------------- 前台服务
@@ -1144,6 +1175,8 @@ class PetOverlayService : Service() {
     private fun stopSelfSafely() {
         stopRoaming()
         stopIdleTimer()
+        bubbleQueue.clear()
+        bubbleVisible = false
         handler.removeCallbacks(hideBubble)
         (currentDrawable as? AnimationDrawable)?.stop()
         breathAnimator?.cancel()

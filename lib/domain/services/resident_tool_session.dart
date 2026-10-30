@@ -16,35 +16,14 @@ import 'tool_call_text.dart';
 import 'tool_settings_controller.dart';
 import 'web_search.dart';
 
-/// 这一轮选中的表情包。
-///
-/// 工具只做“选哪张”的决策；真正落库由 DirectMessageService 通过
-/// ActionRegistry 统一写入，保住幂等和动作日志。
-class ResidentStickerChoice {
-  const ResidentStickerChoice({
-    required this.callId,
-    required this.id,
-    required this.path,
-  });
-
-  final String callId;
-  final String id;
-  final String path;
-}
-
-/// 固定住民这一轮要发的东西：一句话 + 最多一张表情包。
-class ResidentReply {
-  const ResidentReply({this.text = '', this.stickers = const []});
-
-  final String text;
-  final List<ResidentStickerChoice> stickers;
-}
-
 /// 唤醒这一轮能落到哪几张表。
 ///
 /// 工具会话只负责"决定做什么"，真正的写入由唤醒服务实现——
 /// 它知道每条待办对应哪个帖子、哪条评论，工具本身不该知道这些。
 abstract class ResidentWakeToolkit {
+  /// 这一轮是否已经调用过 [finish]（之后不再执行别的工具）。
+  bool get finished;
+
   Future<ActionOutcome> replyInbox(
     String itemId,
     String content,
@@ -170,6 +149,13 @@ class ResidentToolSession {
 
   ToolSettings get _settings => readSettings?.call() ?? ToolSettings.defaults;
 
+  /// 模型一次响应里最多执行几个工具。
+  ///
+  /// 轮数限制挡不住“一次吐十个调用”——那十个都会真跑：发十条评论、
+  /// 点赞十次、写十条记忆。超出的调用也要补一条 tool 结果，否则下一轮
+  /// 请求会因 tool_calls 没答完被服务商拒绝。
+  static const int maxToolCallsPerResponse = 6;
+
   /// 单次请求的超时：不超过剩余时间，也不超过每轮上限。
   static Duration _callTimeout(Duration left, ToolSettings settings) {
     final cap = settings.perCallTimeout;
@@ -232,125 +218,6 @@ class ResidentToolSession {
     return '${at.year}年${at.month}月${at.day}日 周$week $phase $hh:$mm';
   }
 
-  /// 这个模型能不能用工具。失败一次就降级——不反复试。
-  Future<ResidentReply?> reply({
-    required CustomResident resident,
-    required ModelConfig config,
-    required List<DirectTurn> recent,
-    required String latestUserMessage,
-    DateTime? at,
-  }) async {
-    final limits = _settings;
-    final deadline = DateTime.now().add(limits.timeout);
-    _report(resident, '正在看消息…', ResidentActivityKind.reading);
-    final memoryLines = await _prefetch(resident);
-    final stickers = <ResidentStickerChoice>[];
-    final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': _systemPrompt(resident)},
-      ...await _historyMessages(
-        recent: recent,
-        config: config,
-        latest: latestUserMessage,
-        memoryLines: memoryLines,
-        at: at,
-      ),
-    ];
-
-    for (var round = 0; round < limits.maxRounds; round++) {
-      final left = deadline.difference(DateTime.now());
-      if (left <= const Duration(seconds: 1)) break;
-
-      _report(resident, '正在思考…', ResidentActivityKind.thinking);
-      final result = await gateway.completeWithTools(
-        config: config,
-        messages: messages,
-        tools: allTools,
-        temperature: 0.85,
-        maxTokens: 320,
-        timeout: _callTimeout(left, limits),
-      );
-
-      if (result.toolCalls.isEmpty) {
-        return ResidentReply(
-          text: sanitizeModelText(result.content),
-          stickers: stickers,
-        );
-      }
-
-      messages.add({
-        'role': 'assistant',
-        'content': result.content,
-        'tool_calls': [
-          for (final call in result.toolCalls)
-            {
-              'id': call.id,
-              'type': 'function',
-              'function': {
-                'name': call.name,
-                'arguments': jsonEncode(call.arguments),
-              },
-            },
-        ],
-      });
-
-      for (final call in result.toolCalls) {
-        if (deadline.difference(DateTime.now()) <= Duration.zero) break;
-        _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
-        final ActionOutcome outcome;
-        if (call.name == 'send_sticker' && stickers.isNotEmpty) {
-          outcome = const ActionOutcome(ok: false, message: '一次回复最多发一张表情包');
-        } else {
-          outcome = await _execute(
-            resident: resident,
-            call: call,
-            latestUserMessage: latestUserMessage,
-          );
-
-          if (call.name == 'send_sticker' && outcome.ok) {
-            final id = outcome.data['sticker_id'];
-            final path = outcome.data['path'];
-            if (id is String && path is String) {
-              stickers.add(
-                ResidentStickerChoice(callId: call.id, id: id, path: path),
-              );
-            }
-          }
-        }
-        messages.add({
-          'role': 'tool',
-          'tool_call_id': call.id,
-          'content': outcome.toToolResult(),
-        });
-      }
-    }
-
-    // 轮次用完或超时：让模型不带工具收个尾，还能不能好好说句话
-    try {
-      final left = deadline.difference(DateTime.now());
-      if (left <= const Duration(seconds: 1)) {
-        return ResidentReply(stickers: stickers);
-      }
-      final finalResult = await gateway.completeWithTools(
-        config: config,
-        messages: [
-          ...messages,
-          {'role': 'user', 'content': '时间到了，不用再查了，直接回他一句。'},
-        ],
-        tools: const [],
-        temperature: 0.85,
-        maxTokens: 160,
-        timeout: left,
-      );
-      return ResidentReply(
-        text: sanitizeModelText(finalResult.content),
-        stickers: stickers,
-      );
-    } catch (error) {
-      debugPrint('[工具] 收尾也没成：$error');
-      return ResidentReply(stickers: stickers);
-    }
-  }
-
   /// 唤醒式交互（v3.3）：一次醒来，先把收件箱里的待办处理掉。
   ///
   /// 和 [reply] 的区别是**上下文不同**：那里只有"对方刚说的一句话"，
@@ -366,11 +233,14 @@ class ResidentToolSession {
     bool allowProactive = true,
     bool allowVoice = true,
     Future<void> Function(String name)? onTool,
+
     /// 桌宠观察到的画面（v4.0）。只有模型能看图时才真的附图；
     /// 不能看图的模型由调用方先转成文字描述放进入参里。
     List<String> extraImages = const [],
-    /// 桌宠观察轮：只暴露 pet_* 与 finish。
-    /// 用户主动私聊时永远是 false——那一轮它该看见完整的手。
+
+    /// 桌宠观察轮：换一套“在屏幕上陪着他”的 system 提示词。
+    /// 工具不再收窄——私信、语音、表情包和 pet_* 一样都能用，
+    /// 屏幕上和私信里是同一个人。用户主动私聊时永远是 false。
     bool petOnly = false,
   }) async {
     final limits = _settings;
@@ -426,7 +296,6 @@ class ResidentToolSession {
             resident,
             allowProactive: allowProactive,
             allowVoice: allowVoice,
-            petOnly: petOnly,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -472,9 +341,35 @@ class ResidentToolSession {
         ],
       });
 
+      var callsThisResponse = 0;
       for (final call in result.toolCalls) {
         if (deadline.difference(DateTime.now()) <= Duration.zero) break;
         final args = call.arguments;
+        // 每条 tool_call 都必须有对应的 tool 结果，否则下一轮请求会因为
+        // “assistant 的 tool_calls 没答完”被服务商拒绝。跳过也要回一句。
+        if (toolkit.finished) {
+          messages.add({
+            'role': 'tool',
+            'tool_call_id': call.id,
+            'content': const ActionOutcome(
+              ok: false,
+              message: '这一轮已经 finish 了，剩下的工具不再执行。',
+            ).toToolResult(),
+          });
+          continue;
+        }
+        if (callsThisResponse >= maxToolCallsPerResponse) {
+          messages.add({
+            'role': 'tool',
+            'tool_call_id': call.id,
+            'content': ActionOutcome(
+              ok: false,
+              message: '一次最多执行 $maxToolCallsPerResponse 个工具，这个没有执行。',
+            ).toToolResult(),
+          });
+          continue;
+        }
+        callsThisResponse++;
         _report(resident, _toolLabel(call.name), ResidentActivityKind.tool);
         // 日志要记的是“真的动手了”，所以放在执行之前；
         // 记日志失败不允许影响这一轮的行为。
@@ -483,149 +378,132 @@ class ResidentToolSession {
         } catch (error) {
           debugPrint('[工具] 调用没记进日志：$error');
         }
-        final ActionOutcome outcome;
-        // 白名单要在执行层再挡一次：模型偶尔会幻觉调用没给它的工具，
-        // 只靠“工具列表里没有”不够。
-        if (petOnly && _privateMessageTools.contains(call.name)) {
-          outcome = const ActionOutcome(
-            ok: false,
-            message: '这一轮私信工具没有开；你说话只能通过 pet_say 冒气泡。',
-          );
-        } else {
+        ActionOutcome outcome;
+        // 参数一律按“模型可能给错类型”来读：工具是模型的出口，
+        // 不能因为一个字符串/数字写错就把整轮唤醒炸掉。
+        try {
           switch (call.name) {
             case 'reply_inbox':
-            outcome = await toolkit.replyInbox(
-              (args['item_id'] as String?) ?? '',
-              (args['content'] as String?) ?? '',
-              call.id,
-            );
-          case 'send_dm':
-            outcome = await toolkit.sendDm(
-              (args['content'] as String?) ?? '',
-              call.id,
-            );
-          case 'send_voice':
-            outcome = await toolkit.sendVoice(
-              (args['content'] as String?) ?? '',
-              call.id,
-            );
-          case 'comment_post':
-            outcome = await toolkit.commentPost(
-              (args['post_id'] as String?) ?? '',
-              (args['content'] as String?) ?? '',
-              call.id,
-              asVoice: (args['as_voice'] as bool?) ?? false,
-            );
-          case 'send_sticker':
-            outcome = await toolkit.sendSticker(
-              (args['sticker_id'] as String?) ?? '',
-              (args['tag'] as String?) ?? '',
-              call.id,
-            );
-          case 'cancel_pending_segment':
-            outcome = await toolkit.cancelPendingSegment(
-              (args['segment_id'] as String?) ?? '',
-            );
-          case 'rewrite_pending_segment':
-            outcome = await toolkit.rewritePendingSegment(
-              (args['segment_id'] as String?) ?? '',
-              (args['content'] as String?) ?? '',
-            );
-          case 'finish':
-            outcome = await toolkit.finish();
-          case 'browse_feed':
-            outcome = await toolkit.browseFeed();
-          case 'read_post':
-            {
-              final limit = args['comments_limit'];
+              outcome = await toolkit.replyInbox(
+                textArg(args, 'item_id'),
+                textArg(args, 'content'),
+                call.id,
+              );
+            case 'send_dm':
+              outcome = await toolkit.sendDm(textArg(args, 'content'), call.id);
+            case 'send_voice':
+              outcome = await toolkit.sendVoice(
+                textArg(args, 'content'),
+                call.id,
+              );
+            case 'comment_post':
+              outcome = await toolkit.commentPost(
+                textArg(args, 'post_id'),
+                textArg(args, 'content'),
+                call.id,
+                asVoice: flagArg(args, 'as_voice'),
+              );
+            case 'send_sticker':
+              outcome = await toolkit.sendSticker(
+                textArg(args, 'sticker_id'),
+                textArg(args, 'tag'),
+                call.id,
+              );
+            case 'cancel_pending_segment':
+              outcome = await toolkit.cancelPendingSegment(
+                textArg(args, 'segment_id'),
+              );
+            case 'rewrite_pending_segment':
+              outcome = await toolkit.rewritePendingSegment(
+                textArg(args, 'segment_id'),
+                textArg(args, 'content'),
+              );
+            case 'finish':
+              outcome = await toolkit.finish();
+            case 'browse_feed':
+              outcome = await toolkit.browseFeed();
+            case 'read_post':
               outcome = await toolkit.readPost(
-                (args['post_id'] as String?) ?? '',
-                includeComments: (args['include_comments'] as bool?) ?? true,
-                commentsLimit: limit is num ? limit.toInt() : 20,
-                includeReplies: (args['include_replies'] as bool?) ?? true,
+                textArg(args, 'post_id'),
+                includeComments: flagArg(
+                  args,
+                  'include_comments',
+                  fallback: true,
+                ),
+                commentsLimit: intArg(args, 'comments_limit') ?? 20,
+                includeReplies: flagArg(
+                  args,
+                  'include_replies',
+                  fallback: true,
+                ),
               );
-            }
-          case 'like_post':
-            outcome = await toolkit.likePost(
-              (args['post_id'] as String?) ?? '',
-              call.id,
-            );
-          case 'generate_image':
-            outcome = await toolkit.generateImage(
-              (args['prompt'] as String?) ?? '',
-              call.id,
-            );
-          case 'check_wake_log':
-            {
-              final days = args['days'];
-              outcome = await toolkit.checkWakeLog(
-                days is num ? days.toInt() : 1,
+            case 'like_post':
+              outcome = await toolkit.likePost(
+                textArg(args, 'post_id'),
+                call.id,
               );
-            }
-          case 'leave_note':
-            outcome = await toolkit.leaveNote(
-              (args['content'] as String?) ?? '',
-            );
-          case 'set_alarm':
-            outcome = await toolkit.setAlarm(
-              (args['when'] as String?) ?? '',
-              (args['reason'] as String?) ?? '',
-            );
-          case 'cancel_alarm':
-            outcome = await toolkit.cancelAlarm(
-              (args['alarm_id'] as String?) ?? '',
-            );
-          case 'list_alarms':
-            outcome = await toolkit.listAlarms();
-          case 'pet_status':
-            outcome = await toolkit.petStatus();
-          case 'pet_say':
-            outcome = await toolkit.petSay(
-              (args['text'] as String?) ?? '',
-            );
-          case 'pet_react':
-            outcome = await toolkit.petReact(
-              (args['action'] as String?) ?? '',
-            );
-          case 'pet_look':
-            outcome = await toolkit.petLook();
-          case 'pet_request_watch':
-            outcome = await toolkit.petRequestWatch();
-          case 'pet_sleep':
-            outcome = await toolkit.petSleep();
-          case 'pet_note':
-            outcome = await toolkit.petNote(
-              (args['text'] as String?) ?? '',
-            );
-          case 'create_post':
-            outcome = await toolkit.createPost(
-              (args['content'] as String?) ?? '',
-              args['topic'] as String?,
-              call.id,
-              asVoice: (args['as_voice'] as bool?) ?? false,
-            );
-          case 'list_tools':
-            final available = _wakeToolsFor(
-              resident,
-              allowProactive: allowProactive,
-              allowVoice: allowVoice,
-              petOnly: petOnly,
-            );
-            outcome = ActionOutcome(
-              ok: true,
-              data: {
-                'tools': [for (final tool in available) _toolName(tool)],
-              },
-            );
-          default:
-            outcome = await _execute(
-              resident: resident,
-              call: call,
-              latestUserMessage: situation,
-              memorySource: 'wake',
-              petOnly: petOnly,
-            );
+            case 'generate_image':
+              outcome = await toolkit.generateImage(
+                textArg(args, 'prompt'),
+                call.id,
+              );
+            case 'check_wake_log':
+              outcome = await toolkit.checkWakeLog(intArg(args, 'days') ?? 1);
+            case 'leave_note':
+              outcome = await toolkit.leaveNote(textArg(args, 'content'));
+            case 'set_alarm':
+              outcome = await toolkit.setAlarm(
+                textArg(args, 'when'),
+                textArg(args, 'reason'),
+              );
+            case 'cancel_alarm':
+              outcome = await toolkit.cancelAlarm(textArg(args, 'alarm_id'));
+            case 'list_alarms':
+              outcome = await toolkit.listAlarms();
+            case 'pet_status':
+              outcome = await toolkit.petStatus();
+            case 'pet_say':
+              outcome = await toolkit.petSay(textArg(args, 'text'));
+            case 'pet_react':
+              outcome = await toolkit.petReact(textArg(args, 'action'));
+            case 'pet_look':
+              outcome = await toolkit.petLook();
+            case 'pet_request_watch':
+              outcome = await toolkit.petRequestWatch();
+            case 'pet_sleep':
+              outcome = await toolkit.petSleep();
+            case 'pet_note':
+              outcome = await toolkit.petNote(textArg(args, 'text'));
+            case 'create_post':
+              outcome = await toolkit.createPost(
+                textArg(args, 'content'),
+                optionalTextArg(args, 'topic'),
+                call.id,
+                asVoice: flagArg(args, 'as_voice'),
+              );
+            case 'list_tools':
+              final available = _wakeToolsFor(
+                resident,
+                allowProactive: allowProactive,
+                allowVoice: allowVoice,
+              );
+              outcome = ActionOutcome(
+                ok: true,
+                data: {
+                  'tools': [for (final tool in available) _toolName(tool)],
+                },
+              );
+            default:
+              outcome = await _execute(
+                resident: resident,
+                call: call,
+                latestUserMessage: situation,
+                memorySource: 'wake',
+              );
           }
+        } catch (error) {
+          debugPrint('[工具] ${call.name} 执行失败：$error');
+          outcome = ActionOutcome(ok: false, message: '工具执行失败：$error');
         }
         final toolData = Map<String, dynamic>.from(outcome.data);
         final refsRaw = toolData.remove('__image_refs');
@@ -822,121 +700,24 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     }
   }
 
-  String _systemPrompt(CustomResident resident) {
-    final persona = [
-      if (resident.description.trim().isNotEmpty) resident.description,
-      if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
-      if (resident.tone.trim().isNotEmpty) resident.tone,
-      if (resident.extraInstructions.trim().isNotEmpty)
-        resident.extraInstructions,
-    ].join('\n');
-    return '''
-你是「${resident.name}」，正在跟一个人私聊。
-$persona
-
-规则：
-- 每条 10—40 字，像在微信上随手打的；不要小作文，不要客套结尾。
-- 不要提自己是 AI，不要解释你在调用工具。
-- 消息开头形如 [2026年10月28日 周三 中午 12:44] 的方括号是系统自动
-  标注的发送时间，不是消息正文；你说话时不要带这种时间标记，
-  但可以用它判断隔了多久、现在是什么时候。
-- 你们以前聊过的事，最近的几条会在下面给你；要查更早的再用 memory_search，
-  别凭空编。已经给过的记忆不用再调 memory_list_recent 重看。
-- 记忆由你自己判断：对方的偏好、经历、约定、情绪变化值得记；图片要记
-  “图里是什么”，表情包要记“它表达什么”，不要只写“发来一张图片”。
-- 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
-  寒暄、客套、你自己的推测不要写进记忆。
-- 你自己刚做过的事（发动态、回评论、发私信）如果值得留，自己用
-  memory_write 记下来；平台不会再替你写“我做过什么”。
-- 没什么可查的就直接说话，不要为了让流程好看而调用工具。
-- 一次回复里最多调用两个工具。
-- 想发表情包时，先用 list_stickers 看目录，再用 send_sticker 选一张；
-  一次回复最多一张，没有合适的就纯文字。
-- 对方难过、求助时，只能选安慰/抱抱/陪伴/鼓励这类标签，不要用吐槽/看戏类。
-''';
-  }
-
-  /// 把最近几轮组装成真正的 user/assistant 消息。
-  ///
-  /// - system 只放人设和规则，逐字节稳定；
-  /// - 历史原样保留，图片留在它被发出来的那一轮；
-  /// - 时间、记忆、这一轮的提示放在**最后一条 user 消息**里，
-  ///   不会因为每轮都变而把前缀打碎。
-  Future<List<Map<String, dynamic>>> _historyMessages({
-    required List<DirectTurn> recent,
-    required ModelConfig config,
-    required String latest,
-    required String memoryLines,
-    DateTime? at,
-  }) async {
-    final messages = <Map<String, dynamic>>[];
-
-    for (final turn in recent) {
-      // 每条历史都带时间：住民要知道这句话是刚才说的，还是隔了一天。
-      final when = turn.at == null ? '' : '[${timeLabel(turn.at!)}] ';
-      if (turn.fromMe) {
-        messages.add({
-          'role': 'assistant',
-          'content':
-              '$when${turn.text.trim().isEmpty ? '[表情包]' : turn.text.trim()}',
-        });
-        continue;
-      }
-
-      final text = turn.displayText;
-      Map<String, dynamic>? image;
-      if (turn.imageRef != null && config.supportsVision) {
-        image = await ImagePayload.partFromRef(turn.imageRef!);
-      }
-      messages.add({
-        'role': 'user',
-        'content': image == null
-            ? '$when$text'
-            : [
-                {'type': 'text', 'text': '$when$text'},
-                image,
-              ],
-      });
-    }
-
-    final tail = StringBuffer()
-      ..writeln('现在：${timeLabel(at ?? DateTime.now())}');
-    if (memoryLines.isNotEmpty) {
-      tail
-        ..writeln('你们以前聊过（仅供参考）：')
-        ..writeln(memoryLines);
-    }
-    if (latest.trim().isNotEmpty && (recent.isEmpty || recent.last.fromMe)) {
-      tail.writeln('他刚说：${latest.trim()}');
-    }
-    tail.writeln('直接回他一句。');
-
-    // 尾注单独发一条 user 消息，**不拼进历史里那一条**。
-    // 拼进去的话，下一轮那条消息又变回原样，缓存前缀从它开始就分叉；
-    // 单独追加时历史逐字节不变，只有最后这条尾注是新的。
-    messages.add({'role': 'user', 'content': tail.toString().trim()});
-    return messages;
-  }
-
   Future<ActionOutcome> _execute({
     required CustomResident resident,
     required ToolCallRequest call,
     required String latestUserMessage,
     String memorySource = 'dm',
-    bool petOnly = false,
   }) async {
     final args = call.arguments;
     switch (call.name) {
       case 'memory_search':
         return actions.searchMemories(
           residentId: resident.id,
-          query: (args['query'] as String?) ?? latestUserMessage,
+          query: textArg(args, 'query', fallback: latestUserMessage),
           limit: _limit(args['limit']),
         );
       case 'memory_read':
         return actions.readMemory(
           residentId: resident.id,
-          memoryId: (args['memory_id'] as String?) ?? '',
+          memoryId: textArg(args, 'memory_id'),
         );
       case 'memory_list_recent':
         return actions.listRecentMemories(
@@ -946,8 +727,8 @@ $persona
       case 'memory_write':
         return actions.writeMemory(
           residentId: resident.id,
-          summary: (args['summary'] as String?) ?? '',
-          content: (args['content'] as String?) ?? '',
+          summary: textArg(args, 'summary'),
+          content: textArg(args, 'content'),
           tags: _tags(args['tags']),
           source: memorySource,
           sourceId: 'mem_${resident.id}_${call.id}',
@@ -957,9 +738,9 @@ $persona
       case 'memory_update':
         return actions.updateMemory(
           residentId: resident.id,
-          memoryId: (args['memory_id'] as String?) ?? '',
-          summary: args['summary'] as String?,
-          content: args['content'] as String?,
+          memoryId: textArg(args, 'memory_id'),
+          summary: optionalTextArg(args, 'summary'),
+          content: optionalTextArg(args, 'content'),
           tags: args.containsKey('tags') ? _tags(args['tags']) : null,
           idempotencyKey:
               'memup:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
@@ -967,30 +748,23 @@ $persona
       case 'memory_delete':
         return actions.deleteMemory(
           residentId: resident.id,
-          memoryId: (args['memory_id'] as String?) ?? '',
+          memoryId: textArg(args, 'memory_id'),
           idempotencyKey:
               'memdel:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
-        );
-      case 'list_tools':
-        return ActionOutcome(
-          ok: true,
-          data: {
-            'tools': [for (final tool in tools) _toolName(tool)],
-          },
         );
       case 'list_stickers':
         return actions.listStickers();
       case 'send_sticker':
         return actions.chooseSticker(
-          id: (args['sticker_id'] as String?) ?? '',
-          tag: (args['tag'] as String?) ?? '',
+          id: textArg(args, 'sticker_id'),
+          tag: textArg(args, 'tag'),
         );
       case 'web_search':
         final service = search;
         if (service == null) {
           return const ActionOutcome(ok: false, message: '联网搜索没有开启，不要假装查过');
         }
-        final outcome = await service.search((args['query'] as String?) ?? '');
+        final outcome = await service.search(textArg(args, 'query'));
         if (!outcome.ok) {
           return ActionOutcome(ok: false, message: outcome.message);
         }
@@ -1013,14 +787,14 @@ $persona
       case 'send_dm':
         return actions.sendDirectMessage(
           residentId: resident.id,
-          content: (args['content'] as String?) ?? '',
+          content: textArg(args, 'content'),
           idempotencyKey: 'dm:${resident.id}:${call.id}',
         );
       case 'create_post':
         return actions.createResidentPost(
           residentId: resident.id,
-          content: (args['content'] as String?) ?? '',
-          topicName: args['topic'] as String?,
+          content: textArg(args, 'content'),
+          topicName: optionalTextArg(args, 'topic'),
           idempotencyKey: 'post:${resident.id}:${call.id}',
         );
       default:
@@ -1030,7 +804,57 @@ $persona
 
   static int _limit(Object? raw) {
     if (raw is num) return raw.toInt().clamp(1, 10);
+    if (raw is String) {
+      final parsed = int.tryParse(raw.trim());
+      if (parsed != null) return parsed.clamp(1, 10);
+    }
     return 5;
+  }
+
+  /// 模型给的参数不能直接强转：`content = 123` 或 `as_voice = "true"` 在
+  /// 真实模型上都会出现。强转会抛 TypeError，一路冒到唤醒服务把整轮判失败。
+  @visibleForTesting
+  static String textArg(
+    Map<String, dynamic> args,
+    String key, {
+    String fallback = '',
+  }) {
+    final value = args[key];
+    if (value == null) return fallback;
+    if (value is String) return value;
+    return value.toString();
+  }
+
+  @visibleForTesting
+  static String? optionalTextArg(Map<String, dynamic> args, String key) {
+    final text = textArg(args, key).trim();
+    return text.isEmpty ? null : text;
+  }
+
+  @visibleForTesting
+  static bool flagArg(
+    Map<String, dynamic> args,
+    String key, {
+    bool fallback = false,
+  }) {
+    final value = args[key];
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final text = value.trim().toLowerCase();
+      if (text == 'true' || text == '1' || text == 'yes') return true;
+      if (text == 'false' || text == '0' || text == 'no') return false;
+    }
+    return fallback;
+  }
+
+  @visibleForTesting
+  static int? intArg(Map<String, dynamic> args, String key) {
+    final value = args[key];
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
   }
 
   static List<String> _tags(Object? raw) {
@@ -1071,19 +895,24 @@ $persona
     return '未知工具';
   }
 
-  /// 私信那套 + 联网搜索。搜索是否真的能用由服务判断，
-  /// 工具本身总是可见——模型搜不了时会得到明确失败，而不是编一个答案。
-  List<Map<String, dynamic>> get allTools => [...tools, _webSearchTool];
-
   /// 唤醒时用的工具 = 私信那套 + 搜索 + 收件箱/刷帖子这一套。
   ///
   /// `send_voice` 只在语音开关打开、且这位住民自己配了音色时出现。
   /// 没配 TTS 或模型不支持 tools 时，这条不会走到这里。
-  List<Map<String, dynamic>> _wakeToolsFor(
+  /// 给护栏测试用：这一轮实际会发给模型的工具名。
+  @visibleForTesting
+  static List<String> wakeToolNamesFor(
+    CustomResident resident, {
+    bool allowVoice = true,
+  }) => [
+    for (final tool in _wakeToolsFor(resident, allowVoice: allowVoice))
+      _functionName(tool),
+  ];
+
+  static List<Map<String, dynamic>> _wakeToolsFor(
     CustomResident resident, {
     bool allowProactive = true,
     bool allowVoice = true,
-    bool petOnly = false,
   }) {
     final base = [
       for (final tool in tools)
@@ -1107,24 +936,8 @@ $persona
       ..._pendingSegmentTools,
       if (allowVoice && _voiceToolAvailable(resident)) _voiceTool,
     ];
-    if (!petOnly) return all;
-    // 桌宠观察轮只收走“私信那几只手”，其他工具照常可用
-    // （刷帖子、评论、发动态、画图、记忆、闹钟都行）。私信只在
-    // 用户主动私聊时开放。
-    return [
-      for (final tool in all)
-        if (!_privateMessageTools.contains(_functionName(tool))) tool,
-    ];
+    return all;
   }
-
-  /// 桌宠观察轮收走的私信工具。评论回复（reply_inbox）不属于私信，保留。
-  static const Set<String> _privateMessageTools = {
-    'send_dm',
-    'send_voice',
-    'send_sticker',
-    'cancel_pending_segment',
-    'rewrite_pending_segment',
-  };
 
   /// 桌宠观察轮的提示词：除了私信，其他手都还在。
   String _petSystemPrompt(CustomResident resident) {
@@ -1137,11 +950,17 @@ $persona
         resident.extraInstructions,
     ].join('\n');
     return '''
-你是「${resident.name}」，现在以桌宠的身份待在他的屏幕上。
+你是「${resident.name}」，现在待在他的屏幕上陪着他。
 $persona
 
-这一轮除了私信，其他工具都还在：
+屏幕上的你和私信里的你是同一个人：同一段记忆、同一段对话，不是两个自己。
+这一轮所有工具都在：
 - 看见值得说的事就用 pet_say 冒一句气泡（不超过 40 字），别每一眼都说。
+- 想认真说一段、或者他这会儿没在看屏幕，就用 send_dm 发到私信里；
+  想发语音用 send_voice，想发表情包用 send_sticker。
+  气泡和私信都是你在说话，只是场合不同，不要把它们当成两套人格。
+- 私信规则和平时一样：一次醒来最多三段，话短一点；真的想说再发，
+  不要因为看着他屏幕就找话说。
 - 想换动作/表情用 pet_react；想申请一直看着屏幕用 pet_request_watch（要等他同意）。
 - 平时真正值得记的一句话用 pet_note；也可以刷帖子、点赞、评论、发动态、
   画图、查记忆、定闹钟——像你平时那样。
@@ -1153,8 +972,6 @@ $persona
 截图里如果出现她，那就是你自己，不要把她当成别人，也不要用第三人称说“它”。
 
 规则：
-- **不要主动给他发私信、语音私信或表情包私信**——那些只在他主动找你时才有。
-  这一轮你说话只能通过 pet_say 冒气泡。
 - pet_say 只写“说出口的话”，不要用括号写动作或表情描写。
 - 不要提自己是 AI，不要解释你在调用工具，不要主动说“桌宠”这个词。
 - 不要编造没看到的画面；看不清就说不清。
@@ -1162,7 +979,8 @@ $persona
   }
 
   /// 发不发语音只看这位住民自己的设置——全局开关已经下线。
-  bool _voiceToolAvailable(CustomResident resident) => resident.voiceEnabled;
+  static bool _voiceToolAvailable(CustomResident resident) =>
+      resident.voiceEnabled;
 
   static const Map<String, dynamic> _webSearchTool = {
     'type': 'function',
@@ -1463,7 +1281,8 @@ $persona
       'type': 'function',
       'function': {
         'name': 'pet_react',
-        'description': '换一个桌宠动作/表情：happy / shy / angry / tickle / wave / '
+        'description':
+            '换一个桌宠动作/表情：happy / shy / angry / tickle / wave / '
             'thinking / busy / cheer / sigh / sleep / yawn / stretch / dance / '
             'look / walk / wander / idle。walk 和 wander 会让它在屏幕上走一段；'
             '其余动作它本来也会自己随机做，不用一直点。',
