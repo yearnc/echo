@@ -1,17 +1,19 @@
 {
   "schema": 1,
   "tag": "models-v1",
-  "note": "模型资源清单。升级资源时改 version 并换 releaseTag；APK 只带这份清单的内置副本，远程清单存在时以远程为准。",
   "resources": [
     {
       "id": "asr",
       "name": "语音识别（SenseVoice）",
       "description": "按住说话转文字、私信语音转写。约 229 MB。",
       "storage_dir": "asr",
-      "required_files": ["model.int8.onnx", "tokens.txt"],
+      "required_files": [
+        "model.int8.onnx",
+        "tokens.txt"
+      ],
       "version": 1,
-      "bytes": 240123456,
-      "sha256": "",
+      "bytes": 160240311,
+      "sha256": "39e8fc3d47578d00e595e94fe39c0af8f59f1699e875306042c7514011a2f8b5",
       "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-v1.zip",
       "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-v1.zip"
     },
@@ -29,8 +31,8 @@
         "phone.fst"
       ],
       "version": 1,
-      "bytes": 122683392,
-      "sha256": "",
+      "bytes": 112117692,
+      "sha256": "9b32671a41eea8dd6458ad74edc0ad9fd41a49157b5837321e192767556c99e9",
       "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-tts-v1.zip",
       "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-tts-v1.zip"
     },
@@ -48,8 +50,8 @@
         "espeak-ng-data.zip"
       ],
       "version": 1,
-      "bytes": 196083712,
-      "sha256": "",
+      "bytes": 157431730,
+      "sha256": "89c69803b9c80925467090638c22b0c0ad2bffb743ede34f83717c1bb6879218",
       "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-zipvoice-v1.zip",
       "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-zipvoice-v1.zip"
     },
@@ -65,8 +67,8 @@
         "tokens.txt"
       ],
       "version": 1,
-      "bytes": 199229440,
-      "sha256": "",
+      "bytes": 175571591,
+      "sha256": "f927ed4cdf0a3193aeeb23c1ba15f1ac535a1c6a4dde95c0703ee01c076e977b",
       "url": "https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-stream-v1.zip",
       "mirror_url": "https://gh-proxy.com/https://github.com/yearnc/echo/releases/download/models-v1/echo-models-asr-stream-v1.zip"
     }
