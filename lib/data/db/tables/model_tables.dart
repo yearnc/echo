@@ -48,6 +48,11 @@ class ModelConfigs extends Table {
   BoolColumn get ttsReferenceTranscript =>
       boolean().withDefault(const Constant(false))();
 
+  /// 这条模型能吃的上下文窗口（token，v48）。默认 100 万；
+  /// 服务商更小时由用户在编辑页自己填，时间线的摘要阈值按它算。
+  IntColumn get contextWindow =>
+      integer().withDefault(const Constant(1000000))();
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 

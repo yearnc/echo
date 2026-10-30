@@ -29,6 +29,9 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   final TextEditingController _labelCtrl = TextEditingController();
   final TextEditingController _baseUrlCtrl = TextEditingController();
   final TextEditingController _modelCtrl = TextEditingController();
+  final TextEditingController _contextWindowCtrl = TextEditingController(
+    text: '${ModelConfig.defaultContextWindow}',
+  );
   final TextEditingController _keyCtrl = TextEditingController();
 
   ModelConfig? _config;
@@ -57,6 +60,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _labelCtrl.text.trim(),
     _baseUrlCtrl.text.trim(),
     _modelCtrl.text.trim(),
+    _contextWindowCtrl.text.trim(),
     _enabled ? '1' : '0',
     _supportsVision ? '1' : '0',
     _ttsDescription ? '1' : '0',
@@ -80,6 +84,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _labelCtrl.dispose();
     _baseUrlCtrl.dispose();
     _modelCtrl.dispose();
+    _contextWindowCtrl.dispose();
     _keyCtrl.dispose();
     super.dispose();
   }
@@ -96,6 +101,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
         _labelCtrl.text = preset.label;
         _baseUrlCtrl.text = preset.baseUrl;
         _modelCtrl.text = preset.model;
+        _contextWindowCtrl.text = '${ModelConfig.defaultContextWindow}';
         _loading = false;
         _initialSnapshot = _snapshot;
       });
@@ -114,6 +120,8 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _labelCtrl.text = config?.label ?? '';
       _baseUrlCtrl.text = config?.baseUrl ?? '';
       _modelCtrl.text = config?.model ?? '';
+      _contextWindowCtrl.text =
+          '${config?.contextWindow ?? ModelConfig.defaultContextWindow}';
       _enabled = config?.enabled ?? false;
       _supportsVision = config?.supportsVision ?? false;
       _ttsDescription = config?.ttsVoiceDescription ?? false;
@@ -250,6 +258,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _snack(problem);
       return;
     }
+    final windowText = _contextWindowCtrl.text.trim();
+    final contextWindow = int.tryParse(windowText) ??
+        ModelConfig.defaultContextWindow;
+    if (contextWindow < 8000 || contextWindow > 4000000) {
+      _snack('上下文窗口请填 8,000—4,000,000 之间的整数');
+      return;
+    }
 
     setState(() => _saving = true);
     final repo = ref.read(modelConfigRepositoryProvider);
@@ -278,6 +293,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       ttsReferenceOnly: _ttsReferenceOnly,
       ttsReferenceDescription: _ttsReferenceDescription,
       ttsReferenceTranscript: _ttsReferenceTranscript,
+      contextWindow: contextWindow,
     );
 
     await repo.save(saved);
@@ -595,6 +611,20 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                       }),
                     ),
                 ],
+              ),
+            ],
+            if (_kind == ModelKind.chat) ...[
+              const SizedBox(height: 18),
+              const _Label('上下文窗口（token）'),
+              TextField(
+                controller: _contextWindowCtrl,
+                onChanged: (_) => setState(() {}),
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: EchoColors.text, fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: '1000000',
+                  helperText: '默认按 100 万算；服务商更小就填实际值，摘要阈值按它走',
+                ),
               ),
             ],
             const SizedBox(height: 18),

@@ -10736,6 +10736,18 @@ class $ModelConfigsTable extends ModelConfigs
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _contextWindowMeta = const VerificationMeta(
+    'contextWindow',
+  );
+  @override
+  late final GeneratedColumn<int> contextWindow = GeneratedColumn<int>(
+    'context_window',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1000000),
+  );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -10786,6 +10798,7 @@ class $ModelConfigsTable extends ModelConfigs
     ttsReferenceOnly,
     ttsReferenceDescription,
     ttsReferenceTranscript,
+    contextWindow,
     enabled,
     createdAt,
     updatedAt,
@@ -10890,6 +10903,15 @@ class $ModelConfigsTable extends ModelConfigs
         ),
       );
     }
+    if (data.containsKey('context_window')) {
+      context.handle(
+        _contextWindowMeta,
+        contextWindow.isAcceptableOrUnknown(
+          data['context_window']!,
+          _contextWindowMeta,
+        ),
+      );
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -10965,6 +10987,10 @@ class $ModelConfigsTable extends ModelConfigs
         DriftSqlType.bool,
         data['${effectivePrefix}tts_reference_transcript'],
       )!,
+      contextWindow: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}context_window'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -11019,6 +11045,10 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
   final bool ttsReferenceDescription;
   final bool ttsReferenceTranscript;
 
+  /// 这条模型能吃的上下文窗口（token，v48）。默认 100 万；
+  /// 服务商更小时由用户在编辑页自己填，时间线的摘要阈值按它算。
+  final int contextWindow;
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   final bool enabled;
   final int createdAt;
@@ -11035,6 +11065,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     required this.ttsReferenceOnly,
     required this.ttsReferenceDescription,
     required this.ttsReferenceTranscript,
+    required this.contextWindow,
     required this.enabled,
     required this.createdAt,
     required this.updatedAt,
@@ -11053,6 +11084,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     map['tts_reference_only'] = Variable<bool>(ttsReferenceOnly);
     map['tts_reference_description'] = Variable<bool>(ttsReferenceDescription);
     map['tts_reference_transcript'] = Variable<bool>(ttsReferenceTranscript);
+    map['context_window'] = Variable<int>(contextWindow);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -11072,6 +11104,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       ttsReferenceOnly: Value(ttsReferenceOnly),
       ttsReferenceDescription: Value(ttsReferenceDescription),
       ttsReferenceTranscript: Value(ttsReferenceTranscript),
+      contextWindow: Value(contextWindow),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -11101,6 +11134,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       ttsReferenceTranscript: serializer.fromJson<bool>(
         json['ttsReferenceTranscript'],
       ),
+      contextWindow: serializer.fromJson<int>(json['contextWindow']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -11123,6 +11157,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
         ttsReferenceDescription,
       ),
       'ttsReferenceTranscript': serializer.toJson<bool>(ttsReferenceTranscript),
+      'contextWindow': serializer.toJson<int>(contextWindow),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -11141,6 +11176,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     bool? ttsReferenceOnly,
     bool? ttsReferenceDescription,
     bool? ttsReferenceTranscript,
+    int? contextWindow,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -11158,6 +11194,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
         ttsReferenceDescription ?? this.ttsReferenceDescription,
     ttsReferenceTranscript:
         ttsReferenceTranscript ?? this.ttsReferenceTranscript,
+    contextWindow: contextWindow ?? this.contextWindow,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -11185,6 +11222,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       ttsReferenceTranscript: data.ttsReferenceTranscript.present
           ? data.ttsReferenceTranscript.value
           : this.ttsReferenceTranscript,
+      contextWindow: data.contextWindow.present
+          ? data.contextWindow.value
+          : this.contextWindow,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -11205,6 +11245,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           ..write('ttsReferenceOnly: $ttsReferenceOnly, ')
           ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
           ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
+          ..write('contextWindow: $contextWindow, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -11225,6 +11266,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     ttsReferenceOnly,
     ttsReferenceDescription,
     ttsReferenceTranscript,
+    contextWindow,
     enabled,
     createdAt,
     updatedAt,
@@ -11244,6 +11286,7 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           other.ttsReferenceOnly == this.ttsReferenceOnly &&
           other.ttsReferenceDescription == this.ttsReferenceDescription &&
           other.ttsReferenceTranscript == this.ttsReferenceTranscript &&
+          other.contextWindow == this.contextWindow &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -11261,6 +11304,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   final Value<bool> ttsReferenceOnly;
   final Value<bool> ttsReferenceDescription;
   final Value<bool> ttsReferenceTranscript;
+  final Value<int> contextWindow;
   final Value<bool> enabled;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -11277,6 +11321,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.ttsReferenceOnly = const Value.absent(),
     this.ttsReferenceDescription = const Value.absent(),
     this.ttsReferenceTranscript = const Value.absent(),
+    this.contextWindow = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -11294,6 +11339,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.ttsReferenceOnly = const Value.absent(),
     this.ttsReferenceDescription = const Value.absent(),
     this.ttsReferenceTranscript = const Value.absent(),
+    this.contextWindow = const Value.absent(),
     this.enabled = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -11317,6 +11363,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Expression<bool>? ttsReferenceOnly,
     Expression<bool>? ttsReferenceDescription,
     Expression<bool>? ttsReferenceTranscript,
+    Expression<int>? contextWindow,
     Expression<bool>? enabled,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -11337,6 +11384,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
         'tts_reference_description': ttsReferenceDescription,
       if (ttsReferenceTranscript != null)
         'tts_reference_transcript': ttsReferenceTranscript,
+      if (contextWindow != null) 'context_window': contextWindow,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -11356,6 +11404,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Value<bool>? ttsReferenceOnly,
     Value<bool>? ttsReferenceDescription,
     Value<bool>? ttsReferenceTranscript,
+    Value<int>? contextWindow,
     Value<bool>? enabled,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -11375,6 +11424,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ttsReferenceDescription ?? this.ttsReferenceDescription,
       ttsReferenceTranscript:
           ttsReferenceTranscript ?? this.ttsReferenceTranscript,
+      contextWindow: contextWindow ?? this.contextWindow,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -11422,6 +11472,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
         ttsReferenceTranscript.value,
       );
     }
+    if (contextWindow.present) {
+      map['context_window'] = Variable<int>(contextWindow.value);
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
@@ -11451,6 +11504,7 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ..write('ttsReferenceOnly: $ttsReferenceOnly, ')
           ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
           ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
+          ..write('contextWindow: $contextWindow, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -21568,6 +21622,1234 @@ class UsageSessionsCompanion extends UpdateCompanion<UsageSessionRow> {
   }
 }
 
+class $ResidentContextEventsTable extends ResidentContextEvents
+    with TableInfo<$ResidentContextEventsTable, ResidentContextEventRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentContextEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _metaMeta = const VerificationMeta('meta');
+  @override
+  late final GeneratedColumn<String> meta = GeneratedColumn<String>(
+    'meta',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _compactedAtMeta = const VerificationMeta(
+    'compactedAt',
+  );
+  @override
+  late final GeneratedColumn<int> compactedAt = GeneratedColumn<int>(
+    'compacted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tokensMeta = const VerificationMeta('tokens');
+  @override
+  late final GeneratedColumn<int> tokens = GeneratedColumn<int>(
+    'tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    seq,
+    id,
+    residentId,
+    kind,
+    role,
+    content,
+    caption,
+    meta,
+    createdAt,
+    compactedAt,
+    tokens,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_context_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentContextEventRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    }
+    if (data.containsKey('meta')) {
+      context.handle(
+        _metaMeta,
+        meta.isAcceptableOrUnknown(data['meta']!, _metaMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('compacted_at')) {
+      context.handle(
+        _compactedAtMeta,
+        compactedAt.isAcceptableOrUnknown(
+          data['compacted_at']!,
+          _compactedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tokens')) {
+      context.handle(
+        _tokensMeta,
+        tokens.isAcceptableOrUnknown(data['tokens']!, _tokensMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {seq};
+  @override
+  ResidentContextEventRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentContextEventRow(
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      )!,
+      meta: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meta'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      compactedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}compacted_at'],
+      ),
+      tokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tokens'],
+      )!,
+    );
+  }
+
+  @override
+  $ResidentContextEventsTable createAlias(String alias) {
+    return $ResidentContextEventsTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentContextEventRow extends DataClass
+    implements Insertable<ResidentContextEventRow> {
+  /// 单调递增的本地顺序。组装消息只认它，不按时间戳重排——
+  /// 后补进来的私信要落在末尾，否则前面的前缀一变，缓存全断。
+  final int seq;
+
+  /// 幂等键：`dm:<messageId>` / `screen:<micros>` / `bubble:<micros>` /
+  /// `summary:<micros>`。重复同步不会写两遍。
+  final String id;
+  final String residentId;
+
+  /// dm_in / dm_out / screen / bubble / action / summary
+  final String kind;
+
+  /// user / assistant —— 摘要也走 user（避免服务商拒绝中途的 system）。
+  final String role;
+
+  /// 已经带好时间前缀的正文，直接进模型上下文。
+  final String content;
+  final String caption;
+
+  /// 供调试用的来源标记（消息 id、工具名、触发方式）。
+  final String meta;
+  final int createdAt;
+
+  /// 被摘要吃掉的时间；仍留在库里，但不再进上下文。
+  final int? compactedAt;
+
+  /// 粗估 token，组装时用它判断高水位。
+  final int tokens;
+  const ResidentContextEventRow({
+    required this.seq,
+    required this.id,
+    required this.residentId,
+    required this.kind,
+    required this.role,
+    required this.content,
+    required this.caption,
+    required this.meta,
+    required this.createdAt,
+    this.compactedAt,
+    required this.tokens,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['seq'] = Variable<int>(seq);
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['kind'] = Variable<String>(kind);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    map['caption'] = Variable<String>(caption);
+    map['meta'] = Variable<String>(meta);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || compactedAt != null) {
+      map['compacted_at'] = Variable<int>(compactedAt);
+    }
+    map['tokens'] = Variable<int>(tokens);
+    return map;
+  }
+
+  ResidentContextEventsCompanion toCompanion(bool nullToAbsent) {
+    return ResidentContextEventsCompanion(
+      seq: Value(seq),
+      id: Value(id),
+      residentId: Value(residentId),
+      kind: Value(kind),
+      role: Value(role),
+      content: Value(content),
+      caption: Value(caption),
+      meta: Value(meta),
+      createdAt: Value(createdAt),
+      compactedAt: compactedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(compactedAt),
+      tokens: Value(tokens),
+    );
+  }
+
+  factory ResidentContextEventRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentContextEventRow(
+      seq: serializer.fromJson<int>(json['seq']),
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      caption: serializer.fromJson<String>(json['caption']),
+      meta: serializer.fromJson<String>(json['meta']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      compactedAt: serializer.fromJson<int?>(json['compactedAt']),
+      tokens: serializer.fromJson<int>(json['tokens']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'seq': serializer.toJson<int>(seq),
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'kind': serializer.toJson<String>(kind),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'caption': serializer.toJson<String>(caption),
+      'meta': serializer.toJson<String>(meta),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'compactedAt': serializer.toJson<int?>(compactedAt),
+      'tokens': serializer.toJson<int>(tokens),
+    };
+  }
+
+  ResidentContextEventRow copyWith({
+    int? seq,
+    String? id,
+    String? residentId,
+    String? kind,
+    String? role,
+    String? content,
+    String? caption,
+    String? meta,
+    int? createdAt,
+    Value<int?> compactedAt = const Value.absent(),
+    int? tokens,
+  }) => ResidentContextEventRow(
+    seq: seq ?? this.seq,
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    kind: kind ?? this.kind,
+    role: role ?? this.role,
+    content: content ?? this.content,
+    caption: caption ?? this.caption,
+    meta: meta ?? this.meta,
+    createdAt: createdAt ?? this.createdAt,
+    compactedAt: compactedAt.present ? compactedAt.value : this.compactedAt,
+    tokens: tokens ?? this.tokens,
+  );
+  ResidentContextEventRow copyWithCompanion(
+    ResidentContextEventsCompanion data,
+  ) {
+    return ResidentContextEventRow(
+      seq: data.seq.present ? data.seq.value : this.seq,
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      meta: data.meta.present ? data.meta.value : this.meta,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      compactedAt: data.compactedAt.present
+          ? data.compactedAt.value
+          : this.compactedAt,
+      tokens: data.tokens.present ? data.tokens.value : this.tokens,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentContextEventRow(')
+          ..write('seq: $seq, ')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('kind: $kind, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('caption: $caption, ')
+          ..write('meta: $meta, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('compactedAt: $compactedAt, ')
+          ..write('tokens: $tokens')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    seq,
+    id,
+    residentId,
+    kind,
+    role,
+    content,
+    caption,
+    meta,
+    createdAt,
+    compactedAt,
+    tokens,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentContextEventRow &&
+          other.seq == this.seq &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.kind == this.kind &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.caption == this.caption &&
+          other.meta == this.meta &&
+          other.createdAt == this.createdAt &&
+          other.compactedAt == this.compactedAt &&
+          other.tokens == this.tokens);
+}
+
+class ResidentContextEventsCompanion
+    extends UpdateCompanion<ResidentContextEventRow> {
+  final Value<int> seq;
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<String> kind;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<String> caption;
+  final Value<String> meta;
+  final Value<int> createdAt;
+  final Value<int?> compactedAt;
+  final Value<int> tokens;
+  const ResidentContextEventsCompanion({
+    this.seq = const Value.absent(),
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.meta = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.compactedAt = const Value.absent(),
+    this.tokens = const Value.absent(),
+  });
+  ResidentContextEventsCompanion.insert({
+    this.seq = const Value.absent(),
+    required String id,
+    required String residentId,
+    required String kind,
+    required String role,
+    required String content,
+    this.caption = const Value.absent(),
+    this.meta = const Value.absent(),
+    required int createdAt,
+    this.compactedAt = const Value.absent(),
+    this.tokens = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       kind = Value(kind),
+       role = Value(role),
+       content = Value(content),
+       createdAt = Value(createdAt);
+  static Insertable<ResidentContextEventRow> custom({
+    Expression<int>? seq,
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<String>? kind,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<String>? caption,
+    Expression<String>? meta,
+    Expression<int>? createdAt,
+    Expression<int>? compactedAt,
+    Expression<int>? tokens,
+  }) {
+    return RawValuesInsertable({
+      if (seq != null) 'seq': seq,
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (kind != null) 'kind': kind,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (caption != null) 'caption': caption,
+      if (meta != null) 'meta': meta,
+      if (createdAt != null) 'created_at': createdAt,
+      if (compactedAt != null) 'compacted_at': compactedAt,
+      if (tokens != null) 'tokens': tokens,
+    });
+  }
+
+  ResidentContextEventsCompanion copyWith({
+    Value<int>? seq,
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<String>? kind,
+    Value<String>? role,
+    Value<String>? content,
+    Value<String>? caption,
+    Value<String>? meta,
+    Value<int>? createdAt,
+    Value<int?>? compactedAt,
+    Value<int>? tokens,
+  }) {
+    return ResidentContextEventsCompanion(
+      seq: seq ?? this.seq,
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      kind: kind ?? this.kind,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      caption: caption ?? this.caption,
+      meta: meta ?? this.meta,
+      createdAt: createdAt ?? this.createdAt,
+      compactedAt: compactedAt ?? this.compactedAt,
+      tokens: tokens ?? this.tokens,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (meta.present) {
+      map['meta'] = Variable<String>(meta.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (compactedAt.present) {
+      map['compacted_at'] = Variable<int>(compactedAt.value);
+    }
+    if (tokens.present) {
+      map['tokens'] = Variable<int>(tokens.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentContextEventsCompanion(')
+          ..write('seq: $seq, ')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('kind: $kind, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('caption: $caption, ')
+          ..write('meta: $meta, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('compactedAt: $compactedAt, ')
+          ..write('tokens: $tokens')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ModelUsageDailyTable extends ModelUsageDaily
+    with TableInfo<$ModelUsageDailyTable, ModelUsageDailyRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ModelUsageDailyTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _callsMeta = const VerificationMeta('calls');
+  @override
+  late final GeneratedColumn<int> calls = GeneratedColumn<int>(
+    'calls',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _promptTokensMeta = const VerificationMeta(
+    'promptTokens',
+  );
+  @override
+  late final GeneratedColumn<int> promptTokens = GeneratedColumn<int>(
+    'prompt_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _cachedTokensMeta = const VerificationMeta(
+    'cachedTokens',
+  );
+  @override
+  late final GeneratedColumn<int> cachedTokens = GeneratedColumn<int>(
+    'cached_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _cacheWriteTokensMeta = const VerificationMeta(
+    'cacheWriteTokens',
+  );
+  @override
+  late final GeneratedColumn<int> cacheWriteTokens = GeneratedColumn<int>(
+    'cache_write_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _completionTokensMeta = const VerificationMeta(
+    'completionTokens',
+  );
+  @override
+  late final GeneratedColumn<int> completionTokens = GeneratedColumn<int>(
+    'completion_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    day,
+    model,
+    calls,
+    promptTokens,
+    cachedTokens,
+    cacheWriteTokens,
+    completionTokens,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'model_usage_daily';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ModelUsageDailyRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('day')) {
+      context.handle(
+        _dayMeta,
+        day.isAcceptableOrUnknown(data['day']!, _dayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelMeta);
+    }
+    if (data.containsKey('calls')) {
+      context.handle(
+        _callsMeta,
+        calls.isAcceptableOrUnknown(data['calls']!, _callsMeta),
+      );
+    }
+    if (data.containsKey('prompt_tokens')) {
+      context.handle(
+        _promptTokensMeta,
+        promptTokens.isAcceptableOrUnknown(
+          data['prompt_tokens']!,
+          _promptTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cached_tokens')) {
+      context.handle(
+        _cachedTokensMeta,
+        cachedTokens.isAcceptableOrUnknown(
+          data['cached_tokens']!,
+          _cachedTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cache_write_tokens')) {
+      context.handle(
+        _cacheWriteTokensMeta,
+        cacheWriteTokens.isAcceptableOrUnknown(
+          data['cache_write_tokens']!,
+          _cacheWriteTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('completion_tokens')) {
+      context.handle(
+        _completionTokensMeta,
+        completionTokens.isAcceptableOrUnknown(
+          data['completion_tokens']!,
+          _completionTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ModelUsageDailyRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ModelUsageDailyRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      day: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}day'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      calls: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}calls'],
+      )!,
+      promptTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}prompt_tokens'],
+      )!,
+      cachedTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_tokens'],
+      )!,
+      cacheWriteTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cache_write_tokens'],
+      )!,
+      completionTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}completion_tokens'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ModelUsageDailyTable createAlias(String alias) {
+    return $ModelUsageDailyTable(attachedDatabase, alias);
+  }
+}
+
+class ModelUsageDailyRow extends DataClass
+    implements Insertable<ModelUsageDailyRow> {
+  /// `yyyy-MM-dd|model`
+  final String id;
+  final String day;
+  final String model;
+  final int calls;
+  final int promptTokens;
+  final int cachedTokens;
+  final int cacheWriteTokens;
+  final int completionTokens;
+  final int updatedAt;
+  const ModelUsageDailyRow({
+    required this.id,
+    required this.day,
+    required this.model,
+    required this.calls,
+    required this.promptTokens,
+    required this.cachedTokens,
+    required this.cacheWriteTokens,
+    required this.completionTokens,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['day'] = Variable<String>(day);
+    map['model'] = Variable<String>(model);
+    map['calls'] = Variable<int>(calls);
+    map['prompt_tokens'] = Variable<int>(promptTokens);
+    map['cached_tokens'] = Variable<int>(cachedTokens);
+    map['cache_write_tokens'] = Variable<int>(cacheWriteTokens);
+    map['completion_tokens'] = Variable<int>(completionTokens);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ModelUsageDailyCompanion toCompanion(bool nullToAbsent) {
+    return ModelUsageDailyCompanion(
+      id: Value(id),
+      day: Value(day),
+      model: Value(model),
+      calls: Value(calls),
+      promptTokens: Value(promptTokens),
+      cachedTokens: Value(cachedTokens),
+      cacheWriteTokens: Value(cacheWriteTokens),
+      completionTokens: Value(completionTokens),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ModelUsageDailyRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ModelUsageDailyRow(
+      id: serializer.fromJson<String>(json['id']),
+      day: serializer.fromJson<String>(json['day']),
+      model: serializer.fromJson<String>(json['model']),
+      calls: serializer.fromJson<int>(json['calls']),
+      promptTokens: serializer.fromJson<int>(json['promptTokens']),
+      cachedTokens: serializer.fromJson<int>(json['cachedTokens']),
+      cacheWriteTokens: serializer.fromJson<int>(json['cacheWriteTokens']),
+      completionTokens: serializer.fromJson<int>(json['completionTokens']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'day': serializer.toJson<String>(day),
+      'model': serializer.toJson<String>(model),
+      'calls': serializer.toJson<int>(calls),
+      'promptTokens': serializer.toJson<int>(promptTokens),
+      'cachedTokens': serializer.toJson<int>(cachedTokens),
+      'cacheWriteTokens': serializer.toJson<int>(cacheWriteTokens),
+      'completionTokens': serializer.toJson<int>(completionTokens),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ModelUsageDailyRow copyWith({
+    String? id,
+    String? day,
+    String? model,
+    int? calls,
+    int? promptTokens,
+    int? cachedTokens,
+    int? cacheWriteTokens,
+    int? completionTokens,
+    int? updatedAt,
+  }) => ModelUsageDailyRow(
+    id: id ?? this.id,
+    day: day ?? this.day,
+    model: model ?? this.model,
+    calls: calls ?? this.calls,
+    promptTokens: promptTokens ?? this.promptTokens,
+    cachedTokens: cachedTokens ?? this.cachedTokens,
+    cacheWriteTokens: cacheWriteTokens ?? this.cacheWriteTokens,
+    completionTokens: completionTokens ?? this.completionTokens,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ModelUsageDailyRow copyWithCompanion(ModelUsageDailyCompanion data) {
+    return ModelUsageDailyRow(
+      id: data.id.present ? data.id.value : this.id,
+      day: data.day.present ? data.day.value : this.day,
+      model: data.model.present ? data.model.value : this.model,
+      calls: data.calls.present ? data.calls.value : this.calls,
+      promptTokens: data.promptTokens.present
+          ? data.promptTokens.value
+          : this.promptTokens,
+      cachedTokens: data.cachedTokens.present
+          ? data.cachedTokens.value
+          : this.cachedTokens,
+      cacheWriteTokens: data.cacheWriteTokens.present
+          ? data.cacheWriteTokens.value
+          : this.cacheWriteTokens,
+      completionTokens: data.completionTokens.present
+          ? data.completionTokens.value
+          : this.completionTokens,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelUsageDailyRow(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('model: $model, ')
+          ..write('calls: $calls, ')
+          ..write('promptTokens: $promptTokens, ')
+          ..write('cachedTokens: $cachedTokens, ')
+          ..write('cacheWriteTokens: $cacheWriteTokens, ')
+          ..write('completionTokens: $completionTokens, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    day,
+    model,
+    calls,
+    promptTokens,
+    cachedTokens,
+    cacheWriteTokens,
+    completionTokens,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ModelUsageDailyRow &&
+          other.id == this.id &&
+          other.day == this.day &&
+          other.model == this.model &&
+          other.calls == this.calls &&
+          other.promptTokens == this.promptTokens &&
+          other.cachedTokens == this.cachedTokens &&
+          other.cacheWriteTokens == this.cacheWriteTokens &&
+          other.completionTokens == this.completionTokens &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ModelUsageDailyCompanion extends UpdateCompanion<ModelUsageDailyRow> {
+  final Value<String> id;
+  final Value<String> day;
+  final Value<String> model;
+  final Value<int> calls;
+  final Value<int> promptTokens;
+  final Value<int> cachedTokens;
+  final Value<int> cacheWriteTokens;
+  final Value<int> completionTokens;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ModelUsageDailyCompanion({
+    this.id = const Value.absent(),
+    this.day = const Value.absent(),
+    this.model = const Value.absent(),
+    this.calls = const Value.absent(),
+    this.promptTokens = const Value.absent(),
+    this.cachedTokens = const Value.absent(),
+    this.cacheWriteTokens = const Value.absent(),
+    this.completionTokens = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ModelUsageDailyCompanion.insert({
+    required String id,
+    required String day,
+    required String model,
+    this.calls = const Value.absent(),
+    this.promptTokens = const Value.absent(),
+    this.cachedTokens = const Value.absent(),
+    this.cacheWriteTokens = const Value.absent(),
+    this.completionTokens = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       day = Value(day),
+       model = Value(model),
+       updatedAt = Value(updatedAt);
+  static Insertable<ModelUsageDailyRow> custom({
+    Expression<String>? id,
+    Expression<String>? day,
+    Expression<String>? model,
+    Expression<int>? calls,
+    Expression<int>? promptTokens,
+    Expression<int>? cachedTokens,
+    Expression<int>? cacheWriteTokens,
+    Expression<int>? completionTokens,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (day != null) 'day': day,
+      if (model != null) 'model': model,
+      if (calls != null) 'calls': calls,
+      if (promptTokens != null) 'prompt_tokens': promptTokens,
+      if (cachedTokens != null) 'cached_tokens': cachedTokens,
+      if (cacheWriteTokens != null) 'cache_write_tokens': cacheWriteTokens,
+      if (completionTokens != null) 'completion_tokens': completionTokens,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ModelUsageDailyCompanion copyWith({
+    Value<String>? id,
+    Value<String>? day,
+    Value<String>? model,
+    Value<int>? calls,
+    Value<int>? promptTokens,
+    Value<int>? cachedTokens,
+    Value<int>? cacheWriteTokens,
+    Value<int>? completionTokens,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ModelUsageDailyCompanion(
+      id: id ?? this.id,
+      day: day ?? this.day,
+      model: model ?? this.model,
+      calls: calls ?? this.calls,
+      promptTokens: promptTokens ?? this.promptTokens,
+      cachedTokens: cachedTokens ?? this.cachedTokens,
+      cacheWriteTokens: cacheWriteTokens ?? this.cacheWriteTokens,
+      completionTokens: completionTokens ?? this.completionTokens,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (day.present) {
+      map['day'] = Variable<String>(day.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (calls.present) {
+      map['calls'] = Variable<int>(calls.value);
+    }
+    if (promptTokens.present) {
+      map['prompt_tokens'] = Variable<int>(promptTokens.value);
+    }
+    if (cachedTokens.present) {
+      map['cached_tokens'] = Variable<int>(cachedTokens.value);
+    }
+    if (cacheWriteTokens.present) {
+      map['cache_write_tokens'] = Variable<int>(cacheWriteTokens.value);
+    }
+    if (completionTokens.present) {
+      map['completion_tokens'] = Variable<int>(completionTokens.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelUsageDailyCompanion(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('model: $model, ')
+          ..write('calls: $calls, ')
+          ..write('promptTokens: $promptTokens, ')
+          ..write('cachedTokens: $cachedTokens, ')
+          ..write('cacheWriteTokens: $cacheWriteTokens, ')
+          ..write('completionTokens: $completionTokens, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -21622,6 +22904,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ClearPhotosTable clearPhotos = $ClearPhotosTable(this);
   late final $ClearInsightsTable clearInsights = $ClearInsightsTable(this);
   late final $UsageSessionsTable usageSessions = $UsageSessionsTable(this);
+  late final $ResidentContextEventsTable residentContextEvents =
+      $ResidentContextEventsTable(this);
+  late final $ModelUsageDailyTable modelUsageDaily = $ModelUsageDailyTable(
+    this,
+  );
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -21690,6 +22977,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'usage_sessions_started',
     'CREATE INDEX usage_sessions_started ON usage_sessions (started_at)',
   );
+  late final Index residentContextEventsId = Index(
+    'resident_context_events_id',
+    'CREATE UNIQUE INDEX resident_context_events_id ON resident_context_events (id)',
+  );
+  late final Index residentContextEventsResident = Index(
+    'resident_context_events_resident',
+    'CREATE INDEX resident_context_events_resident ON resident_context_events (resident_id, seq)',
+  );
+  late final Index modelUsageDailyDay = Index(
+    'model_usage_daily_day',
+    'CREATE INDEX model_usage_daily_day ON model_usage_daily (day)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -21729,6 +23028,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     clearPhotos,
     clearInsights,
     usageSessions,
+    residentContextEvents,
+    modelUsageDaily,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
@@ -21746,6 +23047,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     actionLogsActor,
     clearPhotosCreated,
     usageSessionsStarted,
+    residentContextEventsId,
+    residentContextEventsResident,
+    modelUsageDailyDay,
   ];
 }
 
@@ -28216,6 +29520,7 @@ typedef $$ModelConfigsTableCreateCompanionBuilder =
       Value<bool> ttsReferenceOnly,
       Value<bool> ttsReferenceDescription,
       Value<bool> ttsReferenceTranscript,
+      Value<int> contextWindow,
       Value<bool> enabled,
       required int createdAt,
       required int updatedAt,
@@ -28234,6 +29539,7 @@ typedef $$ModelConfigsTableUpdateCompanionBuilder =
       Value<bool> ttsReferenceOnly,
       Value<bool> ttsReferenceDescription,
       Value<bool> ttsReferenceTranscript,
+      Value<int> contextWindow,
       Value<bool> enabled,
       Value<int> createdAt,
       Value<int> updatedAt,
@@ -28301,6 +29607,11 @@ class $$ModelConfigsTableFilterComposer
 
   ColumnFilters<bool> get ttsReferenceTranscript => $composableBuilder(
     column: $table.ttsReferenceTranscript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contextWindow => $composableBuilder(
+    column: $table.contextWindow,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -28384,6 +29695,11 @@ class $$ModelConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get contextWindow => $composableBuilder(
+    column: $table.contextWindow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -28452,6 +29768,11 @@ class $$ModelConfigsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get contextWindow => $composableBuilder(
+    column: $table.contextWindow,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
 
@@ -28504,6 +29825,7 @@ class $$ModelConfigsTableTableManager
                 Value<bool> ttsReferenceOnly = const Value.absent(),
                 Value<bool> ttsReferenceDescription = const Value.absent(),
                 Value<bool> ttsReferenceTranscript = const Value.absent(),
+                Value<int> contextWindow = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -28520,6 +29842,7 @@ class $$ModelConfigsTableTableManager
                 ttsReferenceOnly: ttsReferenceOnly,
                 ttsReferenceDescription: ttsReferenceDescription,
                 ttsReferenceTranscript: ttsReferenceTranscript,
+                contextWindow: contextWindow,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -28538,6 +29861,7 @@ class $$ModelConfigsTableTableManager
                 Value<bool> ttsReferenceOnly = const Value.absent(),
                 Value<bool> ttsReferenceDescription = const Value.absent(),
                 Value<bool> ttsReferenceTranscript = const Value.absent(),
+                Value<int> contextWindow = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -28554,6 +29878,7 @@ class $$ModelConfigsTableTableManager
                 ttsReferenceOnly: ttsReferenceOnly,
                 ttsReferenceDescription: ttsReferenceDescription,
                 ttsReferenceTranscript: ttsReferenceTranscript,
+                contextWindow: contextWindow,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -34784,6 +36109,652 @@ typedef $$UsageSessionsTableProcessedTableManager =
       UsageSessionRow,
       PrefetchHooks Function()
     >;
+typedef $$ResidentContextEventsTableCreateCompanionBuilder =
+    ResidentContextEventsCompanion Function({
+      Value<int> seq,
+      required String id,
+      required String residentId,
+      required String kind,
+      required String role,
+      required String content,
+      Value<String> caption,
+      Value<String> meta,
+      required int createdAt,
+      Value<int?> compactedAt,
+      Value<int> tokens,
+    });
+typedef $$ResidentContextEventsTableUpdateCompanionBuilder =
+    ResidentContextEventsCompanion Function({
+      Value<int> seq,
+      Value<String> id,
+      Value<String> residentId,
+      Value<String> kind,
+      Value<String> role,
+      Value<String> content,
+      Value<String> caption,
+      Value<String> meta,
+      Value<int> createdAt,
+      Value<int?> compactedAt,
+      Value<int> tokens,
+    });
+
+class $$ResidentContextEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentContextEventsTable> {
+  $$ResidentContextEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meta => $composableBuilder(
+    column: $table.meta,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tokens => $composableBuilder(
+    column: $table.tokens,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ResidentContextEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentContextEventsTable> {
+  $$ResidentContextEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meta => $composableBuilder(
+    column: $table.meta,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tokens => $composableBuilder(
+    column: $table.tokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ResidentContextEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentContextEventsTable> {
+  $$ResidentContextEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get seq =>
+      $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<String> get meta =>
+      $composableBuilder(column: $table.meta, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get compactedAt => $composableBuilder(
+    column: $table.compactedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get tokens =>
+      $composableBuilder(column: $table.tokens, builder: (column) => column);
+}
+
+class $$ResidentContextEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentContextEventsTable,
+          ResidentContextEventRow,
+          $$ResidentContextEventsTableFilterComposer,
+          $$ResidentContextEventsTableOrderingComposer,
+          $$ResidentContextEventsTableAnnotationComposer,
+          $$ResidentContextEventsTableCreateCompanionBuilder,
+          $$ResidentContextEventsTableUpdateCompanionBuilder,
+          (
+            ResidentContextEventRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ResidentContextEventsTable,
+              ResidentContextEventRow
+            >,
+          ),
+          ResidentContextEventRow,
+          PrefetchHooks Function()
+        > {
+  $$ResidentContextEventsTableTableManager(
+    _$AppDatabase db,
+    $ResidentContextEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentContextEventsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ResidentContextEventsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ResidentContextEventsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> seq = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> caption = const Value.absent(),
+                Value<String> meta = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> compactedAt = const Value.absent(),
+                Value<int> tokens = const Value.absent(),
+              }) => ResidentContextEventsCompanion(
+                seq: seq,
+                id: id,
+                residentId: residentId,
+                kind: kind,
+                role: role,
+                content: content,
+                caption: caption,
+                meta: meta,
+                createdAt: createdAt,
+                compactedAt: compactedAt,
+                tokens: tokens,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> seq = const Value.absent(),
+                required String id,
+                required String residentId,
+                required String kind,
+                required String role,
+                required String content,
+                Value<String> caption = const Value.absent(),
+                Value<String> meta = const Value.absent(),
+                required int createdAt,
+                Value<int?> compactedAt = const Value.absent(),
+                Value<int> tokens = const Value.absent(),
+              }) => ResidentContextEventsCompanion.insert(
+                seq: seq,
+                id: id,
+                residentId: residentId,
+                kind: kind,
+                role: role,
+                content: content,
+                caption: caption,
+                meta: meta,
+                createdAt: createdAt,
+                compactedAt: compactedAt,
+                tokens: tokens,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ResidentContextEventsTable,
+                    ResidentContextEventRow
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ResidentContextEventsTable,
+                    ResidentContextEventRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ResidentContextEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentContextEventsTable,
+      ResidentContextEventRow,
+      $$ResidentContextEventsTableFilterComposer,
+      $$ResidentContextEventsTableOrderingComposer,
+      $$ResidentContextEventsTableAnnotationComposer,
+      $$ResidentContextEventsTableCreateCompanionBuilder,
+      $$ResidentContextEventsTableUpdateCompanionBuilder,
+      (
+        ResidentContextEventRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ResidentContextEventsTable,
+          ResidentContextEventRow
+        >,
+      ),
+      ResidentContextEventRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ModelUsageDailyTableCreateCompanionBuilder =
+    ModelUsageDailyCompanion Function({
+      required String id,
+      required String day,
+      required String model,
+      Value<int> calls,
+      Value<int> promptTokens,
+      Value<int> cachedTokens,
+      Value<int> cacheWriteTokens,
+      Value<int> completionTokens,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ModelUsageDailyTableUpdateCompanionBuilder =
+    ModelUsageDailyCompanion Function({
+      Value<String> id,
+      Value<String> day,
+      Value<String> model,
+      Value<int> calls,
+      Value<int> promptTokens,
+      Value<int> cachedTokens,
+      Value<int> cacheWriteTokens,
+      Value<int> completionTokens,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ModelUsageDailyTableFilterComposer
+    extends Composer<_$AppDatabase, $ModelUsageDailyTable> {
+  $$ModelUsageDailyTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get calls => $composableBuilder(
+    column: $table.calls,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get promptTokens => $composableBuilder(
+    column: $table.promptTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedTokens => $composableBuilder(
+    column: $table.cachedTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get completionTokens => $composableBuilder(
+    column: $table.completionTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ModelUsageDailyTableOrderingComposer
+    extends Composer<_$AppDatabase, $ModelUsageDailyTable> {
+  $$ModelUsageDailyTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get calls => $composableBuilder(
+    column: $table.calls,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get promptTokens => $composableBuilder(
+    column: $table.promptTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedTokens => $composableBuilder(
+    column: $table.cachedTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get completionTokens => $composableBuilder(
+    column: $table.completionTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ModelUsageDailyTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ModelUsageDailyTable> {
+  $$ModelUsageDailyTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get day =>
+      $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get calls =>
+      $composableBuilder(column: $table.calls, builder: (column) => column);
+
+  GeneratedColumn<int> get promptTokens => $composableBuilder(
+    column: $table.promptTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cachedTokens => $composableBuilder(
+    column: $table.cachedTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cacheWriteTokens => $composableBuilder(
+    column: $table.cacheWriteTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get completionTokens => $composableBuilder(
+    column: $table.completionTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ModelUsageDailyTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ModelUsageDailyTable,
+          ModelUsageDailyRow,
+          $$ModelUsageDailyTableFilterComposer,
+          $$ModelUsageDailyTableOrderingComposer,
+          $$ModelUsageDailyTableAnnotationComposer,
+          $$ModelUsageDailyTableCreateCompanionBuilder,
+          $$ModelUsageDailyTableUpdateCompanionBuilder,
+          (
+            ModelUsageDailyRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ModelUsageDailyTable,
+              ModelUsageDailyRow
+            >,
+          ),
+          ModelUsageDailyRow,
+          PrefetchHooks Function()
+        > {
+  $$ModelUsageDailyTableTableManager(
+    _$AppDatabase db,
+    $ModelUsageDailyTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ModelUsageDailyTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ModelUsageDailyTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ModelUsageDailyTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> day = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> calls = const Value.absent(),
+                Value<int> promptTokens = const Value.absent(),
+                Value<int> cachedTokens = const Value.absent(),
+                Value<int> cacheWriteTokens = const Value.absent(),
+                Value<int> completionTokens = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ModelUsageDailyCompanion(
+                id: id,
+                day: day,
+                model: model,
+                calls: calls,
+                promptTokens: promptTokens,
+                cachedTokens: cachedTokens,
+                cacheWriteTokens: cacheWriteTokens,
+                completionTokens: completionTokens,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String day,
+                required String model,
+                Value<int> calls = const Value.absent(),
+                Value<int> promptTokens = const Value.absent(),
+                Value<int> cachedTokens = const Value.absent(),
+                Value<int> cacheWriteTokens = const Value.absent(),
+                Value<int> completionTokens = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ModelUsageDailyCompanion.insert(
+                id: id,
+                day: day,
+                model: model,
+                calls: calls,
+                promptTokens: promptTokens,
+                cachedTokens: cachedTokens,
+                cacheWriteTokens: cacheWriteTokens,
+                completionTokens: completionTokens,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ModelUsageDailyTable, ModelUsageDailyRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ModelUsageDailyTable,
+                    ModelUsageDailyRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ModelUsageDailyTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ModelUsageDailyTable,
+      ModelUsageDailyRow,
+      $$ModelUsageDailyTableFilterComposer,
+      $$ModelUsageDailyTableOrderingComposer,
+      $$ModelUsageDailyTableAnnotationComposer,
+      $$ModelUsageDailyTableCreateCompanionBuilder,
+      $$ModelUsageDailyTableUpdateCompanionBuilder,
+      (
+        ModelUsageDailyRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ModelUsageDailyTable,
+          ModelUsageDailyRow
+        >,
+      ),
+      ModelUsageDailyRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -34856,4 +36827,8 @@ class $AppDatabaseManager {
       $$ClearInsightsTableTableManager(_db, _db.clearInsights);
   $$UsageSessionsTableTableManager get usageSessions =>
       $$UsageSessionsTableTableManager(_db, _db.usageSessions);
+  $$ResidentContextEventsTableTableManager get residentContextEvents =>
+      $$ResidentContextEventsTableTableManager(_db, _db.residentContextEvents);
+  $$ModelUsageDailyTableTableManager get modelUsageDaily =>
+      $$ModelUsageDailyTableTableManager(_db, _db.modelUsageDaily);
 }

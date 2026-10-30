@@ -97,6 +97,7 @@ class ModelConfigRepository {
             ttsReferenceOnly: Value(config.ttsReferenceOnly),
             ttsReferenceDescription: Value(config.ttsReferenceDescription),
             ttsReferenceTranscript: Value(config.ttsReferenceTranscript),
+            contextWindow: Value(config.contextWindow),
             enabled: Value(config.enabled),
           ),
         );
@@ -148,6 +149,7 @@ class ModelConfigRepository {
     ttsReferenceOnly: row.ttsReferenceOnly,
     ttsReferenceDescription: row.ttsReferenceDescription,
     ttsReferenceTranscript: row.ttsReferenceTranscript,
+    contextWindow: row.contextWindow,
     enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

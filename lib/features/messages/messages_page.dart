@@ -9,6 +9,7 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/services/resident_activity_controller.dart';
+import '../../domain/services/resident_timeline.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 消息页（B5）：你和住民一对一聊过的那几个人。
@@ -236,6 +237,9 @@ class _ConversationTile extends ConsumerWidget {
     await ref
         .read(privateMessageRepositoryProvider)
         .deleteThread(conversation.personaId);
+    await ref
+        .read(residentTimelineProvider)
+        .deleteDmEvents(conversation.personaId);
   }
 
   /// 已离开的住民不会再有新消息，这段历史可以整段删掉。

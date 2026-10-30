@@ -28,16 +28,21 @@ import '../models/resident_inbox.dart';
 import '../models/resident_wake_log.dart';
 import 'action_registry.dart';
 import 'comment_reply_service.dart';
-import 'content_generator.dart';
 import 'dm_voice_service.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'photo_describer.dart';
 import 'resident_activity_controller.dart';
-import 'resident_context_log.dart';
+import 'resident_timeline.dart';
 import 'tool_call_text.dart';
 import 'tts_service.dart';
 import 'resident_tool_session.dart';
+
+/// 一轮醒来还没结束，又到了下一次触发：合并到下一轮，不丢。
+class _PendingWake {
+  bool userAction = false;
+  PetObservation? pet;
+}
 
 enum WakeTrigger {
   /// 用户刚发了私信/评论，马上叫醒。
@@ -91,7 +96,7 @@ class ResidentWakeService {
     this.photos,
     this.dmVoice,
     this.activityDone,
-    required this.contextLog,
+    required this.timeline,
   });
 
   final AppDatabase db;
@@ -128,15 +133,15 @@ class ResidentWakeService {
   /// 一轮结束后收掉聊天页上的“正在思考…”。
   final void Function(String residentId)? activityDone;
 
-  /// 桌宠与私信共用的短期上下文（屏幕上看到的、冒过的气泡）。
-  final ResidentContextLog contextLog;
+  /// 唯一的持久上下文时间线：屏幕、气泡、私信、动作都在同一条线上。
+  final ResidentTimeline timeline;
 
   /// 同一个人不要被同时叫醒两次（用户点发送 + 心跳撞在一起）。
   final Set<String> _running = {};
 
-  /// 正在醒着的时候又来了用户消息：这一轮结束后立刻再醒一次，
-  /// 不要等下一个 30 秒心跳（更不能等 15 分钟冷却）。
-  final Set<String> _rerun = {};
+  /// 正在醒着的时候又来了私信或下一次屏幕观察：先记下来，
+  /// 这一轮结束后合并成一轮，不丢任何一种触发。
+  final Map<String, _PendingWake> _pending = {};
 
   /// 一轮 wakeAll 没跑完时，下一拍心跳不要再叠一轮。
   bool _wakingAll = false;
@@ -364,8 +369,16 @@ class ResidentWakeService {
     PetObservation? pet,
   }) async {
     if (_running.contains(residentId)) {
-      // 用户又发了一句：不能丢。等他这一轮收尾后马上再醒一次。
-      if (trigger == WakeTrigger.userAction) _rerun.add(residentId);
+      // 用户私信和屏幕观察都可能在这一轮进行时到来：合并成下一轮，
+      // 私信优先、屏幕帧保留最新的一组，任何一边都不丢。
+      if (trigger == WakeTrigger.userAction || trigger == WakeTrigger.pet) {
+        final pending = _pending.putIfAbsent(
+          residentId,
+          () => _PendingWake(),
+        );
+        if (trigger == WakeTrigger.userAction) pending.userAction = true;
+        if (pet != null) pending.pet = pet;
+      }
       return 0;
     }
     _running.add(residentId);
@@ -373,8 +386,17 @@ class ResidentWakeService {
       return await _wake(residentId, trigger, pet);
     } finally {
       _running.remove(residentId);
-      if (_rerun.remove(residentId)) {
-        unawaited(wake(residentId, trigger: WakeTrigger.userAction));
+      final pending = _pending.remove(residentId);
+      if (pending != null) {
+        unawaited(
+          wake(
+            residentId,
+            trigger: pending.userAction
+                ? WakeTrigger.userAction
+                : WakeTrigger.pet,
+            pet: pending.pet,
+          ),
+        );
       }
     }
   }
@@ -395,6 +417,9 @@ class ResidentWakeService {
     final resident = await residents.findById(residentId);
     if (resident == null) return 0;
 
+    // 先把已经出现的私信补进唯一时间线；无论这一轮是屏幕还是私信，
+    // 接下来读到的都是同一条上下文。
+    await timeline.syncMessages(residentId);
     await inbox.sync(residentId);
     final pending = await inbox.pending(residentId);
 
@@ -424,6 +449,14 @@ class ResidentWakeService {
       debugPrint('[唤醒] ${resident.name}：还没配置对话模型');
       return 0;
     }
+
+    // 到高水位才压缩一次；平时一条都不砍，缓存前缀保持只追加。
+    await timeline.compactIfNeeded(residentId: residentId, config: config);
+    final contextMessages = await timeline.messages(residentId);
+    debugPrint(
+      '[上下文] ${resident.name}：${contextMessages.length} 条 / '
+      '约 ${await timeline.estimatedTokens(residentId)} token',
+    );
 
     final wakeId = 'wake_${residentId}_${now.microsecondsSinceEpoch}';
     // 日志行可能不是新的一条：用户连续发私信时，几分钟内的几轮并成一行，
@@ -458,10 +491,9 @@ class ResidentWakeService {
     } catch (error) {
       debugPrint('[唤醒] 日志没记上：$error');
     }
-    // 一次最多看二十条。不按“最多回三个人”硬性截断——
-    // 积攒的评论该回就回；真的处理不完的留在收件箱，下次醒来继续。
-    // 不能把没展示过的待办也标成“已读”，那等于替模型做了决定。
-    final visible = pending.take(20).toList(growable: false);
+    // 不按条数截断：积攒的评论该回就回；真的处理不完的留在收件箱，
+    // 下次醒来继续。上下文由高水位摘要兜底，不靠“只给 20 条”省 token。
+    final visible = List<ResidentInboxItem>.of(pending);
     // 上一轮写好、还没发出去的段：用户中途又说话时它们已经被取消了，
     // 这里把原话交给住民，由它决定照发、改写还是算了。
     final unsent = await messages.pendingSegments(residentId);
@@ -479,37 +511,9 @@ class ResidentWakeService {
     );
 
     try {
-      final recent = await messages.recentTurns(residentId, limit: 10);
-      final history = [
-        for (final turn in recent)
-          DirectTurn(
-            fromMe: !turn.fromMe,
-            text: switch (turn.mediaType) {
-              'image' => turn.fromMe ? '' : '[发来一张图片]',
-              'sticker' => '[表情包]',
-              // 语音在历史里只放转写稿：路径不是一句话，模型看不懂。
-              'voice' =>
-                turn.transcript.trim().isEmpty
-                    ? (turn.fromMe ? '[我发了一条语音]' : '[发来一条语音]')
-                    : turn.transcript,
-              _ => turn.content,
-            },
-            caption: turn.caption,
-            imageRef: turn.mediaType == 'image' && turn.fromMe
-                ? turn.content
-                : null,
-            at: turn.createdAt,
-          ),
-      ];
       // 把它自己最近做过的事告诉它——这是信息，不是决定。
       // 要不要记进记忆、要不要接着说，由它自己判断。
       final ownActivity = await _recentOwnActivity(residentId);
-      // 桌宠是一段连续会话：只给“开机前那十句”不够，
-      // 开启之后新到的私信也要单独摘出来给它看。
-      final petDmDelta =
-          trigger == WakeTrigger.pet && pet?.sessionStartedAt != null
-          ? await _petDmDelta(residentId, pet!.sessionStartedAt!)
-          : '';
       final said = await session.act(
         resident: resident,
         config: config,
@@ -523,21 +527,17 @@ class ResidentWakeService {
           alarmReason: _alarmReason.remove(residentId) ?? '',
           petNote: pet?.note ?? '',
           petRealtime: pet?.realtime ?? false,
-          petDmDelta: petDmDelta,
           petHandoff: pet?.handoff ?? false,
         ),
         toolkit: toolkit,
         at: now,
-        history: history,
+        timeline: contextMessages,
         allowProactive: true,
         allowVoice: toolkit.allowVoice,
         extraImages: [
           ...?pet?.images,
           if (pet?.selfImage != null) pet!.selfImage!,
         ],
-        // 桌宠观察轮只露出 pet_*：避免它借着看屏幕去做别的事。
-        // 用户主动私聊走的是 user_action，仍然拿到完整工具。
-        petOnly: trigger == WakeTrigger.pet,
         // 日志里记的是它具体调了哪些工具，而不只是“醒了几分钟”。
         onTool: (name) => wakeLogs.recordTool(logId, name),
       );
@@ -616,7 +616,6 @@ class ResidentWakeService {
     String alarmReason = '',
     String petNote = '',
     bool petRealtime = false,
-    String petDmDelta = '',
     bool petHandoff = false,
   }) {
     final String base;
@@ -655,7 +654,9 @@ class ResidentWakeService {
             '有人在你的帖子下评论：「${item.summary}」',
           ResidentInboxRepository.kindReplyToComment =>
             '有人回了你的评论：「${item.summary}」',
-          ResidentInboxRepository.kindDm => '给你发了私信：「${item.summary}」',
+          // 私信正文已经在唯一时间线里，这里只提示“有待回复”，
+          // 不重复抄一遍，也不截断。
+          ResidentInboxRepository.kindDm => '有一封私信等你回应（内容见上面的对话）',
           _ => '「${item.summary}」',
         };
         buffer.writeln('- [${item.id}] [$when] $line');
@@ -682,10 +683,14 @@ class ResidentWakeService {
         '看到的是：\n${petNote.trim()}',
       );
     }
-    if (petDmDelta.trim().isNotEmpty) {
+    // 这一轮从哪一侧醒来，只作为一句场景说明；人格、记忆、上下文都是同一份。
+    if (!petHandoff) {
       parts.add(
-        '你开始陪他之后，私信里新收到的（更早的对话已经在上面）：\n'
-        '${petDmDelta.trim()}',
+        trigger == WakeTrigger.pet
+            ? '这一轮你正以桌宠的身份待在他的屏幕上，刚刚看了一眼。'
+            : petNote.trim().isNotEmpty
+            ? '这一轮你在私信里，同时也在看着他的屏幕。'
+            : '这一轮你在私信里，对方就在手机另一头。',
       );
     }
     if (unsent.isNotEmpty) {
@@ -720,52 +725,7 @@ class ResidentWakeService {
         '要不要在意、要不要记、要不要接着说，都由你）：\n$ownActivity',
       );
     }
-    // 桌宠那一侧看到的、冒过的气泡，私信这一轮也要知道——同一个人，
-    // 不该因为换了块屏幕就失忆。桌宠轮自己已经带着这段上下文，不重复。
-    if (trigger != WakeTrigger.pet) {
-      final shared = contextLog.recent(resident.id);
-      if (shared.isNotEmpty) {
-        parts.add(
-          '你最近在屏幕上看到的、说过的（和私信是同一段关系，不是两件事）：\n'
-          '${shared.join('\n')}',
-        );
-      }
-    }
     return parts.join('\n');
-  }
-
-  /// 桌宠这一班开始之后，对方新发来的私信。
-  ///
-  /// `_wake` 里的 history 是“最近 10 句”，如果这一班开了很久，
-  /// 最早的几句会被挤掉；而且模型容易以为桌面上的它只认得开机前的话。
-  /// 这里单独按时间摘出来，明确告诉它“这些是你陪着他以后新到的”。
-  Future<String> _petDmDelta(String residentId, DateTime since) async {
-    try {
-      final turns = await messages.recentTurns(residentId, limit: 24);
-      final lines = <String>[];
-      for (final turn in turns) {
-        if (turn.fromMe || turn.createdAt.isBefore(since)) continue;
-        final text = switch (turn.mediaType) {
-          'image' => '[发来一张图片]${turn.caption.trim().isEmpty ? '' : '：${turn.caption.trim()}'}',
-          'sticker' => '[表情包]${turn.caption.trim().isEmpty ? '' : '：${turn.caption.trim()}'}',
-          'voice' => turn.transcript.trim().isEmpty
-              ? '[发来一条语音]'
-              : '（语音）${turn.transcript.trim()}',
-          _ => turn.content.trim().isEmpty ? '[空消息]' : turn.content.trim(),
-        };
-        lines.add(
-          '- [${ResidentToolSession.timeLabel(turn.createdAt)}] 对方：$text',
-        );
-      }
-      if (lines.isEmpty) return '';
-      const max = 8;
-      if (lines.length <= max) return lines.join('\n');
-      return '（这段时间新消息较多，只列最近 $max 条）\n'
-          '${lines.sublist(lines.length - max).join('\n')}';
-    } catch (error) {
-      debugPrint('[唤醒] 桌宠新私信没读到：$error');
-      return '';
-    }
   }
 
   /// 它自己最近发过的动态，以及这些动态收到的赞/评论/浏览。
@@ -847,6 +807,16 @@ class ResidentWakeService {
       ),
     );
     await inbox.markHandled([item.id], decision: 'replied');
+    try {
+      await timeline.appendAction(
+        resident.id,
+        content: '在帖子下回复了：$text',
+        at: DateTime.now(),
+        meta: 'reply_inbox',
+      );
+    } catch (error) {
+      debugPrint('[上下文] 回复没写进时间线：$error');
+    }
     // 记忆不替它写：这条工具结果已经回到它手里，
     // 要不要记、记成什么，由它自己用 memory_write 决定。
     return const ActionOutcome(ok: true, message: '已排在评论下面');
@@ -994,6 +964,16 @@ class ResidentWakeService {
       }
     }
 
+    try {
+      await timeline.appendAction(
+        resident.id,
+        content: '发了一条动态：$text',
+        at: DateTime.now(),
+        meta: 'create_post',
+      );
+    } catch (error) {
+      debugPrint('[上下文] 动态没写进时间线：$error');
+    }
     // 记忆不替它写：动态已经发出，它可以在同一轮里自己用 memory_write 记。
     return outcome;
   }
@@ -1526,6 +1506,16 @@ class _WakeToolkit implements ResidentWakeToolkit {
         debugPrint('[唤醒] 评论通知没写进去：$error');
       }
     }
+    try {
+      await service.timeline.appendAction(
+        resident.id,
+        content: '在别人的帖子下评论了：$text',
+        at: DateTime.now(),
+        meta: 'comment_post',
+      );
+    } catch (error) {
+      debugPrint('[上下文] 评论没写进时间线：$error');
+    }
     return const ActionOutcome(ok: true, message: '评论已发出');
   }
 
@@ -1745,13 +1735,17 @@ class _WakeToolkit implements ResidentWakeToolkit {
     // 已经用气泡说过了：这一轮不要再走“只回一句话”的兜底重复说一遍。
     spokePrivately = true;
     service._petSaid[resident.id] = clean;
-    // 气泡也是“他说过的话”。私信那边下一次醒来要能看到，
-    // 不能让它觉得私信和屏幕上坐着的是两个人。
-    service.contextLog.add(
-      resident.id,
-      '${ResidentWakeService._shortWhen(DateTime.now())} '
-      '你在屏幕上冒了一句：「${clean.length > 60 ? '${clean.substring(0, 60)}…' : clean}」',
-    );
+    // 气泡也进唯一时间线：下一次无论是看屏幕还是回私信，
+    // 读到的都是同一段“我说过什么”。写上下文失败不能反过来算气泡失败。
+    try {
+      await service.timeline.appendBubble(
+        resident.id,
+        content: clean,
+        at: DateTime.now(),
+      );
+    } catch (error) {
+      debugPrint('[上下文] 气泡没写进时间线：$error');
+    }
     return const ActionOutcome(ok: true, message: '说出来了');
   }
 
@@ -1857,11 +1851,18 @@ class _WakeToolkit implements ResidentWakeToolkit {
     final shown = description.trim().isEmpty
         ? '这张图没有可用的描述（当前没有配置图片理解模型）'
         : '画面：${description.trim()}';
-    service.contextLog.add(
-      resident.id,
-      '${ResidentWakeService._shortWhen(frame.at)} 你自己看了一眼屏幕：'
-      '${description.trim().isEmpty ? '（看不清）' : description.trim()}',
-    );
+    try {
+      await service.timeline.appendScreen(
+        resident.id,
+        content:
+            '[${ResidentWakeService._shortWhen(frame.at)}] 你自己看了一眼屏幕：'
+            '${description.trim().isEmpty ? '（看不清）' : description.trim()}',
+        at: frame.at,
+        meta: 'pet_capture',
+      );
+    } catch (error) {
+      debugPrint('[上下文] 主动截图没写进时间线：$error');
+    }
     return ActionOutcome(
       ok: true,
       message: '已截图（$at）。$shown',
@@ -1952,7 +1953,7 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     petSettings: ref.watch(petSettingsRepositoryProvider),
     photos: ref.watch(photoDescriberProvider),
     dmVoice: ref.watch(dmVoiceServiceProvider),
-    contextLog: ref.watch(residentContextLogProvider),
+    timeline: ref.watch(residentTimelineProvider),
     activityDone: (residentId) =>
         ref.read(residentActivityProvider.notifier).clear(residentId),
   ),

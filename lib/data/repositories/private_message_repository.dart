@@ -487,6 +487,32 @@ class PrivateMessageRepository {
     return rows.reversed.map(_toMessage).toList(growable: false);
   }
 
+  /// 从某个时刻起已经出现的全部私信，按时间正序。
+  ///
+  /// 上下文时间线同步用：**不设条数上限**，缺的补进来，已有的靠事件 id
+  /// 幂等忽略。只取 pending/sent 且已经到点的，未来排期下一轮再补。
+  Future<List<PrivateMessage>> turnsSince(
+    String personaId, {
+    required int afterMs,
+  }) async {
+    final rows =
+        await (_db.select(_db.privateMessages)
+              ..where(
+                (t) =>
+                    t.personaId.equals(personaId) &
+                    t.deletedAt.isNull() &
+                    t.deliveryState.isIn([pendingState, sentState]) &
+                    t.createdAt.isBiggerOrEqualValue(afterMs) &
+                    t.createdAt.isSmallerOrEqualValue(_now),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.createdAt),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
+            .get();
+    return rows.map(_toMessage).toList(growable: false);
+  }
+
   /// 把和某个人的会话标成已读（进聊天页时调）。
   Future<void> markThreadRead(String personaId) async {
     await (_db.update(_db.privateMessages)..where(

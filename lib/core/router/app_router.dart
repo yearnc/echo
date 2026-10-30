@@ -25,6 +25,7 @@ import '../../features/records/records_page.dart';
 import '../../features/resources/resource_page.dart';
 import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
+import '../../features/residents/resident_context_page.dart';
 import '../../features/residents/resident_memories_page.dart';
 import '../../features/residents/resident_wake_log_page.dart';
 import '../../features/safety/minor_page.dart';
@@ -82,6 +83,10 @@ class RoutePaths {
   /// 某位固定住民的唤醒日志。
   static String residentWakeLog(String residentId) =>
       '/custom-residents/logs/$residentId';
+
+  /// 某位固定住民的唯一上下文时间线。
+  static String residentContext(String residentId) =>
+      '/custom-residents/context/$residentId';
 
   /// 策划脚本管理。
   static const String scripts = '/scripts';
@@ -228,6 +233,12 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/custom-residents/logs/:id',
       builder: (context, state) => ResidentWakeLogPage(
+        residentId: state.pathParameters['id'] ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/custom-residents/context/:id',
+      builder: (context, state) => ResidentContextPage(
         residentId: state.pathParameters['id'] ?? '',
       ),
     ),

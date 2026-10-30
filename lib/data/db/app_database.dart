@@ -9,6 +9,7 @@ import 'tables/action_tables.dart';
 import 'tables/ai_tables.dart';
 import 'tables/clear_tables.dart';
 import 'tables/content_tables.dart';
+import 'tables/context_tables.dart';
 import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
 import 'tables/model_tables.dart';
@@ -16,6 +17,7 @@ import 'tables/plan_tables.dart';
 import 'tables/resident_tables.dart';
 import 'tables/social_tables.dart';
 import 'tables/understanding_tables.dart';
+import 'tables/usage_tables.dart';
 import 'tables/voice_tables.dart';
 
 part 'app_database.g.dart';
@@ -61,6 +63,8 @@ part 'app_database.g.dart';
     ClearPhotos,
     ClearInsights,
     UsageSessions,
+    ResidentContextEvents,
+    ModelUsageDaily,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -70,7 +74,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 46;
+  int get schemaVersion => 48;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -936,6 +940,24 @@ class AppDatabase extends _$AppDatabase {
         // v46：桌宠的时段值班表。
         if (!await hasTable('pet_shifts')) {
           await m.createTable(petShifts);
+        }
+      }
+      if (from < 47) {
+        // v47：固定住民的唯一上下文时间线。只新增表，不动旧数据；
+        // 首次唤醒会把已有的私信补进来。
+        if (!await hasTable('resident_context_events')) {
+          await m.createTable(residentContextEvents);
+        }
+      }
+      if (from < 48) {
+        // v48：模型配置自己声明上下文窗口（默认 100 万），
+        // 以及按天聚合的模型用量（只存 token 计数，不存正文）。
+        if (await hasTable('model_configs') &&
+            !await hasColumn('model_configs', 'context_window')) {
+          await m.addColumn(modelConfigs, modelConfigs.contextWindow);
+        }
+        if (!await hasTable('model_usage_daily')) {
+          await m.createTable(modelUsageDaily);
         }
       }
     },

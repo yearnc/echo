@@ -120,9 +120,6 @@ class PetController extends Notifier<PetRuntimeState> {
       _observe.attach();
       await _observe.sync(value.copyWith(realtime: effectiveRealtime));
     }
-    // 桌宠服务可能已经被系统收走：这时 sync 不会跑，但上次实时观察
-    // 留在盘上的文字还要补交给住民写成记忆。
-    unawaited(_observe.recoverPendingDigests());
   }
 
   /// 打开桌宠。悬浮窗权限要先有；屏幕授权用户拒绝时仍然显示，

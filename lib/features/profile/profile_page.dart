@@ -8,6 +8,7 @@ import '../../core/constants/app_info.dart';
 import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/repositories/model_usage_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/services/update_service.dart';
@@ -57,6 +58,7 @@ class ProfilePage extends ConsumerWidget {
             title: '帮助',
             onTap: () => context.push(RoutePaths.help),
           ),
+          const _CacheStatsCard(),
           const _UpdateTile(),
         ],
       ),
@@ -412,6 +414,194 @@ class _Tile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 「缓存命中」小卡：只展示 token 计数，不展示任何消息内容。
+///
+/// 服务商不回 usage 时显示“还没有记录”，不拿 0 假装命中率是 0。
+class _CacheStatsCard extends ConsumerWidget {
+  const _CacheStatsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final today = ref.watch(modelUsageSummaryProvider(1));
+    final week = ref.watch(modelUsageSummaryProvider(7));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showDetails(context, week.asData?.value),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: EchoColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: EchoColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.bolt_outlined,
+                    size: 18,
+                    color: EchoColors.textMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '缓存命中',
+                      style: TextStyle(color: EchoColors.text, fontSize: 14),
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '刷新',
+                    onPressed: () {
+                      ref.invalidate(modelUsageSummaryProvider(1));
+                      ref.invalidate(modelUsageSummaryProvider(7));
+                    },
+                    icon: Icon(
+                      Icons.refresh,
+                      size: 16,
+                      color: EchoColors.textFaint,
+                    ),
+                  ),
+                ],
+              ),
+              today.when(
+                loading: () => Text(
+                  '正在统计…',
+                  style: TextStyle(color: EchoColors.textFaint, fontSize: 11.5),
+                ),
+                error: (error, _) => Text(
+                  '统计没读出来：$error',
+                  style: TextStyle(color: EchoColors.like, fontSize: 11.5),
+                ),
+                data: (summary) {
+                  if (!summary.hasData) {
+                    return Text(
+                      '还没有调用记录。服务商不返回 usage 时，这里也不会编数字。',
+                      style: TextStyle(
+                        color: EchoColors.textFaint,
+                        fontSize: 11.5,
+                        height: 1.5,
+                      ),
+                    );
+                  }
+                  final weekData = week.asData?.value;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${summary.cacheHitRate}%',
+                            style: TextStyle(
+                              color: EchoColors.primary,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              '今日命中率'
+                              '${weekData != null && weekData.hasData ? ' · 近7天 ${weekData.cacheHitRate}%' : ''}',
+                              style: TextStyle(
+                                color: EchoColors.textMuted,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '今日 ${summary.calls} 次 · 输入 ${_tokens(summary.promptTokens)}'
+                        ' · 命中 ${_tokens(summary.cachedTokens)}'
+                        '${summary.cacheWriteTokens > 0 ? ' · 写入 ${_tokens(summary.cacheWriteTokens)}' : ''}'
+                        ' · 输出 ${_tokens(summary.completionTokens)}',
+                        style: TextStyle(
+                          color: EchoColors.textFaint,
+                          fontSize: 11,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _tokens(int value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}k';
+    return '$value';
+  }
+
+  static Future<void> _showDetails(
+    BuildContext context,
+    ModelUsageSummary? week,
+  ) async {
+    if (week == null || !week.hasData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('最近 7 天还没有可统计的调用')),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: EchoColors.surface,
+        title: const Text('近 7 天缓存用量'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '总命中率 ${week.cacheHitRate}% · ${week.calls} 次调用',
+                style: TextStyle(color: EchoColors.text, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              for (final item in week.byModel)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '${item.model}\n'
+                    '${item.calls} 次 · 命中 ${item.cacheHitRate}% · '
+                    '输入 ${_tokens(item.promptTokens)} · '
+                    '命中 ${_tokens(item.cachedTokens)} · '
+                    '输出 ${_tokens(item.completionTokens)}',
+                    style: TextStyle(
+                      color: EchoColors.textMuted,
+                      fontSize: 11.5,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
       ),
     );
   }

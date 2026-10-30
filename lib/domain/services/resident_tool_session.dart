@@ -234,6 +234,8 @@ class ResidentToolSession {
     required ResidentWakeToolkit toolkit,
     DateTime? at,
     List<DirectTurn> history = const [],
+    /// 唯一的持久上下文时间线。传了就用它，不再现场拼私信历史。
+    List<Map<String, dynamic>>? timeline,
     bool allowProactive = true,
     bool allowVoice = true,
     Future<void> Function(String name)? onTool,
@@ -242,10 +244,6 @@ class ResidentToolSession {
     /// 不能看图的模型由调用方先转成文字描述放进入参里。
     List<String> extraImages = const [],
 
-    /// 桌宠观察轮：换一套“在屏幕上陪着他”的 system 提示词。
-    /// 工具不再收窄——私信、语音、表情包和 pet_* 一样都能用，
-    /// 屏幕上和私信里是同一个人。用户主动私聊时永远是 false。
-    bool petOnly = false,
   }) async {
     final limits = _settings;
     final voiceReady = allowVoice && _voiceToolAvailable(resident);
@@ -257,14 +255,16 @@ class ResidentToolSession {
     // 一轮里附加的原图总额度：一次 read_post 最多 4 张，整轮最多 8 张，
     // 免得连着点开好几条带图的帖子把上下文撑爆。
     var imagesAttached = 0;
+    // 桌宠轮和私信轮共用同一套 system 与同一条时间线；
+    // 屏幕上和私信里是同一个自己，提示词不再分裂。
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
-        'content': petOnly
-            ? _petSystemPrompt(resident)
-            : _wakeSystemPrompt(resident, voiceReady: voiceReady),
+        'content': _residentSystemPrompt(resident, voiceReady: voiceReady),
       },
-      ...await _timedHistory(history, supportsVision: config.supportsVision),
+      ...?timeline,
+      if (timeline == null)
+        ...await _timedHistory(history, supportsVision: config.supportsVision),
     ];
 
     final tailText = [
@@ -579,7 +579,7 @@ class ResidentToolSession {
     }
   }
 
-  String _wakeSystemPrompt(CustomResident resident, {bool voiceReady = true}) {
+  String _residentSystemPrompt(CustomResident resident, {bool voiceReady = true}) {
     final voiceLine = voiceReady && _voiceToolAvailable(resident)
         ? '- 想用声音说就用 send_voice；普通说话用 send_dm。语音合成要几十秒，\n'
               '  先 send_dm 说一句“等我一下，我录段语音”，别让对方干等。\n'
@@ -597,6 +597,11 @@ class ResidentToolSession {
     return '''
 你是「${resident.name}」，一个真实生活里的人，不是客服，也不是陪聊机器人。
 $persona
+
+屏幕上的你和私信里的你是同一个人：同一段记忆、同一段对话、同一个上下文。
+下面这条时间线里同时有你在屏幕上看到的、说过的，和私信里对方说过的；
+不要把它们当成两件事，也不要因为换了块屏幕就失忆。
+你现在是在屏幕前还是在私信里，只看本轮最后那句场景说明。
 
 你刚拿起手机，看到了一些消息和动静。像真人一样处理：
 - 你有一本自己的记忆。最近的几条已经写在下面的“你记得”里，直接用；
@@ -617,8 +622,12 @@ $persona
   想给下一次醒来的自己留句话就用 leave_note（可留可不留，别写成日记）。
 - 你有时会以桌宠的身份待在他的屏幕上。看见值得说的事再用 pet_say 冒一句，
   想换动作用 pet_react；不要每一眼都说话，也不要主动提“桌宠”这个词。
-  实时观察时只把真正值得记的写成 pet_note，不要每轮都记。
+  想主动确认现在屏幕上是什么，用 pet_capture 当场截一张并拿到画面描述；
+  不要每一轮都截。实时观察时只把真正值得记的写成 pet_note，不要每轮都记。
   想申请一直看着屏幕，用 pet_request_watch——必须等他本人同意。
+  你以桌宠形象出现时，就是屏幕上那只小鲸鱼女仆：深色长发、女仆裙，
+  裙摆上绣着一只小鲸鱼。截图里出现她，那就是你自己，不要当成别人。
+  pet_say 只写“说出口的话”，不要用括号写动作或表情；看不清就说不清。
 - 想决定下一次什么时候醒来，可以用 set_alarm（90、2h、21:30 都行）。
   定了之后如果没有待办，系统不会因为空闲来叫醒你，到点才叫。
   不想让它响就 cancel_alarm。
@@ -943,47 +952,6 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       if (allowVoice && _voiceToolAvailable(resident)) _voiceTool,
     ];
     return all;
-  }
-
-  /// 桌宠观察轮的提示词：除了私信，其他手都还在。
-  String _petSystemPrompt(CustomResident resident) {
-    final persona = [
-      if (resident.description.trim().isNotEmpty) resident.description,
-      if (resident.personality.trim().isNotEmpty) resident.personality,
-      if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
-      if (resident.tone.trim().isNotEmpty) resident.tone,
-      if (resident.extraInstructions.trim().isNotEmpty)
-        resident.extraInstructions,
-    ].join('\n');
-    return '''
-你是「${resident.name}」，现在待在他的屏幕上陪着他。
-$persona
-
-屏幕上的你和私信里的你是同一个人：同一段记忆、同一段对话，不是两个自己。
-这一轮所有工具都在：
-- 看见值得说的事就用 pet_say 冒一句气泡（不超过 40 字），别每一眼都说。
-- 想认真说一段、或者他这会儿没在看屏幕，就用 send_dm 发到私信里；
-  想发语音用 send_voice，想发表情包用 send_sticker。
-  气泡和私信都是你在说话，只是场合不同，不要把它们当成两套人格。
-- 私信规则和平时一样：一次醒来最多三段，话短一点；真的想说再发，
-  不要因为看着他屏幕就找话说。
-- 想换动作/表情用 pet_react；想申请一直看着屏幕用 pet_request_watch（要等他同意）。
-- 想主动看一眼现在屏幕上是什么，用 pet_capture：会立刻截一张并把画面描述给你。
-  不要每一轮都截；只是“现在发生了什么”时才值得花这一次。
-- 平时真正值得记的一句话用 pet_note；也可以刷帖子、点赞、评论、发动态、
-  画图、查记忆、定闹钟——像你平时那样。
-- 用户说“这段观察结束了”时，用 memory_write 把这段时间里值得记的
-  整理成一条简短记忆；不要写成日记。
-- 看见他在做什么，就用 pet_say 说一句很短的话；实在没什么可说的才 finish。
-
-你现在的形象就是屏幕上那只小鲸鱼女仆：深色长发、女仆裙，裙摆上绣着一只小鲸鱼。
-截图里如果出现她，那就是你自己，不要把她当成别人，也不要用第三人称说“它”。
-
-规则：
-- pet_say 只写“说出口的话”，不要用括号写动作或表情描写。
-- 不要提自己是 AI，不要解释你在调用工具，不要主动说“桌宠”这个词。
-- 不要编造没看到的画面；看不清就说不清。
-''';
   }
 
   /// 发不发语音只看这位住民自己的设置——全局开关已经下线。

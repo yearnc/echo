@@ -37,10 +37,15 @@ class ModelConfig {
     this.ttsReferenceOnly = false,
     this.ttsReferenceDescription = false,
     this.ttsReferenceTranscript = false,
+    this.contextWindow = defaultContextWindow,
     this.enabled = false,
     this.createdAt = 0,
     this.updatedAt = 0,
   });
+
+  /// 默认按百万上下文算。服务商更小就让用户自己改——
+  /// 猜错会把“还没到压缩线”的请求直接顶到 API 上限。
+  static const int defaultContextWindow = 1000000;
 
   final String id;
 
@@ -70,6 +75,10 @@ class ModelConfig {
   final bool ttsReferenceOnly;
   final bool ttsReferenceDescription;
   final bool ttsReferenceTranscript;
+
+  /// 这条模型能吃多长的上下文（token）。默认 100 万；
+  /// 服务商实际更小时由用户在编辑页改，时间线的摘要阈值按它算。
+  final int contextWindow;
 
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
@@ -304,6 +313,7 @@ class ModelConfig {
     bool? ttsReferenceOnly,
     bool? ttsReferenceDescription,
     bool? ttsReferenceTranscript,
+    int? contextWindow,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -319,6 +329,7 @@ class ModelConfig {
           ttsReferenceDescription ?? this.ttsReferenceDescription,
       ttsReferenceTranscript:
           ttsReferenceTranscript ?? this.ttsReferenceTranscript,
+      contextWindow: contextWindow ?? this.contextWindow,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
       kind: kind ?? this.kind,

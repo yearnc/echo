@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/model_config_repository.dart';
+import '../../data/repositories/model_usage_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/model_config.dart';
 import 'model_call_common.dart';
@@ -52,11 +54,18 @@ class ModelCallException implements Exception {
 /// 审核遇到超时该放行、生成遇到超时该退回样本，两者的处置完全不同，
 /// 塞进网关只会让双方都难受。
 class ModelGateway {
-  ModelGateway(this._configs, {Dio? dio, this.profiles})
-    : _dio = dio ?? Dio();
+  ModelGateway(
+    this._configs, {
+    Dio? dio,
+    this.profiles,
+    this.onUsage,
+  }) : _dio = dio ?? Dio();
 
   final ModelConfigRepository _configs;
   final Dio _dio;
+
+  /// 每次模型返回 usage 时回调（只给计数，不给正文）。
+  final void Function(ModelUsage usage, String model)? onUsage;
 
   /// 本机用户的身份资料。每次请求把它拼到 system 最前面——
   /// 内容稳定，所以缓存前缀不会因为“这是哪一轮”而分叉。
@@ -179,7 +188,9 @@ class ModelGateway {
 
       // 缓存命中只能从 usage 看出来。没命中和没数据显示上都是"0"，
       // 但这里不编数字：服务商不回 usage，就当不知道。
-      logModelUsage(config.model, ModelUsage.fromBody(response.data));
+      final usage = ModelUsage.fromBody(response.data);
+      logModelUsage(config.model, usage);
+      onUsage?.call(usage, config.model);
 
       final content = extractAssistantContent(response.data);
       if (content == null) {
@@ -277,7 +288,9 @@ class ModelGateway {
         ),
       );
 
-      logModelUsage('${config.model}（tools）', ModelUsage.fromBody(response.data));
+      final usage = ModelUsage.fromBody(response.data);
+      logModelUsage('${config.model}（tools）', usage);
+      onUsage?.call(usage, config.model);
 
       final choices = response.data?['choices'];
       if (choices is! List || choices.isEmpty) {
@@ -561,6 +574,14 @@ final modelGatewayProvider = Provider<ModelGateway>(
   (ref) => ModelGateway(
     ref.watch(modelConfigRepositoryProvider),
     profiles: ref.watch(userProfileRepositoryProvider),
+    onUsage: (usage, model) {
+      unawaited(
+        ref.read(modelUsageRepositoryProvider).record(
+          model: model,
+          usage: usage,
+        ),
+      );
+    },
   ),
 );
 

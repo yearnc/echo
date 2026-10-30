@@ -170,6 +170,21 @@ void main() {
       expect(loaded, isNotNull);
       expect(loaded!.model, 'deepseek-chat');
       expect(loaded.enabled, isFalse, reason: '新建的配置默认不启用');
+      expect(loaded.contextWindow, 1000000, reason: '默认按百万上下文');
+    });
+
+    test('上下文窗口可以按服务商改小并读回来', () async {
+      const config = ModelConfig(
+        id: 'm2',
+        provider: 'custom',
+        label: '小窗口',
+        baseUrl: 'https://example.com/v1',
+        model: '32k-model',
+        contextWindow: 32768,
+      );
+      await repo.save(config);
+      final loaded = await repo.findById('m2');
+      expect(loaded!.contextWindow, 32768);
     });
 
     test('同一时间只有一条配置生效', () async {

@@ -825,6 +825,16 @@ class _CustomResidentEditorPageState
                           RoutePaths.residentWakeLog(widget.residentId!),
                         ),
                       ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.account_tree_outlined),
+                        title: Text('「${_name.text.trim()}」的上下文'),
+                        subtitle: const Text('屏幕、气泡、私信和动作的完整时间线'),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                        onTap: () => context.push(
+                          RoutePaths.residentContext(widget.residentId!),
+                        ),
+                      ),
                     ],
                   ),
               ],
