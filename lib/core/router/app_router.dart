@@ -7,6 +7,8 @@ import '../../features/analysis/reflection_page.dart';
 import '../../features/composer/compose_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
 import '../../features/feed/feed_page.dart';
+import '../../features/games/game_match_page.dart';
+import '../../features/games/games_page.dart';
 import '../../features/help/help_page.dart';
 import '../../features/help/tutorial_page.dart';
 import '../../features/messages/chat_page.dart';
@@ -38,7 +40,6 @@ import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/stickers/stickers_page.dart';
 import '../../features/topics/topics_page.dart';
-import '../../features/trending/trending_page.dart';
 import '../../features/values/values_page.dart';
 
 /// 路由路径常量。通知点击跳转、深链都从这里取，避免散落的字符串。
@@ -54,8 +55,9 @@ class RoutePaths {
   /// 私信会话列表（B5）。
   static const String messages = '/messages';
 
-  /// 今天的热榜（B6）。
-  static const String trending = '/trending';
+  /// 小游戏大厅（v4.8）。对局页在 [gameMatch]。
+  static const String games = '/games';
+  static String gameMatch(String id) => '/games/$id';
 
   /// 关注与粉丝（B5）。
   static const String follows = '/follows';
@@ -188,6 +190,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const ComposePage(),
         ),
         GoRoute(
+          path: RoutePaths.games,
+          builder: (context, state) => const GamesPage(),
+        ),
+        GoRoute(
           path: RoutePaths.notifications,
           builder: (context, state) => const NotificationsPage(),
         ),
@@ -264,8 +270,10 @@ final appRouter = GoRouter(
       ],
     ),
     GoRoute(
-      path: RoutePaths.trending,
-      builder: (context, state) => const TrendingPage(),
+      path: '/games/:id',
+      builder: (context, state) => GameMatchPage(
+        matchId: state.pathParameters['id'] ?? '',
+      ),
     ),
     GoRoute(
       path: RoutePaths.dashboard,

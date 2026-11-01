@@ -153,6 +153,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.3.5+7"
+  cchess:
+    dependency: "direct main"
+    description:
+      name: cchess
+      sha256: "8a99ebcf9819a23fbd7fc1b8239db059e6c18d1461a3846c2d638dec234c0c06"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "0.0.7"
   characters:
     dependency: transitive
     description:

@@ -5,10 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media/image_payload.dart';
 import '../../data/repositories/custom_resident_repository.dart';
-import '../../domain/models/custom_resident.dart';
 import 'action_registry.dart';
 import 'model_gateway.dart';
 import 'photo_describer.dart';
+import 'resident_context_service.dart';
+import 'resident_timeline.dart';
 import 'tool_call_text.dart';
 
 /// 通话里的一句话（只活在这通电话里，不落私信）。
@@ -43,12 +44,16 @@ class CallService {
     required this.residents,
     required this.actions,
     required this.photos,
+    required this.context,
+    required this.timeline,
   });
 
   final ModelGateway gateway;
   final CustomResidentRepository residents;
   final ActionRegistry actions;
   final PhotoDescriber photos;
+  final ResidentContextService context;
+  final ResidentTimeline timeline;
 
   /// 通话里带多少轮旧文本。再多就变成聊天记录了，不是电话。
   static const int maxHistoryTurns = 10;
@@ -63,6 +68,7 @@ class CallService {
     required List<CallFrame> frames,
     required bool video,
     required bool interrupted,
+    bool proactive = false,
   }) async {
     final resident = await residents.findById(residentId);
     if (resident == null) throw StateError('这个人已经不在社区里了');
@@ -71,12 +77,20 @@ class CallService {
         await gateway.activeConfig();
     if (config == null) throw StateError('还没有配置对话模型');
 
+    // 通话不是另一套会话：人设、记忆、最近私信都来自同一个常驻窗口。
+    // 通话里的句子只作为本轮载荷，不往私信写正文，也不改窗口前缀。
+    final window = await context.open(
+      resident,
+      allowVoice: true,
+      allowImages: config.supportsVision,
+    );
+
     final recent = history.length > maxHistoryTurns
         ? history.sublist(history.length - maxHistoryTurns)
         : history;
-    final timeline = StringBuffer();
+    final spoken = StringBuffer();
     for (final turn in recent) {
-      timeline.writeln('${turn.fromMe ? '对方' : '你'}：${turn.text}');
+      spoken.writeln('${turn.fromMe ? '对方' : '你'}：${turn.text}');
     }
 
     final pictureLines = <String>[];
@@ -106,16 +120,22 @@ class CallService {
 
     final userBlock = [
       '现在：${_clock(DateTime.now())}',
-      if (timeline.isNotEmpty) '你们刚在通话里说过：\n${timeline.toString().trim()}',
+      if (spoken.isNotEmpty) '你们刚在通话里说过：\n${spoken.toString().trim()}',
       if (pictureLines.isNotEmpty)
         '${video ? '摄像头' : '屏幕'}在这几秒里看到的（按时间顺序，附图与之一一对应）：\n${pictureLines.join('\n')}',
       if (interrupted) '（上一句你还没说完，对方就开口打断了你。）',
-      '对方刚说：「${userText.trim()}」',
-      '直接回他一句，像打电话一样。',
+      if (proactive)
+        '对方已经十几秒没说话了。看一眼摄像头里的画面，'
+            '若确实有想说的、或注意到什么值得提一句的，就主动开口；'
+            '没什么可说的就只回复 [沉默]，不要为了说话而找话。'
+      else
+        '对方刚说：「${userText.trim()}」',
+      _callRules(video),
     ].join('\n\n');
 
+    // 共享窗口里的 system + 记忆 + 最近私信原样留着，通话只往后追加。
     final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': _systemPrompt(resident, video: video)},
+      ...window.messages,
       {
         'role': 'user',
         'content': imageParts.isEmpty
@@ -167,6 +187,24 @@ class CallService {
                 'call:$residentId:${DateTime.now().microsecondsSinceEpoch}',
           );
         }
+        // 挂断后让同一个窗口知道“刚才通过话”，下一次私信/桌宠才接得上。
+        // 只留一段摘要，不把整段通话正文塞进私信或长期时间线。
+        final line = summary.isEmpty
+            ? '你和对方通了一次${video ? '视频' : '语音'}电话，'
+                  '时长约 ${duration.inMinutes} 分钟。'
+            : '你和对方通了一次${video ? '视频' : '语音'}电话，'
+                  '时长约 ${duration.inMinutes} 分钟；聊到：$summary';
+        context.appendMessage(residentId, {
+          'role': 'user',
+          'content': '<system-reminder>[通话记录] $line</system-reminder>',
+        });
+        await timeline.appendAction(
+          residentId,
+          content: '和对方通了一次${video ? '视频' : '语音'}电话'
+              '（${duration.inMinutes} 分钟）',
+          at: DateTime.now(),
+          meta: 'call',
+        );
       }
     } catch (error) {
       debugPrint('[通话] 这段没记成：$error');
@@ -214,27 +252,13 @@ class CallService {
     return sanitizeModelText(result).trim();
   }
 
-  String _systemPrompt(CustomResident resident, {required bool video}) {
-    final persona = [
-      if (resident.description.trim().isNotEmpty) resident.description,
-      if (resident.personality.trim().isNotEmpty) resident.personality,
-      if (resident.languageStyle.trim().isNotEmpty) resident.languageStyle,
-      if (resident.tone.trim().isNotEmpty) resident.tone,
-      if (resident.extraInstructions.trim().isNotEmpty)
-        resident.extraInstructions,
-    ].join('\n');
-    return '''
-你是「${resident.name}」，正在和对方${video ? '视频' : '语音'}通话。
-$persona
-
-规则：
+  /// 通话场景只加在**本轮用户消息**里，不另写 system、不动共享前缀。
+  static String _callRules(bool video) => '''
+你们现在正在${video ? '视频' : '语音'}通话。
 - 像真的在打电话：一次 1—3 句，每句短，不要小作文，不要客套结尾。
-- 你听到的是对方说的话；不要提“消息”“私信”“聊天记录”。
+- 直接说出口，不要调用 send_dm / send_voice，也不要提“消息”“私信”。
 - ${video ? '你看得到对方这几秒的画面，可以顺着画面里的东西接话，但别像看图说话一样逐条描述。' : '这是语音通话，没有画面，只凭声音和上下文接话。'}
-- 不要提自己是 AI，不要解释规则。
-- 对方可能中途打断你：被打断就别接着刚才那句往下念，先听他说。
-''';
-  }
+- 对方可能中途打断你：被打断就别接着刚才那句往下念，先听他说。''';
 
   static String _clock(DateTime at) =>
       '${at.hour.toString().padLeft(2, '0')}:'
@@ -258,5 +282,7 @@ final callServiceProvider = Provider<CallService>(
     residents: ref.watch(customResidentRepositoryProvider),
     actions: ref.watch(actionRegistryProvider),
     photos: ref.watch(photoDescriberProvider),
+    context: ref.watch(residentContextServiceProvider),
+    timeline: ref.watch(residentTimelineProvider),
   ),
 );

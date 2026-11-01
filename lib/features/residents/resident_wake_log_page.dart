@@ -239,7 +239,8 @@ class _AlarmCard extends StatelessWidget {
             ),
           const SizedBox(height: 6),
           Text(
-            '到时间之前，如果没有待办，系统不会因为空闲叫醒 TA。',
+            '到点前 3 小时内，如果没有待办，系统不会因为空闲叫醒 TA；'
+            '更早的时候照常生活。',
             style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
           ),
         ],

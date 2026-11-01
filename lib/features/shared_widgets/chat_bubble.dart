@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/message_time.dart';
 import '../../domain/services/voice_playback.dart';
+import '../games/game_invite_card.dart';
 import 'post_image.dart';
 import 'user_avatar.dart';
 
@@ -159,6 +160,9 @@ class ChatBubble extends StatelessWidget {
     required bool media,
     required bool isImage,
   }) {
+    if (mediaType == 'game_invite') {
+      return GameInviteCard(inviteId: content, fromMe: fromMe);
+    }
     if (mediaType == 'voice') {
       return _VoiceChip(voicePath: voicePath, transcript: transcript);
     }

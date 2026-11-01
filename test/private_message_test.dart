@@ -299,6 +299,20 @@ void main() {
     expect(last!.isAfter(DateTime.now()), isTrue);
   });
 
+  test('按 id 能找回图片私信，唤醒时才能把原图带给视觉模型', () async {
+    final id = await messages.send(
+      personaId: 'persona_001',
+      content: 'file:/tmp/photo.jpg',
+      mediaType: 'image',
+      caption: '桌上的咖啡',
+    );
+    final saved = await messages.findById(id);
+    expect(saved?.mediaType, 'image');
+    expect(saved?.content, 'file:/tmp/photo.jpg');
+    expect(saved?.caption, '桌上的咖啡');
+    expect(saved?.fromMe, isTrue);
+  });
+
   test('从来没聊过的人没有时间戳', () async {
     expect(await messages.lastAt('persona_002'), isNull);
   });

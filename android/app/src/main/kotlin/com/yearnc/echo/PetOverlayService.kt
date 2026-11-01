@@ -73,7 +73,13 @@ class PetOverlayService : Service() {
         var running: Boolean = false
             private set
 
+        /// 快速“开→退”时，ACTION_START 可能还排在启动队列里。
+        /// stop() 先把这个标记立起来，晚到的 START 只收尾、不再搭窗口。
+        @Volatile
+        private var stopRequested = false
+
         fun start(context: Context) {
+            stopRequested = false
             val intent = Intent(context, PetOverlayService::class.java)
                 .setAction(ACTION_START)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -84,9 +90,15 @@ class PetOverlayService : Service() {
         }
 
         fun stop(context: Context) {
+            // 先让 ACTION_STOP 做一次完整收尾；再直接 stopService 兜底。
+            // 快速“开→退”时，ACTION_START 可能还没真正建好窗口，
+            // 只靠 startService(ACTION_STOP) 会让服务在启动队列里活下来，
+            // 桌宠就留在屏幕上了。
+            stopRequested = true
             context.startService(
                 Intent(context, PetOverlayService::class.java).setAction(ACTION_STOP)
             )
+            context.stopService(Intent(context, PetOverlayService::class.java))
         }
 
         fun say(context: Context, text: String, requestId: String = "") {
@@ -253,6 +265,11 @@ class PetOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // stop() 已经把标记立起来：晚到的 START/SAY 只收尾，不重建窗口。
+        if (stopRequested && intent?.action != ACTION_STOP) {
+            stopSelfSafely()
+            return START_NOT_STICKY
+        }
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelfSafely()

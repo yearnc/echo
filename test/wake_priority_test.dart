@@ -80,7 +80,7 @@ void main() {
           'idle': null,
           'waiting': now.subtract(const Duration(minutes: 3)),
         },
-        upcomingAlarmIds: {'alarmed'},
+        quietResidentIds: {'alarmed'},
         idleGap: const Duration(minutes: 90),
         now: now,
       );
@@ -96,7 +96,7 @@ void main() {
         oldestPendingAt: {
           'alarmed': now.subtract(const Duration(minutes: 1)),
         },
-        upcomingAlarmIds: {'alarmed'},
+        quietResidentIds: {'alarmed'},
         idleGap: const Duration(minutes: 90),
         now: now,
       );

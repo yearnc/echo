@@ -11,6 +11,7 @@ import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
 import '../../domain/models/sticker.dart';
+import '../../domain/services/model_gateway.dart';
 import '../../domain/services/photo_describer.dart';
 import '../../domain/services/resident_activity_controller.dart';
 import '../../domain/services/resident_timeline.dart';
@@ -132,21 +133,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   /// 把图片/表情包的语义补进这条消息，再叫醒固定住民。
   ///
-  /// 记忆不再由页面写死：住民醒来后自己决定记什么。页面只负责把
-  /// “图里是什么”送到它面前。
+  /// 能看图的对话模型不需要文字描述：原图会进常驻上下文窗口。
+  /// 只有文字模型才走 `PhotoDescriber`，把描述写进 caption 兜底。
   Future<void> _enrichAndWake({
     required String messageId,
     required String content,
     required String mediaType,
   }) async {
     if (mediaType == 'image') {
-      final description = await ref
-          .read(photoDescriberProvider)
-          .describe(content);
-      if (description.isNotEmpty) {
-        await ref
-            .read(privateMessageRepositoryProvider)
-            .attachCaption(messageId, description);
+      try {
+        final resident = ref.read(customResidentByIdProvider(widget.personaId));
+        final gateway = ref.read(modelGatewayProvider);
+        final config = resident == null
+            ? null
+            : await gateway.configFor(configId: resident.modelConfigId) ??
+                  await gateway.activeConfig();
+        if (config == null || !config.supportsVision) {
+          final description = await ref
+              .read(photoDescriberProvider)
+              .describe(content);
+          if (description.isNotEmpty) {
+            await ref
+                .read(privateMessageRepositoryProvider)
+                .attachCaption(messageId, description);
+          }
+        }
+      } catch (error) {
+        // 描述只是兜底：它失败不能让“叫醒住民”也被跳过。
+        debugPrint('[图片] 描述兜底没走成：$error');
       }
     }
     if (!mounted) return;

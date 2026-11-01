@@ -24,6 +24,12 @@ class ResidentAlarmRepository {
   static const Duration minLead = Duration(minutes: 5);
   static const Duration maxLead = Duration(days: 30);
 
+  /// 闹钟到点前的免打扰窗口。
+  ///
+  /// 00:30 定 20:00 的闹钟，不应该让 TA 从 00:30 起一整天都不再主动醒；
+  /// 只在 17:00—20:00 这段里把空闲唤醒让给闹钟，17:00 之前照常生活。
+  static const Duration quietLead = Duration(hours: 3);
+
   Future<String> schedule({
     required String residentId,
     required DateTime fireAt,
@@ -67,8 +73,30 @@ class ResidentAlarmRepository {
     return list.isEmpty ? null : list.first;
   }
 
-  Future<bool> hasUpcoming(String residentId, {DateTime? now}) async =>
-      await next(residentId, now: now) != null;
+  /// 是否处在“下一次闹钟快到了”的免打扰窗口里。
+  ///
+  /// 只保护最近一个未响闹钟；还有很久的闹钟不影响日常空闲唤醒。
+  /// [next] 已经保证 `fireAt > now`，这里只比较距离。
+  Future<bool> inQuietWindow(
+    String residentId, {
+    DateTime? now,
+    Duration lead = quietLead,
+  }) async {
+    final at = now ?? DateTime.now();
+    final alarm = await next(residentId, now: at);
+    return isInQuietWindow(alarm?.fireAt, now: at, lead: lead);
+  }
+
+  /// 纯函数版本，方便单测。闹钟已经响了（或没有）就不算免打扰。
+  static bool isInQuietWindow(
+    DateTime? fireAt, {
+    required DateTime now,
+    Duration lead = quietLead,
+  }) {
+    if (fireAt == null) return false;
+    final left = fireAt.difference(now);
+    return left > Duration.zero && left <= lead;
+  }
 
   /// 所有到点、还没触发也没取消的闹钟（按时间先后）。
   Future<List<ResidentAlarm>> due({DateTime? now}) async {

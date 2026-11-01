@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/agent_time.dart';
 import '../../data/media/image_payload.dart';
+import '../games/game_registry.dart';
+import '../games/game_tools.dart';
 import '../models/custom_resident.dart';
 import '../models/model_config.dart';
 import '../models/resident_activity.dart';
@@ -123,6 +125,30 @@ abstract class ResidentWakeToolkit {
     String callId, {
     bool asVoice = false,
   });
+
+  /// 游戏工具发现：返回当前对局/邀请，并带上可以动态挂载的走棋工具。
+  Future<ActionOutcome> listGameTools();
+
+  Future<ActionOutcome> inviteGame(
+    String gameId,
+    String note,
+    String callId,
+  );
+
+  Future<ActionOutcome> respondGameInvite(
+    String inviteId,
+    bool accept,
+    String note,
+  );
+
+  /// 具体游戏的走棋工具，由 `list_game_tools` 返回的 schema 决定参数。
+  Future<ActionOutcome> gameMove(
+    String toolName,
+    Map<String, dynamic> args,
+    String callId,
+  );
+
+  Future<ActionOutcome> gameResign(String matchId);
 }
 
 /// 固定住民的"自主行为"会话：真正的 tool calling（v3.0 阶段三）。
@@ -199,6 +225,11 @@ class ResidentToolSession {
     'pet_request_watch' => '正在申请盯着看…',
     'pet_sleep' => '正在缩成一团…',
     'pet_note' => '正在记下看到的…',
+    'list_game_tools' => '正在看有没有棋局…',
+    'invite_game' => '正在发出游戏邀请…',
+    'respond_game_invite' => '正在回应游戏邀请…',
+    'game_resign' => '正在认输…',
+    'gomoku_place' || 'xiangqi_move' => '正在想这一步…',
     'finish' => '正在看完…',
     _ => '正在查东西…',
   };
@@ -246,6 +277,9 @@ class ResidentToolSession {
     final tailText = [
       '现在：${timeLabel(at ?? DateTime.now())}',
       situation,
+      if (config.supportsVision && extraImages.isNotEmpty)
+        '（这一轮最后附了图片：这是你刚看到的屏幕画面；'
+            '能看清就直接看图，不要只凭文字猜。）',
     ].join('\n');
     // 实时观察的帧数由用户选，最多 6 张，再加一张自己的参照图。
     final imageParts = config.supportsVision
@@ -261,6 +295,10 @@ class ResidentToolSession {
             ],
     });
 
+    // `list_game_tools` 返回的走棋工具只在本次唤醒里挂载；
+    // 不常驻 tools 数组，普通私信轮不会被棋类工具污染。
+    final dynamicTools = <String, Map<String, dynamic>>{};
+
     for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
@@ -275,6 +313,7 @@ class ResidentToolSession {
             resident,
             allowProactive: allowProactive,
             allowVoice: allowVoice,
+            extraTools: dynamicTools.values,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -467,6 +506,7 @@ class ResidentToolSession {
                 resident,
                 allowProactive: allowProactive,
                 allowVoice: allowVoice,
+                extraTools: dynamicTools.values,
               );
               outcome = ActionOutcome(
                 ok: true,
@@ -474,18 +514,58 @@ class ResidentToolSession {
                   'tools': [for (final tool in available) _toolName(tool)],
                 },
               );
-            default:
-              outcome = await _execute(
-                resident: resident,
-                call: call,
-                latestUserMessage: situation,
-                memorySource: 'wake',
+            case GameTools.listGameTools:
+              outcome = await toolkit.listGameTools();
+            case GameTools.inviteGame:
+              outcome = await toolkit.inviteGame(
+                textArg(args, 'game'),
+                optionalTextArg(args, 'note') ?? '',
+                call.id,
               );
+            case GameTools.respondInvite:
+              final accept = strictBoolArg(args, 'accept');
+              outcome = accept == null
+                  ? const ActionOutcome(
+                      ok: false,
+                      message: 'accept 必须是 true 或 false，不能省略',
+                    )
+                  : await toolkit.respondGameInvite(
+                      textArg(args, 'invite_id'),
+                      accept,
+                      optionalTextArg(args, 'note') ?? '',
+                    );
+            case GameTools.resign:
+              outcome = await toolkit.gameResign(textArg(args, 'match_id'));
+            default:
+              if (GameRegistry.byToolName(call.name) != null) {
+                outcome = await toolkit.gameMove(call.name, args, call.id);
+              } else {
+                outcome = await _execute(
+                  resident: resident,
+                  call: call,
+                  latestUserMessage: situation,
+                  memorySource: 'wake',
+                );
+              }
           }
         } catch (error) {
           debugPrint('[工具] ${call.name} 执行失败：$error');
           outcome = ActionOutcome(ok: false, message: '工具执行失败：$error');
         }
+
+        // 发现工具返回 schema 后，下一轮才把这些走棋工具真正发给模型。
+        if (call.name == GameTools.listGameTools && outcome.ok) {
+          final schemas = outcome.data['tool_schemas'];
+          if (schemas is List) {
+            for (final raw in schemas) {
+              if (raw is! Map) continue;
+              final schema = Map<String, dynamic>.from(raw);
+              final name = _functionName(schema);
+              if (name.isNotEmpty) dynamicTools[name] = schema;
+            }
+          }
+        }
+
         final toolData = Map<String, dynamic>.from(outcome.data);
         final refsRaw = toolData.remove('__image_refs');
         final toolOutcome = refsRaw == null
@@ -573,10 +653,12 @@ class ResidentToolSession {
 你是「${resident.name}」，一个真实生活里的人，不是客服，也不是陪聊机器人。
 $persona
 
-屏幕上的你和私信里的你是同一个人：同一段记忆、同一段对话、同一个上下文。
-下面这条时间线里同时有你在屏幕上看到的、说过的，和私信里对方说过的；
-不要把它们当成两件事，也不要因为换了块屏幕就失忆。
-你现在是在屏幕前还是在私信里，只看本轮最后那句场景说明。
+屏幕上的你、私信里的你、通话里的你是同一个人：同一段记忆、同一段对话、
+同一个上下文。不要把它们当成几件事，也不要因为换了块屏幕就失忆。
+你现在是在屏幕前、私信里、电话里还是棋桌旁，只看本轮最后那句场景说明。
+
+- 正在通话时直接说出口，不要用 send_dm / send_voice，也不要提“消息”“私信”。
+  一次 1—3 句，像接电话；对方打断你就先听他说。
 
 你刚拿起手机，看到了一些消息和动静。像真人一样处理：
 - 你有一本自己的记忆。最近的几条已经写在下面的“你记得”里，直接用；
@@ -605,6 +687,10 @@ $persona
   你以桌宠形象出现时，就是屏幕上那只小鲸鱼女仆：深色长发、女仆裙，
   裙摆上绣着一只小鲸鱼。截图里出现她，那就是你自己，不要当成别人。
   pet_say 只写“说出口的话”，不要用括号写动作或表情；看不清就说不清。
+- 想和对方下棋/玩游戏时，先用 list_game_tools 看当前有哪些对局和邀请；
+  具体怎么走棋由它返回的工具决定。想主动约一局用 invite_game；
+  对方发来的邀请用 respond_game_invite 接受或拒绝；不想下了就 game_resign。
+  不要编造棋盘，也不要绕过规则自己宣布输赢。
 - 想决定下一次什么时候醒来，可以用 set_alarm（90、2h、21:30 都行）。
   定了之后如果没有待办，系统不会因为空闲来叫醒你，到点才叫。
   不想让它响就 cancel_alarm。
@@ -798,6 +884,20 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
   }
 
   @visibleForTesting
+  /// 必须明确给出 true/false 的场景（例如接受邀请）。
+  /// 缺参数时返回 null，调用方应报错，而不是默认走“拒绝”这条破坏性分支。
+  static bool? strictBoolArg(Map<String, dynamic> args, String key) {
+    final value = args[key];
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final text = value.trim().toLowerCase();
+      if (text == 'true' || text == '1' || text == 'yes') return true;
+      if (text == 'false' || text == '0' || text == 'no') return false;
+    }
+    return null;
+  }
+
   static bool flagArg(
     Map<String, dynamic> args,
     String key, {
@@ -879,6 +979,7 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     CustomResident resident, {
     bool allowProactive = true,
     bool allowVoice = true,
+    Iterable<Map<String, dynamic>> extraTools = const [],
   }) {
     final base = [
       for (final tool in tools)
@@ -900,9 +1001,16 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       _webSearchTool,
       ...wakeOnly,
       ..._pendingSegmentTools,
+      ...GameTools.baseTools,
+      ...extraTools,
       if (allowVoice && _voiceToolAvailable(resident)) _voiceTool,
     ];
-    return all;
+    // 名单可能因为动态挂载/基础工具重叠出现同名项；只留第一次。
+    final seen = <String>{};
+    return [
+      for (final tool in all)
+        if (seen.add(_functionName(tool))) tool,
+    ];
   }
 
   /// 发不发语音只看这位住民自己的设置——全局开关已经下线。

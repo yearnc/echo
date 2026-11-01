@@ -27,17 +27,20 @@ import '../models/private_message.dart';
 import '../models/resident_inbox.dart';
 import '../models/resident_wake_log.dart';
 import 'action_registry.dart';
+import 'call_registry.dart';
 import 'comment_reply_service.dart';
 import 'dm_voice_service.dart';
+import 'game_service.dart';
+import 'game_session_registry.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'photo_describer.dart';
 import 'resident_activity_controller.dart';
-import 'resident_context_window.dart';
+import 'resident_context_service.dart';
 import 'resident_timeline.dart';
+import 'resident_tool_session.dart';
 import 'tool_call_text.dart';
 import 'tts_service.dart';
-import 'resident_tool_session.dart';
 
 /// 一轮醒来还没结束，又到了下一次触发：合并到下一轮，不丢。
 class _PendingWake {
@@ -92,6 +95,8 @@ class ResidentWakeService {
     required this.commentReplies,
     required this.wakeLogs,
     required this.alarms,
+    required this.context,
+    required this.games,
     this.pet,
     this.petSettings,
     this.photos,
@@ -120,6 +125,12 @@ class ResidentWakeService {
 
   /// 住民给自己定的闹钟（v4.0）。
   final ResidentAlarmRepository alarms;
+
+  /// 唯一上下文窗口的持有者（v4.8）：唤醒、通话、游戏共用。
+  final ResidentContextService context;
+
+  /// 小游戏（v4.8）：对局、邀请、动态走棋工具。
+  final GameService games;
 
   /// 桌宠通道（v4.0）。没有原生插件（桌面预览 / 测试）时为空。
   final PetNative? pet;
@@ -156,34 +167,19 @@ class ResidentWakeService {
   /// 桌宠刚刚用气泡说过的话。观察循环取走后，会进入这一段时间的上下文。
   final Map<String, String> _petSaid = {};
 
-  /// 常驻上下文窗口（v4.7）：私信与桌宠共用，30 分钟滑动续期。
-  /// 窗口里只有 system + 记忆 + 私信；本轮载荷（画面、场景、工具）用完即弃。
-  final Map<String, ResidentContextWindow> _windows = {};
-
   /// 这一轮看到的画面摘要，气泡要带上“当时看到什么”，否则进私信答不上来。
   final Map<String, String> _petNoteNow = {};
 
   /// 窗口作废：删私信、清空上下文、改人设时调用。
-  void invalidateWindow(String residentId) => _windows.remove(residentId);
+  void invalidateWindow(String residentId) => context.invalidate(residentId);
 
   /// 往活跃窗口里追加一条气泡（assistant 侧）。
-  ///
-  /// 气泡不是私信，不落 `private_messages`，但它是住民说过的话；
-  /// 不追加的话，它进私信就否认自己说过。看过的画面只留一句摘要。
   void appendBubbleToWindow(
     String residentId,
     String text, {
     String seen = '',
   }) {
-    final window = _windows[residentId];
-    if (window == null || window.expired(DateTime.now())) return;
-    final note = seen.trim();
-    window.messages.add({
-      'role': 'assistant',
-      'content': note.isEmpty
-          ? '[屏幕气泡] $text'
-          : '[屏幕气泡] $text\n（当时看到：${_clip(note, 60)}）',
-    });
+    context.appendBubbleToWindow(residentId, text, seen: seen);
   }
 
   String? takePetSaid(String residentId) => _petSaid.remove(residentId);
@@ -261,7 +257,7 @@ class ResidentWakeService {
     // 在后台永远轮不到（只有用户打开 APP 才会被 wakeAll 叫醒）。
     final oldestPendingAt = <String, DateTime?>{};
     final lastWakeAt = <String, DateTime?>{};
-    final hasAlarm = <String>{};
+    final quietResidents = <String>{};
     for (final resident in pool) {
       await inbox.sync(resident.id);
       final pending = await inbox.pending(resident.id);
@@ -269,14 +265,16 @@ class ResidentWakeService {
           ? null
           : pending.first.createdAt;
       lastWakeAt[resident.id] = await _idleAt(resident.id);
-      if (await alarms.hasUpcoming(resident.id)) hasAlarm.add(resident.id);
+      if (await alarms.inQuietWindow(resident.id)) {
+        quietResidents.add(resident.id);
+      }
     }
 
     final order = backgroundOrder(
       ids: [for (final resident in pool) resident.id],
       lastWakeAt: lastWakeAt,
       oldestPendingAt: oldestPendingAt,
-      upcomingAlarmIds: hasAlarm,
+      quietResidentIds: quietResidents,
       idleGap: idleGap,
       now: DateTime.now(),
     );
@@ -295,7 +293,7 @@ class ResidentWakeService {
     required List<String> ids,
     required Map<String, DateTime?> lastWakeAt,
     required Map<String, DateTime?> oldestPendingAt,
-    Set<String> upcomingAlarmIds = const {},
+    Set<String> quietResidentIds = const {},
     required Duration idleGap,
     required DateTime now,
   }) {
@@ -305,8 +303,9 @@ class ResidentWakeService {
         candidates.add(id);
         continue;
       }
-      // 定了闹钟的人由闹钟叫醒；没有待办时后台不要抢在闹钟前面叫它。
-      if (upcomingAlarmIds.contains(id)) continue;
+      // 闹钟快到了的人由闹钟叫醒；没有待办时后台不要抢在闹钟前面叫它。
+      // 只是定了一个很久以后的闹钟，不该因此整天不被叫醒。
+      if (quietResidentIds.contains(id)) continue;
       final last = lastWakeAt[id];
       if (last == null || now.difference(last) >= idleGap) {
         candidates.add(id);
@@ -355,9 +354,10 @@ class ResidentWakeService {
   }
 
   Future<bool> _idleDue(String residentId) async {
-    // 有未到点的闹钟时，空闲唤醒让位给闹钟：与其 1.5 小时戳它一次，
-    // 不如让它睡到自己定下的时间。有待办的路径走不到这里，不受影响。
-    if (await alarms.hasUpcoming(residentId)) return false;
+    // 只在闹钟快到的免打扰窗口里让位：与其在最后 3 小时里戳它一次，
+    // 不如让它睡到闹钟；但 20:00 的闹钟不会让 00:30 起一整天都不再醒。
+    // 有待办的路径走不到这里，不受影响。
+    if (await alarms.inQuietWindow(residentId)) return false;
     final idleAt = await _idleAt(residentId);
     return idleAt == null || DateTime.now().difference(idleAt) >= idleGap;
   }
@@ -448,6 +448,17 @@ class ResidentWakeService {
     final resident = await residents.findById(residentId);
     if (resident == null) return 0;
 
+    // 通话期间不再让心跳/后台/桌宠顺手叫醒同一个人：
+    // 他正在电话里，空闲触发只会来抢同一段上下文。用户主动发消息和
+    // 闹钟仍然放行，不能被一刀切吞掉。
+    if ((CallRegistry.isActive(residentId) ||
+            GameSessionRegistry.isActiveResident(residentId)) &&
+        (trigger == WakeTrigger.heartbeat ||
+            trigger == WakeTrigger.background ||
+            trigger == WakeTrigger.pet)) {
+      return 0;
+    }
+
     // 先把已经出现的私信补进唯一时间线；无论这一轮是屏幕还是私信，
     // 接下来读到的都是同一条上下文。
     await timeline.syncMessages(residentId);
@@ -485,9 +496,10 @@ class ResidentWakeService {
     await timeline.compactIfNeeded(residentId: residentId, config: config);
     // 模型看到的是常驻窗口：system + 5 条记忆 + 最近 20 条私信，
     // 半小时内只追加不重建；窗口里没有屏幕帧和工具调用。
-    final window = await _openWindow(
+    final window = await context.open(
       resident,
       allowVoice: trigger != WakeTrigger.background,
+      allowImages: config.supportsVision,
     );
     final history = window.messages;
     _petNoteNow[residentId] = pet?.note ?? '';
@@ -532,6 +544,7 @@ class ResidentWakeService {
     // 不按条数截断：积攒的评论该回就回；真的处理不完的留在收件箱，
     // 下次醒来继续。上下文由高水位摘要兜底，不靠“只给 20 条”省 token。
     final visible = List<ResidentInboxItem>.of(pending);
+
     // 上一轮写好、还没发出去的段：用户中途又说话时它们已经被取消了，
     // 这里把原话交给住民，由它决定照发、改写还是算了。
     final unsent = await messages.pendingSegments(residentId);
@@ -643,62 +656,6 @@ class ResidentWakeService {
     WakeTrigger.alarm => 'alarm',
     WakeTrigger.pet => 'pet',
   };
-
-  /// 取这位住民的常驻窗口。
-  ///
-  /// 没过期、人设没变 → 只把新私信追加到末尾；
-  /// 过期 / 人设变了 → 按「最近 20 条私信 + 5 条记忆」重建。
-  /// 每次用过都续期半小时，窗口存在期间不再回头重写前缀。
-  Future<ResidentContextWindow> _openWindow(
-    CustomResident resident, {
-    required bool allowVoice,
-  }) async {
-    final now = DateTime.now();
-    final system = session.systemPromptFor(resident, voiceReady: allowVoice);
-    final hash = system.hashCode.toString();
-    var window = _windows[resident.id];
-    if (window != null && (window.expired(now) || window.promptHash != hash)) {
-      window = null;
-    }
-    if (window == null) {
-      final memory = (await session.memoryLinesFor(resident)).trim();
-      final recent = await messages.recentTurns(
-        resident.id,
-        limit: ResidentContextWindow.baseDmCount,
-      );
-      window = ResidentContextWindow(
-        residentId: resident.id,
-        promptHash: hash,
-        messages: [
-          {
-            'role': 'system',
-            'content': memory.isEmpty ? system : '$system\n\n你记得：$memory',
-          },
-        ],
-        syncedThroughMs: 0,
-        dmIds: {},
-        now: now,
-      );
-      for (final turn in recent) {
-        window.appendDm(turn);
-      }
-      _windows[resident.id] = window;
-      debugPrint('[上下文] ${resident.name}：新建窗口（${recent.length} 条私信）');
-    } else {
-      final fresh = await messages.turnsSince(
-        resident.id,
-        afterMs: window.syncedThroughMs,
-      );
-      for (final turn in fresh) {
-        window.appendDm(turn);
-      }
-      if (fresh.isNotEmpty) {
-        debugPrint('[上下文] ${resident.name}：追加入窗口 ${fresh.length} 条');
-      }
-    }
-    window.touch(now);
-    return window;
-  }
 
   String _situation(
     CustomResident resident,
@@ -1745,6 +1702,50 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
+  Future<ActionOutcome> listGameTools() => service.games.listGameTools(resident.id);
+
+  @override
+  Future<ActionOutcome> inviteGame(
+    String gameId,
+    String note,
+    String callId,
+  ) => service.games.inviteFromResident(
+    residentId: resident.id,
+    gameId: gameId.trim(),
+    note: note,
+  );
+
+  @override
+  Future<ActionOutcome> respondGameInvite(
+    String inviteId,
+    bool accept,
+    String note,
+  ) => service.games.respondInvite(
+    residentId: resident.id,
+    inviteId: inviteId.trim(),
+    accept: accept,
+    note: note,
+  );
+
+  @override
+  Future<ActionOutcome> gameMove(
+    String toolName,
+    Map<String, dynamic> args,
+    String callId,
+  ) => service.games.executeMoveTool(
+    residentId: resident.id,
+    toolName: toolName,
+    args: args,
+  );
+
+  @override
+  Future<ActionOutcome> gameResign(String matchId) =>
+      service.games.resignTool(
+        residentId: resident.id,
+        matchId: matchId.trim(),
+      );
+
+  @override
   Future<ActionOutcome> listAlarms() async {
     final list = await service.alarms.pending(resident.id);
     return ActionOutcome(
@@ -2052,6 +2053,8 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     commentReplies: ref.watch(commentReplyServiceProvider),
     wakeLogs: ref.watch(residentWakeLogRepositoryProvider),
     alarms: ref.watch(residentAlarmRepositoryProvider),
+    context: ref.watch(residentContextServiceProvider),
+    games: ref.watch(gameServiceProvider),
     pet: ref.watch(petNativeProvider),
     petSettings: ref.watch(petSettingsRepositoryProvider),
     photos: ref.watch(photoDescriberProvider),

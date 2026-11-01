@@ -10,6 +10,7 @@ import 'tables/ai_tables.dart';
 import 'tables/clear_tables.dart';
 import 'tables/content_tables.dart';
 import 'tables/context_tables.dart';
+import 'tables/game_tables.dart';
 import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
 import 'tables/model_tables.dart';
@@ -65,6 +66,10 @@ part 'app_database.g.dart';
     UsageSessions,
     ResidentContextEvents,
     ModelUsageDaily,
+    GameInvites,
+    GameMatches,
+    GameMoves,
+    GameMessages,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -74,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 48;
+  int get schemaVersion => 49;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -959,6 +964,44 @@ class AppDatabase extends _$AppDatabase {
         if (!await hasTable('model_usage_daily')) {
           await m.createTable(modelUsageDaily);
         }
+      }
+      if (from < 49) {
+        // v49：小游戏。邀请、对局、落子三张表；棋盘按各游戏自己的格式
+        // 存字符串，以后加新游戏不需要再改表。
+        if (!await hasTable('game_invites')) {
+          await m.createTable(gameInvites);
+        }
+        if (!await hasTable('game_matches')) {
+          await m.createTable(gameMatches);
+        }
+        if (!await hasTable('game_moves')) {
+          await m.createTable(gameMoves);
+        }
+        if (!await hasTable('game_messages')) {
+          await m.createTable(gameMessages);
+        }
+        // createTable 不会替 @TableIndex 建索引；老库升级时手动补，
+        // 新库用 createAll 时已经有了，所以 IF NOT EXISTS。
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS game_invites_resident '
+          'ON game_invites (resident_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS game_matches_resident '
+          'ON game_matches (resident_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS game_matches_status '
+          'ON game_matches (status)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS game_moves_match '
+          'ON game_moves (match_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS game_messages_match '
+          'ON game_messages (match_id)',
+        );
       }
     },
   );

@@ -10,6 +10,8 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/db/app_database.dart';
+import '../../data/db/database_provider.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/custom_resident.dart';
@@ -50,17 +52,32 @@ class _CallPageState extends ConsumerState<CallPage> {
   final List<CallFrame> _frames = [];
   final List<CallTurn> _turns = [];
 
+  /// 主动开口开关存在 app_settings，下次通话沿用上次选择。
+  static const String _proactiveKey = 'call.proactive';
+
+  /// 用户沉默多久后允许 TA 主动开口。
+  static const Duration _proactiveAfter = Duration(seconds: 15);
+
+  /// 两次主动开口之间至少隔多久，别变成碎碎念。
+  static const Duration _proactiveGap = Duration(seconds: 60);
+
   Timer? _clockTicker;
   Timer? _recordTicker;
+  Timer? _proactiveTicker;
   bool _recording = false;
   bool _busy = false;
   bool _ending = false;
   int _recordSeconds = 0;
   bool _voiceReply = true;
+  bool _proactive = false;
   String _lastReply = '';
+  String _busyText = '正在接住你说的话…';
   bool _speaking = false;
   int _speakToken = 0;
   bool _interrupted = false;
+  DateTime _lastUserAt = DateTime.now();
+  DateTime? _lastProactiveAt;
+  DateTime? _lastObservedAt;
 
   @override
   void initState() {
@@ -69,7 +86,106 @@ class _CallPageState extends ConsumerState<CallPage> {
     _clockTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
-    if (widget.video) unawaited(_initCamera());
+    if (widget.video) {
+      unawaited(_initCamera());
+      unawaited(_loadProactiveSetting());
+      // 5 秒看一次条件，真正开口由沉默 15 秒 + 间隔 60 秒共同决定。
+      _proactiveTicker = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => unawaited(_maybeProactive()),
+      );
+    }
+  }
+
+  Future<void> _loadProactiveSetting() async {
+    try {
+      final db = ref.read(databaseProvider);
+      final row = await (db.select(db.appSettings)
+            ..where((t) => t.key.equals(_proactiveKey)))
+          .getSingleOrNull();
+      if (!mounted) return;
+      setState(() => _proactive = row?.value == '1');
+    } catch (error) {
+      debugPrint('[通话] 主动开口设置没读到：$error');
+    }
+  }
+
+  Future<void> _setProactive(bool value) async {
+    setState(() => _proactive = value);
+    if (value) {
+      _lastUserAt = DateTime.now();
+      _toast('开启后会隔一阵看一眼画面，可能主动说一句；这会持续消耗模型额度');
+    }
+    try {
+      final db = ref.read(databaseProvider);
+      await db.into(db.appSettings).insertOnConflictUpdate(
+        AppSettingsCompanion.insert(
+          key: _proactiveKey,
+          value: value ? '1' : '0',
+        ),
+      );
+    } catch (error) {
+      debugPrint('[通话] 主动开口设置没存上：$error');
+    }
+  }
+
+  /// 实时观察：用户安静了一会儿才允许主动开口，而且两次之间要隔开。
+  /// 画面仍然只活在这通电话里，不写库、不进时间线。
+  Future<void> _maybeProactive() async {
+    if (!mounted ||
+        !widget.video ||
+        !_proactive ||
+        _busy ||
+        _recording ||
+        _speaking ||
+        _ending) {
+      return;
+    }
+    final now = DateTime.now();
+    if (now.difference(_lastUserAt) < _proactiveAfter) return;
+    final last = _lastProactiveAt;
+    if (last != null && now.difference(last) < _proactiveGap) return;
+    if (_frames.isEmpty) return;
+
+    setState(() {
+      _busy = true;
+      _busyText = 'TA 正在看一眼画面…';
+    });
+    try {
+      final reply = await ref
+          .read(callServiceProvider)
+          .reply(
+            residentId: widget.personaId,
+            userText: '',
+            history: List<CallTurn>.of(_turns),
+            frames: List<CallFrame>.of(_frames),
+            video: true,
+            interrupted: false,
+            proactive: true,
+          );
+      _lastObservedAt = now;
+      if (_isSilent(reply)) return;
+      _turns.add(CallTurn(fromMe: false, text: reply, at: DateTime.now()));
+      if (!mounted) return;
+      setState(() => _lastReply = reply);
+      if (_voiceReply) unawaited(_speak(reply));
+    } catch (error) {
+      debugPrint('[通话] 这次主动开口没成：$error');
+    } finally {
+      _lastProactiveAt = now;
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  static bool _isSilent(String text) {
+    final clean = text
+        .replaceAll(RegExp(r'[\s。，、！？!?.,~～]'), '')
+        .replaceAll('（沉默）', '')
+        .replaceAll('(沉默)', '');
+    return clean.isEmpty ||
+        clean == '沉默' ||
+        clean == '[沉默]' ||
+        clean == '【沉默】';
   }
 
   @override
@@ -77,6 +193,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     CallRegistry.end(widget.personaId);
     _clockTicker?.cancel();
     _recordTicker?.cancel();
+    _proactiveTicker?.cancel();
     unawaited(_recorder.dispose());
     unawaited(_camera?.stopImageStream());
     unawaited(_camera?.dispose());
@@ -235,7 +352,10 @@ class _CallPageState extends ConsumerState<CallPage> {
       return;
     }
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _busyText = '正在接住你说的话…';
+    });
     try {
       final result = await ref
           .read(asrServiceProvider)
@@ -257,6 +377,7 @@ class _CallPageState extends ConsumerState<CallPage> {
             interrupted: interrupted,
           );
       final now = DateTime.now();
+      _lastUserAt = now;
       _turns
         ..add(CallTurn(fromMe: true, text: result.text, at: now))
         ..add(CallTurn(fromMe: false, text: reply, at: DateTime.now()));
@@ -441,7 +562,35 @@ class _CallPageState extends ConsumerState<CallPage> {
             fontSize: 12.5,
           ),
         ),
-        const SizedBox(height: 16),
+        if (widget.video)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '主动开口',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.62),
+                  fontSize: 12,
+                ),
+              ),
+              Switch.adaptive(
+                value: _proactive,
+                activeThumbColor: EchoColors.primary,
+                onChanged: (value) => unawaited(_setProactive(value)),
+              ),
+            ],
+          ),
+        if (widget.video && _proactive)
+          Text(
+            _lastObservedAt == null
+                ? '已开启实时观察，安静一会儿 TA 可能会先开口'
+                : '上次看画面：${_shortClock(_lastObservedAt!)}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontSize: 10.5,
+            ),
+          ),
+        const SizedBox(height: 12),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 34),
@@ -469,7 +618,7 @@ class _CallPageState extends ConsumerState<CallPage> {
                   if (_busy) ...[
                     const SizedBox(height: 18),
                     Text(
-                      '正在接住你说的话…',
+                      _busyText,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.55),
                         fontSize: 12.5,
@@ -570,6 +719,11 @@ class _CallPageState extends ConsumerState<CallPage> {
       ],
     );
   }
+
+  static String _shortClock(DateTime at) =>
+      '${at.hour.toString().padLeft(2, '0')}:'
+      '${at.minute.toString().padLeft(2, '0')}:'
+      '${at.second.toString().padLeft(2, '0')}';
 
   static String _clock(Duration span) {
     final mm = span.inMinutes.remainder(60).toString().padLeft(2, '0');

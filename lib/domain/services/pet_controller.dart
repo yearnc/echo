@@ -161,6 +161,27 @@ class PetController extends Notifier<PetRuntimeState> {
     }
   }
 
+  /// 小游戏专用：只把桌宠显示出来，不申请屏幕录制、不启动观察。
+  ///
+  /// 对局里住民只借它冒气泡，不需要看屏幕；退出对局时页面会调 [disable]。
+  /// 没有悬浮窗权限就安静地返回失败，不把系统授权框硬塞给用户。
+  Future<PetActionResult> enableForGame() async {
+    if (state.busy) return const PetActionResult(false, '正在处理');
+    try {
+      if (!await _native.hasOverlayPermission()) {
+        return const PetActionResult(false, '还没有悬浮窗权限');
+      }
+      final started = await _native.startPet();
+      if (!started) return const PetActionResult(false, '桌宠没起来');
+      await _settings.setEnabled(true);
+      state = state.copyWith(enabled: true);
+      return const PetActionResult(true, '桌宠出来啦');
+    } catch (error) {
+      debugPrint('[桌宠] 对局里开启失败：$error');
+      return PetActionResult(false, '没开起来：$error');
+    }
+  }
+
   /// 关掉桌宠。实时模式先总结、写记忆成功后才清截图。
   Future<PetActionResult> disable() async {
     if (state.busy) return const PetActionResult(false, '正在处理');
@@ -174,14 +195,51 @@ class PetController extends Notifier<PetRuntimeState> {
         }
         await _settings.setRealtime(false);
       }
-      await _observe.purge();
+      // 先把原生窗口/截屏停掉，再清本地日志；清理失败也不能把桌宠
+      // 留在屏幕上。
       await _native.stopWatch();
       await _native.stopPet();
       await _settings.setEnabled(false);
+      try {
+        await _observe.purge();
+      } catch (error) {
+        debugPrint('[桌宠] 关闭时清理日志失败：$error');
+      }
       await refresh();
       return const PetActionResult(true, '桌宠回去休息了');
     } catch (error) {
       debugPrint('[桌宠] 关闭失败：$error');
+      state = state.copyWith(busy: false, error: '$error');
+      return PetActionResult(false, '没停下来：$error');
+    }
+  }
+
+  /// 对局页专用的强制收尾：不管 busy/实时总结，先把原生桌宠停掉。
+  ///
+  /// 自动开出来的桌宠必须在离开棋盘时消失；清理记忆/日志失败可以晚点补，
+  /// 但不能因为 `purge()` 抛错或 `finishRealtime()` 失败就把它留在屏幕上。
+  Future<PetActionResult> forceDisableForGame() async {
+    state = state.copyWith(busy: true, error: '');
+    try {
+      await _native.stopWatch();
+      await _native.stopPet();
+      await _settings.setEnabled(false);
+      await _settings.setRealtime(false);
+      try {
+        await _observe.purge();
+      } catch (error) {
+        debugPrint('[桌宠] 对局收尾清理没做完：$error');
+      }
+      state = state.copyWith(
+        busy: false,
+        enabled: false,
+        realtime: false,
+        captureRunning: false,
+        clearController: true,
+      );
+      return const PetActionResult(true, '桌宠回去休息了');
+    } catch (error) {
+      debugPrint('[桌宠] 对局收尾失败：$error');
       state = state.copyWith(busy: false, error: '$error');
       return PetActionResult(false, '没停下来：$error');
     }

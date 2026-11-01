@@ -121,12 +121,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (mounted) context.push(RoutePaths.tutorial);
   }
 
-  /// 回响模式导航：首页 / 发布 / 消息 / 通知 / 我的（规划书 §5.1）。
+  /// 回响模式导航：首页 / 游戏 / 消息 / 通知 / 我的。
   ///
-  /// 「消息」是 B5 加进来的——住民真的会私信你了，它才有存在的理由。
+  /// v4.8 起游戏页接手「发布」的 tab；发布入口挪到首页右上角。
+  /// 清醒模式仍然保留自己的发布/记录节奏，不把游戏带进去。
   static const List<_NavItem> _echoTabs = [
     _NavItem('/feed', Icons.auto_awesome_outlined, Icons.auto_awesome, '首页'),
-    _NavItem('/compose', Icons.add_box_outlined, Icons.add_box, '发布'),
+    _NavItem('/games', Icons.casino_outlined, Icons.casino, '游戏'),
     _NavItem('/messages', Icons.chat_bubble_outline, Icons.chat_bubble, '消息'),
     _NavItem(
       '/notifications',

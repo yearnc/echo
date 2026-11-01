@@ -421,21 +421,23 @@ class ActionRegistry {
           return const ActionOutcome(ok: true, message: '这件事已经记过了');
         }
         final now = DateTime.now();
-        await memories.add(
-          ResidentMemory(
-            id: ResidentMemoryRepository.newId(),
-            residentId: residentId,
-            source: source,
-            sourceId: sourceId,
-            summary: text,
-            content: content.trim().isEmpty ? text : content.trim(),
-            tags: tags,
-            createdAt: now,
-            updatedAt: now,
-          ),
-          limit: resident.memoryLimit,
+        final memory = ResidentMemory(
+          id: ResidentMemoryRepository.newId(),
+          residentId: residentId,
+          source: source,
+          sourceId: sourceId,
+          summary: text,
+          content: content.trim().isEmpty ? text : content.trim(),
+          tags: tags,
+          createdAt: now,
+          updatedAt: now,
         );
-        return const ActionOutcome(ok: true, message: '记住了');
+        await memories.add(memory, limit: resident.memoryLimit);
+        return ActionOutcome(
+          ok: true,
+          message: '记住了',
+          data: {'memory_id': memory.id},
+        );
       },
     );
   }

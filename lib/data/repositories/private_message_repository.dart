@@ -480,6 +480,15 @@ class PrivateMessageRepository {
   }
 
   /// 和某个人的最近几句，按时间正序（拼私信提示词用）。
+  /// 按 id 取一条私信。唤醒时用它把待办里的 image ref 找回来，
+  /// 能看图的模型就能直接看到原图，而不只是读一句描述。
+  Future<PrivateMessage?> findById(String id) async {
+    final row = await (_db.select(_db.privateMessages)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    return row == null ? null : _toMessage(row);
+  }
+
   Future<List<PrivateMessage>> recentTurns(
     String personaId, {
     int limit = 6,
@@ -633,6 +642,7 @@ class PrivateMessageRepository {
       'sticker' => '[表情包]',
       'voice' => '[语音]',
       'image' => '[图片]',
+      'game_invite' => '[游戏邀请]',
       _ => content,
     };
   }

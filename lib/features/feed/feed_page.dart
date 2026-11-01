@@ -157,13 +157,13 @@ class _PlazaHeader extends StatelessWidget {
             size: 21,
           ),
         ),
-        // 热榜入口（B6）：今天大家都在看什么
+        // 发布入口：原来在底部 tab，游戏页接手后挪到首页右上角。
         IconButton(
-          onPressed: () => context.push(RoutePaths.trending),
-          tooltip: '今天的热榜',
+          onPressed: () => context.push(RoutePaths.compose),
+          tooltip: '发布',
           icon: Icon(
-            Icons.local_fire_department_outlined,
-            color: EchoColors.hot,
+            Icons.add_box_outlined,
+            color: EchoColors.primary,
             size: 23,
           ),
         ),

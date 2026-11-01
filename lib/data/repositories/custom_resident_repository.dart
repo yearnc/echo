@@ -109,6 +109,26 @@ class CustomResidentRepository {
       _db.residentAlarms,
     )..where((t) => t.residentId.equals(id))).go();
 
+    // 游戏：未处理的邀请取消，进行中的对局作废；历史局和落子保留可回看。
+    await (_db.update(_db.gameInvites)..where(
+          (t) => t.residentId.equals(id) & t.status.equals('pending'),
+        ))
+        .write(
+          GameInvitesCompanion(
+            status: const Value('cancelled'),
+            resolvedAt: Value(now),
+          ),
+        );
+    await (_db.update(_db.gameMatches)..where(
+          (t) => t.residentId.equals(id) & t.status.equals('active'),
+        ))
+        .write(
+          GameMatchesCompanion(
+            status: const Value('abandoned'),
+            updatedAt: Value(now),
+          ),
+        );
+
     return affected;
   }
 

@@ -1,4 +1,5 @@
 import '../../core/utils/agent_time.dart';
+import '../../data/media/image_payload.dart';
 import '../models/private_message.dart';
 
 /// 一位住民的常驻上下文窗口（v4.7）。
@@ -18,6 +19,7 @@ class ResidentContextWindow {
     required this.messages,
     required this.syncedThroughMs,
     required this.dmIds,
+    this.includeImages = false,
     required DateTime now,
   }) : expiresAt = now.add(ttl);
 
@@ -41,32 +43,64 @@ class ResidentContextWindow {
   /// 已在窗口里的私信 id：同一毫秒的重复查询靠它幂等。
   final Set<String> dmIds;
 
+  /// 模型能看图时，图片私信以原图内容块进窗口；不能看图时只留文字行。
+  /// 这个开关进 promptHash，配置变了会重建窗口，不会混用。
+  final bool includeImages;
+
   DateTime expiresAt;
 
   bool expired(DateTime now) => !now.isBefore(expiresAt);
 
   void touch(DateTime now) => expiresAt = now.add(ttl);
 
-  void appendDm(PrivateMessage message) {
+  Future<void> appendDm(PrivateMessage message) async {
     if (!dmIds.add(message.id)) return;
-    messages.add(dmMessage(message));
+    messages.add(await dmMessage(message, includeImages: includeImages));
     final at = message.createdAt.millisecondsSinceEpoch;
     if (at > syncedThroughMs) syncedThroughMs = at;
   }
 
-  static Map<String, dynamic> dmMessage(PrivateMessage message) => {
-    'role': message.fromMe ? 'user' : 'assistant',
-    'content': dmLine(message),
-  };
+  /// 图片私信不再只塞一句文字描述：能看图的模型直接把原图放进消息内容。
+  /// 前缀里的图片位置固定，后续只追加新私信，服务端缓存才命得中。
+  static Future<Map<String, dynamic>> dmMessage(
+    PrivateMessage message, {
+    bool includeImages = false,
+  }) async {
+    final text = dmLine(
+      message,
+      imageDescription: !(includeImages && message.mediaType == 'image'),
+    );
+    if (includeImages &&
+        message.mediaType == 'image' &&
+        message.content.trim().isNotEmpty) {
+      final part = await ImagePayload.partFromRef(message.content);
+      if (part != null) {
+        return {
+          'role': message.fromMe ? 'user' : 'assistant',
+          'content': [
+            {'type': 'text', 'text': text},
+            part,
+          ],
+        };
+      }
+    }
+    return {
+      'role': message.fromMe ? 'user' : 'assistant',
+      'content': text,
+    };
+  }
 
   /// 时间线是住民视角：用户发来的标“对方”，住民自己发的不加人称——
   /// role 已经说明是谁说的话。以前写成“你：…”，模型会把整行当成
   /// 说话格式照抄（v4.6.1 真机问题）。
-  static String dmLine(PrivateMessage message) {
+  static String dmLine(
+    PrivateMessage message, {
+    bool imageDescription = true,
+  }) {
     final when = agentTimeLabel(message.createdAt);
     final who = message.fromMe ? '对方：' : '';
     final body = switch (message.mediaType) {
-      'image' => message.caption.trim().isEmpty
+      'image' => !imageDescription || message.caption.trim().isEmpty
           ? '[发来一张图片]'
           : '[发来一张图片] ${message.caption.trim()}',
       'sticker' => message.caption.trim().isEmpty
@@ -76,6 +110,9 @@ class ResidentContextWindow {
           ? '[语音]'
           : '（语音）${message.transcript.trim()}',
       'call' => message.content.trim().isEmpty ? '[通话]' : message.content.trim(),
+      'game_invite' => message.caption.trim().isEmpty
+          ? '[游戏邀请] 想和你玩一局'
+          : '[游戏邀请] ${message.caption.trim()}',
       _ => message.content.trim().isEmpty
           ? '[空消息]'
           : message.content.trim(),

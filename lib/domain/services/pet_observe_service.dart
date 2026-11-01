@@ -12,6 +12,7 @@ import '../../data/repositories/resident_wake_log_repository.dart';
 import '../models/pet_observation.dart';
 import '../models/pet_settings.dart';
 import 'call_registry.dart';
+import 'game_session_registry.dart';
 import 'model_gateway.dart';
 import 'pet_native.dart';
 import 'photo_describer.dart';
@@ -228,6 +229,9 @@ class PetObserveService {
   }
 
   Future<String?> controllerId() async {
+    // 棋盘边有对局时先不观察：屏幕上是棋局，住民也在下棋，
+    // 这时候截屏/主动说话只会抢上下文和白花 token。
+    if (GameSessionRegistry.hasAny) return null;
     // 换班收尾可能正在跑：等它跑完再决定这一轮是谁的。
     for (var i = 0; i < 300 && _handingOff; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -316,7 +320,7 @@ class PetObserveService {
   }
 
   Future<void> _observeFrame(String ref) async {
-    if (_observing) return;
+    if (_observing || GameSessionRegistry.hasAny) return;
     _observing = true;
     try {
       // 先换班再开始忙：否则换班收尾会等这一轮结束，白白卡 6 秒。
@@ -432,6 +436,8 @@ class PetObserveService {
         if (fresh != null) _PetFrame(fresh.path, fresh.at),
       ];
       if (recent.isEmpty) return;
+      // 截图过程中用户进了对局：这一轮不再叫醒、不再写上下文。
+      if (GameSessionRegistry.hasAny) return;
 
       final resident = await residents.findById(residentId);
       if (resident == null) return;

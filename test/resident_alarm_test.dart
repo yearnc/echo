@@ -41,4 +41,43 @@ void main() {
       expect(parseAlarmWhen('2026-12-01 08:00', now: now), isNull);
     });
   });
+
+  group('闹钟前的免打扰窗口', () {
+    final now = DateTime(2026, 10, 28, 12, 30);
+
+    test('只保护最近 3 小时', () {
+      expect(
+        ResidentAlarmRepository.isInQuietWindow(
+          now.add(const Duration(hours: 2, minutes: 59)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        ResidentAlarmRepository.isInQuietWindow(
+          now.add(const Duration(hours: 3)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        ResidentAlarmRepository.isInQuietWindow(
+          now.add(const Duration(hours: 3, minutes: 1)),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('很久以后的闹钟不影响正常清醒', () {
+      expect(
+        ResidentAlarmRepository.isInQuietWindow(
+          DateTime(2026, 10, 29, 20),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(ResidentAlarmRepository.isInQuietWindow(null, now: now), isFalse);
+    });
+  });
 }
