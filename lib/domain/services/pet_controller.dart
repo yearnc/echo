@@ -8,6 +8,8 @@ import '../../data/repositories/resident_wake_log_repository.dart';
 import 'call_registry.dart';
 import 'pet_native.dart';
 import 'pet_observe_service.dart';
+import 'resident_sleep_service.dart';
+import 'resident_wake_service.dart';
 
 class PetRuntimeState {
   const PetRuntimeState({
@@ -131,10 +133,7 @@ class PetController extends Notifier<PetRuntimeState> {
       if (!await _native.hasOverlayPermission()) {
         await _native.requestOverlayPermission();
         state = state.copyWith(busy: false);
-        return const PetActionResult(
-          false,
-          '先去系统设置里允许“显示在其他应用上层”，回来再点开启',
-        );
+        return const PetActionResult(false, '先去系统设置里允许“显示在其他应用上层”，回来再点开启');
       }
 
       final value = await _settings.load();
@@ -150,10 +149,8 @@ class PetController extends Notifier<PetRuntimeState> {
       _observe.attach();
       await _observe.sync(value.copyWith(enabled: true));
       await refresh();
-      return PetActionResult(
-        true,
-        captured ? '桌宠出来啦' : '桌宠已经显示；但没有屏幕授权，看不到画面',
-      );
+      unawaited(_wakeControllerIfSleeping());
+      return PetActionResult(true, captured ? '桌宠出来啦' : '桌宠已经显示；但没有屏幕授权，看不到画面');
     } catch (error) {
       debugPrint('[桌宠] 开启失败：$error');
       state = state.copyWith(busy: false, error: '$error');
@@ -179,6 +176,27 @@ class PetController extends Notifier<PetRuntimeState> {
     } catch (error) {
       debugPrint('[桌宠] 对局里开启失败：$error');
       return PetActionResult(false, '没开起来：$error');
+    }
+  }
+
+  /// 用户亲手打开桌宠 = 主动找控制者。
+  ///
+  /// 如果 TA 正在睡，结束睡眠并叫醒它；自动对局开的桌宠不走这里。
+  Future<void> _wakeControllerIfSleeping() async {
+    final id = state.controllerId;
+    if (id == null || id.isEmpty) return;
+    try {
+      final notice = await ref
+          .read(residentSleepServiceProvider)
+          .prepareInteraction(id);
+      if (notice == null) return;
+      unawaited(
+        ref
+            .read(residentWakeServiceProvider)
+            .wake(id, trigger: WakeTrigger.userAction, sleepNotice: notice),
+      );
+    } catch (error) {
+      debugPrint('[桌宠] 唤醒控制者失败：$error');
     }
   }
 
@@ -281,14 +299,9 @@ class PetController extends Notifier<PetRuntimeState> {
         await _native.setContinuous(true);
       }
       await _settings.setRealtime(true);
-      await _observe.sync(
-        (await _settings.load()).copyWith(realtime: true),
-      );
+      await _observe.sync((await _settings.load()).copyWith(realtime: true));
       await refresh();
-      return const PetActionResult(
-        true,
-        '实时观察开了。它会持续看屏幕并反复醒来，token 消耗会比平时高很多',
-      );
+      return const PetActionResult(true, '实时观察开了。它会持续看屏幕并反复醒来，token 消耗会比平时高很多');
     } catch (error) {
       debugPrint('[桌宠] 切换实时模式失败：$error');
       state = state.copyWith(busy: false, error: '$error');
@@ -320,7 +333,6 @@ class PetController extends Notifier<PetRuntimeState> {
     await _settings.setRealtimeGap(seconds);
     await refresh();
   }
-
 }
 
 final petControllerProvider = NotifierProvider<PetController, PetRuntimeState>(

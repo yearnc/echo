@@ -16,11 +16,27 @@ class GameDefinition {
     required this.id,
     required this.name,
     required this.description,
+    this.minPlayers = 2,
+    this.maxPlayers = 2,
+    this.plugin = false,
+    this.iconName = '',
   });
 
   final String id;
   final String name;
   final String description;
+
+  /// 含用户在内的人数范围。两人棋类是 2/2；狼人杀固定 9/9。
+  final int minPlayers;
+  final int maxPlayers;
+
+  /// 来自用户上传的声明式插件。
+  final bool plugin;
+
+  /// 插件自己声明的图标名（flutter 里只认几个内置图标，认不出用默认）。
+  final String iconName;
+
+  bool get multiplayer => maxPlayers > 2;
 }
 
 class GameInvite {
@@ -136,11 +152,8 @@ class GameMoveResult {
     draw: draw,
   );
 
-  factory GameMoveResult.rejected(String message) => GameMoveResult._(
-    ok: false,
-    board: '',
-    message: message,
-  );
+  factory GameMoveResult.rejected(String message) =>
+      GameMoveResult._(ok: false, board: '', message: message);
 
   final bool ok;
   final String board;
@@ -149,6 +162,31 @@ class GameMoveResult {
   final bool draw;
 
   bool get isOver => winner != null || draw;
+}
+
+/// 多人对局的一位参与者（v50）。
+class GameMatchPlayer {
+  const GameMatchPlayer({
+    required this.id,
+    required this.matchId,
+    required this.name,
+    required this.seat,
+    required this.isUser,
+    required this.alive,
+    this.residentId = '',
+    this.role = '',
+    this.avatarAsset = '',
+  });
+
+  final String id;
+  final String matchId;
+  final String residentId;
+  final String name;
+  final int seat;
+  final bool isUser;
+  final bool alive;
+  final String role;
+  final String avatarAsset;
 }
 
 class GameMessage {

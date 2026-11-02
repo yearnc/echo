@@ -46,10 +46,9 @@ class CustomResidentRepository {
   }
 
   Future<CustomResident?> findById(String id) async {
-    final row =
-        await (_db.select(_db.customResidents)
-              ..where((t) => t.id.equals(id)))
-            .getSingleOrNull();
+    final row = await (_db.select(
+      _db.customResidents,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     return row == null ? null : _toDomain(row);
   }
 
@@ -80,8 +79,26 @@ class CustomResidentRepository {
             voiceRef: Value(resident.voiceRef),
             voiceMode: Value(resident.voiceMode.key),
             createdAt: resident.createdAt.millisecondsSinceEpoch,
+            lastInteractionAt: Value(
+              (resident.lastInteractionAt ?? resident.createdAt)
+                  .millisecondsSinceEpoch,
+            ),
           ),
         );
+  }
+
+  /// 记一次“用户主动找 TA”。
+  ///
+  /// 私信、通话、开局、让 TA 控制桌宠都会走这里；发帖和评论别人不算。
+  Future<void> touchInteraction(String id, {DateTime? at}) async {
+    final when = at ?? DateTime.now();
+    await (_db.update(
+      _db.customResidents,
+    )..where((t) => t.id.equals(id))).write(
+      CustomResidentsCompanion(
+        lastInteractionAt: Value(when.millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// 删除一位固定住民。
@@ -94,11 +111,8 @@ class CustomResidentRepository {
   Future<int> softDelete(String id) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final affected =
-        await (_db.update(
-          _db.customResidents,
-        )..where((t) => t.id.equals(id))).write(
-          CustomResidentsCompanion(deletedAt: Value(now)),
-        );
+        await (_db.update(_db.customResidents)..where((t) => t.id.equals(id)))
+            .write(CustomResidentsCompanion(deletedAt: Value(now)));
 
     await (_db.delete(
       _db.residentInboxItems,
@@ -110,24 +124,22 @@ class CustomResidentRepository {
     )..where((t) => t.residentId.equals(id))).go();
 
     // 游戏：未处理的邀请取消，进行中的对局作废；历史局和落子保留可回看。
-    await (_db.update(_db.gameInvites)..where(
-          (t) => t.residentId.equals(id) & t.status.equals('pending'),
-        ))
+    await (_db.update(_db.gameInvites)
+          ..where((t) => t.residentId.equals(id) & t.status.equals('pending')))
         .write(
           GameInvitesCompanion(
             status: const Value('cancelled'),
             resolvedAt: Value(now),
           ),
         );
-    await (_db.update(_db.gameMatches)..where(
-          (t) => t.residentId.equals(id) & t.status.equals('active'),
-        ))
-        .write(
-          GameMatchesCompanion(
-            status: const Value('abandoned'),
-            updatedAt: Value(now),
-          ),
-        );
+    await (_db.update(
+      _db.gameMatches,
+    )..where((t) => t.residentId.equals(id) & t.status.equals('active'))).write(
+      GameMatchesCompanion(
+        status: const Value('abandoned'),
+        updatedAt: Value(now),
+      ),
+    );
 
     return affected;
   }
@@ -157,6 +169,9 @@ class CustomResidentRepository {
     voiceRef: row.voiceRef,
     voiceMode: ResidentVoiceMode.fromKey(row.voiceMode),
     createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+    lastInteractionAt: row.lastInteractionAt <= 0
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(row.lastInteractionAt),
   );
 
   static List<String> _strings(String raw) {
@@ -171,7 +186,6 @@ class CustomResidentRepository {
       return const [];
     }
   }
-
 }
 
 final customResidentRepositoryProvider = Provider<CustomResidentRepository>(
@@ -184,8 +198,9 @@ final customResidentsProvider = StreamProvider<List<CustomResident>>(
 
 final customResidentsIncludingDeletedProvider =
     StreamProvider<List<CustomResident>>(
-      (ref) =>
-          ref.watch(customResidentRepositoryProvider).watchAllIncludingDeleted(),
+      (ref) => ref
+          .watch(customResidentRepositoryProvider)
+          .watchAllIncludingDeleted(),
     );
 
 /// 按 id 找一位还在社区里的固定住民（行为判断用）。

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -32,29 +33,33 @@ class GameRepository {
     required String initiator,
     String note = '',
     String? messageId,
+    String partyId = '',
     DateTime? now,
   }) async {
     final at = now ?? DateTime.now();
     final id = _newId('invite');
-    await _db.into(_db.gameInvites).insert(
-      GameInvitesCompanion.insert(
-        id: id,
-        residentId: residentId,
-        gameId: gameId,
-        initiator: initiator,
-        note: Value(note.trim()),
-        messageId: Value(messageId),
-        createdAt: at.millisecondsSinceEpoch,
-        expiresAt: at.add(inviteTtl).millisecondsSinceEpoch,
-      ),
-    );
+    await _db
+        .into(_db.gameInvites)
+        .insert(
+          GameInvitesCompanion.insert(
+            id: id,
+            residentId: residentId,
+            gameId: gameId,
+            initiator: initiator,
+            note: Value(note.trim()),
+            messageId: Value(messageId),
+            partyId: Value(partyId),
+            createdAt: at.millisecondsSinceEpoch,
+            expiresAt: at.add(inviteTtl).millisecondsSinceEpoch,
+          ),
+        );
     return (await findInvite(id))!;
   }
 
   Future<GameInvite?> findInvite(String id) async {
-    final row = await (_db.select(_db.gameInvites)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.gameInvites,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     return row == null ? null : _toInvite(row);
   }
 
@@ -113,15 +118,14 @@ class GameRepository {
   }) async {
     final at = now ?? DateTime.now();
     final affected =
-        await (_db.update(_db.gameInvites)..where(
-              (t) => t.id.equals(id) & t.status.equals('pending'),
-            ))
-            .write(
-              GameInvitesCompanion(
-                status: Value(status.name),
-                resolvedAt: Value(at.millisecondsSinceEpoch),
-              ),
-            );
+        await (_db.update(
+          _db.gameInvites,
+        )..where((t) => t.id.equals(id) & t.status.equals('pending'))).write(
+          GameInvitesCompanion(
+            status: Value(status.name),
+            resolvedAt: Value(at.millisecondsSinceEpoch),
+          ),
+        );
     return affected > 0;
   }
 
@@ -130,9 +134,7 @@ class GameRepository {
     return (_db.update(_db.gameInvites)..where(
           (t) =>
               t.status.equals('pending') &
-              t.expiresAt.isSmallerOrEqualValue(
-                at.millisecondsSinceEpoch,
-              ),
+              t.expiresAt.isSmallerOrEqualValue(at.millisecondsSinceEpoch),
         ))
         .write(
           GameInvitesCompanion(
@@ -143,16 +145,12 @@ class GameRepository {
   }
 
   Future<void> attachMessage(String inviteId, String messageId) async {
-    await (_db.update(_db.gameInvites)..where(
-          (t) => t.id.equals(inviteId),
-        ))
+    await (_db.update(_db.gameInvites)..where((t) => t.id.equals(inviteId)))
         .write(GameInvitesCompanion(messageId: Value(messageId)));
   }
 
   Future<void> attachMatch(String inviteId, String matchId) async {
-    await (_db.update(_db.gameInvites)..where(
-          (t) => t.id.equals(inviteId),
-        ))
+    await (_db.update(_db.gameInvites)..where((t) => t.id.equals(inviteId)))
         .write(GameInvitesCompanion(matchId: Value(matchId)));
   }
 
@@ -169,33 +167,53 @@ class GameRepository {
   }) async {
     final at = now ?? DateTime.now();
     final id = _newId('match');
-    await _db.into(_db.gameMatches).insert(
-      GameMatchesCompanion.insert(
-        id: id,
-        residentId: residentId,
-        gameId: gameId,
-        board: board,
-        turn: Value(turn.name),
-        createdAt: at.millisecondsSinceEpoch,
-        updatedAt: at.millisecondsSinceEpoch,
-      ),
-    );
+    await _db
+        .into(_db.gameMatches)
+        .insert(
+          GameMatchesCompanion.insert(
+            id: id,
+            residentId: residentId,
+            gameId: gameId,
+            board: board,
+            turn: Value(turn.name),
+            createdAt: at.millisecondsSinceEpoch,
+            updatedAt: at.millisecondsSinceEpoch,
+          ),
+        );
     return (await findMatch(id))!;
   }
 
   Future<GameMatch?> findMatch(String id) async {
-    final row = await (_db.select(_db.gameMatches)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.gameMatches,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     return row == null ? null : _toMatch(row);
   }
 
   Stream<GameMatch?> watchMatch(String id) {
-    final query = _db.select(_db.gameMatches)
-      ..where((t) => t.id.equals(id));
+    final query = _db.select(_db.gameMatches)..where((t) => t.id.equals(id));
     return query.watchSingleOrNull().map(
       (row) => row == null ? null : _toMatch(row),
     );
+  }
+
+  /// 这位住民参与的所有进行中对局（含多人房间）。
+  Future<List<GameMatch>> activeMatchesForPlayer(String residentId) async {
+    final joined = await (_db.select(
+      _db.gameMatchPlayers,
+    )..where((t) => t.residentId.equals(residentId))).get();
+    final ids = joined.map((row) => row.matchId).toSet().toList();
+    final rows =
+        await (_db.select(_db.gameMatches)
+              ..where(
+                (t) =>
+                    t.status.equals('active') &
+                    (t.residentId.equals(residentId) |
+                        (ids.isEmpty ? const Constant(false) : t.id.isIn(ids))),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+            .get();
+    return rows.map(_toMatch).toList(growable: false);
   }
 
   Future<List<GameMatch>> activeMatches(String residentId) async {
@@ -203,8 +221,7 @@ class GameRepository {
         await (_db.select(_db.gameMatches)
               ..where(
                 (t) =>
-                    t.residentId.equals(residentId) &
-                    t.status.equals('active'),
+                    t.residentId.equals(residentId) & t.status.equals('active'),
               )
               ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
             .get();
@@ -235,8 +252,7 @@ class GameRepository {
   }
 
   Stream<GameInvite?> watchInvite(String id) {
-    final query = _db.select(_db.gameInvites)
-      ..where((t) => t.id.equals(id));
+    final query = _db.select(_db.gameInvites)..where((t) => t.id.equals(id));
     return query.watchSingleOrNull().map(
       (row) => row == null ? null : _toInvite(row),
     );
@@ -280,7 +296,9 @@ class GameRepository {
     final affected =
         await (_db.update(_db.gameMatches)..where((t) {
               var condition = t.id.equals(id);
-              if (expectActive) condition = condition & t.status.equals('active');
+              if (expectActive) {
+                condition = condition & t.status.equals('active');
+              }
               if (expectedTurn != null) {
                 condition = condition & t.turn.equals(expectedTurn.name);
               }
@@ -304,15 +322,14 @@ class GameRepository {
 
   Future<void> abandonMatch(String id, {DateTime? now}) async {
     final at = now ?? DateTime.now();
-    await (_db.update(_db.gameMatches)..where(
-          (t) => t.id.equals(id) & t.status.equals('active'),
-        ))
-        .write(
-          GameMatchesCompanion(
-            status: const Value('abandoned'),
-            updatedAt: Value(at.millisecondsSinceEpoch),
-          ),
-        );
+    await (_db.update(
+      _db.gameMatches,
+    )..where((t) => t.id.equals(id) & t.status.equals('active'))).write(
+      GameMatchesCompanion(
+        status: const Value('abandoned'),
+        updatedAt: Value(at.millisecondsSinceEpoch),
+      ),
+    );
   }
 
   Future<GameMove> appendMove({
@@ -325,17 +342,19 @@ class GameRepository {
   }) async {
     final at = now ?? DateTime.now();
     final id = _newId('move');
-    await _db.into(_db.gameMoves).insert(
-      GameMovesCompanion.insert(
-        id: id,
-        matchId: matchId,
-        seq: seq,
-        by: by.name,
-        move: move,
-        board: Value(board),
-        createdAt: at.millisecondsSinceEpoch,
-      ),
-    );
+    await _db
+        .into(_db.gameMoves)
+        .insert(
+          GameMovesCompanion.insert(
+            id: id,
+            matchId: matchId,
+            seq: seq,
+            by: by.name,
+            move: move,
+            board: Value(board),
+            createdAt: at.millisecondsSinceEpoch,
+          ),
+        );
     return GameMove(
       id: id,
       matchId: matchId,
@@ -376,16 +395,18 @@ class GameRepository {
   }) async {
     final at = now ?? DateTime.now();
     final id = _newId('gmsg');
-    await _db.into(_db.gameMessages).insert(
-      GameMessagesCompanion.insert(
-        id: id,
-        matchId: matchId,
-        residentId: residentId,
-        by: by.name,
-        content: content.trim(),
-        createdAt: at.millisecondsSinceEpoch,
-      ),
-    );
+    await _db
+        .into(_db.gameMessages)
+        .insert(
+          GameMessagesCompanion.insert(
+            id: id,
+            matchId: matchId,
+            residentId: residentId,
+            by: by.name,
+            content: content.trim(),
+            createdAt: at.millisecondsSinceEpoch,
+          ),
+        );
     return GameMessage(
       id: id,
       matchId: matchId,
@@ -413,6 +434,140 @@ class GameRepository {
       (rows) => rows.map(_toGameMessage).toList(growable: false),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // 多人房间与扩展状态（v50）
+  // ---------------------------------------------------------------------------
+
+  Future<GameMatchPlayer> addPlayer({
+    required String matchId,
+    required String name,
+    required int seat,
+    bool isUser = false,
+    String residentId = '',
+    String role = '',
+    String avatarAsset = '',
+    bool alive = true,
+    DateTime? now,
+  }) async {
+    final at = now ?? DateTime.now();
+    final id = _newId('gplayer');
+    await _db
+        .into(_db.gameMatchPlayers)
+        .insert(
+          GameMatchPlayersCompanion.insert(
+            id: id,
+            matchId: matchId,
+            residentId: Value(residentId),
+            name: name,
+            seat: seat,
+            isUser: Value(isUser),
+            alive: Value(alive),
+            role: Value(role),
+            avatarAsset: Value(avatarAsset),
+            createdAt: at.millisecondsSinceEpoch,
+          ),
+        );
+    return GameMatchPlayer(
+      id: id,
+      matchId: matchId,
+      residentId: residentId,
+      name: name,
+      seat: seat,
+      isUser: isUser,
+      alive: alive,
+      role: role,
+      avatarAsset: avatarAsset,
+    );
+  }
+
+  Future<List<GameMatchPlayer>> playersFor(String matchId) async {
+    final rows =
+        await (_db.select(_db.gameMatchPlayers)
+              ..where((t) => t.matchId.equals(matchId))
+              ..orderBy([(t) => OrderingTerm.asc(t.seat)]))
+            .get();
+    return rows.map(_toPlayer).toList(growable: false);
+  }
+
+  Stream<List<GameMatchPlayer>> watchPlayersFor(String matchId) {
+    final query = _db.select(_db.gameMatchPlayers)
+      ..where((t) => t.matchId.equals(matchId))
+      ..orderBy([(t) => OrderingTerm.asc(t.seat)]);
+    return query.watch().map(
+      (rows) => rows.map(_toPlayer).toList(growable: false),
+    );
+  }
+
+  Future<void> updatePlayer({
+    required String playerId,
+    bool? alive,
+    String? role,
+  }) async {
+    if (alive == null && role == null) return;
+    await (_db.update(
+      _db.gameMatchPlayers,
+    )..where((t) => t.id.equals(playerId))).write(
+      GameMatchPlayersCompanion(
+        alive: alive == null ? const Value.absent() : Value(alive),
+        role: role == null ? const Value.absent() : Value(role),
+      ),
+    );
+  }
+
+  Future<void> saveState(String matchId, Map<String, dynamic> state) async {
+    final at = DateTime.now().millisecondsSinceEpoch;
+    await _db
+        .into(_db.gameStates)
+        .insertOnConflictUpdate(
+          GameStatesCompanion.insert(
+            matchId: matchId,
+            stateJson: Value(jsonEncode(state)),
+            updatedAt: at,
+          ),
+        );
+    await (_db.update(_db.gameMatches)..where((t) => t.id.equals(matchId)))
+        .write(GameMatchesCompanion(updatedAt: Value(at)));
+  }
+
+  Future<Map<String, dynamic>?> loadState(String matchId) async {
+    final row = await (_db.select(
+      _db.gameStates,
+    )..where((t) => t.matchId.equals(matchId))).getSingleOrNull();
+    if (row == null) return null;
+    try {
+      final decoded = jsonDecode(row.stateJson);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Stream<Map<String, dynamic>?> watchState(String matchId) {
+    final query = _db.select(_db.gameStates)
+      ..where((t) => t.matchId.equals(matchId));
+    return query.watchSingleOrNull().map((row) {
+      if (row == null) return null;
+      try {
+        final decoded = jsonDecode(row.stateJson);
+        return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+      } catch (_) {
+        return null;
+      }
+    });
+  }
+
+  GameMatchPlayer _toPlayer(GameMatchPlayerRow row) => GameMatchPlayer(
+    id: row.id,
+    matchId: row.matchId,
+    residentId: row.residentId,
+    name: row.name,
+    seat: row.seat,
+    isUser: row.isUser,
+    alive: row.alive,
+    role: row.role,
+    avatarAsset: row.avatarAsset,
+  );
 
   GameMessage _toGameMessage(GameMessageRow row) => GameMessage(
     id: row.id,

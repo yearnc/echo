@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/resident_alarm_repository.dart';
+import '../../data/repositories/resident_sleep_repository.dart';
 import '../../data/repositories/resident_wake_log_repository.dart';
 import '../../domain/models/resident_alarm.dart';
+import '../../domain/models/resident_sleep.dart';
 import '../../domain/models/resident_wake_log.dart';
 
 /// 「固定住民 ID」的日志（v3.9）。
@@ -25,6 +27,9 @@ class ResidentWakeLogPage extends ConsumerWidget {
     final alarms =
         ref.watch(residentAlarmsProvider(residentId)).value ??
         const <ResidentAlarm>[];
+    final sleeps =
+        ref.watch(residentSleepPeriodsProvider(residentId)).value ??
+        const <ResidentSleepPeriod>[];
 
     return Scaffold(
       backgroundColor: EchoColors.bg,
@@ -69,6 +74,10 @@ class ResidentWakeLogPage extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
               children: [
                 if (alarms.isNotEmpty) _AlarmCard(alarms: alarms),
+                if (sleeps.isNotEmpty) ...[
+                  if (alarms.isNotEmpty) const SizedBox(height: 8),
+                  _SleepCard(sleeps: sleeps),
+                ],
                 const SizedBox(height: 80),
                 const SizedBox(height: 260, child: _Empty()),
               ],
@@ -99,12 +108,17 @@ class ResidentWakeLogPage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 _AlarmCard(alarms: alarms),
               ],
+              if (sleeps.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _SleepCard(sleeps: sleeps),
+              ],
               const SizedBox(height: 8),
               ...rows,
               const SizedBox(height: 10),
               Text(
-                '日志记“醒来的时间、调用了哪些工具、给自己留的话”；'
-                '几轮连续的对话会合并成一次，聊天内容仍然只在私信和评论里。',
+                '日志记“醒来的时间、调用了哪些工具、给自己留的话”，'
+                '以及每次入睡和醒来的时间；几轮连续的对话会合并成一次，'
+                '聊天内容仍然只在私信和评论里。',
                 style: TextStyle(
                   color: EchoColors.textFaint,
                   fontSize: 11.5,
@@ -207,11 +221,7 @@ class _AlarmCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.alarm,
-                size: 15,
-                color: EchoColors.primary,
-              ),
+              Icon(Icons.alarm, size: 15, color: EchoColors.primary),
               const SizedBox(width: 6),
               Text(
                 alarms.length == 1 ? 'TA 定了一个闹钟' : 'TA 定了 ${alarms.length} 个闹钟',
@@ -252,6 +262,102 @@ class _AlarmCard extends StatelessWidget {
     final hh = at.hour.toString().padLeft(2, '0');
     final mm = at.minute.toString().padLeft(2, '0');
     return '${at.month}月${at.day}日 $hh:$mm';
+  }
+}
+
+/// 睡眠记录（v50）：什么时候睡下、睡了多久、因为什么醒。
+class _SleepCard extends StatelessWidget {
+  const _SleepCard({required this.sleeps});
+
+  final List<ResidentSleepPeriod> sleeps;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = sleeps.where((item) => item.isSleeping);
+    final current = active.isEmpty ? null : active.first;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: current != null
+              ? EchoColors.primary.withValues(alpha: 0.35)
+              : EchoColors.divider,
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.nightlight_round, size: 15, color: EchoColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                current != null ? 'TA 正在睡' : '睡眠记录',
+                style: TextStyle(
+                  color: EchoColors.text,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          for (final period in sleeps.take(8))
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                _line(period),
+                style: TextStyle(
+                  color: EchoColors.textMuted,
+                  fontSize: 12.5,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          if (current == null) ...[
+            const SizedBox(height: 5),
+            Text(
+              '五天没有互动会自动入睡；你也可以在「固定住民 → 右上角月亮」里手动让 TA 睡。',
+              style: TextStyle(
+                color: EchoColors.textFaint,
+                fontSize: 11,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _line(ResidentSleepPeriod period) {
+    final start = _when(period.startedAt);
+    if (period.isSleeping) {
+      return '睡梦中 · $start 入睡（${_duration(period.duration)}）';
+    }
+    final end = period.endedAt == null ? '' : _when(period.endedAt!);
+    final endLabel = period.endedByLabel.isEmpty
+        ? ''
+        : ' · ${period.endedByLabel}';
+    return '$start → $end（${_duration(period.duration)}）$endLabel';
+  }
+
+  static String _when(DateTime at) {
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${at.month}月${at.day}日 $hh:$mm';
+  }
+
+  static String _duration(Duration span) {
+    if (span.inDays > 0) {
+      final hours = span.inHours % 24;
+      return hours == 0 ? '${span.inDays} 天' : '${span.inDays} 天 $hours 小时';
+    }
+    if (span.inHours > 0) return '${span.inHours} 小时';
+    return span.inMinutes <= 0 ? '不到 1 分钟' : '${span.inMinutes} 分钟';
   }
 }
 

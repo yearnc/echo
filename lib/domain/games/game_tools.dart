@@ -34,12 +34,9 @@ class GameTools {
       'function': {
         'name': listGameTools,
         'description':
-            '看看你现在在玩什么、有没有等你回应或轮到你的对局，'
-            '并取得这局棋专用的走棋工具。下棋前先调用它。',
-        'parameters': {
-          'type': 'object',
-          'properties': <String, dynamic>{},
-        },
+            '看看你现在在玩什么、有没有等你回应或轮到你的对局。'
+            '走棋工具在每一轮都已经直接挂上了，这里只查状态，不用等下一次请求。',
+        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
       },
     },
     {
@@ -52,13 +49,12 @@ class GameTools {
           'properties': {
             'game': {
               'type': 'string',
-              'enum': [for (final game in GameRegistry.definitions) game.id],
-              'description': '游戏 id',
+              'enum': [
+                for (final game in GameRegistry.boardDefinitions) game.id,
+              ],
+              'description': '游戏 id（两人棋类；狼人杀由用户发起多人房间）',
             },
-            'note': {
-              'type': 'string',
-              'description': '想附带说的话，可空',
-            },
+            'note': {'type': 'string', 'description': '想附带说的话，可空'},
           },
           'required': ['game'],
         },
@@ -104,4 +100,14 @@ class GameTools {
     }
     return tools;
   }
+
+  /// MCP 风格的“工具目录”（v50）。
+  ///
+  /// 以前模型要先调用 `list_game_tools`，下一次请求才拿得到走棋工具；
+  /// 现在所有内置走棋工具在每轮唤醒时直接挂上，和 MCP 的 tools/list
+  /// 在请求前就能拿到工具清单是一回事。插件工具由 GameService 追加。
+  static List<Map<String, dynamic>> get allBuiltinTools => [
+    ...baseTools,
+    for (final engine in GameRegistry.all) engine.moveToolSchema,
+  ];
 }

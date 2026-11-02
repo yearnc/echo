@@ -129,11 +129,7 @@ abstract class ResidentWakeToolkit {
   /// 游戏工具发现：返回当前对局/邀请，并带上可以动态挂载的走棋工具。
   Future<ActionOutcome> listGameTools();
 
-  Future<ActionOutcome> inviteGame(
-    String gameId,
-    String note,
-    String callId,
-  );
+  Future<ActionOutcome> inviteGame(String gameId, String note, String callId);
 
   Future<ActionOutcome> respondGameInvite(
     String inviteId,
@@ -141,8 +137,15 @@ abstract class ResidentWakeToolkit {
     String note,
   );
 
-  /// 具体游戏的走棋工具，由 `list_game_tools` 返回的 schema 决定参数。
+  /// 具体游戏的走棋工具（v50 起每轮直接挂载）。
   Future<ActionOutcome> gameMove(
+    String toolName,
+    Map<String, dynamic> args,
+    String callId,
+  );
+
+  /// MCP 风格游戏工具：内置走棋 + 声明式插件共用入口。
+  Future<ActionOutcome> gameMcpCall(
     String toolName,
     Map<String, dynamic> args,
     String callId,
@@ -249,6 +252,7 @@ class ResidentToolSession {
     required String situation,
     required ResidentWakeToolkit toolkit,
     DateTime? at,
+
     /// 常驻上下文窗口：system + 记忆 + 最近私信。由唤醒服务维护并追加。
     required List<Map<String, dynamic>> history,
     bool allowProactive = true,
@@ -259,6 +263,8 @@ class ResidentToolSession {
     /// 不能看图的模型由调用方先转成文字描述放进入参里。
     List<String> extraImages = const [],
 
+    /// MCP 风格的游戏工具目录（v50）：每轮直接挂上，不再等下一轮请求。
+    List<Map<String, dynamic>> gameTools = const [],
   }) async {
     final limits = _settings;
     final voiceReady = allowVoice && _voiceToolAvailable(resident);
@@ -295,10 +301,6 @@ class ResidentToolSession {
             ],
     });
 
-    // `list_game_tools` 返回的走棋工具只在本次唤醒里挂载；
-    // 不常驻 tools 数组，普通私信轮不会被棋类工具污染。
-    final dynamicTools = <String, Map<String, dynamic>>{};
-
     for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
@@ -313,7 +315,7 @@ class ResidentToolSession {
             resident,
             allowProactive: allowProactive,
             allowVoice: allowVoice,
-            extraTools: dynamicTools.values,
+            extraTools: gameTools,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -506,7 +508,7 @@ class ResidentToolSession {
                 resident,
                 allowProactive: allowProactive,
                 allowVoice: allowVoice,
-                extraTools: dynamicTools.values,
+                extraTools: gameTools,
               );
               outcome = ActionOutcome(
                 ok: true,
@@ -537,8 +539,9 @@ class ResidentToolSession {
             case GameTools.resign:
               outcome = await toolkit.gameResign(textArg(args, 'match_id'));
             default:
-              if (GameRegistry.byToolName(call.name) != null) {
-                outcome = await toolkit.gameMove(call.name, args, call.id);
+              if (GameRegistry.byToolName(call.name) != null ||
+                  call.name.startsWith('echo_')) {
+                outcome = await toolkit.gameMcpCall(call.name, args, call.id);
               } else {
                 outcome = await _execute(
                   resident: resident,
@@ -551,19 +554,6 @@ class ResidentToolSession {
         } catch (error) {
           debugPrint('[工具] ${call.name} 执行失败：$error');
           outcome = ActionOutcome(ok: false, message: '工具执行失败：$error');
-        }
-
-        // 发现工具返回 schema 后，下一轮才把这些走棋工具真正发给模型。
-        if (call.name == GameTools.listGameTools && outcome.ok) {
-          final schemas = outcome.data['tool_schemas'];
-          if (schemas is List) {
-            for (final raw in schemas) {
-              if (raw is! Map) continue;
-              final schema = Map<String, dynamic>.from(raw);
-              final name = _functionName(schema);
-              if (name.isNotEmpty) dynamicTools[name] = schema;
-            }
-          }
         }
 
         final toolData = Map<String, dynamic>.from(outcome.data);
@@ -634,7 +624,10 @@ class ResidentToolSession {
     }
   }
 
-  String _residentSystemPrompt(CustomResident resident, {bool voiceReady = true}) {
+  String _residentSystemPrompt(
+    CustomResident resident, {
+    bool voiceReady = true,
+  }) {
     final voiceLine = voiceReady && _voiceToolAvailable(resident)
         ? '- 想用声音说就用 send_voice；普通说话用 send_dm。语音合成要几十秒，\n'
               '  先 send_dm 说一句“等我一下，我录段语音”，别让对方干等。\n'
@@ -687,9 +680,10 @@ $persona
   你以桌宠形象出现时，就是屏幕上那只小鲸鱼女仆：深色长发、女仆裙，
   裙摆上绣着一只小鲸鱼。截图里出现她，那就是你自己，不要当成别人。
   pet_say 只写“说出口的话”，不要用括号写动作或表情；看不清就说不清。
-- 想和对方下棋/玩游戏时，先用 list_game_tools 看当前有哪些对局和邀请；
-  具体怎么走棋由它返回的工具决定。想主动约一局用 invite_game；
-  对方发来的邀请用 respond_game_invite 接受或拒绝；不想下了就 game_resign。
+- 想和对方下棋/玩游戏时，走棋工具和插件工具已经直接挂在工具列表里了，
+  不用先调用 list_game_tools；它只用来查看当前对局和邀请状态。
+  想主动约一局用 invite_game；对方发来的邀请用 respond_game_invite 接受或拒绝；
+  不想下了就 game_resign。插件游戏的工具名以 echo_ 开头，参数里要带 match_id。
   不要编造棋盘，也不要绕过规则自己宣布输赢。
 - 想决定下一次什么时候醒来，可以用 set_alarm（90、2h、21:30 都行）。
   定了之后如果没有待办，系统不会因为空闲来叫醒你，到点才叫。

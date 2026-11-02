@@ -23,6 +23,12 @@ class GameInvites extends Table {
 
   /// 接受后开出来的对局 id；卡片据此直接进棋盘。
   TextColumn get matchId => text().nullable()();
+
+  /// 一次多人邀请共用同一个 partyId（v50）。
+  ///
+  /// 两人棋类的 partyId 为空；狼人杀这类多人局把同一批邀请串起来，
+  /// 每张卡片仍能单独接受/拒绝。
+  TextColumn get partyId => text().withDefault(const Constant(''))();
   IntColumn get createdAt => integer()();
   IntColumn get expiresAt => integer()();
   IntColumn get resolvedAt => integer().nullable()();
@@ -75,6 +81,72 @@ class GameMessages extends Table {
   TextColumn get by => text()();
   TextColumn get content => text()();
   IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 多人对局的参与者（v50）。
+///
+/// 两人棋类也会写两行：用户一行、住民一行，方便统一的参与者列表。
+/// 狼人杀里每一行还带角色和存活状态；`role` 只对局内可见。
+@DataClassName('GameMatchPlayerRow')
+@TableIndex(name: 'game_match_players_match', columns: {#matchId})
+class GameMatchPlayers extends Table {
+  TextColumn get id => text()();
+  TextColumn get matchId => text()();
+
+  /// 固定住民的 id；内置 AI 玩家和用户为空。
+  TextColumn get residentId => text().withDefault(const Constant(''))();
+  TextColumn get name => text()();
+  IntColumn get seat => integer()();
+  BoolColumn get isUser => boolean().withDefault(const Constant(false))();
+
+  /// 是否还活着（狼人杀）。
+  BoolColumn get alive => boolean().withDefault(const Constant(true))();
+
+  /// werewolf / seer / witch / hunter / villager；其他游戏为空。
+  TextColumn get role => text().withDefault(const Constant(''))();
+
+  /// 头像引用，空则用名字生成。
+  TextColumn get avatarAsset => text().withDefault(const Constant(''))();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 对局的扩展状态（v50）。
+///
+/// 狼人杀和上传的声明式插件不适合塞进 `game_matches.board` 那种字符串棋盘，
+/// 这里按 matchId 存一份 JSON：阶段、日志、夜晚行动、插件状态都在里面。
+@DataClassName('GameStateRow')
+class GameStates extends Table {
+  TextColumn get matchId => text()();
+  TextColumn get stateJson => text().withDefault(const Constant('{}'))();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {matchId};
+}
+
+/// 用户从 GitHub 安装的声明式游戏插件（v50）。
+///
+/// 插件只是一份 JSON：工具、状态、规则都由数据描述，APP 不执行任何
+/// 远程代码。`sourceUrl` 保留原始链接，方便用户重新拉取或删除。
+@DataClassName('GamePluginRow')
+@TableIndex(name: 'game_plugins_source', columns: {#sourceUrl})
+class GamePlugins extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get sourceUrl => text()();
+  TextColumn get manifestJson => text()();
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+  IntColumn get minPlayers => integer().withDefault(const Constant(1))();
+  IntColumn get maxPlayers => integer().withDefault(const Constant(1))();
+  IntColumn get installedAt => integer()();
+  IntColumn get updatedAt => integer()();
 
   @override
   Set<Column> get primaryKey => {id};

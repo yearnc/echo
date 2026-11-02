@@ -13,9 +13,12 @@ import '../../domain/services/game_service.dart';
 import '../../domain/services/game_session_registry.dart';
 import '../../domain/services/pet_controller.dart';
 import '../../domain/services/pet_native.dart';
+import '../../domain/services/resident_sleep_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
 import 'game_board.dart';
 import 'game_providers.dart';
+import 'plugin_game_page.dart';
+import 'werewolf_match_page.dart';
 
 /// 一局棋的棋盘页。
 ///
@@ -59,9 +62,7 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
     if (_sessionStarted) GameSessionRegistry.end(widget.matchId);
     _chat.dispose();
     if (_autoPet) {
-      unawaited(
-        ref.read(petControllerProvider.notifier).forceDisableForGame(),
-      );
+      unawaited(ref.read(petControllerProvider.notifier).forceDisableForGame());
     }
     super.dispose();
   }
@@ -100,12 +101,15 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
         backgroundColor: EchoColors.bg,
         appBar: AppBar(title: const Text('对局')),
         body: Center(
-          child: Text(
-            '这局棋不在了',
-            style: TextStyle(color: EchoColors.textMuted),
-          ),
+          child: Text('这局棋不在了', style: TextStyle(color: EchoColors.textMuted)),
         ),
       );
+    }
+    if (match.gameId == 'werewolf') {
+      return WerewolfMatchPage(matchId: match.id);
+    }
+    if (match.gameId.startsWith('plugin:')) {
+      return PluginGamePage(matchId: match.id);
     }
     final engine = GameRegistry.byId(match.gameId);
     if (engine == null) {
@@ -117,7 +121,8 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
     }
     final resident = ref.watch(customResidentByIdProvider(match.residentId));
     final messages =
-        ref.watch(gameMessagesProvider(match.id)).value ?? const <GameMessage>[];
+        ref.watch(gameMessagesProvider(match.id)).value ??
+        const <GameMessage>[];
     _maybeAskResident(match);
     if (match.isActive && !_sessionStarted) {
       _sessionStarted = true;
@@ -248,9 +253,7 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                match.isActive
-                    ? '下棋时说句话吧，TA 会在棋盘边回应你。'
-                    : '这局结束了，棋盘边的对话已经收进记忆。',
+                match.isActive ? '下棋时说句话吧，TA 会在棋盘边回应你。' : '这局结束了，棋盘边的对话已经收进记忆。',
                 style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
               ),
             )
@@ -317,9 +320,7 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
   Widget _chatLine(GameMessage message) {
     final mine = message.by == GameSide.user;
     return Row(
-      mainAxisAlignment: mine
-          ? MainAxisAlignment.end
-          : MainAxisAlignment.start,
+      mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!mine) ...[
@@ -357,6 +358,9 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
   Future<void> _sendChat(GameMatch match) async {
     final text = _chat.text.trim();
     if (text.isEmpty || _chatSending || !match.isActive) return;
+    unawaited(
+      ref.read(residentSleepServiceProvider).interactAll([match.residentId]),
+    );
     _chat.clear();
     setState(() => _chatSending = true);
     try {
@@ -367,21 +371,17 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
         // 只有当前桌宠真的属于这位住民时才冒屏上气泡；
         // 桌宠由 B 控制时，A 的话只留在棋盘边，别让 B 的桌宠替 A 说话。
         final pet = ref.read(petControllerProvider);
-        if (mounted &&
-            pet.enabled &&
-            pet.controllerId == match.residentId) {
+        if (mounted && pet.enabled && pet.controllerId == match.residentId) {
           unawaited(ref.read(petNativeProvider).say(reply.content));
         }
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TA 这次没接上话')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('TA 这次没接上话')));
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('没发出去：$error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('没发出去：$error')));
       }
     } finally {
       if (mounted) setState(() => _chatSending = false);
@@ -440,7 +440,9 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
             ),
           ),
           Text(
-            match.isActive ? '第 ${match.moveCount + 1} 手' : '共 ${match.moveCount} 手',
+            match.isActive
+                ? '第 ${match.moveCount + 1} 手'
+                : '共 ${match.moveCount} 手',
             style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
           ),
         ],
@@ -483,8 +485,8 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
     final code = '${String.fromCharCode(97 + x)}$y';
     final targets = engine.legalMoves(match.board, by: GameSide.user);
     final moves = targets.where((move) => move.startsWith(_selectedCode()));
-    final isTarget = _selected != null &&
-        moves.any((move) => move.substring(2) == code);
+    final isTarget =
+        _selected != null && moves.any((move) => move.substring(2) == code);
     if (isTarget) {
       final from = _selectedCode();
       setState(() {
@@ -523,6 +525,9 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
   }
 
   Future<void> _play(GameMatch match, String move) async {
+    unawaited(
+      ref.read(residentSleepServiceProvider).interactAll([match.residentId]),
+    );
     setState(() => _busy = true);
     try {
       final result = await ref
@@ -530,9 +535,8 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
           .applyUserMove(matchId: match.id, move: move);
       if (!mounted) return;
       if (!result.ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.message)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result.message)));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

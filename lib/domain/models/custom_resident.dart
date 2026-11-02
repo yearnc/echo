@@ -43,8 +43,7 @@ enum ResidentVoiceMode {
     _ => false,
   };
 
-  bool get usesTranscript =>
-      this == ResidentVoiceMode.referenceTranscript;
+  bool get usesTranscript => this == ResidentVoiceMode.referenceTranscript;
 
   /// 本机内置的 5 个声线。
   bool get usesLocalSpeaker => this == ResidentVoiceMode.description;
@@ -80,6 +79,7 @@ class CustomResident {
     this.voiceRef = '',
     this.voiceMode = ResidentVoiceMode.description,
     required this.createdAt,
+    this.lastInteractionAt,
   });
 
   final String id;
@@ -133,6 +133,12 @@ class CustomResident {
   final ResidentVoiceMode voiceMode;
   final DateTime createdAt;
 
+  /// 最近一次用户主动找 TA 的时间（v50）。空 = 还没记过，按创建时间算。
+  final DateTime? lastInteractionAt;
+
+  /// 做睡眠判断时用的互动水位。
+  DateTime get interactionAnchor => lastInteractionAt ?? createdAt;
+
   /// 给现有内容生成层用的适配对象。
   ///
   /// 固定住民比临时网民多的是人设和记忆，这里只负责把"设定"翻译成
@@ -142,16 +148,20 @@ class CustomResident {
     id: id,
     name: name,
     avatar: avatarAsset,
-    bio: [bio, description, scenario]
-        .where((part) => part.trim().isNotEmpty)
-        .join('\n'),
-    languageStyle: [languageStyle, exampleDialogue]
-        .where((part) => part.trim().isNotEmpty)
-        .join('\n'),
+    bio: [
+      bio,
+      description,
+      scenario,
+    ].where((part) => part.trim().isNotEmpty).join('\n'),
+    languageStyle: [
+      languageStyle,
+      exampleDialogue,
+    ].where((part) => part.trim().isNotEmpty).join('\n'),
     personalityType: '固定住民',
-    tone: [tone, extraInstructions]
-        .where((part) => part.trim().isNotEmpty)
-        .join('；'),
+    tone: [
+      tone,
+      extraInstructions,
+    ].where((part) => part.trim().isNotEmpty).join('；'),
     activeHours: const [],
     relationship: '固定住民',
     likeProbability: 0.6,
@@ -193,6 +203,7 @@ class CustomResident {
     String? voiceSampleText,
     String? voiceRef,
     ResidentVoiceMode? voiceMode,
+    DateTime? lastInteractionAt,
   }) => CustomResident(
     id: id,
     name: name ?? this.name,
@@ -216,5 +227,6 @@ class CustomResident {
     voiceRef: voiceRef ?? this.voiceRef,
     voiceMode: voiceMode ?? this.voiceMode,
     createdAt: createdAt,
+    lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
   );
 }

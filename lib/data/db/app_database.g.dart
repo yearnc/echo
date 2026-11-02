@@ -13053,6 +13053,18 @@ class $CustomResidentsTable extends CustomResidents
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _lastInteractionAtMeta = const VerificationMeta(
+    'lastInteractionAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastInteractionAt = GeneratedColumn<int>(
+    'last_interaction_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _deletedAtMeta = const VerificationMeta(
     'deletedAt',
   );
@@ -13088,6 +13100,7 @@ class $CustomResidentsTable extends CustomResidents
     voiceRef,
     voiceMode,
     createdAt,
+    lastInteractionAt,
     deletedAt,
   ];
   @override
@@ -13276,6 +13289,15 @@ class $CustomResidentsTable extends CustomResidents
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('last_interaction_at')) {
+      context.handle(
+        _lastInteractionAtMeta,
+        lastInteractionAt.isAcceptableOrUnknown(
+          data['last_interaction_at']!,
+          _lastInteractionAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('deleted_at')) {
       context.handle(
         _deletedAtMeta,
@@ -13379,6 +13401,10 @@ class $CustomResidentsTable extends CustomResidents
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      lastInteractionAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_interaction_at'],
+      )!,
       deletedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}deleted_at'],
@@ -13448,6 +13474,12 @@ class CustomResidentRow extends DataClass
   /// 哪几种可选由当前语音模型的能力决定。
   final String voiceMode;
   final int createdAt;
+
+  /// 最近一次“用户主动找 TA”的时间（v50）。
+  ///
+  /// 五天没有任何互动的住民会自动入睡；发帖、评论别人不算互动。
+  /// 0 = 迁移上来的老数据，按 [createdAt] 算。
+  final int lastInteractionAt;
   final int? deletedAt;
   const CustomResidentRow({
     required this.id,
@@ -13472,6 +13504,7 @@ class CustomResidentRow extends DataClass
     required this.voiceRef,
     required this.voiceMode,
     required this.createdAt,
+    required this.lastInteractionAt,
     this.deletedAt,
   });
   @override
@@ -13501,6 +13534,7 @@ class CustomResidentRow extends DataClass
     map['voice_ref'] = Variable<String>(voiceRef);
     map['voice_mode'] = Variable<String>(voiceMode);
     map['created_at'] = Variable<int>(createdAt);
+    map['last_interaction_at'] = Variable<int>(lastInteractionAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<int>(deletedAt);
     }
@@ -13533,6 +13567,7 @@ class CustomResidentRow extends DataClass
       voiceRef: Value(voiceRef),
       voiceMode: Value(voiceMode),
       createdAt: Value(createdAt),
+      lastInteractionAt: Value(lastInteractionAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
@@ -13567,6 +13602,7 @@ class CustomResidentRow extends DataClass
       voiceRef: serializer.fromJson<String>(json['voiceRef']),
       voiceMode: serializer.fromJson<String>(json['voiceMode']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      lastInteractionAt: serializer.fromJson<int>(json['lastInteractionAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
     );
   }
@@ -13596,6 +13632,7 @@ class CustomResidentRow extends DataClass
       'voiceRef': serializer.toJson<String>(voiceRef),
       'voiceMode': serializer.toJson<String>(voiceMode),
       'createdAt': serializer.toJson<int>(createdAt),
+      'lastInteractionAt': serializer.toJson<int>(lastInteractionAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
     };
   }
@@ -13623,6 +13660,7 @@ class CustomResidentRow extends DataClass
     String? voiceRef,
     String? voiceMode,
     int? createdAt,
+    int? lastInteractionAt,
     Value<int?> deletedAt = const Value.absent(),
   }) => CustomResidentRow(
     id: id ?? this.id,
@@ -13647,6 +13685,7 @@ class CustomResidentRow extends DataClass
     voiceRef: voiceRef ?? this.voiceRef,
     voiceMode: voiceMode ?? this.voiceMode,
     createdAt: createdAt ?? this.createdAt,
+    lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   CustomResidentRow copyWithCompanion(CustomResidentsCompanion data) {
@@ -13699,6 +13738,9 @@ class CustomResidentRow extends DataClass
       voiceRef: data.voiceRef.present ? data.voiceRef.value : this.voiceRef,
       voiceMode: data.voiceMode.present ? data.voiceMode.value : this.voiceMode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      lastInteractionAt: data.lastInteractionAt.present
+          ? data.lastInteractionAt.value
+          : this.lastInteractionAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
@@ -13728,6 +13770,7 @@ class CustomResidentRow extends DataClass
           ..write('voiceRef: $voiceRef, ')
           ..write('voiceMode: $voiceMode, ')
           ..write('createdAt: $createdAt, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
@@ -13757,6 +13800,7 @@ class CustomResidentRow extends DataClass
     voiceRef,
     voiceMode,
     createdAt,
+    lastInteractionAt,
     deletedAt,
   ]);
   @override
@@ -13785,6 +13829,7 @@ class CustomResidentRow extends DataClass
           other.voiceRef == this.voiceRef &&
           other.voiceMode == this.voiceMode &&
           other.createdAt == this.createdAt &&
+          other.lastInteractionAt == this.lastInteractionAt &&
           other.deletedAt == this.deletedAt);
 }
 
@@ -13811,6 +13856,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
   final Value<String> voiceRef;
   final Value<String> voiceMode;
   final Value<int> createdAt;
+  final Value<int> lastInteractionAt;
   final Value<int?> deletedAt;
   final Value<int> rowid;
   const CustomResidentsCompanion({
@@ -13836,6 +13882,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.voiceRef = const Value.absent(),
     this.voiceMode = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.lastInteractionAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -13862,6 +13909,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     this.voiceRef = const Value.absent(),
     this.voiceMode = const Value.absent(),
     required int createdAt,
+    this.lastInteractionAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -13890,6 +13938,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Expression<String>? voiceRef,
     Expression<String>? voiceMode,
     Expression<int>? createdAt,
+    Expression<int>? lastInteractionAt,
     Expression<int>? deletedAt,
     Expression<int>? rowid,
   }) {
@@ -13916,6 +13965,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       if (voiceRef != null) 'voice_ref': voiceRef,
       if (voiceMode != null) 'voice_mode': voiceMode,
       if (createdAt != null) 'created_at': createdAt,
+      if (lastInteractionAt != null) 'last_interaction_at': lastInteractionAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -13944,6 +13994,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     Value<String>? voiceRef,
     Value<String>? voiceMode,
     Value<int>? createdAt,
+    Value<int>? lastInteractionAt,
     Value<int?>? deletedAt,
     Value<int>? rowid,
   }) {
@@ -13970,6 +14021,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
       voiceRef: voiceRef ?? this.voiceRef,
       voiceMode: voiceMode ?? this.voiceMode,
       createdAt: createdAt ?? this.createdAt,
+      lastInteractionAt: lastInteractionAt ?? this.lastInteractionAt,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -14044,6 +14096,9 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (lastInteractionAt.present) {
+      map['last_interaction_at'] = Variable<int>(lastInteractionAt.value);
+    }
     if (deletedAt.present) {
       map['deleted_at'] = Variable<int>(deletedAt.value);
     }
@@ -14078,6 +14133,7 @@ class CustomResidentsCompanion extends UpdateCompanion<CustomResidentRow> {
           ..write('voiceRef: $voiceRef, ')
           ..write('voiceMode: $voiceMode, ')
           ..write('createdAt: $createdAt, ')
+          ..write('lastInteractionAt: $lastInteractionAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -18670,6 +18726,477 @@ class ResidentAlarmsCompanion extends UpdateCompanion<ResidentAlarmRow> {
   }
 }
 
+class $ResidentSleepPeriodsTable extends ResidentSleepPeriods
+    with TableInfo<$ResidentSleepPeriodsTable, ResidentSleepPeriodRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResidentSleepPeriodsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endedAtMeta = const VerificationMeta(
+    'endedAt',
+  );
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+    'ended_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedByMeta = const VerificationMeta(
+    'startedBy',
+  );
+  @override
+  late final GeneratedColumn<String> startedBy = GeneratedColumn<String>(
+    'started_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('manual'),
+  );
+  static const VerificationMeta _endedByMeta = const VerificationMeta(
+    'endedBy',
+  );
+  @override
+  late final GeneratedColumn<String> endedBy = GeneratedColumn<String>(
+    'ended_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _farewellMeta = const VerificationMeta(
+    'farewell',
+  );
+  @override
+  late final GeneratedColumn<String> farewell = GeneratedColumn<String>(
+    'farewell',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    residentId,
+    startedAt,
+    endedAt,
+    startedBy,
+    endedBy,
+    farewell,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'resident_sleep_periods';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResidentSleepPeriodRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_residentIdMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(
+        _endedAtMeta,
+        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
+      );
+    }
+    if (data.containsKey('started_by')) {
+      context.handle(
+        _startedByMeta,
+        startedBy.isAcceptableOrUnknown(data['started_by']!, _startedByMeta),
+      );
+    }
+    if (data.containsKey('ended_by')) {
+      context.handle(
+        _endedByMeta,
+        endedBy.isAcceptableOrUnknown(data['ended_by']!, _endedByMeta),
+      );
+    }
+    if (data.containsKey('farewell')) {
+      context.handle(
+        _farewellMeta,
+        farewell.isAcceptableOrUnknown(data['farewell']!, _farewellMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResidentSleepPeriodRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResidentSleepPeriodRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      )!,
+      endedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_at'],
+      ),
+      startedBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}started_by'],
+      )!,
+      endedBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ended_by'],
+      )!,
+      farewell: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farewell'],
+      )!,
+    );
+  }
+
+  @override
+  $ResidentSleepPeriodsTable createAlias(String alias) {
+    return $ResidentSleepPeriodsTable(attachedDatabase, alias);
+  }
+}
+
+class ResidentSleepPeriodRow extends DataClass
+    implements Insertable<ResidentSleepPeriodRow> {
+  final String id;
+  final String residentId;
+  final int startedAt;
+
+  /// 空 = 还在睡。
+  final int? endedAt;
+
+  /// manual / auto：这一次是用户手动让 TA 睡，还是五天没互动自动睡。
+  final String startedBy;
+
+  /// manual / interaction：用户从睡眠页唤醒，还是直接找 TA 时被唤醒。
+  final String endedBy;
+
+  /// 入睡前留下的最后一句话（如果模型成功说出来）。
+  final String farewell;
+  const ResidentSleepPeriodRow({
+    required this.id,
+    required this.residentId,
+    required this.startedAt,
+    this.endedAt,
+    required this.startedBy,
+    required this.endedBy,
+    required this.farewell,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['resident_id'] = Variable<String>(residentId);
+    map['started_at'] = Variable<int>(startedAt);
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<int>(endedAt);
+    }
+    map['started_by'] = Variable<String>(startedBy);
+    map['ended_by'] = Variable<String>(endedBy);
+    map['farewell'] = Variable<String>(farewell);
+    return map;
+  }
+
+  ResidentSleepPeriodsCompanion toCompanion(bool nullToAbsent) {
+    return ResidentSleepPeriodsCompanion(
+      id: Value(id),
+      residentId: Value(residentId),
+      startedAt: Value(startedAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      startedBy: Value(startedBy),
+      endedBy: Value(endedBy),
+      farewell: Value(farewell),
+    );
+  }
+
+  factory ResidentSleepPeriodRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResidentSleepPeriodRow(
+      id: serializer.fromJson<String>(json['id']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      endedAt: serializer.fromJson<int?>(json['endedAt']),
+      startedBy: serializer.fromJson<String>(json['startedBy']),
+      endedBy: serializer.fromJson<String>(json['endedBy']),
+      farewell: serializer.fromJson<String>(json['farewell']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'residentId': serializer.toJson<String>(residentId),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'endedAt': serializer.toJson<int?>(endedAt),
+      'startedBy': serializer.toJson<String>(startedBy),
+      'endedBy': serializer.toJson<String>(endedBy),
+      'farewell': serializer.toJson<String>(farewell),
+    };
+  }
+
+  ResidentSleepPeriodRow copyWith({
+    String? id,
+    String? residentId,
+    int? startedAt,
+    Value<int?> endedAt = const Value.absent(),
+    String? startedBy,
+    String? endedBy,
+    String? farewell,
+  }) => ResidentSleepPeriodRow(
+    id: id ?? this.id,
+    residentId: residentId ?? this.residentId,
+    startedAt: startedAt ?? this.startedAt,
+    endedAt: endedAt.present ? endedAt.value : this.endedAt,
+    startedBy: startedBy ?? this.startedBy,
+    endedBy: endedBy ?? this.endedBy,
+    farewell: farewell ?? this.farewell,
+  );
+  ResidentSleepPeriodRow copyWithCompanion(ResidentSleepPeriodsCompanion data) {
+    return ResidentSleepPeriodRow(
+      id: data.id.present ? data.id.value : this.id,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      startedBy: data.startedBy.present ? data.startedBy.value : this.startedBy,
+      endedBy: data.endedBy.present ? data.endedBy.value : this.endedBy,
+      farewell: data.farewell.present ? data.farewell.value : this.farewell,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentSleepPeriodRow(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('startedBy: $startedBy, ')
+          ..write('endedBy: $endedBy, ')
+          ..write('farewell: $farewell')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    residentId,
+    startedAt,
+    endedAt,
+    startedBy,
+    endedBy,
+    farewell,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResidentSleepPeriodRow &&
+          other.id == this.id &&
+          other.residentId == this.residentId &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.startedBy == this.startedBy &&
+          other.endedBy == this.endedBy &&
+          other.farewell == this.farewell);
+}
+
+class ResidentSleepPeriodsCompanion
+    extends UpdateCompanion<ResidentSleepPeriodRow> {
+  final Value<String> id;
+  final Value<String> residentId;
+  final Value<int> startedAt;
+  final Value<int?> endedAt;
+  final Value<String> startedBy;
+  final Value<String> endedBy;
+  final Value<String> farewell;
+  final Value<int> rowid;
+  const ResidentSleepPeriodsCompanion({
+    this.id = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.startedBy = const Value.absent(),
+    this.endedBy = const Value.absent(),
+    this.farewell = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResidentSleepPeriodsCompanion.insert({
+    required String id,
+    required String residentId,
+    required int startedAt,
+    this.endedAt = const Value.absent(),
+    this.startedBy = const Value.absent(),
+    this.endedBy = const Value.absent(),
+    this.farewell = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       residentId = Value(residentId),
+       startedAt = Value(startedAt);
+  static Insertable<ResidentSleepPeriodRow> custom({
+    Expression<String>? id,
+    Expression<String>? residentId,
+    Expression<int>? startedAt,
+    Expression<int>? endedAt,
+    Expression<String>? startedBy,
+    Expression<String>? endedBy,
+    Expression<String>? farewell,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (residentId != null) 'resident_id': residentId,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (startedBy != null) 'started_by': startedBy,
+      if (endedBy != null) 'ended_by': endedBy,
+      if (farewell != null) 'farewell': farewell,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResidentSleepPeriodsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? residentId,
+    Value<int>? startedAt,
+    Value<int?>? endedAt,
+    Value<String>? startedBy,
+    Value<String>? endedBy,
+    Value<String>? farewell,
+    Value<int>? rowid,
+  }) {
+    return ResidentSleepPeriodsCompanion(
+      id: id ?? this.id,
+      residentId: residentId ?? this.residentId,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      startedBy: startedBy ?? this.startedBy,
+      endedBy: endedBy ?? this.endedBy,
+      farewell: farewell ?? this.farewell,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (startedBy.present) {
+      map['started_by'] = Variable<String>(startedBy.value);
+    }
+    if (endedBy.present) {
+      map['ended_by'] = Variable<String>(endedBy.value);
+    }
+    if (farewell.present) {
+      map['farewell'] = Variable<String>(farewell.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResidentSleepPeriodsCompanion(')
+          ..write('id: $id, ')
+          ..write('residentId: $residentId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('startedBy: $startedBy, ')
+          ..write('endedBy: $endedBy, ')
+          ..write('farewell: $farewell, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PetShiftsTable extends PetShifts
     with TableInfo<$PetShiftsTable, PetShiftRow> {
   @override
@@ -22938,6 +23465,18 @@ class $GameInvitesTable extends GameInvites
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _partyIdMeta = const VerificationMeta(
+    'partyId',
+  );
+  @override
+  late final GeneratedColumn<String> partyId = GeneratedColumn<String>(
+    'party_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -22981,6 +23520,7 @@ class $GameInvitesTable extends GameInvites
     note,
     messageId,
     matchId,
+    partyId,
     createdAt,
     expiresAt,
     resolvedAt,
@@ -23050,6 +23590,12 @@ class $GameInvitesTable extends GameInvites
         matchId.isAcceptableOrUnknown(data['match_id']!, _matchIdMeta),
       );
     }
+    if (data.containsKey('party_id')) {
+      context.handle(
+        _partyIdMeta,
+        partyId.isAcceptableOrUnknown(data['party_id']!, _partyIdMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -23113,6 +23659,10 @@ class $GameInvitesTable extends GameInvites
         DriftSqlType.string,
         data['${effectivePrefix}match_id'],
       ),
+      partyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}party_id'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -23151,6 +23701,12 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
 
   /// 接受后开出来的对局 id；卡片据此直接进棋盘。
   final String? matchId;
+
+  /// 一次多人邀请共用同一个 partyId（v50）。
+  ///
+  /// 两人棋类的 partyId 为空；狼人杀这类多人局把同一批邀请串起来，
+  /// 每张卡片仍能单独接受/拒绝。
+  final String partyId;
   final int createdAt;
   final int expiresAt;
   final int? resolvedAt;
@@ -23163,6 +23719,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
     required this.note,
     this.messageId,
     this.matchId,
+    required this.partyId,
     required this.createdAt,
     required this.expiresAt,
     this.resolvedAt,
@@ -23182,6 +23739,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
     if (!nullToAbsent || matchId != null) {
       map['match_id'] = Variable<String>(matchId);
     }
+    map['party_id'] = Variable<String>(partyId);
     map['created_at'] = Variable<int>(createdAt);
     map['expires_at'] = Variable<int>(expiresAt);
     if (!nullToAbsent || resolvedAt != null) {
@@ -23204,6 +23762,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
       matchId: matchId == null && nullToAbsent
           ? const Value.absent()
           : Value(matchId),
+      partyId: Value(partyId),
       createdAt: Value(createdAt),
       expiresAt: Value(expiresAt),
       resolvedAt: resolvedAt == null && nullToAbsent
@@ -23226,6 +23785,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
       note: serializer.fromJson<String>(json['note']),
       messageId: serializer.fromJson<String?>(json['messageId']),
       matchId: serializer.fromJson<String?>(json['matchId']),
+      partyId: serializer.fromJson<String>(json['partyId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       expiresAt: serializer.fromJson<int>(json['expiresAt']),
       resolvedAt: serializer.fromJson<int?>(json['resolvedAt']),
@@ -23243,6 +23803,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
       'note': serializer.toJson<String>(note),
       'messageId': serializer.toJson<String?>(messageId),
       'matchId': serializer.toJson<String?>(matchId),
+      'partyId': serializer.toJson<String>(partyId),
       'createdAt': serializer.toJson<int>(createdAt),
       'expiresAt': serializer.toJson<int>(expiresAt),
       'resolvedAt': serializer.toJson<int?>(resolvedAt),
@@ -23258,6 +23819,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
     String? note,
     Value<String?> messageId = const Value.absent(),
     Value<String?> matchId = const Value.absent(),
+    String? partyId,
     int? createdAt,
     int? expiresAt,
     Value<int?> resolvedAt = const Value.absent(),
@@ -23270,6 +23832,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
     note: note ?? this.note,
     messageId: messageId.present ? messageId.value : this.messageId,
     matchId: matchId.present ? matchId.value : this.matchId,
+    partyId: partyId ?? this.partyId,
     createdAt: createdAt ?? this.createdAt,
     expiresAt: expiresAt ?? this.expiresAt,
     resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
@@ -23286,6 +23849,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
       note: data.note.present ? data.note.value : this.note,
       messageId: data.messageId.present ? data.messageId.value : this.messageId,
       matchId: data.matchId.present ? data.matchId.value : this.matchId,
+      partyId: data.partyId.present ? data.partyId.value : this.partyId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
       resolvedAt: data.resolvedAt.present
@@ -23305,6 +23869,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
           ..write('note: $note, ')
           ..write('messageId: $messageId, ')
           ..write('matchId: $matchId, ')
+          ..write('partyId: $partyId, ')
           ..write('createdAt: $createdAt, ')
           ..write('expiresAt: $expiresAt, ')
           ..write('resolvedAt: $resolvedAt')
@@ -23322,6 +23887,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
     note,
     messageId,
     matchId,
+    partyId,
     createdAt,
     expiresAt,
     resolvedAt,
@@ -23338,6 +23904,7 @@ class GameInviteRow extends DataClass implements Insertable<GameInviteRow> {
           other.note == this.note &&
           other.messageId == this.messageId &&
           other.matchId == this.matchId &&
+          other.partyId == this.partyId &&
           other.createdAt == this.createdAt &&
           other.expiresAt == this.expiresAt &&
           other.resolvedAt == this.resolvedAt);
@@ -23352,6 +23919,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
   final Value<String> note;
   final Value<String?> messageId;
   final Value<String?> matchId;
+  final Value<String> partyId;
   final Value<int> createdAt;
   final Value<int> expiresAt;
   final Value<int?> resolvedAt;
@@ -23365,6 +23933,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
     this.note = const Value.absent(),
     this.messageId = const Value.absent(),
     this.matchId = const Value.absent(),
+    this.partyId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.expiresAt = const Value.absent(),
     this.resolvedAt = const Value.absent(),
@@ -23379,6 +23948,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
     this.note = const Value.absent(),
     this.messageId = const Value.absent(),
     this.matchId = const Value.absent(),
+    this.partyId = const Value.absent(),
     required int createdAt,
     required int expiresAt,
     this.resolvedAt = const Value.absent(),
@@ -23398,6 +23968,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
     Expression<String>? note,
     Expression<String>? messageId,
     Expression<String>? matchId,
+    Expression<String>? partyId,
     Expression<int>? createdAt,
     Expression<int>? expiresAt,
     Expression<int>? resolvedAt,
@@ -23412,6 +23983,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
       if (note != null) 'note': note,
       if (messageId != null) 'message_id': messageId,
       if (matchId != null) 'match_id': matchId,
+      if (partyId != null) 'party_id': partyId,
       if (createdAt != null) 'created_at': createdAt,
       if (expiresAt != null) 'expires_at': expiresAt,
       if (resolvedAt != null) 'resolved_at': resolvedAt,
@@ -23428,6 +24000,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
     Value<String>? note,
     Value<String?>? messageId,
     Value<String?>? matchId,
+    Value<String>? partyId,
     Value<int>? createdAt,
     Value<int>? expiresAt,
     Value<int?>? resolvedAt,
@@ -23442,6 +24015,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
       note: note ?? this.note,
       messageId: messageId ?? this.messageId,
       matchId: matchId ?? this.matchId,
+      partyId: partyId ?? this.partyId,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
@@ -23476,6 +24050,9 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
     if (matchId.present) {
       map['match_id'] = Variable<String>(matchId.value);
     }
+    if (partyId.present) {
+      map['party_id'] = Variable<String>(partyId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -23502,6 +24079,7 @@ class GameInvitesCompanion extends UpdateCompanion<GameInviteRow> {
           ..write('note: $note, ')
           ..write('messageId: $messageId, ')
           ..write('matchId: $matchId, ')
+          ..write('partyId: $partyId, ')
           ..write('createdAt: $createdAt, ')
           ..write('expiresAt: $expiresAt, ')
           ..write('resolvedAt: $resolvedAt, ')
@@ -24965,6 +25543,1500 @@ class GameMessagesCompanion extends UpdateCompanion<GameMessageRow> {
   }
 }
 
+class $GameMatchPlayersTable extends GameMatchPlayers
+    with TableInfo<$GameMatchPlayersTable, GameMatchPlayerRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GameMatchPlayersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _matchIdMeta = const VerificationMeta(
+    'matchId',
+  );
+  @override
+  late final GeneratedColumn<String> matchId = GeneratedColumn<String>(
+    'match_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residentIdMeta = const VerificationMeta(
+    'residentId',
+  );
+  @override
+  late final GeneratedColumn<String> residentId = GeneratedColumn<String>(
+    'resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seatMeta = const VerificationMeta('seat');
+  @override
+  late final GeneratedColumn<int> seat = GeneratedColumn<int>(
+    'seat',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isUserMeta = const VerificationMeta('isUser');
+  @override
+  late final GeneratedColumn<bool> isUser = GeneratedColumn<bool>(
+    'is_user',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_user" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _aliveMeta = const VerificationMeta('alive');
+  @override
+  late final GeneratedColumn<bool> alive = GeneratedColumn<bool>(
+    'alive',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("alive" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _avatarAssetMeta = const VerificationMeta(
+    'avatarAsset',
+  );
+  @override
+  late final GeneratedColumn<String> avatarAsset = GeneratedColumn<String>(
+    'avatar_asset',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    matchId,
+    residentId,
+    name,
+    seat,
+    isUser,
+    alive,
+    role,
+    avatarAsset,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_match_players';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GameMatchPlayerRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('match_id')) {
+      context.handle(
+        _matchIdMeta,
+        matchId.isAcceptableOrUnknown(data['match_id']!, _matchIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_matchIdMeta);
+    }
+    if (data.containsKey('resident_id')) {
+      context.handle(
+        _residentIdMeta,
+        residentId.isAcceptableOrUnknown(data['resident_id']!, _residentIdMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('seat')) {
+      context.handle(
+        _seatMeta,
+        seat.isAcceptableOrUnknown(data['seat']!, _seatMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seatMeta);
+    }
+    if (data.containsKey('is_user')) {
+      context.handle(
+        _isUserMeta,
+        isUser.isAcceptableOrUnknown(data['is_user']!, _isUserMeta),
+      );
+    }
+    if (data.containsKey('alive')) {
+      context.handle(
+        _aliveMeta,
+        alive.isAcceptableOrUnknown(data['alive']!, _aliveMeta),
+      );
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    }
+    if (data.containsKey('avatar_asset')) {
+      context.handle(
+        _avatarAssetMeta,
+        avatarAsset.isAcceptableOrUnknown(
+          data['avatar_asset']!,
+          _avatarAssetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GameMatchPlayerRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GameMatchPlayerRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      matchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_id'],
+      )!,
+      residentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resident_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      seat: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seat'],
+      )!,
+      isUser: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_user'],
+      )!,
+      alive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}alive'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      avatarAsset: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_asset'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GameMatchPlayersTable createAlias(String alias) {
+    return $GameMatchPlayersTable(attachedDatabase, alias);
+  }
+}
+
+class GameMatchPlayerRow extends DataClass
+    implements Insertable<GameMatchPlayerRow> {
+  final String id;
+  final String matchId;
+
+  /// 固定住民的 id；内置 AI 玩家和用户为空。
+  final String residentId;
+  final String name;
+  final int seat;
+  final bool isUser;
+
+  /// 是否还活着（狼人杀）。
+  final bool alive;
+
+  /// werewolf / seer / witch / hunter / villager；其他游戏为空。
+  final String role;
+
+  /// 头像引用，空则用名字生成。
+  final String avatarAsset;
+  final int createdAt;
+  const GameMatchPlayerRow({
+    required this.id,
+    required this.matchId,
+    required this.residentId,
+    required this.name,
+    required this.seat,
+    required this.isUser,
+    required this.alive,
+    required this.role,
+    required this.avatarAsset,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['match_id'] = Variable<String>(matchId);
+    map['resident_id'] = Variable<String>(residentId);
+    map['name'] = Variable<String>(name);
+    map['seat'] = Variable<int>(seat);
+    map['is_user'] = Variable<bool>(isUser);
+    map['alive'] = Variable<bool>(alive);
+    map['role'] = Variable<String>(role);
+    map['avatar_asset'] = Variable<String>(avatarAsset);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  GameMatchPlayersCompanion toCompanion(bool nullToAbsent) {
+    return GameMatchPlayersCompanion(
+      id: Value(id),
+      matchId: Value(matchId),
+      residentId: Value(residentId),
+      name: Value(name),
+      seat: Value(seat),
+      isUser: Value(isUser),
+      alive: Value(alive),
+      role: Value(role),
+      avatarAsset: Value(avatarAsset),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory GameMatchPlayerRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GameMatchPlayerRow(
+      id: serializer.fromJson<String>(json['id']),
+      matchId: serializer.fromJson<String>(json['matchId']),
+      residentId: serializer.fromJson<String>(json['residentId']),
+      name: serializer.fromJson<String>(json['name']),
+      seat: serializer.fromJson<int>(json['seat']),
+      isUser: serializer.fromJson<bool>(json['isUser']),
+      alive: serializer.fromJson<bool>(json['alive']),
+      role: serializer.fromJson<String>(json['role']),
+      avatarAsset: serializer.fromJson<String>(json['avatarAsset']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'matchId': serializer.toJson<String>(matchId),
+      'residentId': serializer.toJson<String>(residentId),
+      'name': serializer.toJson<String>(name),
+      'seat': serializer.toJson<int>(seat),
+      'isUser': serializer.toJson<bool>(isUser),
+      'alive': serializer.toJson<bool>(alive),
+      'role': serializer.toJson<String>(role),
+      'avatarAsset': serializer.toJson<String>(avatarAsset),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  GameMatchPlayerRow copyWith({
+    String? id,
+    String? matchId,
+    String? residentId,
+    String? name,
+    int? seat,
+    bool? isUser,
+    bool? alive,
+    String? role,
+    String? avatarAsset,
+    int? createdAt,
+  }) => GameMatchPlayerRow(
+    id: id ?? this.id,
+    matchId: matchId ?? this.matchId,
+    residentId: residentId ?? this.residentId,
+    name: name ?? this.name,
+    seat: seat ?? this.seat,
+    isUser: isUser ?? this.isUser,
+    alive: alive ?? this.alive,
+    role: role ?? this.role,
+    avatarAsset: avatarAsset ?? this.avatarAsset,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  GameMatchPlayerRow copyWithCompanion(GameMatchPlayersCompanion data) {
+    return GameMatchPlayerRow(
+      id: data.id.present ? data.id.value : this.id,
+      matchId: data.matchId.present ? data.matchId.value : this.matchId,
+      residentId: data.residentId.present
+          ? data.residentId.value
+          : this.residentId,
+      name: data.name.present ? data.name.value : this.name,
+      seat: data.seat.present ? data.seat.value : this.seat,
+      isUser: data.isUser.present ? data.isUser.value : this.isUser,
+      alive: data.alive.present ? data.alive.value : this.alive,
+      role: data.role.present ? data.role.value : this.role,
+      avatarAsset: data.avatarAsset.present
+          ? data.avatarAsset.value
+          : this.avatarAsset,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameMatchPlayerRow(')
+          ..write('id: $id, ')
+          ..write('matchId: $matchId, ')
+          ..write('residentId: $residentId, ')
+          ..write('name: $name, ')
+          ..write('seat: $seat, ')
+          ..write('isUser: $isUser, ')
+          ..write('alive: $alive, ')
+          ..write('role: $role, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    matchId,
+    residentId,
+    name,
+    seat,
+    isUser,
+    alive,
+    role,
+    avatarAsset,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GameMatchPlayerRow &&
+          other.id == this.id &&
+          other.matchId == this.matchId &&
+          other.residentId == this.residentId &&
+          other.name == this.name &&
+          other.seat == this.seat &&
+          other.isUser == this.isUser &&
+          other.alive == this.alive &&
+          other.role == this.role &&
+          other.avatarAsset == this.avatarAsset &&
+          other.createdAt == this.createdAt);
+}
+
+class GameMatchPlayersCompanion extends UpdateCompanion<GameMatchPlayerRow> {
+  final Value<String> id;
+  final Value<String> matchId;
+  final Value<String> residentId;
+  final Value<String> name;
+  final Value<int> seat;
+  final Value<bool> isUser;
+  final Value<bool> alive;
+  final Value<String> role;
+  final Value<String> avatarAsset;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const GameMatchPlayersCompanion({
+    this.id = const Value.absent(),
+    this.matchId = const Value.absent(),
+    this.residentId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.seat = const Value.absent(),
+    this.isUser = const Value.absent(),
+    this.alive = const Value.absent(),
+    this.role = const Value.absent(),
+    this.avatarAsset = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GameMatchPlayersCompanion.insert({
+    required String id,
+    required String matchId,
+    this.residentId = const Value.absent(),
+    required String name,
+    required int seat,
+    this.isUser = const Value.absent(),
+    this.alive = const Value.absent(),
+    this.role = const Value.absent(),
+    this.avatarAsset = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       matchId = Value(matchId),
+       name = Value(name),
+       seat = Value(seat),
+       createdAt = Value(createdAt);
+  static Insertable<GameMatchPlayerRow> custom({
+    Expression<String>? id,
+    Expression<String>? matchId,
+    Expression<String>? residentId,
+    Expression<String>? name,
+    Expression<int>? seat,
+    Expression<bool>? isUser,
+    Expression<bool>? alive,
+    Expression<String>? role,
+    Expression<String>? avatarAsset,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (matchId != null) 'match_id': matchId,
+      if (residentId != null) 'resident_id': residentId,
+      if (name != null) 'name': name,
+      if (seat != null) 'seat': seat,
+      if (isUser != null) 'is_user': isUser,
+      if (alive != null) 'alive': alive,
+      if (role != null) 'role': role,
+      if (avatarAsset != null) 'avatar_asset': avatarAsset,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GameMatchPlayersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? matchId,
+    Value<String>? residentId,
+    Value<String>? name,
+    Value<int>? seat,
+    Value<bool>? isUser,
+    Value<bool>? alive,
+    Value<String>? role,
+    Value<String>? avatarAsset,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return GameMatchPlayersCompanion(
+      id: id ?? this.id,
+      matchId: matchId ?? this.matchId,
+      residentId: residentId ?? this.residentId,
+      name: name ?? this.name,
+      seat: seat ?? this.seat,
+      isUser: isUser ?? this.isUser,
+      alive: alive ?? this.alive,
+      role: role ?? this.role,
+      avatarAsset: avatarAsset ?? this.avatarAsset,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (matchId.present) {
+      map['match_id'] = Variable<String>(matchId.value);
+    }
+    if (residentId.present) {
+      map['resident_id'] = Variable<String>(residentId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (seat.present) {
+      map['seat'] = Variable<int>(seat.value);
+    }
+    if (isUser.present) {
+      map['is_user'] = Variable<bool>(isUser.value);
+    }
+    if (alive.present) {
+      map['alive'] = Variable<bool>(alive.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (avatarAsset.present) {
+      map['avatar_asset'] = Variable<String>(avatarAsset.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameMatchPlayersCompanion(')
+          ..write('id: $id, ')
+          ..write('matchId: $matchId, ')
+          ..write('residentId: $residentId, ')
+          ..write('name: $name, ')
+          ..write('seat: $seat, ')
+          ..write('isUser: $isUser, ')
+          ..write('alive: $alive, ')
+          ..write('role: $role, ')
+          ..write('avatarAsset: $avatarAsset, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GameStatesTable extends GameStates
+    with TableInfo<$GameStatesTable, GameStateRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GameStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _matchIdMeta = const VerificationMeta(
+    'matchId',
+  );
+  @override
+  late final GeneratedColumn<String> matchId = GeneratedColumn<String>(
+    'match_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateJsonMeta = const VerificationMeta(
+    'stateJson',
+  );
+  @override
+  late final GeneratedColumn<String> stateJson = GeneratedColumn<String>(
+    'state_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [matchId, stateJson, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_states';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GameStateRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('match_id')) {
+      context.handle(
+        _matchIdMeta,
+        matchId.isAcceptableOrUnknown(data['match_id']!, _matchIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_matchIdMeta);
+    }
+    if (data.containsKey('state_json')) {
+      context.handle(
+        _stateJsonMeta,
+        stateJson.isAcceptableOrUnknown(data['state_json']!, _stateJsonMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {matchId};
+  @override
+  GameStateRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GameStateRow(
+      matchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_id'],
+      )!,
+      stateJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state_json'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GameStatesTable createAlias(String alias) {
+    return $GameStatesTable(attachedDatabase, alias);
+  }
+}
+
+class GameStateRow extends DataClass implements Insertable<GameStateRow> {
+  final String matchId;
+  final String stateJson;
+  final int updatedAt;
+  const GameStateRow({
+    required this.matchId,
+    required this.stateJson,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['match_id'] = Variable<String>(matchId);
+    map['state_json'] = Variable<String>(stateJson);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  GameStatesCompanion toCompanion(bool nullToAbsent) {
+    return GameStatesCompanion(
+      matchId: Value(matchId),
+      stateJson: Value(stateJson),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory GameStateRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GameStateRow(
+      matchId: serializer.fromJson<String>(json['matchId']),
+      stateJson: serializer.fromJson<String>(json['stateJson']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'matchId': serializer.toJson<String>(matchId),
+      'stateJson': serializer.toJson<String>(stateJson),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  GameStateRow copyWith({String? matchId, String? stateJson, int? updatedAt}) =>
+      GameStateRow(
+        matchId: matchId ?? this.matchId,
+        stateJson: stateJson ?? this.stateJson,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  GameStateRow copyWithCompanion(GameStatesCompanion data) {
+    return GameStateRow(
+      matchId: data.matchId.present ? data.matchId.value : this.matchId,
+      stateJson: data.stateJson.present ? data.stateJson.value : this.stateJson,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameStateRow(')
+          ..write('matchId: $matchId, ')
+          ..write('stateJson: $stateJson, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(matchId, stateJson, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GameStateRow &&
+          other.matchId == this.matchId &&
+          other.stateJson == this.stateJson &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GameStatesCompanion extends UpdateCompanion<GameStateRow> {
+  final Value<String> matchId;
+  final Value<String> stateJson;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const GameStatesCompanion({
+    this.matchId = const Value.absent(),
+    this.stateJson = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GameStatesCompanion.insert({
+    required String matchId,
+    this.stateJson = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : matchId = Value(matchId),
+       updatedAt = Value(updatedAt);
+  static Insertable<GameStateRow> custom({
+    Expression<String>? matchId,
+    Expression<String>? stateJson,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (matchId != null) 'match_id': matchId,
+      if (stateJson != null) 'state_json': stateJson,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GameStatesCompanion copyWith({
+    Value<String>? matchId,
+    Value<String>? stateJson,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return GameStatesCompanion(
+      matchId: matchId ?? this.matchId,
+      stateJson: stateJson ?? this.stateJson,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (matchId.present) {
+      map['match_id'] = Variable<String>(matchId.value);
+    }
+    if (stateJson.present) {
+      map['state_json'] = Variable<String>(stateJson.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameStatesCompanion(')
+          ..write('matchId: $matchId, ')
+          ..write('stateJson: $stateJson, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GamePluginsTable extends GamePlugins
+    with TableInfo<$GamePluginsTable, GamePluginRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GamePluginsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _manifestJsonMeta = const VerificationMeta(
+    'manifestJson',
+  );
+  @override
+  late final GeneratedColumn<String> manifestJson = GeneratedColumn<String>(
+    'manifest_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _minPlayersMeta = const VerificationMeta(
+    'minPlayers',
+  );
+  @override
+  late final GeneratedColumn<int> minPlayers = GeneratedColumn<int>(
+    'min_players',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _maxPlayersMeta = const VerificationMeta(
+    'maxPlayers',
+  );
+  @override
+  late final GeneratedColumn<int> maxPlayers = GeneratedColumn<int>(
+    'max_players',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _installedAtMeta = const VerificationMeta(
+    'installedAt',
+  );
+  @override
+  late final GeneratedColumn<int> installedAt = GeneratedColumn<int>(
+    'installed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    sourceUrl,
+    manifestJson,
+    enabled,
+    minPlayers,
+    maxPlayers,
+    installedAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_plugins';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GamePluginRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceUrlMeta);
+    }
+    if (data.containsKey('manifest_json')) {
+      context.handle(
+        _manifestJsonMeta,
+        manifestJson.isAcceptableOrUnknown(
+          data['manifest_json']!,
+          _manifestJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_manifestJsonMeta);
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('min_players')) {
+      context.handle(
+        _minPlayersMeta,
+        minPlayers.isAcceptableOrUnknown(data['min_players']!, _minPlayersMeta),
+      );
+    }
+    if (data.containsKey('max_players')) {
+      context.handle(
+        _maxPlayersMeta,
+        maxPlayers.isAcceptableOrUnknown(data['max_players']!, _maxPlayersMeta),
+      );
+    }
+    if (data.containsKey('installed_at')) {
+      context.handle(
+        _installedAtMeta,
+        installedAt.isAcceptableOrUnknown(
+          data['installed_at']!,
+          _installedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_installedAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GamePluginRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GamePluginRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      )!,
+      manifestJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}manifest_json'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      minPlayers: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}min_players'],
+      )!,
+      maxPlayers: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_players'],
+      )!,
+      installedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}installed_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GamePluginsTable createAlias(String alias) {
+    return $GamePluginsTable(attachedDatabase, alias);
+  }
+}
+
+class GamePluginRow extends DataClass implements Insertable<GamePluginRow> {
+  final String id;
+  final String name;
+  final String description;
+  final String sourceUrl;
+  final String manifestJson;
+  final bool enabled;
+  final int minPlayers;
+  final int maxPlayers;
+  final int installedAt;
+  final int updatedAt;
+  const GamePluginRow({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.sourceUrl,
+    required this.manifestJson,
+    required this.enabled,
+    required this.minPlayers,
+    required this.maxPlayers,
+    required this.installedAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['description'] = Variable<String>(description);
+    map['source_url'] = Variable<String>(sourceUrl);
+    map['manifest_json'] = Variable<String>(manifestJson);
+    map['enabled'] = Variable<bool>(enabled);
+    map['min_players'] = Variable<int>(minPlayers);
+    map['max_players'] = Variable<int>(maxPlayers);
+    map['installed_at'] = Variable<int>(installedAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  GamePluginsCompanion toCompanion(bool nullToAbsent) {
+    return GamePluginsCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: Value(description),
+      sourceUrl: Value(sourceUrl),
+      manifestJson: Value(manifestJson),
+      enabled: Value(enabled),
+      minPlayers: Value(minPlayers),
+      maxPlayers: Value(maxPlayers),
+      installedAt: Value(installedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory GamePluginRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GamePluginRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String>(json['description']),
+      sourceUrl: serializer.fromJson<String>(json['sourceUrl']),
+      manifestJson: serializer.fromJson<String>(json['manifestJson']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      minPlayers: serializer.fromJson<int>(json['minPlayers']),
+      maxPlayers: serializer.fromJson<int>(json['maxPlayers']),
+      installedAt: serializer.fromJson<int>(json['installedAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String>(description),
+      'sourceUrl': serializer.toJson<String>(sourceUrl),
+      'manifestJson': serializer.toJson<String>(manifestJson),
+      'enabled': serializer.toJson<bool>(enabled),
+      'minPlayers': serializer.toJson<int>(minPlayers),
+      'maxPlayers': serializer.toJson<int>(maxPlayers),
+      'installedAt': serializer.toJson<int>(installedAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  GamePluginRow copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? sourceUrl,
+    String? manifestJson,
+    bool? enabled,
+    int? minPlayers,
+    int? maxPlayers,
+    int? installedAt,
+    int? updatedAt,
+  }) => GamePluginRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    sourceUrl: sourceUrl ?? this.sourceUrl,
+    manifestJson: manifestJson ?? this.manifestJson,
+    enabled: enabled ?? this.enabled,
+    minPlayers: minPlayers ?? this.minPlayers,
+    maxPlayers: maxPlayers ?? this.maxPlayers,
+    installedAt: installedAt ?? this.installedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  GamePluginRow copyWithCompanion(GamePluginsCompanion data) {
+    return GamePluginRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      manifestJson: data.manifestJson.present
+          ? data.manifestJson.value
+          : this.manifestJson,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      minPlayers: data.minPlayers.present
+          ? data.minPlayers.value
+          : this.minPlayers,
+      maxPlayers: data.maxPlayers.present
+          ? data.maxPlayers.value
+          : this.maxPlayers,
+      installedAt: data.installedAt.present
+          ? data.installedAt.value
+          : this.installedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GamePluginRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('manifestJson: $manifestJson, ')
+          ..write('enabled: $enabled, ')
+          ..write('minPlayers: $minPlayers, ')
+          ..write('maxPlayers: $maxPlayers, ')
+          ..write('installedAt: $installedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    description,
+    sourceUrl,
+    manifestJson,
+    enabled,
+    minPlayers,
+    maxPlayers,
+    installedAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GamePluginRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.sourceUrl == this.sourceUrl &&
+          other.manifestJson == this.manifestJson &&
+          other.enabled == this.enabled &&
+          other.minPlayers == this.minPlayers &&
+          other.maxPlayers == this.maxPlayers &&
+          other.installedAt == this.installedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GamePluginsCompanion extends UpdateCompanion<GamePluginRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> description;
+  final Value<String> sourceUrl;
+  final Value<String> manifestJson;
+  final Value<bool> enabled;
+  final Value<int> minPlayers;
+  final Value<int> maxPlayers;
+  final Value<int> installedAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const GamePluginsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.manifestJson = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.minPlayers = const Value.absent(),
+    this.maxPlayers = const Value.absent(),
+    this.installedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GamePluginsCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    required String sourceUrl,
+    required String manifestJson,
+    this.enabled = const Value.absent(),
+    this.minPlayers = const Value.absent(),
+    this.maxPlayers = const Value.absent(),
+    required int installedAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       sourceUrl = Value(sourceUrl),
+       manifestJson = Value(manifestJson),
+       installedAt = Value(installedAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<GamePluginRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<String>? sourceUrl,
+    Expression<String>? manifestJson,
+    Expression<bool>? enabled,
+    Expression<int>? minPlayers,
+    Expression<int>? maxPlayers,
+    Expression<int>? installedAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (manifestJson != null) 'manifest_json': manifestJson,
+      if (enabled != null) 'enabled': enabled,
+      if (minPlayers != null) 'min_players': minPlayers,
+      if (maxPlayers != null) 'max_players': maxPlayers,
+      if (installedAt != null) 'installed_at': installedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GamePluginsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? description,
+    Value<String>? sourceUrl,
+    Value<String>? manifestJson,
+    Value<bool>? enabled,
+    Value<int>? minPlayers,
+    Value<int>? maxPlayers,
+    Value<int>? installedAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return GamePluginsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      manifestJson: manifestJson ?? this.manifestJson,
+      enabled: enabled ?? this.enabled,
+      minPlayers: minPlayers ?? this.minPlayers,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
+      installedAt: installedAt ?? this.installedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (manifestJson.present) {
+      map['manifest_json'] = Variable<String>(manifestJson.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (minPlayers.present) {
+      map['min_players'] = Variable<int>(minPlayers.value);
+    }
+    if (maxPlayers.present) {
+      map['max_players'] = Variable<int>(maxPlayers.value);
+    }
+    if (installedAt.present) {
+      map['installed_at'] = Variable<int>(installedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GamePluginsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('manifestJson: $manifestJson, ')
+          ..write('enabled: $enabled, ')
+          ..write('minPlayers: $minPlayers, ')
+          ..write('maxPlayers: $maxPlayers, ')
+          ..write('installedAt: $installedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -25012,6 +27084,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $ResidentAlarmsTable residentAlarms = $ResidentAlarmsTable(this);
+  late final $ResidentSleepPeriodsTable residentSleepPeriods =
+      $ResidentSleepPeriodsTable(this);
   late final $PetShiftsTable petShifts = $PetShiftsTable(this);
   late final $ResidentInboxItemsTable residentInboxItems =
       $ResidentInboxItemsTable(this);
@@ -25028,6 +27102,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $GameMatchesTable gameMatches = $GameMatchesTable(this);
   late final $GameMovesTable gameMoves = $GameMovesTable(this);
   late final $GameMessagesTable gameMessages = $GameMessagesTable(this);
+  late final $GameMatchPlayersTable gameMatchPlayers = $GameMatchPlayersTable(
+    this,
+  );
+  late final $GameStatesTable gameStates = $GameStatesTable(this);
+  late final $GamePluginsTable gamePlugins = $GamePluginsTable(this);
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -25080,6 +27159,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'resident_alarms_due',
     'CREATE INDEX resident_alarms_due ON resident_alarms (resident_id, fire_at)',
   );
+  late final Index residentSleepPeriodsAt = Index(
+    'resident_sleep_periods_at',
+    'CREATE INDEX resident_sleep_periods_at ON resident_sleep_periods (resident_id, started_at)',
+  );
   late final Index residentInboxPending = Index(
     'resident_inbox_pending',
     'CREATE INDEX resident_inbox_pending ON resident_inbox_items (resident_id, handled_at)',
@@ -25128,6 +27211,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'game_messages_match',
     'CREATE INDEX game_messages_match ON game_messages (match_id)',
   );
+  late final Index gameMatchPlayersMatch = Index(
+    'game_match_players_match',
+    'CREATE INDEX game_match_players_match ON game_match_players (match_id)',
+  );
+  late final Index gamePluginsSource = Index(
+    'game_plugins_source',
+    'CREATE INDEX game_plugins_source ON game_plugins (source_url)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -25161,6 +27252,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     residentMemories,
     residentWakeLogs,
     residentAlarms,
+    residentSleepPeriods,
     petShifts,
     residentInboxItems,
     actionLogs,
@@ -25173,6 +27265,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     gameMatches,
     gameMoves,
     gameMessages,
+    gameMatchPlayers,
+    gameStates,
+    gamePlugins,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
@@ -25186,6 +27281,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     postViewsByPost,
     residentWakeLogsAt,
     residentAlarmsDue,
+    residentSleepPeriodsAt,
     residentInboxPending,
     actionLogsActor,
     clearPhotosCreated,
@@ -25198,6 +27294,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     gameMatchesStatus,
     gameMovesMatch,
     gameMessagesMatch,
+    gameMatchPlayersMatch,
+    gamePluginsSource,
   ];
 }
 
@@ -32813,6 +34911,7 @@ typedef $$CustomResidentsTableCreateCompanionBuilder =
       Value<String> voiceRef,
       Value<String> voiceMode,
       required int createdAt,
+      Value<int> lastInteractionAt,
       Value<int?> deletedAt,
       Value<int> rowid,
     });
@@ -32840,6 +34939,7 @@ typedef $$CustomResidentsTableUpdateCompanionBuilder =
       Value<String> voiceRef,
       Value<String> voiceMode,
       Value<int> createdAt,
+      Value<int> lastInteractionAt,
       Value<int?> deletedAt,
       Value<int> rowid,
     });
@@ -33012,6 +35112,11 @@ class $$CustomResidentsTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33190,6 +35295,11 @@ class $$CustomResidentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
@@ -33296,6 +35406,11 @@ class $$CustomResidentsTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastInteractionAt => $composableBuilder(
+    column: $table.lastInteractionAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
@@ -33406,6 +35521,7 @@ class $$CustomResidentsTableTableManager
                 Value<String> voiceRef = const Value.absent(),
                 Value<String> voiceMode = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<int> lastInteractionAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CustomResidentsCompanion(
@@ -33431,6 +35547,7 @@ class $$CustomResidentsTableTableManager
                 voiceRef: voiceRef,
                 voiceMode: voiceMode,
                 createdAt: createdAt,
+                lastInteractionAt: lastInteractionAt,
                 deletedAt: deletedAt,
                 rowid: rowid,
               ),
@@ -33458,6 +35575,7 @@ class $$CustomResidentsTableTableManager
                 Value<String> voiceRef = const Value.absent(),
                 Value<String> voiceMode = const Value.absent(),
                 required int createdAt,
+                Value<int> lastInteractionAt = const Value.absent(),
                 Value<int?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CustomResidentsCompanion.insert(
@@ -33483,6 +35601,7 @@ class $$CustomResidentsTableTableManager
                 voiceRef: voiceRef,
                 voiceMode: voiceMode,
                 createdAt: createdAt,
+                lastInteractionAt: lastInteractionAt,
                 deletedAt: deletedAt,
                 rowid: rowid,
               ),
@@ -36674,6 +38793,274 @@ typedef $$ResidentAlarmsTableProcessedTableManager =
       ResidentAlarmRow,
       PrefetchHooks Function()
     >;
+typedef $$ResidentSleepPeriodsTableCreateCompanionBuilder =
+    ResidentSleepPeriodsCompanion Function({
+      required String id,
+      required String residentId,
+      required int startedAt,
+      Value<int?> endedAt,
+      Value<String> startedBy,
+      Value<String> endedBy,
+      Value<String> farewell,
+      Value<int> rowid,
+    });
+typedef $$ResidentSleepPeriodsTableUpdateCompanionBuilder =
+    ResidentSleepPeriodsCompanion Function({
+      Value<String> id,
+      Value<String> residentId,
+      Value<int> startedAt,
+      Value<int?> endedAt,
+      Value<String> startedBy,
+      Value<String> endedBy,
+      Value<String> farewell,
+      Value<int> rowid,
+    });
+
+class $$ResidentSleepPeriodsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResidentSleepPeriodsTable> {
+  $$ResidentSleepPeriodsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startedBy => $composableBuilder(
+    column: $table.startedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endedBy => $composableBuilder(
+    column: $table.endedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get farewell => $composableBuilder(
+    column: $table.farewell,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ResidentSleepPeriodsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResidentSleepPeriodsTable> {
+  $$ResidentSleepPeriodsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startedBy => $composableBuilder(
+    column: $table.startedBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endedBy => $composableBuilder(
+    column: $table.endedBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get farewell => $composableBuilder(
+    column: $table.farewell,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ResidentSleepPeriodsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResidentSleepPeriodsTable> {
+  $$ResidentSleepPeriodsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get startedBy =>
+      $composableBuilder(column: $table.startedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get endedBy =>
+      $composableBuilder(column: $table.endedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get farewell =>
+      $composableBuilder(column: $table.farewell, builder: (column) => column);
+}
+
+class $$ResidentSleepPeriodsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResidentSleepPeriodsTable,
+          ResidentSleepPeriodRow,
+          $$ResidentSleepPeriodsTableFilterComposer,
+          $$ResidentSleepPeriodsTableOrderingComposer,
+          $$ResidentSleepPeriodsTableAnnotationComposer,
+          $$ResidentSleepPeriodsTableCreateCompanionBuilder,
+          $$ResidentSleepPeriodsTableUpdateCompanionBuilder,
+          (
+            ResidentSleepPeriodRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ResidentSleepPeriodsTable,
+              ResidentSleepPeriodRow
+            >,
+          ),
+          ResidentSleepPeriodRow,
+          PrefetchHooks Function()
+        > {
+  $$ResidentSleepPeriodsTableTableManager(
+    _$AppDatabase db,
+    $ResidentSleepPeriodsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResidentSleepPeriodsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResidentSleepPeriodsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ResidentSleepPeriodsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<int> startedAt = const Value.absent(),
+                Value<int?> endedAt = const Value.absent(),
+                Value<String> startedBy = const Value.absent(),
+                Value<String> endedBy = const Value.absent(),
+                Value<String> farewell = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentSleepPeriodsCompanion(
+                id: id,
+                residentId: residentId,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                startedBy: startedBy,
+                endedBy: endedBy,
+                farewell: farewell,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String residentId,
+                required int startedAt,
+                Value<int?> endedAt = const Value.absent(),
+                Value<String> startedBy = const Value.absent(),
+                Value<String> endedBy = const Value.absent(),
+                Value<String> farewell = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResidentSleepPeriodsCompanion.insert(
+                id: id,
+                residentId: residentId,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                startedBy: startedBy,
+                endedBy: endedBy,
+                farewell: farewell,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ResidentSleepPeriodsTable,
+                    ResidentSleepPeriodRow
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ResidentSleepPeriodsTable,
+                    ResidentSleepPeriodRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ResidentSleepPeriodsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResidentSleepPeriodsTable,
+      ResidentSleepPeriodRow,
+      $$ResidentSleepPeriodsTableFilterComposer,
+      $$ResidentSleepPeriodsTableOrderingComposer,
+      $$ResidentSleepPeriodsTableAnnotationComposer,
+      $$ResidentSleepPeriodsTableCreateCompanionBuilder,
+      $$ResidentSleepPeriodsTableUpdateCompanionBuilder,
+      (
+        ResidentSleepPeriodRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ResidentSleepPeriodsTable,
+          ResidentSleepPeriodRow
+        >,
+      ),
+      ResidentSleepPeriodRow,
+      PrefetchHooks Function()
+    >;
 typedef $$PetShiftsTableCreateCompanionBuilder = PetShiftsCompanion Function({
   required String id,
   required String residentId,
@@ -38913,6 +41300,7 @@ typedef $$GameInvitesTableCreateCompanionBuilder =
       Value<String> note,
       Value<String?> messageId,
       Value<String?> matchId,
+      Value<String> partyId,
       required int createdAt,
       required int expiresAt,
       Value<int?> resolvedAt,
@@ -38928,6 +41316,7 @@ typedef $$GameInvitesTableUpdateCompanionBuilder =
       Value<String> note,
       Value<String?> messageId,
       Value<String?> matchId,
+      Value<String> partyId,
       Value<int> createdAt,
       Value<int> expiresAt,
       Value<int?> resolvedAt,
@@ -38980,6 +41369,11 @@ class $$GameInvitesTableFilterComposer
 
   ColumnFilters<String> get matchId => $composableBuilder(
     column: $table.matchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partyId => $composableBuilder(
+    column: $table.partyId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -39048,6 +41442,11 @@ class $$GameInvitesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get partyId => $composableBuilder(
+    column: $table.partyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -39098,6 +41497,9 @@ class $$GameInvitesTableAnnotationComposer
 
   GeneratedColumn<String> get matchId =>
       $composableBuilder(column: $table.matchId, builder: (column) => column);
+
+  GeneratedColumn<String> get partyId =>
+      $composableBuilder(column: $table.partyId, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -39150,6 +41552,7 @@ class $$GameInvitesTableTableManager
                 Value<String> note = const Value.absent(),
                 Value<String?> messageId = const Value.absent(),
                 Value<String?> matchId = const Value.absent(),
+                Value<String> partyId = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> expiresAt = const Value.absent(),
                 Value<int?> resolvedAt = const Value.absent(),
@@ -39163,6 +41566,7 @@ class $$GameInvitesTableTableManager
                 note: note,
                 messageId: messageId,
                 matchId: matchId,
+                partyId: partyId,
                 createdAt: createdAt,
                 expiresAt: expiresAt,
                 resolvedAt: resolvedAt,
@@ -39178,6 +41582,7 @@ class $$GameInvitesTableTableManager
                 Value<String> note = const Value.absent(),
                 Value<String?> messageId = const Value.absent(),
                 Value<String?> matchId = const Value.absent(),
+                Value<String> partyId = const Value.absent(),
                 required int createdAt,
                 required int expiresAt,
                 Value<int?> resolvedAt = const Value.absent(),
@@ -39191,6 +41596,7 @@ class $$GameInvitesTableTableManager
                 note: note,
                 messageId: messageId,
                 matchId: matchId,
+                partyId: partyId,
                 createdAt: createdAt,
                 expiresAt: expiresAt,
                 resolvedAt: resolvedAt,
@@ -40011,6 +42417,809 @@ typedef $$GameMessagesTableProcessedTableManager =
       GameMessageRow,
       PrefetchHooks Function()
     >;
+typedef $$GameMatchPlayersTableCreateCompanionBuilder =
+    GameMatchPlayersCompanion Function({
+      required String id,
+      required String matchId,
+      Value<String> residentId,
+      required String name,
+      required int seat,
+      Value<bool> isUser,
+      Value<bool> alive,
+      Value<String> role,
+      Value<String> avatarAsset,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$GameMatchPlayersTableUpdateCompanionBuilder =
+    GameMatchPlayersCompanion Function({
+      Value<String> id,
+      Value<String> matchId,
+      Value<String> residentId,
+      Value<String> name,
+      Value<int> seat,
+      Value<bool> isUser,
+      Value<bool> alive,
+      Value<String> role,
+      Value<String> avatarAsset,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+class $$GameMatchPlayersTableFilterComposer
+    extends Composer<_$AppDatabase, $GameMatchPlayersTable> {
+  $$GameMatchPlayersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchId => $composableBuilder(
+    column: $table.matchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seat => $composableBuilder(
+    column: $table.seat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isUser => $composableBuilder(
+    column: $table.isUser,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get alive => $composableBuilder(
+    column: $table.alive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GameMatchPlayersTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameMatchPlayersTable> {
+  $$GameMatchPlayersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get matchId => $composableBuilder(
+    column: $table.matchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seat => $composableBuilder(
+    column: $table.seat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isUser => $composableBuilder(
+    column: $table.isUser,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get alive => $composableBuilder(
+    column: $table.alive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GameMatchPlayersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameMatchPlayersTable> {
+  $$GameMatchPlayersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get matchId =>
+      $composableBuilder(column: $table.matchId, builder: (column) => column);
+
+  GeneratedColumn<String> get residentId => $composableBuilder(
+    column: $table.residentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get seat =>
+      $composableBuilder(column: $table.seat, builder: (column) => column);
+
+  GeneratedColumn<bool> get isUser =>
+      $composableBuilder(column: $table.isUser, builder: (column) => column);
+
+  GeneratedColumn<bool> get alive =>
+      $composableBuilder(column: $table.alive, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarAsset => $composableBuilder(
+    column: $table.avatarAsset,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$GameMatchPlayersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GameMatchPlayersTable,
+          GameMatchPlayerRow,
+          $$GameMatchPlayersTableFilterComposer,
+          $$GameMatchPlayersTableOrderingComposer,
+          $$GameMatchPlayersTableAnnotationComposer,
+          $$GameMatchPlayersTableCreateCompanionBuilder,
+          $$GameMatchPlayersTableUpdateCompanionBuilder,
+          (
+            GameMatchPlayerRow,
+            BaseReferences<
+              _$AppDatabase,
+              $GameMatchPlayersTable,
+              GameMatchPlayerRow
+            >,
+          ),
+          GameMatchPlayerRow,
+          PrefetchHooks Function()
+        > {
+  $$GameMatchPlayersTableTableManager(
+    _$AppDatabase db,
+    $GameMatchPlayersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GameMatchPlayersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GameMatchPlayersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GameMatchPlayersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> matchId = const Value.absent(),
+                Value<String> residentId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> seat = const Value.absent(),
+                Value<bool> isUser = const Value.absent(),
+                Value<bool> alive = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> avatarAsset = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GameMatchPlayersCompanion(
+                id: id,
+                matchId: matchId,
+                residentId: residentId,
+                name: name,
+                seat: seat,
+                isUser: isUser,
+                alive: alive,
+                role: role,
+                avatarAsset: avatarAsset,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String matchId,
+                Value<String> residentId = const Value.absent(),
+                required String name,
+                required int seat,
+                Value<bool> isUser = const Value.absent(),
+                Value<bool> alive = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> avatarAsset = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GameMatchPlayersCompanion.insert(
+                id: id,
+                matchId: matchId,
+                residentId: residentId,
+                name: name,
+                seat: seat,
+                isUser: isUser,
+                alive: alive,
+                role: role,
+                avatarAsset: avatarAsset,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$GameMatchPlayersTable, GameMatchPlayerRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $GameMatchPlayersTable,
+                    GameMatchPlayerRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GameMatchPlayersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GameMatchPlayersTable,
+      GameMatchPlayerRow,
+      $$GameMatchPlayersTableFilterComposer,
+      $$GameMatchPlayersTableOrderingComposer,
+      $$GameMatchPlayersTableAnnotationComposer,
+      $$GameMatchPlayersTableCreateCompanionBuilder,
+      $$GameMatchPlayersTableUpdateCompanionBuilder,
+      (
+        GameMatchPlayerRow,
+        BaseReferences<
+          _$AppDatabase,
+          $GameMatchPlayersTable,
+          GameMatchPlayerRow
+        >,
+      ),
+      GameMatchPlayerRow,
+      PrefetchHooks Function()
+    >;
+typedef $$GameStatesTableCreateCompanionBuilder = GameStatesCompanion Function({
+  required String matchId,
+  Value<String> stateJson,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$GameStatesTableUpdateCompanionBuilder = GameStatesCompanion Function({
+  Value<String> matchId,
+  Value<String> stateJson,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$GameStatesTableFilterComposer
+    extends Composer<_$AppDatabase, $GameStatesTable> {
+  $$GameStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get matchId => $composableBuilder(
+    column: $table.matchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stateJson => $composableBuilder(
+    column: $table.stateJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GameStatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameStatesTable> {
+  $$GameStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get matchId => $composableBuilder(
+    column: $table.matchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stateJson => $composableBuilder(
+    column: $table.stateJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GameStatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameStatesTable> {
+  $$GameStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get matchId =>
+      $composableBuilder(column: $table.matchId, builder: (column) => column);
+
+  GeneratedColumn<String> get stateJson =>
+      $composableBuilder(column: $table.stateJson, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$GameStatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GameStatesTable,
+          GameStateRow,
+          $$GameStatesTableFilterComposer,
+          $$GameStatesTableOrderingComposer,
+          $$GameStatesTableAnnotationComposer,
+          $$GameStatesTableCreateCompanionBuilder,
+          $$GameStatesTableUpdateCompanionBuilder,
+          (
+            GameStateRow,
+            BaseReferences<_$AppDatabase, $GameStatesTable, GameStateRow>,
+          ),
+          GameStateRow,
+          PrefetchHooks Function()
+        > {
+  $$GameStatesTableTableManager(_$AppDatabase db, $GameStatesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GameStatesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GameStatesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GameStatesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> matchId = const Value.absent(),
+                Value<String> stateJson = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GameStatesCompanion(
+                matchId: matchId,
+                stateJson: stateJson,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String matchId,
+                Value<String> stateJson = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GameStatesCompanion.insert(
+                matchId: matchId,
+                stateJson: stateJson,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$GameStatesTable, GameStateRow>(table),
+                  BaseReferences<_$AppDatabase, $GameStatesTable, GameStateRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GameStatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GameStatesTable,
+      GameStateRow,
+      $$GameStatesTableFilterComposer,
+      $$GameStatesTableOrderingComposer,
+      $$GameStatesTableAnnotationComposer,
+      $$GameStatesTableCreateCompanionBuilder,
+      $$GameStatesTableUpdateCompanionBuilder,
+      (
+        GameStateRow,
+        BaseReferences<_$AppDatabase, $GameStatesTable, GameStateRow>,
+      ),
+      GameStateRow,
+      PrefetchHooks Function()
+    >;
+typedef $$GamePluginsTableCreateCompanionBuilder =
+    GamePluginsCompanion Function({
+      required String id,
+      required String name,
+      Value<String> description,
+      required String sourceUrl,
+      required String manifestJson,
+      Value<bool> enabled,
+      Value<int> minPlayers,
+      Value<int> maxPlayers,
+      required int installedAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$GamePluginsTableUpdateCompanionBuilder =
+    GamePluginsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> description,
+      Value<String> sourceUrl,
+      Value<String> manifestJson,
+      Value<bool> enabled,
+      Value<int> minPlayers,
+      Value<int> maxPlayers,
+      Value<int> installedAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$GamePluginsTableFilterComposer
+    extends Composer<_$AppDatabase, $GamePluginsTable> {
+  $$GamePluginsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get manifestJson => $composableBuilder(
+    column: $table.manifestJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minPlayers => $composableBuilder(
+    column: $table.minPlayers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxPlayers => $composableBuilder(
+    column: $table.maxPlayers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get installedAt => $composableBuilder(
+    column: $table.installedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GamePluginsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GamePluginsTable> {
+  $$GamePluginsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get manifestJson => $composableBuilder(
+    column: $table.manifestJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minPlayers => $composableBuilder(
+    column: $table.minPlayers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxPlayers => $composableBuilder(
+    column: $table.maxPlayers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get installedAt => $composableBuilder(
+    column: $table.installedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GamePluginsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GamePluginsTable> {
+  $$GamePluginsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get manifestJson => $composableBuilder(
+    column: $table.manifestJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get minPlayers => $composableBuilder(
+    column: $table.minPlayers,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxPlayers => $composableBuilder(
+    column: $table.maxPlayers,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get installedAt => $composableBuilder(
+    column: $table.installedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$GamePluginsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GamePluginsTable,
+          GamePluginRow,
+          $$GamePluginsTableFilterComposer,
+          $$GamePluginsTableOrderingComposer,
+          $$GamePluginsTableAnnotationComposer,
+          $$GamePluginsTableCreateCompanionBuilder,
+          $$GamePluginsTableUpdateCompanionBuilder,
+          (
+            GamePluginRow,
+            BaseReferences<_$AppDatabase, $GamePluginsTable, GamePluginRow>,
+          ),
+          GamePluginRow,
+          PrefetchHooks Function()
+        > {
+  $$GamePluginsTableTableManager(_$AppDatabase db, $GamePluginsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GamePluginsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GamePluginsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GamePluginsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> sourceUrl = const Value.absent(),
+                Value<String> manifestJson = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<int> minPlayers = const Value.absent(),
+                Value<int> maxPlayers = const Value.absent(),
+                Value<int> installedAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GamePluginsCompanion(
+                id: id,
+                name: name,
+                description: description,
+                sourceUrl: sourceUrl,
+                manifestJson: manifestJson,
+                enabled: enabled,
+                minPlayers: minPlayers,
+                maxPlayers: maxPlayers,
+                installedAt: installedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> description = const Value.absent(),
+                required String sourceUrl,
+                required String manifestJson,
+                Value<bool> enabled = const Value.absent(),
+                Value<int> minPlayers = const Value.absent(),
+                Value<int> maxPlayers = const Value.absent(),
+                required int installedAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GamePluginsCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                sourceUrl: sourceUrl,
+                manifestJson: manifestJson,
+                enabled: enabled,
+                minPlayers: minPlayers,
+                maxPlayers: maxPlayers,
+                installedAt: installedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$GamePluginsTable, GamePluginRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $GamePluginsTable,
+                    GamePluginRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GamePluginsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GamePluginsTable,
+      GamePluginRow,
+      $$GamePluginsTableFilterComposer,
+      $$GamePluginsTableOrderingComposer,
+      $$GamePluginsTableAnnotationComposer,
+      $$GamePluginsTableCreateCompanionBuilder,
+      $$GamePluginsTableUpdateCompanionBuilder,
+      (
+        GamePluginRow,
+        BaseReferences<_$AppDatabase, $GamePluginsTable, GamePluginRow>,
+      ),
+      GamePluginRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -40071,6 +43280,8 @@ class $AppDatabaseManager {
       $$ResidentWakeLogsTableTableManager(_db, _db.residentWakeLogs);
   $$ResidentAlarmsTableTableManager get residentAlarms =>
       $$ResidentAlarmsTableTableManager(_db, _db.residentAlarms);
+  $$ResidentSleepPeriodsTableTableManager get residentSleepPeriods =>
+      $$ResidentSleepPeriodsTableTableManager(_db, _db.residentSleepPeriods);
   $$PetShiftsTableTableManager get petShifts =>
       $$PetShiftsTableTableManager(_db, _db.petShifts);
   $$ResidentInboxItemsTableTableManager get residentInboxItems =>
@@ -40095,4 +43306,10 @@ class $AppDatabaseManager {
       $$GameMovesTableTableManager(_db, _db.gameMoves);
   $$GameMessagesTableTableManager get gameMessages =>
       $$GameMessagesTableTableManager(_db, _db.gameMessages);
+  $$GameMatchPlayersTableTableManager get gameMatchPlayers =>
+      $$GameMatchPlayersTableTableManager(_db, _db.gameMatchPlayers);
+  $$GameStatesTableTableManager get gameStates =>
+      $$GameStatesTableTableManager(_db, _db.gameStates);
+  $$GamePluginsTableTableManager get gamePlugins =>
+      $$GamePluginsTableTableManager(_db, _db.gamePlugins);
 }

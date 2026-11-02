@@ -18,7 +18,16 @@ class CustomResidentsPage extends ConsumerWidget {
     final residents = ref.watch(customResidentsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('固定住民')),
+      appBar: AppBar(
+        title: const Text('固定住民'),
+        actions: [
+          IconButton(
+            tooltip: '睡眠',
+            icon: const Icon(Icons.nightlight_outlined),
+            onPressed: () => context.push(RoutePaths.residentSleep),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(RoutePaths.customResidentEdit),
         icon: const Icon(Icons.person_add_alt_1),
@@ -69,10 +78,7 @@ class CustomResidentsPage extends ConsumerWidget {
                     children: [
                       IconButton(
                         tooltip: '私信',
-                        icon: const Icon(
-                          Icons.chat_bubble_outline,
-                          size: 20,
-                        ),
+                        icon: const Icon(Icons.chat_bubble_outline, size: 20),
                         onPressed: () =>
                             context.push(RoutePaths.chat(resident.id)),
                       ),
@@ -85,8 +91,7 @@ class CustomResidentsPage extends ConsumerWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 20),
-                        onPressed: () =>
-                            _delete(context, ref, resident),
+                        onPressed: () => _delete(context, ref, resident),
                       ),
                     ],
                   ),
@@ -126,8 +131,6 @@ class CustomResidentsPage extends ConsumerWidget {
       ),
     );
     if (ok != true) return;
-    await ref
-        .read(customResidentRepositoryProvider)
-        .softDelete(resident.id);
+    await ref.read(customResidentRepositoryProvider).softDelete(resident.id);
   }
 }

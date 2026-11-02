@@ -38,10 +38,7 @@ class PrivateMessageRepository {
     return _dueStream(
       load: () async {
         final rows = await _db
-            .customSelect(
-              _conversationsSql,
-              readsFrom: {_db.privateMessages},
-            )
+            .customSelect(_conversationsSql, readsFrom: {_db.privateMessages})
             .get();
         return rows.map(_toConversation).toList(growable: false);
       },
@@ -88,17 +85,15 @@ class PrivateMessageRepository {
     return _dueStream(
       load: () async {
         final rows =
-            await (_db.select(_db.privateMessages)..where(
-                  (t) =>
-                      t.personaId.equals(personaId) &
-                      t.deletedAt.isNull() &
-                      // 被用户打断（paused）或取消（cancelled）的段不出现。
-                      t.deliveryState.isIn([
-                        pendingState,
-                        sentState,
-                      ]),
-                )
-                ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+            await (_db.select(_db.privateMessages)
+                  ..where(
+                    (t) =>
+                        t.personaId.equals(personaId) &
+                        t.deletedAt.isNull() &
+                        // 被用户打断（paused）或取消（cancelled）的段不出现。
+                        t.deliveryState.isIn([pendingState, sentState]),
+                  )
+                  ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
                 .get();
         final now = DateTime.now().millisecondsSinceEpoch;
         return [
@@ -194,8 +189,8 @@ class PrivateMessageRepository {
         changes = _db
             .tableUpdates(TableUpdateQuery.onTable(_db.privateMessages))
             .listen((_) {
-          unawaited(emit());
-        });
+              unawaited(emit());
+            });
         unawaited(emit());
       },
       onCancel: () async {
@@ -305,14 +300,15 @@ class PrivateMessageRepository {
   Future<List<PendingSegment>> pendingSegments(String personaId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final rows =
-        await (_db.select(_db.privateMessages)..where(
-              (t) =>
-                  t.personaId.equals(personaId) &
-                  t.direction.equals('in') &
-                  t.deletedAt.isNull() &
-                  t.deliveryState.isIn([pendingState, pausedState]),
-            )
-            ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        await (_db.select(_db.privateMessages)
+              ..where(
+                (t) =>
+                    t.personaId.equals(personaId) &
+                    t.direction.equals('in') &
+                    t.deletedAt.isNull() &
+                    t.deliveryState.isIn([pendingState, pausedState]),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
             .get();
     return [
       for (final row in rows)
@@ -320,13 +316,13 @@ class PrivateMessageRepository {
         // 正常待发的段只交还没到点的（过了点的已经在会话里）。
         if (row.deliveryState == pausedState || row.createdAt > now)
           PendingSegment(
-          id: row.id,
-          groupId: row.deliveryGroup,
-          index: row.deliveryIndex,
-          content: row.content,
-          at: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
-          mediaType: row.mediaType,
-        ),
+            id: row.id,
+            groupId: row.deliveryGroup,
+            index: row.deliveryIndex,
+            content: row.content,
+            at: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+            mediaType: row.mediaType,
+          ),
     ];
   }
 
@@ -345,9 +341,7 @@ class PrivateMessageRepository {
               t.createdAt.isBiggerThanValue(now),
         ))
         .write(
-          const PrivateMessagesCompanion(
-            deliveryState: Value(pausedState),
-          ),
+          const PrivateMessagesCompanion(deliveryState: Value(pausedState)),
         );
     return paused;
   }
@@ -361,14 +355,10 @@ class PrivateMessageRepository {
   /// 不能一直挂在待发队列里反复出现，收尾时统一取消。
   Future<int> expirePausedSegments(Iterable<String> ids) async {
     if (ids.isEmpty) return 0;
-    return (_db.update(_db.privateMessages)..where(
-          (t) =>
-              t.id.isIn(ids) & t.deliveryState.equals(pausedState),
-        ))
+    return (_db.update(_db.privateMessages)
+          ..where((t) => t.id.isIn(ids) & t.deliveryState.equals(pausedState)))
         .write(
-          const PrivateMessagesCompanion(
-            deliveryState: Value(cancelledState),
-          ),
+          const PrivateMessagesCompanion(deliveryState: Value(cancelledState)),
         );
   }
 
@@ -415,25 +405,20 @@ class PrivateMessageRepository {
             );
     if (affected > 0 && at != null) {
       // createdAt 在更新语句里不是可空字段，单独写一次。
-      await (_db.update(_db.privateMessages)..where(
-            (t) => t.id.equals(segmentId),
-          ))
-          .write(
-            PrivateMessagesCompanion(
-              createdAt: Value(at.millisecondsSinceEpoch),
-            ),
-          );
+      await (_db.update(
+        _db.privateMessages,
+      )..where((t) => t.id.equals(segmentId))).write(
+        PrivateMessagesCompanion(createdAt: Value(at.millisecondsSinceEpoch)),
+      );
     }
     return affected > 0;
   }
 
   /// 图/表情包发出去之后补一句“它是什么”。失败不影响消息本身。
   Future<void> attachCaption(String messageId, String caption) async {
-    await (_db.update(
-      _db.privateMessages,
-    )..where((t) => t.id.equals(messageId))).write(
-      PrivateMessagesCompanion(caption: Value(caption.trim())),
-    );
+    await (_db.update(_db.privateMessages)
+          ..where((t) => t.id.equals(messageId)))
+        .write(PrivateMessagesCompanion(caption: Value(caption.trim())));
   }
 
   /// 把一句已经发出去的话升级成语音条。
@@ -458,13 +443,13 @@ class PrivateMessageRepository {
   /// 删掉一条消息（软删）。上下文事件由调用方一起移出——
   /// 只删聊天记录不删时间线的话，住民下次醒来还会记得这句话。
   Future<void> deleteMessage(String id) async {
-    await (_db.update(_db.privateMessages)
-          ..where((t) => t.id.equals(id) & t.deletedAt.isNull()))
-        .write(
-          PrivateMessagesCompanion(
-            deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+    await (_db.update(
+      _db.privateMessages,
+    )..where((t) => t.id.equals(id) & t.deletedAt.isNull())).write(
+      PrivateMessagesCompanion(
+        deletedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// 删掉一段会话：只软删消息，不碰住民、记忆或帖子。
@@ -473,9 +458,8 @@ class PrivateMessageRepository {
   /// 想再聊也没有入口了。
   Future<void> deleteThread(String personaId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_db.update(_db.privateMessages)..where(
-          (t) => t.personaId.equals(personaId) & t.deletedAt.isNull(),
-        ))
+    await (_db.update(_db.privateMessages)
+          ..where((t) => t.personaId.equals(personaId) & t.deletedAt.isNull()))
         .write(PrivateMessagesCompanion(deletedAt: Value(now)));
   }
 
@@ -483,9 +467,9 @@ class PrivateMessageRepository {
   /// 按 id 取一条私信。唤醒时用它把待办里的 image ref 找回来，
   /// 能看图的模型就能直接看到原图，而不只是读一句描述。
   Future<PrivateMessage?> findById(String id) async {
-    final row = await (_db.select(_db.privateMessages)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.privateMessages,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     return row == null ? null : _toMessage(row);
   }
 
@@ -564,6 +548,22 @@ class PrivateMessageRepository {
         : DateTime.fromMillisecondsSinceEpoch(row.createdAt);
   }
 
+  /// 住民最后一条已经发出的私信（入睡前留的最后一句话）。
+  Future<PrivateMessage?> lastOutgoing(String personaId) async {
+    final row =
+        await (_db.select(_db.privateMessages)
+              ..where(
+                (t) =>
+                    t.personaId.equals(personaId) &
+                    t.direction.equals('out') &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    return row == null ? null : _toMessage(row);
+  }
+
   /// 你最后一句话之后，他还没有回过（调度用它决定"要不要接一句"）。
   ///
   /// 这里**故意不过滤时间**：已经排上、但还没到点的那条回应也算数——
@@ -586,10 +586,7 @@ class PrivateMessageRepository {
   /// 同样**看得见未来的那条**：已经排上回应的人不该被排第二次。
   Future<List<String>> personaIdsAwaitingReply() async {
     final rows = await _db
-        .customSelect(
-          _awaitingSql,
-          readsFrom: {_db.privateMessages},
-        )
+        .customSelect(_awaitingSql, readsFrom: {_db.privateMessages})
         .get();
     return rows.map((row) => row.read<String>('persona_id')).toList();
   }
@@ -610,7 +607,6 @@ class PrivateMessageRepository {
   }
 
   int get _now => DateTime.now().millisecondsSinceEpoch;
-
 
   Conversation _toConversation(QueryRow row) => Conversation(
     personaId: row.read<String>('persona_id'),
@@ -677,7 +673,8 @@ WHERE m.deleted_at IS NULL
   static const String _conversationsNow =
       'CAST((julianday(\'now\') - 2440587.5) * 86400000 AS INTEGER)';
 
-  static const String _conversationsSql = '''
+  static const String _conversationsSql =
+      '''
 SELECT
   m.persona_id AS persona_id,
   m.content AS content,

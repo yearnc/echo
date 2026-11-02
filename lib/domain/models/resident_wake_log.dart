@@ -75,6 +75,7 @@ class ResidentWakeLog {
     'setup' => '刚住进来',
     'alarm' => '给自己定的闹钟',
     'pet' => '桌宠醒着',
+    'sleep' => '入睡前留了一句话',
     _ => '醒来',
   };
 

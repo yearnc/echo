@@ -29,6 +29,7 @@ import '../../features/residents/custom_resident_editor_page.dart';
 import '../../features/residents/custom_residents_page.dart';
 import '../../features/residents/resident_context_page.dart';
 import '../../features/residents/resident_memories_page.dart';
+import '../../features/residents/resident_sleep_page.dart';
 import '../../features/residents/resident_wake_log_page.dart';
 import '../../features/safety/minor_page.dart';
 import '../../features/safety/safety_page.dart';
@@ -86,6 +87,9 @@ class RoutePaths {
   static String residentWakeLog(String residentId) =>
       '/custom-residents/logs/$residentId';
 
+  /// 固定住民的睡眠页（v50）。
+  static const String residentSleep = '/custom-residents/sleep';
+
   /// 某位固定住民的唯一上下文时间线。
   static String residentContext(String residentId) =>
       '/custom-residents/context/$residentId';
@@ -137,6 +141,9 @@ class RoutePaths {
 
   /// 帮助与常见问题。
   static const String help = '/help';
+
+  /// 帮助二级页面（某个分类下的问题与答案）。
+  static String helpCategory(String id) => '/help/$id';
 
   /// 新手教程。
   static const String tutorial = '/tutorial';
@@ -231,22 +238,23 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      path: RoutePaths.residentSleep,
+      builder: (context, state) => const ResidentSleepPage(),
+    ),
+    GoRoute(
       path: '/custom-residents/memories/:id',
-      builder: (context, state) => ResidentMemoriesPage(
-        residentId: state.pathParameters['id'] ?? '',
-      ),
+      builder: (context, state) =>
+          ResidentMemoriesPage(residentId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
       path: '/custom-residents/logs/:id',
-      builder: (context, state) => ResidentWakeLogPage(
-        residentId: state.pathParameters['id'] ?? '',
-      ),
+      builder: (context, state) =>
+          ResidentWakeLogPage(residentId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
       path: '/custom-residents/context/:id',
-      builder: (context, state) => ResidentContextPage(
-        residentId: state.pathParameters['id'] ?? '',
-      ),
+      builder: (context, state) =>
+          ResidentContextPage(residentId: state.pathParameters['id'] ?? ''),
     ),
     // 私信会话是沉浸式的：进去之后只有你们两个人，不挂底部导航
     GoRoute(
@@ -271,9 +279,8 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/games/:id',
-      builder: (context, state) => GameMatchPage(
-        matchId: state.pathParameters['id'] ?? '',
-      ),
+      builder: (context, state) =>
+          GameMatchPage(matchId: state.pathParameters['id'] ?? ''),
     ),
     GoRoute(
       path: RoutePaths.dashboard,
@@ -319,10 +326,7 @@ final appRouter = GoRouter(
       path: RoutePaths.identity,
       builder: (context, state) => const IdentityPage(),
     ),
-    GoRoute(
-      path: RoutePaths.pet,
-      builder: (context, state) => const PetPage(),
-    ),
+    GoRoute(path: RoutePaths.pet, builder: (context, state) => const PetPage()),
     GoRoute(
       path: RoutePaths.resources,
       builder: (context, state) => const ResourcePage(),
@@ -337,6 +341,13 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.help,
       builder: (context, state) => const HelpPage(),
+      routes: [
+        GoRoute(
+          path: ':id',
+          builder: (context, state) =>
+              HelpCategoryPage(categoryId: state.pathParameters['id'] ?? ''),
+        ),
+      ],
     ),
     GoRoute(
       path: RoutePaths.tutorial,

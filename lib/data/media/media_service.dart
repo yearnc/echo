@@ -27,6 +27,23 @@ class MediaService {
     return _persist(picked);
   }
 
+  /// 从相册一次选多张（v50）。
+  ///
+  /// 手机系统相册本身就支持多选；这里只负责逐张复制进 APP 私有目录。
+  /// 用户取消时返回空列表。上限交给调用方，避免一次发十几张把对话淹掉。
+  Future<List<String>> pickMultipleFromGallery({int limit = 9}) async {
+    final picked = await ImagePicker().pickMultiImage(
+      imageQuality: 88,
+      maxWidth: 2000,
+    );
+    if (picked.isEmpty) return const [];
+    final refs = <String>[];
+    for (final file in picked.take(limit)) {
+      refs.add((await _persist(file))!);
+    }
+    return refs;
+  }
+
   /// 现场拍一张。
   ///
   /// 相机把照片先放在系统缓存里；这里只把它**复制进 APP 私有目录**，
@@ -106,7 +123,10 @@ class MediaService {
     final mediaDir = await _mediaDir();
     final ext = extension.startsWith('.') ? extension : '.$extension';
     return File(
-      p.join(mediaDir.path, 'voice_${DateTime.now().microsecondsSinceEpoch}$ext'),
+      p.join(
+        mediaDir.path,
+        'voice_${DateTime.now().microsecondsSinceEpoch}$ext',
+      ),
     );
   }
 

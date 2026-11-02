@@ -204,9 +204,8 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       final ok = await _recorder.start();
       if (!ok) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有麦克风权限，去系统设置里打开再试')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('没有麦克风权限，去系统设置里打开再试')));
         return;
       }
       if (!mounted) return;
@@ -279,9 +278,9 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
   Future<void> _pickImage() async {
     try {
-      final imageRef = await pickImageWithSource(context, ref);
-      if (imageRef == null || !mounted) return;
-      setState(() => _imageRefs.add(imageRef));
+      final refs = await pickImagesWithSource(context, ref);
+      if (refs.isEmpty || !mounted) return;
+      setState(() => _imageRefs.addAll(refs));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -378,8 +377,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                       label: '拟人程度',
                       value: '$_humanLevel 档',
                       options: const ['1', '2', '3', '4', '5'],
-                      onChanged: (v) =>
-                          sync(() => _humanLevel = int.parse(v)),
+                      onChanged: (v) => sync(() => _humanLevel = int.parse(v)),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -623,10 +621,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(
-              '返回修改',
-              style: TextStyle(color: EchoColors.primary),
-            ),
+            child: Text('返回修改', style: TextStyle(color: EchoColors.primary)),
           ),
         ],
       ),
@@ -640,9 +635,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   /// 本地词表那些没有歧义的词。
   Future<bool?> _confirmModeration(ModerationResult result) => _ask(
     title: result.isBlocked ? '审核没通过' : '再确认一下',
-    body: result.reason.isEmpty
-        ? '这条内容可能不太适合公开在社区里，确认之后再发布。'
-        : result.reason,
+    body: result.reason.isEmpty ? '这条内容可能不太适合公开在社区里，确认之后再发布。' : result.reason,
     confirmLabel: '仍然发布',
     cancelLabel: '返回修改',
   );
@@ -788,7 +781,9 @@ class _AttachRow extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: isEcho ? EchoColors.primary : ClearColors.primary,
+                        color: isEcho
+                            ? EchoColors.primary
+                            : ClearColors.primary,
                       ),
                     )
                   : hasVoice
@@ -812,15 +807,15 @@ class _AttachRow extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          recording ? Icons.stop_circle_outlined : Icons.mic_none,
+                          recording
+                              ? Icons.stop_circle_outlined
+                              : Icons.mic_none,
                           color: muted,
                           size: 22,
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          recording
-                              ? '${voiceSeconds}s · 点停'
-                              : '语音',
+                          recording ? '${voiceSeconds}s · 点停' : '语音',
                           style: TextStyle(color: muted, fontSize: 11),
                         ),
                       ],

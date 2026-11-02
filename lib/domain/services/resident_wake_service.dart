@@ -16,6 +16,7 @@ import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/resident_alarm_repository.dart';
 import '../../data/repositories/resident_inbox_repository.dart';
+import '../../data/repositories/resident_sleep_repository.dart';
 import '../../data/repositories/resident_wake_log_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../models/custom_resident.dart';
@@ -25,6 +26,7 @@ import '../models/post.dart';
 import '../models/post_voice.dart';
 import '../models/private_message.dart';
 import '../models/resident_inbox.dart';
+import '../models/resident_sleep.dart';
 import '../models/resident_wake_log.dart';
 import 'action_registry.dart';
 import 'call_registry.dart';
@@ -46,6 +48,8 @@ import 'tts_service.dart';
 class _PendingWake {
   bool userAction = false;
   PetObservation? pet;
+  SleepWakeNotice? sleepNotice;
+  String farewellPrompt = '';
 }
 
 enum WakeTrigger {
@@ -67,6 +71,10 @@ enum WakeTrigger {
 
   /// 桌宠看了一眼屏幕（v4.0）。普通模式隔一阵一次，实时模式持续。
   pet,
+
+  /// 即将入睡，留最后一句话（v50）。允许在睡眠状态下醒来一次，
+  /// 说完就继续睡，不处理待办、不产生新的主动行为。
+  sleep,
 }
 
 /// 唤醒式交互（v3.3）。
@@ -97,6 +105,7 @@ class ResidentWakeService {
     required this.alarms,
     required this.context,
     required this.games,
+    required this.sleep,
     this.pet,
     this.petSettings,
     this.photos,
@@ -131,6 +140,9 @@ class ResidentWakeService {
 
   /// 小游戏（v4.8）：对局、邀请、动态走棋工具。
   final GameService games;
+
+  /// 睡眠状态（v50）：睡着的人不参加心跳/后台/闹钟/桌宠观察。
+  final ResidentSleepRepository sleep;
 
   /// 桌宠通道（v4.0）。没有原生插件（桌面预览 / 测试）时为空。
   final PetNative? pet;
@@ -398,23 +410,34 @@ class ResidentWakeService {
     String residentId, {
     WakeTrigger trigger = WakeTrigger.heartbeat,
     PetObservation? pet,
+    SleepWakeNotice? sleepNotice,
+    String farewellPrompt = '',
   }) async {
     if (_running.contains(residentId)) {
       // 用户私信和屏幕观察都可能在这一轮进行时到来：合并成下一轮，
       // 私信优先、屏幕帧保留最新的一组，任何一边都不丢。
-      if (trigger == WakeTrigger.userAction || trigger == WakeTrigger.pet) {
-        final pending = _pending.putIfAbsent(
-          residentId,
-          () => _PendingWake(),
-        );
+      if (trigger == WakeTrigger.userAction ||
+          trigger == WakeTrigger.pet ||
+          trigger == WakeTrigger.sleep) {
+        final pending = _pending.putIfAbsent(residentId, () => _PendingWake());
         if (trigger == WakeTrigger.userAction) pending.userAction = true;
         if (pet != null) pending.pet = pet;
+        if (sleepNotice != null) pending.sleepNotice = sleepNotice;
+        if (farewellPrompt.trim().isNotEmpty) {
+          pending.farewellPrompt = farewellPrompt;
+        }
       }
       return 0;
     }
     _running.add(residentId);
     try {
-      return await _wake(residentId, trigger, pet);
+      return await _wake(
+        residentId,
+        trigger,
+        pet: pet,
+        sleepNotice: sleepNotice,
+        farewellPrompt: farewellPrompt,
+      );
     } finally {
       _running.remove(residentId);
       final pending = _pending.remove(residentId);
@@ -424,8 +447,12 @@ class ResidentWakeService {
             residentId,
             trigger: pending.userAction
                 ? WakeTrigger.userAction
-                : WakeTrigger.pet,
+                : (pending.farewellPrompt.trim().isNotEmpty
+                      ? WakeTrigger.sleep
+                      : WakeTrigger.pet),
             pet: pending.pet,
+            sleepNotice: pending.sleepNotice,
+            farewellPrompt: pending.farewellPrompt,
           ),
         );
       }
@@ -434,9 +461,11 @@ class ResidentWakeService {
 
   Future<int> _wake(
     String residentId,
-    WakeTrigger trigger, [
+    WakeTrigger trigger, {
     PetObservation? pet,
-  ]) async {
+    SleepWakeNotice? sleepNotice,
+    String farewellPrompt = '',
+  }) async {
     final last = _lastWake[residentId];
     final now = DateTime.now();
     if (trigger == WakeTrigger.heartbeat &&
@@ -447,6 +476,28 @@ class ResidentWakeService {
 
     final resident = await residents.findById(residentId);
     if (resident == null) return 0;
+
+    // 睡着的人不参加心跳/后台/闹钟/桌宠观察。用户直接找 TA（私信、通话、
+    // 开局、桌宠）时当场唤醒，并记下“睡了多久”；入睡前留最后一句话
+    // （sleep 触发）是唯一允许在睡眠状态下醒一次的路径。
+    var wakeNotice = sleepNotice;
+    final sleeping = await sleep.current(residentId);
+    if (sleeping != null && trigger != WakeTrigger.sleep) {
+      // 只有“用户主动找 TA”才唤醒。桌宠观察循环是后台的连续动作，
+      // 不能拿它把刚睡下的住民又吵起来；用户亲手打开桌宠会先在
+      // PetController 里结束睡眠，再以 userAction 进入这里。
+      if (trigger == WakeTrigger.userAction) {
+        final wokeAt = DateTime.now();
+        await sleep.wake(residentId, endedBy: 'interaction', at: wokeAt);
+        wakeNotice ??= SleepWakeNotice(
+          sleptFrom: sleeping.startedAt,
+          wokeAt: wokeAt,
+          manual: false,
+        );
+      } else {
+        return 0;
+      }
+    }
 
     // 通话期间不再让心跳/后台/桌宠顺手叫醒同一个人：
     // 他正在电话里，空闲触发只会来抢同一段上下文。用户主动发消息和
@@ -543,7 +594,10 @@ class ResidentWakeService {
     }
     // 不按条数截断：积攒的评论该回就回；真的处理不完的留在收件箱，
     // 下次醒来继续。上下文由高水位摘要兜底，不靠“只给 20 条”省 token。
-    final visible = List<ResidentInboxItem>.of(pending);
+    // 入睡前这一轮只留最后一句话，不处理待办——待办等醒来再说。
+    final visible = trigger == WakeTrigger.sleep
+        ? const <ResidentInboxItem>[]
+        : List<ResidentInboxItem>.of(pending);
 
     // 上一轮写好、还没发出去的段：用户中途又说话时它们已经被取消了，
     // 这里把原话交给住民，由它决定照发、改写还是算了。
@@ -565,6 +619,7 @@ class ResidentWakeService {
       // 把它自己最近做过的事告诉它——这是信息，不是决定。
       // 要不要记进记忆、要不要接着说，由它自己判断。
       final ownActivity = await _recentOwnActivity(residentId);
+      final gameTools = await games.mcpToolSchemas();
       final said = await session.act(
         resident: resident,
         config: config,
@@ -579,11 +634,14 @@ class ResidentWakeService {
           petNote: pet?.note ?? '',
           petRealtime: pet?.realtime ?? false,
           petHandoff: pet?.handoff ?? false,
+          sleepNotice: wakeNotice,
+          farewellPrompt: farewellPrompt,
         ),
         toolkit: toolkit,
         at: now,
         history: history,
-        allowProactive: true,
+        gameTools: gameTools,
+        allowProactive: trigger != WakeTrigger.sleep,
         allowVoice: toolkit.allowVoice,
         extraImages: [
           ...?pet?.images,
@@ -655,6 +713,7 @@ class ResidentWakeService {
     WakeTrigger.setup => 'setup',
     WakeTrigger.alarm => 'alarm',
     WakeTrigger.pet => 'pet',
+    WakeTrigger.sleep => 'sleep',
   };
 
   String _situation(
@@ -668,7 +727,19 @@ class ResidentWakeService {
     String petNote = '',
     bool petRealtime = false,
     bool petHandoff = false,
+    SleepWakeNotice? sleepNotice,
+    String farewellPrompt = '',
   }) {
+    // 入睡前的这一轮只有一件事：留一句话。不处理待办，也不主动发帖。
+    if (trigger == WakeTrigger.sleep) {
+      return [
+        farewellPrompt.trim().isEmpty
+            ? '你即将进入睡眠状态，给 TA 留最后一句话吧。'
+            : farewellPrompt.trim(),
+        '这句话会作为私信发给对方。只说一句，不要解释系统，不要提到“睡眠功能”。',
+      ].join('\n');
+    }
+
     final String base;
     if (pending.isEmpty) {
       base = switch (trigger) {
@@ -687,6 +758,7 @@ class ResidentWakeService {
               '${alarmReason.trim().isEmpty ? '' : '定的时候你写的是：${alarmReason.trim()}。'}'
               '现在可以发条动态、刷帖子、给对方发条私信，'
               '也可以再定一个闹钟接着忙自己的事；什么都不想做就 finish。',
+        WakeTrigger.sleep => '你即将进入睡眠状态。',
         WakeTrigger.pet =>
           petHandoff
               ? '桌宠这一班刚刚结束/交接，先把这段时间的观察收尾。'
@@ -727,7 +799,12 @@ class ResidentWakeService {
       base = buffer.toString();
     }
 
-    final parts = <String>[base.trimRight()];
+    final parts = <String>[
+      // 直接被对方叫醒：把“睡了多久”放在这一轮消息的最前面。
+      if (sleepNotice != null && !sleepNotice.manual)
+        sleepNotice.interactionLine,
+      base.trimRight(),
+    ];
     if (petNote.trim().isNotEmpty) {
       parts.add(
         '${petRealtime ? '这几秒一直看着屏幕，' : '刚才看了一眼屏幕，'}'
@@ -775,6 +852,10 @@ class ResidentWakeService {
         '你最近做过的事，以及它们的动静（只是给你信息；'
         '要不要在意、要不要记、要不要接着说，都由你）：\n$ownActivity',
       );
+    }
+    // 用户从睡眠页手动唤醒：放在待办消息的最后面。
+    if (sleepNotice != null && sleepNotice.manual) {
+      parts.add(sleepNotice.manualLine);
     }
     return parts.join('\n');
   }
@@ -1702,18 +1783,16 @@ class _WakeToolkit implements ResidentWakeToolkit {
   }
 
   @override
-  Future<ActionOutcome> listGameTools() => service.games.listGameTools(resident.id);
+  Future<ActionOutcome> listGameTools() =>
+      service.games.listGameTools(resident.id);
 
   @override
-  Future<ActionOutcome> inviteGame(
-    String gameId,
-    String note,
-    String callId,
-  ) => service.games.inviteFromResident(
-    residentId: resident.id,
-    gameId: gameId.trim(),
-    note: note,
-  );
+  Future<ActionOutcome> inviteGame(String gameId, String note, String callId) =>
+      service.games.inviteFromResident(
+        residentId: resident.id,
+        gameId: gameId.trim(),
+        note: note,
+      );
 
   @override
   Future<ActionOutcome> respondGameInvite(
@@ -1739,11 +1818,21 @@ class _WakeToolkit implements ResidentWakeToolkit {
   );
 
   @override
-  Future<ActionOutcome> gameResign(String matchId) =>
-      service.games.resignTool(
-        residentId: resident.id,
-        matchId: matchId.trim(),
-      );
+  Future<ActionOutcome> gameMcpCall(
+    String toolName,
+    Map<String, dynamic> args,
+    String callId,
+  ) => service.games.executeMcpTool(
+    residentId: resident.id,
+    toolName: toolName,
+    args: args,
+  );
+
+  @override
+  Future<ActionOutcome> gameResign(String matchId) => service.games.resignTool(
+    residentId: resident.id,
+    matchId: matchId.trim(),
+  );
 
   @override
   Future<ActionOutcome> listAlarms() async {
@@ -2055,6 +2144,7 @@ final residentWakeServiceProvider = Provider<ResidentWakeService>(
     alarms: ref.watch(residentAlarmRepositoryProvider),
     context: ref.watch(residentContextServiceProvider),
     games: ref.watch(gameServiceProvider),
+    sleep: ref.watch(residentSleepRepositoryProvider),
     pet: ref.watch(petNativeProvider),
     petSettings: ref.watch(petSettingsRepositoryProvider),
     photos: ref.watch(photoDescriberProvider),

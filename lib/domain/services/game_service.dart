@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media/image_payload.dart';
 import '../../data/repositories/custom_resident_repository.dart';
+import '../../data/repositories/game_plugin_repository.dart';
 import '../../data/repositories/game_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../games/game_engine.dart';
 import '../games/game_registry.dart';
 import '../games/game_tools.dart';
 import '../models/game.dart';
+import '../models/game_plugin.dart';
 import 'action_registry.dart';
 import 'model_gateway.dart';
 import 'resident_context_service.dart';
@@ -32,6 +34,7 @@ class GameService {
     required this.context,
     required this.gateway,
     required this.actions,
+    required this.plugins,
     this.boardImages,
   });
 
@@ -41,6 +44,7 @@ class GameService {
   final ResidentContextService context;
   final ModelGateway gateway;
   final ActionRegistry actions;
+  final GamePluginRepository plugins;
 
   /// 由棋局页面在打开时绑定：domain 不认识 Flutter 的绘制上下文。
   BoardImageBuilder? boardImages;
@@ -63,10 +67,7 @@ class GameService {
 
   static const int _maxModelTries = 3;
 
-  Future<T> _withMatchLock<T>(
-    String matchId,
-    Future<T> Function() action,
-  ) {
+  Future<T> _withMatchLock<T>(String matchId, Future<T> Function() action) {
     final previous = _matchLocks[matchId] ?? Future<void>.value();
     final gate = Completer<void>();
     _matchLocks[matchId] = gate.future;
@@ -87,7 +88,7 @@ class GameService {
       repository.pendingInvites(residentId);
 
   Future<List<GameMatch>> activeMatchesFor(String residentId) =>
-      repository.activeMatches(residentId);
+      repository.activeMatchesForPlayer(residentId);
 
   // ---------------------------------------------------------------------------
   // 邀请
@@ -242,11 +243,7 @@ class GameService {
       '对方接受了你发出的${_gameName(invite.gameId)}邀请，对局开始了。',
     );
     // 不在私信里补“好啊”：对局内会直接进入棋盘边的交流。
-    return GameActionResult(
-      ok: true,
-      message: '开局了',
-      match: match,
-    );
+    return GameActionResult(ok: true, message: '开局了', match: match);
   }
 
   Future<GameActionResult> declineInviteByUser(String inviteId) async {
@@ -265,10 +262,7 @@ class GameService {
     if (!changed) {
       return const GameActionResult(ok: false, message: '这条邀请已经处理过了');
     }
-    await messages.send(
-      personaId: invite.residentId,
-      content: '这次先不下了，改天吧。',
-    );
+    await messages.send(personaId: invite.residentId, content: '这次先不下了，改天吧。');
     await _noteInviteStatus(
       invite.residentId,
       '对方拒绝了你发出的${_gameName(invite.gameId)}邀请。',
@@ -516,7 +510,11 @@ class GameService {
       'role': 'user',
       'content':
           '<system-reminder>[$gameName] 这一局结束了，'
-          '${draw ? '和棋' : winner == GameSide.resident ? '你赢了' : '你输了'}。'
+          '${draw
+              ? '和棋'
+              : winner == GameSide.resident
+              ? '你赢了'
+              : '你输了'}。'
           '${reason.trim().isEmpty ? '' : '（$reason）'}</system-reminder>',
     });
     // 先把一句通用记忆落库：就算总结模型还没跑完 APP 就被关掉，
@@ -640,18 +638,14 @@ class GameService {
     final record = StringBuffer()
       ..writeln('结果：$resultText${reason.trim().isEmpty ? '' : '（$reason）'}')
       ..writeln('走法（最多列最近 24 手）：');
-    for (final move in moves.length > 24
-        ? moves.sublist(moves.length - 24)
-        : moves) {
-      record.writeln(
-        '${move.by == GameSide.user ? '对方' : '你'} ${move.move}',
-      );
+    for (final move
+        in moves.length > 24 ? moves.sublist(moves.length - 24) : moves) {
+      record.writeln('${move.by == GameSide.user ? '对方' : '你'} ${move.move}');
     }
     if (chats.isNotEmpty) {
       record.writeln('棋盘边说过：');
-      for (final chat in chats.length > 20
-          ? chats.sublist(chats.length - 20)
-          : chats) {
+      for (final chat
+          in chats.length > 20 ? chats.sublist(chats.length - 20) : chats) {
         record.writeln(
           '${chat.by == GameSide.user ? '对方' : '你'}：${chat.content}',
         );
@@ -706,7 +700,8 @@ class GameService {
     );
     context.appendMessage(match.residentId, {
       'role': 'user',
-      'content': '<system-reminder>[${engine.definition.name}棋盘边] 对方说：$clean</system-reminder>',
+      'content':
+          '<system-reminder>[${engine.definition.name}棋盘边] 对方说：$clean</system-reminder>',
     });
 
     if (!_chatting.add(matchId)) return null;
@@ -759,7 +754,8 @@ class GameService {
       );
       context.appendMessage(match.residentId, {
         'role': 'assistant',
-        'content': '<system-reminder>[${engine.definition.name}棋盘边] 你说：$reply</system-reminder>',
+        'content':
+            '<system-reminder>[${engine.definition.name}棋盘边] 你说：$reply</system-reminder>',
       });
       return saved;
     } catch (error) {
@@ -950,9 +946,7 @@ class GameService {
   Future<bool> _fallbackMove(String matchId) async {
     try {
       final match = await repository.findMatch(matchId);
-      if (match == null ||
-          !match.isActive ||
-          match.turn != GameSide.resident) {
+      if (match == null || !match.isActive || match.turn != GameSide.resident) {
         return true;
       }
       final engine = GameRegistry.byId(match.gameId);
@@ -967,8 +961,7 @@ class GameService {
       if (outcome.ok) {
         context.appendMessage(match.residentId, {
           'role': 'assistant',
-          'content':
-              '<system-reminder>[游戏] 这一步是系统替你选的合法落点。</system-reminder>',
+          'content': '<system-reminder>[游戏] 这一步是系统替你选的合法落点。</system-reminder>',
         });
       }
       return outcome.ok;
@@ -978,10 +971,7 @@ class GameService {
     }
   }
 
-  static String? _moveFromArgs(
-    GameEngine engine,
-    Map<String, dynamic> args,
-  ) {
+  static String? _moveFromArgs(GameEngine engine, Map<String, dynamic> args) {
     if (engine.definition.id == 'gomoku') {
       final pos = args['position']?.toString();
       return pos;
@@ -997,9 +987,8 @@ class GameService {
       final match = RegExp(r'\b([A-Oa-o]\d{1,2})\b').firstMatch(content);
       return match?.group(1);
     }
-    final match = RegExp(r'\b([a-i][0-9][a-i][0-9])\b').firstMatch(
-      content.toLowerCase(),
-    );
+    final match = RegExp(r'\b([a-i][0-9][a-i][0-9])\b')
+        .firstMatch(content.toLowerCase());
     return match?.group(1);
   }
 
@@ -1010,13 +999,51 @@ class GameService {
   /// `list_game_tools`：让住民先看见有什么局、轮到谁，再动态拿到走棋工具。
   Future<ActionOutcome> listGameTools(String residentId) async {
     await repository.expireStale();
-    final matches = await repository.activeMatches(residentId);
+    final matches = await repository.activeMatchesForPlayer(residentId);
     // 不只给 pending：已经接受/拒绝/过期的邀请也要让住民看得到，
     // 否则窗口里那条“邀请”永远像没处理过。
     final invites = (await repository.invitesFor(residentId)).take(10).toList();
     final games = <Map<String, dynamic>>[];
     final toolSchemas = <Map<String, dynamic>>[];
     for (final match in matches) {
+      if (match.gameId == 'werewolf') {
+        final bySeat = await repository.playersFor(match.id);
+        final me = bySeat.where((item) => item.residentId == residentId);
+        games.add({
+          'match_id': match.id,
+          'game': 'werewolf',
+          'name': '狼人杀',
+          'turn': 'multiplayer',
+          'your_seat': me.isEmpty ? null : me.first.seat,
+          'alive': me.isEmpty ? false : me.first.alive,
+          'players': [
+            for (final player in bySeat)
+              {'seat': player.seat, 'name': player.name, 'alive': player.alive},
+          ],
+        });
+        continue;
+      }
+      if (match.gameId.startsWith('plugin:')) {
+        final pluginId = match.gameId.substring('plugin:'.length);
+        final plugin = await plugins.findById(pluginId);
+        if (plugin == null) continue;
+        final interpreter = PluginInterpreter(plugin);
+        final state =
+            await repository.loadState(match.id) ?? interpreter.initialState;
+        games.add({
+          'match_id': match.id,
+          'game': match.gameId,
+          'name': plugin.name,
+          'turn': 'multiplayer',
+          'state': interpreter.describe(state),
+        });
+        for (final tool in plugin.tools) {
+          if (interpreter.available(tool, state)) {
+            toolSchemas.add(_pluginToolSchema(plugin, tool));
+          }
+        }
+        continue;
+      }
       final engine = GameRegistry.byId(match.gameId);
       if (engine == null) continue;
       final yourTurn = match.turn == GameSide.resident;
@@ -1093,6 +1120,262 @@ class GameService {
     return ActionOutcome(ok: result.ok, message: result.message);
   }
 
+  // ---------------------------------------------------------------------------
+  // MCP 风格工具目录与声明式插件（v50）
+  // ---------------------------------------------------------------------------
+
+  /// 当前能发给模型的全部游戏工具。
+  ///
+  /// 内置走棋工具全部常驻，不再等 `list_game_tools` 的下一轮请求；
+  /// 插件工具按安装的插件展开，名字统一加前缀，避免重名。
+  Future<List<Map<String, dynamic>>> mcpToolSchemas() async {
+    final tools = <Map<String, dynamic>>[...GameTools.allBuiltinTools];
+    for (final plugin in await plugins.all()) {
+      if (!plugin.enabled) continue;
+      for (final tool in plugin.tools) {
+        tools.add(_pluginToolSchema(plugin, tool));
+      }
+    }
+    return tools;
+  }
+
+  static Map<String, dynamic> _pluginToolSchema(
+    GamePlugin plugin,
+    PluginTool tool,
+  ) {
+    final parameters = Map<String, dynamic>.from(tool.parameters);
+    final properties = parameters['properties'] is Map
+        ? Map<String, dynamic>.from(parameters['properties'] as Map)
+        : <String, dynamic>{};
+    properties['match_id'] = {'type': 'string', 'description': '对局 id'};
+    final required = parameters['required'] is List
+        ? List<Object?>.from(parameters['required'] as List)
+        : <Object?>[];
+    if (!required.contains('match_id')) required.add('match_id');
+    parameters['type'] = 'object';
+    parameters['properties'] = properties;
+    parameters['required'] = required;
+    return {
+      'type': 'function',
+      'function': {
+        'name': tool.toolName(plugin.id),
+        'description':
+            '「${plugin.name}」：${tool.description.isEmpty ? tool.name : tool.description}',
+        'parameters': parameters,
+      },
+    };
+  }
+
+  /// 住民通过工具调用进入声明式插件。
+  Future<ActionOutcome> executeMcpTool({
+    required String residentId,
+    required String toolName,
+    required Map<String, dynamic> args,
+  }) async {
+    if (toolName.startsWith('echo_')) {
+      return _applyPluginTool(
+        residentId: residentId,
+        toolName: toolName,
+        args: args,
+      );
+    }
+    final engine = GameRegistry.byToolName(toolName);
+    if (engine != null) {
+      return executeMoveTool(
+        residentId: residentId,
+        toolName: toolName,
+        args: args,
+      );
+    }
+    return const ActionOutcome(ok: false, message: '没有这个游戏工具');
+  }
+
+  Future<ActionOutcome> _applyPluginTool({
+    required String residentId,
+    required String toolName,
+    required Map<String, dynamic> args,
+  }) async {
+    final matchId = args['match_id']?.toString() ?? '';
+    if (matchId.isEmpty) {
+      return const ActionOutcome(ok: false, message: '缺少 match_id');
+    }
+    final match = await repository.findMatch(matchId);
+    if (match == null ||
+        !match.isActive ||
+        !match.gameId.startsWith('plugin:')) {
+      return const ActionOutcome(ok: false, message: '找不到这局游戏');
+    }
+    final pluginId = match.gameId.substring('plugin:'.length);
+    final plugin = await plugins.findById(pluginId);
+    if (plugin == null || !plugin.enabled) {
+      return const ActionOutcome(ok: false, message: '这个游戏插件已经被删掉了');
+    }
+    final players = await repository.playersFor(matchId);
+    if (!players.any((player) => player.residentId == residentId)) {
+      return const ActionOutcome(ok: false, message: '你不在这一局里');
+    }
+    PluginTool? tool;
+    for (final item in plugin.tools) {
+      if (item.toolName(plugin.id) == toolName) {
+        tool = item;
+        break;
+      }
+    }
+    if (tool == null) {
+      return const ActionOutcome(ok: false, message: '这个插件没有这个工具');
+    }
+    final interpreter = PluginInterpreter(plugin);
+    final state =
+        await repository.loadState(matchId) ?? interpreter.initialState;
+    final result = interpreter.apply(tool, args, state);
+    if (!result.ok) {
+      return ActionOutcome(ok: false, message: result.message);
+    }
+    await repository.saveState(matchId, result.state);
+    if (result.finished) {
+      await repository.updateMatch(
+        id: matchId,
+        board: interpreter.encode(result.state),
+        turn: match.turn,
+        moveCount: match.moveCount + 1,
+        status: GameMatchStatus.finished,
+        result: result.result.isEmpty ? 'finished' : result.result,
+      );
+    } else {
+      await repository.updateMatch(
+        id: matchId,
+        board: interpreter.encode(result.state),
+        turn: match.turn,
+        moveCount: match.moveCount + 1,
+      );
+    }
+    context.appendMessage(residentId, {
+      'role': 'user',
+      'content':
+          '<system-reminder>[${plugin.name}] 你执行了 ${tool.name}：'
+          '${result.message}${result.finished ? '（游戏结束：${result.result}）' : ''}'
+          '</system-reminder>',
+    });
+    return ActionOutcome(
+      ok: true,
+      message: result.message,
+      data: {
+        'state': result.state,
+        'finished': result.finished,
+        if (result.result.isNotEmpty) 'result': result.result,
+      },
+    );
+  }
+
+  /// 用户点击插件按钮。residentId 为空，不要求参与者身份。
+  Future<GameActionResult> applyPluginUserTool({
+    required String matchId,
+    required String toolName,
+    required Map<String, dynamic> args,
+  }) async {
+    final match = await repository.findMatch(matchId);
+    if (match == null || !match.isActive) {
+      return const GameActionResult(ok: false, message: '这局已经结束了');
+    }
+    final pluginId = match.gameId.startsWith('plugin:')
+        ? match.gameId.substring('plugin:'.length)
+        : '';
+    final plugin = pluginId.isEmpty ? null : await plugins.findById(pluginId);
+    if (plugin == null) {
+      return const GameActionResult(ok: false, message: '插件不在了');
+    }
+    final interpreter = PluginInterpreter(plugin);
+    final state =
+        await repository.loadState(matchId) ?? interpreter.initialState;
+    PluginTool? tool;
+    for (final item in plugin.tools) {
+      if (item.name == toolName) {
+        tool = item;
+        break;
+      }
+    }
+    if (tool == null) {
+      return const GameActionResult(ok: false, message: '没有这个操作');
+    }
+    final result = interpreter.apply(tool, args, state);
+    if (!result.ok) {
+      return GameActionResult(ok: false, message: result.message);
+    }
+    await repository.saveState(matchId, result.state);
+    final over = result.finished;
+    await repository.updateMatch(
+      id: matchId,
+      board: interpreter.encode(result.state),
+      turn: GameSide.user,
+      moveCount: match.moveCount + 1,
+      status: over ? GameMatchStatus.finished : GameMatchStatus.active,
+      result: over ? (result.result.isEmpty ? 'finished' : result.result) : '',
+    );
+    if (over) {
+      context.appendMessage(match.residentId, {
+        'role': 'user',
+        'content':
+            '<system-reminder>[${plugin.name}] 这一局结束了：'
+            '${result.result.isEmpty ? result.message : result.result}'
+            '</system-reminder>',
+      });
+    }
+    final next = await repository.findMatch(matchId);
+    return GameActionResult(ok: true, message: result.message, match: next);
+  }
+
+  /// 开一局声明式插件。插件所有操作都可以由用户和住民共同触发。
+  Future<GameActionResult> startPluginMatch({
+    required String pluginId,
+    required List<String> residentIds,
+  }) async {
+    final plugin = await plugins.findById(pluginId);
+    if (plugin == null || !plugin.enabled) {
+      return const GameActionResult(ok: false, message: '插件不可用');
+    }
+    if (residentIds.isEmpty) {
+      return const GameActionResult(ok: false, message: '先选一位住民');
+    }
+    final picked = residentIds
+        .take(plugin.maxPlayers - 1)
+        .toList(growable: false);
+    final interpreter = PluginInterpreter(plugin);
+    final state = interpreter.initialState;
+    final match = await repository.createMatch(
+      residentId: picked.isEmpty ? 'plugin_solo' : picked.first,
+      gameId: plugin.gameId,
+      board: interpreter.encode(state),
+      turn: GameSide.user,
+    );
+    await repository.saveState(match.id, state);
+    await repository.addPlayer(
+      matchId: match.id,
+      name: '你',
+      seat: 1,
+      isUser: true,
+    );
+    var seat = 2;
+    for (final id in picked) {
+      final resident = await residents.findById(id);
+      if (resident == null) continue;
+      await repository.addPlayer(
+        matchId: match.id,
+        residentId: resident.id,
+        name: resident.name,
+        seat: seat++,
+        avatarAsset: resident.avatarAsset,
+      );
+      context.appendMessage(resident.id, {
+        'role': 'user',
+        'content':
+            '<system-reminder>[${plugin.name}] 对方拉你开了一局。'
+            '当前状态：${interpreter.describe(state).join('；')}'
+            '</system-reminder>',
+      });
+    }
+    return GameActionResult(ok: true, message: '开局了', match: match);
+  }
+
   static String _inviteCaption(GameEngine engine, String note) {
     final clean = note.trim();
     return clean.isEmpty
@@ -1109,5 +1392,6 @@ final gameServiceProvider = Provider<GameService>(
     context: ref.watch(residentContextServiceProvider),
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
+    plugins: ref.watch(gamePluginRepositoryProvider),
   ),
 );

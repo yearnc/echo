@@ -23,6 +23,7 @@ class ChatComposer extends ConsumerStatefulWidget {
     required this.controller,
     required this.sending,
     required this.onSend,
+    this.onSendImages,
     this.onVoiceCall,
     this.onVideoCall,
     this.hint = '说点什么…',
@@ -39,6 +40,9 @@ class ChatComposer extends ConsumerStatefulWidget {
     int? voiceDurationMs,
   })
   onSend;
+
+  /// 一次选多张图（v50）。为空时退回逐张发送。
+  final Future<void> Function(List<String> imageRefs)? onSendImages;
 
   /// 通话入口（P4 接入实时语音/视频）。为空时仍然显示，但只提示。
   final VoidCallback? onVoiceCall;
@@ -173,8 +177,15 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
     switch (action) {
       case 'image':
-        final imageRef = await pickImageWithSource(context, ref);
-        if (imageRef != null) await widget.onSend(imageRef: imageRef);
+        final refs = await pickImagesWithSource(context, ref);
+        if (refs.isEmpty) return;
+        if (widget.onSendImages != null) {
+          await widget.onSendImages!(refs);
+        } else {
+          for (final ref in refs) {
+            await widget.onSend(imageRef: ref);
+          }
+        }
       case 'voice_call':
         if (widget.onVoiceCall != null) {
           widget.onVoiceCall!();
@@ -192,7 +203,8 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -207,12 +219,13 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showStatus) _RecordStatus(
-            recording: _recording,
-            seconds: _seconds,
-            cancelArmed: _cancelArmed,
-            onCancel: _cancelRecording,
-          ),
+          if (showStatus)
+            _RecordStatus(
+              recording: _recording,
+              seconds: _seconds,
+              cancelArmed: _cancelArmed,
+              onCancel: _cancelRecording,
+            ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

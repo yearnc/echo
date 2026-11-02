@@ -9,10 +9,7 @@ import '../../data/media/media_service.dart';
 ///
 /// 所有需要图片的地方都走这里，免得每个页面各写一份“拍照 / 相册”的弹层。
 /// 返回值是 `file:` 引用；用户取消时返回 null。
-Future<String?> pickImageWithSource(
-  BuildContext context,
-  WidgetRef ref,
-) async {
+Future<String?> pickImageWithSource(BuildContext context, WidgetRef ref) async {
   final source = await showModalBottomSheet<ImageSource>(
     context: context,
     backgroundColor: EchoColors.surface,
@@ -55,6 +52,59 @@ Future<String?> pickImageWithSource(
   return source == ImageSource.camera
       ? media.pickFromCamera()
       : media.pickFromGallery();
+}
+
+/// 多选版本：私信和发帖页用。
+///
+/// 相册可以一次选多张；相机仍然一次一张。取消时返回空列表。
+Future<List<String>> pickImagesWithSource(
+  BuildContext context,
+  WidgetRef ref, {
+  int limit = 9,
+}) async {
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: EchoColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 34,
+            height: 4,
+            decoration: BoxDecoration(
+              color: EchoColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _SourceTile(
+            icon: Icons.photo_camera_outlined,
+            label: '拍一张',
+            hint: '只存进 APP，不进系统相册',
+            onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+          ),
+          _SourceTile(
+            icon: Icons.photo_library_outlined,
+            label: '从相册选择（可多选）',
+            onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+          ),
+          const SizedBox(height: 6),
+        ],
+      ),
+    ),
+  );
+  if (source == null) return const [];
+  final media = ref.read(mediaServiceProvider);
+  if (source == ImageSource.camera) {
+    final one = await media.pickFromCamera();
+    return one == null ? const [] : [one];
+  }
+  return media.pickMultipleFromGallery(limit: limit);
 }
 
 class _SourceTile extends StatelessWidget {

@@ -10,10 +10,12 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
 import '../../domain/models/private_message.dart';
+import '../../domain/models/resident_sleep.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/photo_describer.dart';
 import '../../domain/services/resident_activity_controller.dart';
+import '../../domain/services/resident_sleep_service.dart';
 import '../../domain/services/resident_timeline.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
@@ -59,7 +61,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   void _markRead() {
     unawaited(
-      ref.read(privateMessageRepositoryProvider).markThreadRead(widget.personaId),
+      ref
+          .read(privateMessageRepositoryProvider)
+          .markThreadRead(widget.personaId),
     );
   }
 
@@ -81,9 +85,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (content.isEmpty) return;
     final mediaType = sticker != null
         ? 'sticker'
-        : (imageRef != null
-              ? 'image'
-              : (voiceRef != null ? 'voice' : 'text'));
+        : (imageRef != null ? 'image' : (voiceRef != null ? 'voice' : 'text'));
     final caption = sticker != null
         ? '表情包「${sticker.name}」'
               '${sticker.tags.isEmpty ? '' : '（标签：${sticker.tags.join('、')}）'}'
@@ -93,6 +95,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     setState(() => _sending = true);
     try {
+      // 先记互动：如果 TA 正在睡，这一步会当场结束睡眠，并拿到“睡了多久”。
+      final sleepNotice = await ref
+          .read(residentSleepServiceProvider)
+          .prepareInteraction(widget.personaId);
       _input.clear();
       final messageId = await ref
           .read(privateMessageRepositoryProvider)
@@ -119,13 +125,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           messageId: messageId,
           content: content,
           mediaType: mediaType,
+          sleepNotice: sleepNotice,
         ),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('没发出去：$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('没发出去：$error')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -139,29 +145,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required String messageId,
     required String content,
     required String mediaType,
+    SleepWakeNotice? sleepNotice,
   }) async {
     if (mediaType == 'image') {
-      try {
-        final resident = ref.read(customResidentByIdProvider(widget.personaId));
-        final gateway = ref.read(modelGatewayProvider);
-        final config = resident == null
-            ? null
-            : await gateway.configFor(configId: resident.modelConfigId) ??
-                  await gateway.activeConfig();
-        if (config == null || !config.supportsVision) {
-          final description = await ref
-              .read(photoDescriberProvider)
-              .describe(content);
-          if (description.isNotEmpty) {
-            await ref
-                .read(privateMessageRepositoryProvider)
-                .attachCaption(messageId, description);
-          }
-        }
-      } catch (error) {
-        // 描述只是兜底：它失败不能让“叫醒住民”也被跳过。
-        debugPrint('[图片] 描述兜底没走成：$error');
-      }
+      await _describeImage(messageId: messageId, imageRef: content);
     }
     if (!mounted) return;
 
@@ -170,7 +157,88 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       // 他这一轮可能回私信，也可能去帖子下面接话——那是他自己的选择。
       await ref
           .read(residentWakeServiceProvider)
-          .wake(widget.personaId, trigger: WakeTrigger.userAction);
+          .wake(
+            widget.personaId,
+            trigger: WakeTrigger.userAction,
+            sleepNotice: sleepNotice,
+          );
+    }
+  }
+
+  /// 一次发多张图（v50）。
+  ///
+  /// 每张落成一条 image 私信，像微信一样并排出现；描述全部补齐后
+  /// 只叫醒住民一次，免得连发三张就把他叫醒三回。
+  Future<void> _sendImages(List<String> imageRefs) async {
+    if (_sending || imageRefs.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      final sleepNotice = await ref
+          .read(residentSleepServiceProvider)
+          .prepareInteraction(widget.personaId);
+      final sent = <String, String>{};
+      for (final imageRef in imageRefs) {
+        final id = await ref
+            .read(privateMessageRepositoryProvider)
+            .send(
+              personaId: widget.personaId,
+              content: imageRef,
+              mediaType: 'image',
+            );
+        sent[id] = imageRef;
+      }
+      await ref
+          .read(privateMessageRepositoryProvider)
+          .pausePendingSegments(widget.personaId);
+      unawaited(() async {
+        for (final entry in sent.entries) {
+          await _describeImage(messageId: entry.key, imageRef: entry.value);
+        }
+        if (!mounted) return;
+        final resident = ref.read(customResidentByIdProvider(widget.personaId));
+        if (resident == null) return;
+        await ref
+            .read(residentWakeServiceProvider)
+            .wake(
+              widget.personaId,
+              trigger: WakeTrigger.userAction,
+              sleepNotice: sleepNotice,
+            );
+      }());
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('没发出去：$error')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 文字模型看不懂图时，先把画面描述补进 caption。
+  Future<void> _describeImage({
+    required String messageId,
+    required String imageRef,
+  }) async {
+    try {
+      final resident = ref.read(customResidentByIdProvider(widget.personaId));
+      final gateway = ref.read(modelGatewayProvider);
+      final config = resident == null
+          ? null
+          : await gateway.configFor(configId: resident.modelConfigId) ??
+                await gateway.activeConfig();
+      if (config == null || !config.supportsVision) {
+        final description = await ref
+            .read(photoDescriberProvider)
+            .describe(imageRef);
+        if (description.isNotEmpty) {
+          await ref
+              .read(privateMessageRepositoryProvider)
+              .attachCaption(messageId, description);
+        }
+      }
+    } catch (error) {
+      // 描述只是兜底：它失败不能让“叫醒住民”也被跳过。
+      debugPrint('[图片] 描述兜底没走成：$error');
     }
   }
 
@@ -188,14 +256,28 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         if (controller == widget.personaId) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('TA 正在当桌宠，结束桌宠后再通话')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('TA 正在当桌宠，结束桌宠后再通话')));
           return;
         }
       }
     } catch (error) {
       debugPrint('[通话] 控制者检查没成：$error');
+    }
+    // 打电话也是“直接找 TA”：睡着的住民会在这里被叫醒。
+    final sleepNotice = await ref
+        .read(residentSleepServiceProvider)
+        .prepareInteraction(widget.personaId);
+    if (sleepNotice != null) {
+      unawaited(
+        ref
+            .read(residentWakeServiceProvider)
+            .wake(
+              widget.personaId,
+              trigger: WakeTrigger.userAction,
+              sleepNotice: sleepNotice,
+            ),
+      );
     }
     if (!mounted) return;
     context.push(RoutePaths.call(widget.personaId, video: video));
@@ -320,6 +402,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 controller: _input,
                 sending: _sending,
                 onSend: _send,
+                onSendImages: _sendImages,
                 onVoiceCall: () => _openCall(video: false),
                 onVideoCall: () => _openCall(video: true),
               ),
@@ -443,11 +526,7 @@ class _DepartedNotice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.lock_outline,
-            size: 15,
-            color: EchoColors.textFaint,
-          ),
+          Icon(Icons.lock_outline, size: 15, color: EchoColors.textFaint),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/services/notification_service.dart';
+import '../domain/services/resident_sleep_service.dart';
 import '../domain/services/resident_wake_service.dart';
 import '../domain/services/scheduler_service.dart';
 
@@ -23,6 +24,8 @@ Future<void> runHeadlessTick() async {
 
   try {
     await container.read(schedulerServiceProvider).flushDue();
+    // 五天没互动的住民先睡下；之后再叫醒真正有待办的人。
+    await container.read(residentSleepServiceProvider).checkAutoSleep();
     // 住民自己定的闹钟：到点先叫醒它，再处理普通的待办补发。
     await container.read(residentWakeServiceProvider).wakeDueAlarms();
     // 不在后台替固定住民发帖：它自己醒来后决定要不要 create_post。

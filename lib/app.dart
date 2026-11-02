@@ -18,6 +18,7 @@ import 'domain/services/background_worker.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
 import 'domain/services/pet_controller.dart';
+import 'domain/services/resident_sleep_service.dart';
 import 'domain/services/resident_wake_service.dart';
 import 'domain/services/scheduler_service.dart';
 
@@ -80,6 +81,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       unawaited(notifications.cancelAllScheduled());
       // 桌宠如果还开着（前台服务会活过这次冷启动），把观察循环接回来。
       unawaited(ref.read(petControllerProvider.notifier).refresh());
+      // 五天没互动的住民在打开 APP 时先睡下；检查内部会限流。
+      unawaited(ref.read(residentSleepServiceProvider).checkAutoSleep());
     });
     _heartbeat = Timer.periodic(_tick, (_) async {
       // 出错也不能让心跳断掉：这一拍没补上，下一拍还会再试
@@ -99,6 +102,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           // 两套排期（一套预生成、一套模型决定），迟早打架。
           // 唤醒服务自己带冷却：有人等着回话就马上处理，空闲时 1.5 小时才醒一次。
           // 闹钟排在前面：到点的人先醒，再跑普通心跳；30 秒的粒度对闹钟足够。
+          // 睡前检查放在最前：睡着的人不该被这一拍的心跳再叫起来。
+          await ref.read(residentSleepServiceProvider).checkAutoSleep();
           await ref.read(residentWakeServiceProvider).wakeDueAlarms();
           await ref.read(residentWakeServiceProvider).wakeAll();
 
@@ -152,7 +157,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
   @override
   void didChangePlatformBrightness() {
     super.didChangePlatformBrightness();
-    if (mounted && ref.read(appearanceControllerProvider) == AppearanceMode.system) {
+    if (mounted &&
+        ref.read(appearanceControllerProvider) == AppearanceMode.system) {
       setState(() {});
     }
   }
@@ -210,10 +216,9 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
     }
 
     // 明暗由外观设置决定（auto 跟模式走；system 跟手机的深色模式走）。
-    final systemDark = WidgetsBinding
-        .instance
-        .platformDispatcher
-        .platformBrightness == Brightness.dark;
+    final systemDark =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
     final palette = switch (appearance) {
       AppearanceMode.auto => mode.isEcho ? kPaletteDark : kPaletteLight,
       AppearanceMode.system => systemDark ? kPaletteDark : kPaletteLight,

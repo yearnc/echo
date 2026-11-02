@@ -18,6 +18,7 @@ import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/resident_sleep_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/voice_playback.dart';
 import '../shared_widgets/comment_tile.dart';
@@ -127,9 +128,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
     // 浏览量也要算上我自己：以前只记了防沉迷，别人的帖子点进去
     // 数字永远不动，看着像坏了。
-    await ref
-        .read(postVoiceRepositoryProvider)
-        .recordUserView(widget.postId);
+    await ref.read(postVoiceRepositoryProvider).recordUserView(widget.postId);
     final guard = ref.read(addictionGuardProvider);
     await guard.recordView(widget.postId);
     final warning = await guard.evaluate();
@@ -328,7 +327,7 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
           .findById(target.personaId ?? '');
       final residentId = voice?.residentId;
       if (residentId != null) {
-        await wake.wake(residentId, trigger: WakeTrigger.userAction);
+        await _wakeResident(wake, residentId);
         return;
       }
       await ref
@@ -343,8 +342,23 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
 
     final authorId = widget.post.authorResidentId ?? '';
     if (authorId.isNotEmpty) {
-      await wake.wake(authorId, trigger: WakeTrigger.userAction);
+      await _wakeResident(wake, authorId);
     }
+  }
+
+  /// 评论住民 = 直接找 TA：睡着的会在这里醒，并知道睡了多久。
+  Future<void> _wakeResident(
+    ResidentWakeService wake,
+    String residentId,
+  ) async {
+    final notice = await ref
+        .read(residentSleepServiceProvider)
+        .prepareInteraction(residentId);
+    await wake.wake(
+      residentId,
+      trigger: WakeTrigger.userAction,
+      sleepNotice: notice,
+    );
   }
 
   Future<void> _sendSticker(StickerItem sticker) async {
@@ -375,9 +389,8 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('没能发出去：$error')));
     }
   }
 
@@ -407,9 +420,8 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('没能发出去：$error')));
     }
   }
 
@@ -599,8 +611,7 @@ class _PostBody extends ConsumerWidget {
         ? null
         : ref.watch(customResidentAnyByIdProvider(post.authorResidentId!));
     final me = ref.watch(userProfileProvider).value;
-    final name =
-        resident?.name ?? me?.displayName ?? AppTexts.defaultNickname;
+    final name = resident?.name ?? me?.displayName ?? AppTexts.defaultNickname;
     final avatarRef = resident?.avatarAsset ?? me?.avatarOrNull;
     const VoidCallback? openAuthor = null;
 
@@ -890,10 +901,7 @@ class _CommentThreadListState extends State<_CommentThreadList> {
                   _expanded.contains(thread.root.id)
                       ? '收起回复'
                       : '展开 ${thread.replies.length - _visibleReplies} 条回复',
-                  style: TextStyle(
-                    color: EchoColors.primary,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: EchoColors.primary, fontSize: 12),
                 ),
               ),
             ),

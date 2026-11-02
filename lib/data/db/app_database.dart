@@ -58,6 +58,7 @@ part 'app_database.g.dart';
     ResidentMemories,
     ResidentWakeLogs,
     ResidentAlarms,
+    ResidentSleepPeriods,
     PetShifts,
     ResidentInboxItems,
     ActionLogs,
@@ -70,6 +71,9 @@ part 'app_database.g.dart';
     GameMatches,
     GameMoves,
     GameMessages,
+    GameMatchPlayers,
+    GameStates,
+    GamePlugins,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -79,7 +83,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 49;
+  int get schemaVersion => 50;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -202,7 +206,7 @@ class AppDatabase extends _$AppDatabase {
           "WHERE type = 'table' AND name = 'ai_interactions'",
         ).getSingleOrNull();
         if (hasInteractions != null) {
-        await customStatement('''
+          await customStatement('''
           CREATE TABLE ai_interactions_v15 (
             id TEXT NOT NULL,
             post_id TEXT NOT NULL REFERENCES posts (id),
@@ -224,7 +228,7 @@ class AppDatabase extends _$AppDatabase {
             PRIMARY KEY (id)
           )
         ''');
-        await customStatement('''
+          await customStatement('''
           INSERT INTO ai_interactions_v15 (
             id, post_id, persona_id, type, media_type, content, voice_path,
             transcript, voice_duration_ms, scheduled_at, executed_at, status,
@@ -236,18 +240,18 @@ class AppDatabase extends _$AppDatabase {
             is_ai, scope, parent_id, like_count, deleted_at
           FROM ai_interactions
         ''');
-        await customStatement('DROP TABLE ai_interactions');
-        await customStatement(
-          'ALTER TABLE ai_interactions_v15 RENAME TO ai_interactions',
-        );
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS ai_interactions_lookup '
-          'ON ai_interactions (post_id, persona_id, status)',
-        );
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS ai_interactions_scheduled '
-          'ON ai_interactions (scheduled_at)',
-        );
+          await customStatement('DROP TABLE ai_interactions');
+          await customStatement(
+            'ALTER TABLE ai_interactions_v15 RENAME TO ai_interactions',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS ai_interactions_lookup '
+            'ON ai_interactions (post_id, persona_id, status)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS ai_interactions_scheduled '
+            'ON ai_interactions (scheduled_at)',
+          );
         }
       }
       if (from < 16) {
@@ -327,10 +331,7 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(customResidents, customResidents.personality);
           await m.addColumn(customResidents, customResidents.scenario);
           await m.addColumn(customResidents, customResidents.exampleDialogue);
-          await m.addColumn(
-            customResidents,
-            customResidents.extraInstructions,
-          );
+          await m.addColumn(customResidents, customResidents.extraInstructions);
           await m.addColumn(customResidents, customResidents.tags);
         }
       }
@@ -491,9 +492,8 @@ class AppDatabase extends _$AppDatabase {
           "WHERE type = 'table' AND name = 'user_comments'",
         ).getSingleOrNull();
         if (hasUserComments != null) {
-          final columns = await customSelect(
-            'PRAGMA table_info(user_comments)',
-          ).get();
+          final columns = await customSelect('PRAGMA table_info(user_comments)')
+              .get();
           final hasCaption = columns.any(
             (row) => row.read<String>('name') == 'caption',
           );
@@ -515,9 +515,7 @@ class AppDatabase extends _$AppDatabase {
           final columns = await customSelect(
             'PRAGMA table_info(notification_logs)',
           ).get();
-          final names = columns
-              .map((row) => row.read<String>('name'))
-              .toSet();
+          final names = columns.map((row) => row.read<String>('name')).toSet();
           if (!names.contains('group_key')) {
             await customStatement(
               "ALTER TABLE notification_logs ADD COLUMN group_key "
@@ -682,8 +680,8 @@ class AppDatabase extends _$AppDatabase {
         final hasPrivateMessages = await hasTable('private_messages');
         final hasUnderstandings = await hasTable('post_understandings');
         final hasThreads = await hasTable('ai_threads');
-        final hasPostsAuthor = hasPosts &&
-            await hasColumn('posts', 'author_persona_id');
+        final hasPostsAuthor =
+            hasPosts && await hasColumn('posts', 'author_persona_id');
 
         // 1. 旧住民留下的评论/互动（先删孩子，再删帖子）。
         if (hasInteractions) {
@@ -1002,6 +1000,48 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS game_messages_match '
           'ON game_messages (match_id)',
         );
+      }
+      if (from < 50) {
+        // v50：固定住民睡眠、多人房间、扩展对局状态和声明式游戏插件。
+        if (await hasTable('custom_residents') &&
+            !await hasColumn('custom_residents', 'last_interaction_at')) {
+          await m.addColumn(customResidents, customResidents.lastInteractionAt);
+          // 老住民没有互动水位：从升级这一刻开始算，避免一升级就把
+          // 所有老住民判定成“五天没理我”一起睡下。
+          await customStatement(
+            "UPDATE custom_residents SET last_interaction_at = "
+            "CAST(strftime('%s','now') AS INTEGER) * 1000 "
+            "WHERE last_interaction_at = 0",
+          );
+        }
+        if (!await hasTable('resident_sleep_periods')) {
+          await m.createTable(residentSleepPeriods);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS resident_sleep_periods_at '
+            'ON resident_sleep_periods (resident_id, started_at)',
+          );
+        }
+        if (await hasTable('game_invites') &&
+            !await hasColumn('game_invites', 'party_id')) {
+          await m.addColumn(gameInvites, gameInvites.partyId);
+        }
+        if (!await hasTable('game_match_players')) {
+          await m.createTable(gameMatchPlayers);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS game_match_players_match '
+            'ON game_match_players (match_id)',
+          );
+        }
+        if (!await hasTable('game_states')) {
+          await m.createTable(gameStates);
+        }
+        if (!await hasTable('game_plugins')) {
+          await m.createTable(gamePlugins);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS game_plugins_source '
+            'ON game_plugins (source_url)',
+          );
+        }
       }
     },
   );

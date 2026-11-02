@@ -10,6 +10,7 @@ class CustomResidents extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get avatarAsset => text().withDefault(const Constant(''))();
+
   /// 一句话简介（列表里显示）。
   TextColumn get bio => text().withDefault(const Constant(''))();
 
@@ -38,6 +39,7 @@ class CustomResidents extends Table {
   /// null = 无上限。
   IntColumn get memoryLimit =>
       integer().nullable().withDefault(const Constant(400))();
+
   /// 这个住民单独指定的对话模型配置 id（v30）。空 = 用当前启用的那条。
   TextColumn get modelConfigId => text().withDefault(const Constant(''))();
 
@@ -62,7 +64,44 @@ class CustomResidents extends Table {
   TextColumn get voiceMode =>
       text().withDefault(const Constant('description'))();
   IntColumn get createdAt => integer()();
+
+  /// 最近一次“用户主动找 TA”的时间（v50）。
+  ///
+  /// 五天没有任何互动的住民会自动入睡；发帖、评论别人不算互动。
+  /// 0 = 迁移上来的老数据，按 [createdAt] 算。
+  IntColumn get lastInteractionAt => integer().withDefault(const Constant(0))();
   IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 固定住民的睡眠记录（v50）。
+///
+/// 一段睡眠从 [startedAt] 开始，到 [endedAt] 结束；`endedAt` 为空表示
+/// 现在还在睡。日志页把这段记录和唤醒日志放在一起，用户能看到 TA
+/// 什么时候睡下、睡了多久。
+@DataClassName('ResidentSleepPeriodRow')
+@TableIndex(
+  name: 'resident_sleep_periods_at',
+  columns: {#residentId, #startedAt},
+)
+class ResidentSleepPeriods extends Table {
+  TextColumn get id => text()();
+  TextColumn get residentId => text()();
+  IntColumn get startedAt => integer()();
+
+  /// 空 = 还在睡。
+  IntColumn get endedAt => integer().nullable()();
+
+  /// manual / auto：这一次是用户手动让 TA 睡，还是五天没互动自动睡。
+  TextColumn get startedBy => text().withDefault(const Constant('manual'))();
+
+  /// manual / interaction：用户从睡眠页唤醒，还是直接找 TA 时被唤醒。
+  TextColumn get endedBy => text().withDefault(const Constant(''))();
+
+  /// 入睡前留下的最后一句话（如果模型成功说出来）。
+  TextColumn get farewell => text().withDefault(const Constant(''))();
 
   @override
   Set<Column> get primaryKey => {id};
