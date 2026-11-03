@@ -29,9 +29,25 @@ abstract final class AppSession {
   /// 数字还停在昨天的 0。这里补上正在进行的这一段。
   static DateTime? _foregroundSince;
 
-  static void markForeground() => _foregroundSince ??= DateTime.now();
+  static void markForeground() {
+    _foregroundSince ??= DateTime.now();
+    _lastActivityAt = DateTime.now();
+  }
 
   static void markBackground() => _foregroundSince = null;
+
+  /// 最后一次真实操作的时间（点击/拖动/滚动）。
+  ///
+  /// 只用来判断“人是不是已经放下手机了”：空闲整理记忆不该在他
+  /// 正戳屏幕的时候突然跑一轮模型。
+  static DateTime _lastActivityAt = DateTime.now();
+
+  static void markActivity() => _lastActivityAt = DateTime.now();
+
+  static Duration get idleFor {
+    final span = DateTime.now().difference(_lastActivityAt);
+    return span.isNegative ? Duration.zero : span;
+  }
 
   /// 正在进行的这段会话已经持续了多久（不在前台时为 0）。
   static Duration get foregroundElapsed {

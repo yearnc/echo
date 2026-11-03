@@ -12,6 +12,7 @@ import '../models/model_config.dart';
 import '../models/resident_activity.dart';
 import '../models/tool_settings.dart';
 import 'action_registry.dart';
+import 'memory_text.dart';
 import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
 import 'tool_call_text.dart';
@@ -206,6 +207,7 @@ class ResidentToolSession {
   static String _toolLabel(String name) => switch (name) {
     'memory_search' || 'memory_read' || 'memory_list_recent' => '正在翻记忆…',
     'memory_write' || 'memory_update' || 'memory_delete' => '正在记下来…',
+    'memory_consolidate' => '正在合并记忆…',
     'web_search' => '正在搜索…',
     'browse_feed' => '正在刷帖子…',
     'read_post' => '正在点开帖子…',
@@ -265,6 +267,9 @@ class ResidentToolSession {
 
     /// MCP 风格的游戏工具目录（v50）：每轮直接挂上，不再等下一轮请求。
     List<Map<String, dynamic>> gameTools = const [],
+
+    /// 记忆整理轮：只给记忆工具，不给任何会对外说话的入口。
+    bool maintenance = false,
   }) async {
     final limits = _settings;
     final voiceReady = allowVoice && _voiceToolAvailable(resident);
@@ -316,6 +321,7 @@ class ResidentToolSession {
             allowProactive: allowProactive,
             allowVoice: allowVoice,
             extraTools: gameTools,
+            maintenance: maintenance,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -509,6 +515,7 @@ class ResidentToolSession {
                 allowProactive: allowProactive,
                 allowVoice: allowVoice,
                 extraTools: gameTools,
+                maintenance: maintenance,
               );
               outcome = ActionOutcome(
                 ok: true,
@@ -547,7 +554,8 @@ class ResidentToolSession {
                   resident: resident,
                   call: call,
                   latestUserMessage: situation,
-                  memorySource: 'wake',
+                  memorySource: maintenance ? 'maintenance' : 'wake',
+                  maintenance: maintenance,
                 );
               }
           }
@@ -570,6 +578,21 @@ class ResidentToolSession {
           'tool_call_id': call.id,
           'content': toolOutcome.toToolResult(),
         });
+
+        // 记忆写成功了，但常驻窗口里的“你记得”还是构建时的旧快照。
+        // 只往窗口末尾追加一句提醒，不改前缀：下一次醒来能看到刚记下的，
+        // 不会因为“窗口里没有”又写一遍。
+        if (outcome.ok &&
+            (call.name == 'memory_write' ||
+                call.name == 'memory_consolidate')) {
+          final note = _memoryWindowNote(call.name, outcome, args);
+          if (note.isNotEmpty) {
+            history.add({
+              'role': 'user',
+              'content': '<system-reminder>$note</system-reminder>',
+            });
+          }
+        }
 
         // read_post 的图片：模型能看图就直接附原图，不做“先描述再降级”。
         if (call.name == 'read_post' && refsRaw is List) {
@@ -654,9 +677,13 @@ $persona
   一次 1—3 句，像接电话；对方打断你就先听他说。
 
 你刚拿起手机，看到了一些消息和动静。像真人一样处理：
-- 你有一本自己的记忆。最近的几条已经写在下面的“你记得”里，直接用；
-  要查更早的、或者想起某件具体的事，再用 memory_search，别凭空编以前的事。
-  已经给过的记忆不要再用 memory_list_recent 重看一遍。
+- 你有一本自己的记忆。最近的几条已经写在下面的“你记得”里，每条前面
+  方括号里是它的 id，直接就能用来改或删；要查更早的、或者想起某件具体的事，
+  再用 memory_search，别凭空编以前的事。已经给过的不用反复用
+  memory_list_recent 重看。
+- 写之前先看“你记得”里有没有同一件事。同一件事换个说法也算一件事：
+  不要重复写一条；要补细节就用 memory_update 改原来那条。
+  拿不准是不是记过，就先 memory_search 查一下，别直接写新的。
 - 值得记的才记：对方说过的偏好、经历、约定、情绪变化，以及图片里是什么、
   表情包表达的是什么。不要写“他发来一张图片 / 一个表情包”这种空话。
 - 记错了用 memory_update 改，不再成立或不该记的用 memory_delete 删。
@@ -736,7 +763,11 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       final lines = <String>[];
       for (final item in raw) {
         if (item is Map && item['summary'] is String) {
-          lines.add(item['summary'] as String);
+          final id = item['id'] is String ? item['id'] as String : '';
+          final summary = item['summary'] as String;
+          // 带上 id：要改或要删时直接 memory_update / memory_delete，
+          // 不用先搜一遍，也就少了一次“干脆重写一条”的冲动。
+          lines.add(id.isEmpty ? summary : '[$id] $summary');
         }
       }
       return lines.join('；');
@@ -751,6 +782,7 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     required ToolCallRequest call,
     required String latestUserMessage,
     String memorySource = 'dm',
+    bool maintenance = false,
   }) async {
     final args = call.arguments;
     switch (call.name) {
@@ -768,18 +800,30 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       case 'memory_list_recent':
         return actions.listRecentMemories(
           residentId: resident.id,
-          limit: _limit(args['limit']),
+          limit: _limit(args['limit'], max: maintenance ? 50 : 10),
+          offset: _offset(args['offset']),
         );
       case 'memory_write':
+        final summary = textArg(args, 'summary');
         return actions.writeMemory(
           residentId: resident.id,
-          summary: textArg(args, 'summary'),
+          summary: summary,
           content: textArg(args, 'content'),
           tags: _tags(args['tags']),
           source: memorySource,
-          sourceId: 'mem_${resident.id}_${call.id}',
-          idempotencyKey:
-              'mem:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
+          // 来源键由内容派生：同一件事换一轮再写也会被挡住。
+          sourceId: 'mem_${resident.id}_${memoryFingerprint(summary)}',
+          idempotencyKey: 'mem:${resident.id}:${call.id}',
+        );
+      case 'memory_consolidate':
+        return actions.consolidateMemories(
+          residentId: resident.id,
+          keepMemoryId: textArg(args, 'keep_memory_id'),
+          mergeMemoryIds: _ids(args['merge_memory_ids']),
+          summary: optionalTextArg(args, 'summary'),
+          content: optionalTextArg(args, 'content'),
+          tags: args.containsKey('tags') ? _tags(args['tags']) : null,
+          idempotencyKey: 'memmerge:${resident.id}:${call.id}',
         );
       case 'memory_update':
         return actions.updateMemory(
@@ -788,15 +832,13 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
           summary: optionalTextArg(args, 'summary'),
           content: optionalTextArg(args, 'content'),
           tags: args.containsKey('tags') ? _tags(args['tags']) : null,
-          idempotencyKey:
-              'memup:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
+          idempotencyKey: 'memup:${resident.id}:${call.id}',
         );
       case 'memory_delete':
         return actions.deleteMemory(
           residentId: resident.id,
           memoryId: textArg(args, 'memory_id'),
-          idempotencyKey:
-              'memdel:${resident.id}:${call.id}:${DateTime.now().millisecondsSinceEpoch}',
+          idempotencyKey: 'memdel:${resident.id}:${call.id}',
         );
       case 'list_stickers':
         return actions.listStickers();
@@ -848,13 +890,63 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     }
   }
 
-  static int _limit(Object? raw) {
-    if (raw is num) return raw.toInt().clamp(1, 10);
+  /// 写记忆成功后追加到常驻窗口的一句提醒。只写事实，不替模型做决定。
+  static String _memoryWindowNote(
+    String toolName,
+    ActionOutcome outcome,
+    Map<String, dynamic> args,
+  ) {
+    if (toolName == 'memory_consolidate') {
+      final merged = outcome.data['merged'];
+      final count = merged is num ? merged.toInt() : 0;
+      final summary = optionalTextArg(args, 'summary') ?? '';
+      if (summary.isEmpty && count == 0) return '';
+      return '你刚整理过记忆：合并了 $count 条'
+          '${summary.isEmpty ? '' : '，保留下来的那条是「$summary」'}。';
+    }
+    if (outcome.data['duplicate'] == true) {
+      return '这件事之前已经记过了，不需要再写一条；要补细节就改原来那条。';
+    }
+    final summary = optionalTextArg(args, 'summary') ?? '';
+    if (summary.isEmpty) return '';
+    final id = outcome.data['memory_id'];
+    return '你刚记下：${id is String && id.isNotEmpty ? '[$id] ' : ''}$summary';
+  }
+
+  static int _limit(Object? raw, {int max = 10}) {
+    if (raw is num) return raw.toInt().clamp(1, max);
     if (raw is String) {
       final parsed = int.tryParse(raw.trim());
-      if (parsed != null) return parsed.clamp(1, 10);
+      if (parsed != null) return parsed.clamp(1, max);
     }
     return 5;
+  }
+
+  static int _offset(Object? raw) {
+    if (raw is num) return raw.toInt().clamp(0, 1000);
+    if (raw is String) {
+      final parsed = int.tryParse(raw.trim());
+      if (parsed != null) return parsed.clamp(0, 1000);
+    }
+    return 0;
+  }
+
+  static List<String> _ids(Object? raw) {
+    if (raw is List) {
+      return [
+        for (final item in raw)
+          if (item is String && item.trim().isNotEmpty) item.trim(),
+      ].take(50).toList(growable: false);
+    }
+    if (raw is String) {
+      return raw
+          .split(RegExp(r'[,，\s]+'))
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .take(50)
+          .toList(growable: false);
+    }
+    return const [];
   }
 
   /// 模型给的参数不能直接强转：`content = 123` 或 `as_voice = "true"` 在
@@ -969,12 +1061,60 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       _functionName(tool),
   ];
 
+  /// 整理记忆专用：把几条重复记忆并进一条，一次事务完成。
+  static const Map<String, dynamic> _memoryConsolidateTool = {
+    'type': 'function',
+    'function': {
+      'name': 'memory_consolidate',
+      'description':
+          '把说的是同一件事的几条记忆合并成一条：保留 keep_memory_id，'
+          '其余软删除。可用 summary/content 把保留条改得更完整。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'keep_memory_id': {'type': 'string', 'description': '要保留的记忆 id'},
+          'merge_memory_ids': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': '要并进去、然后删掉的记忆 id',
+          },
+          'summary': {'type': 'string', 'description': '合并后的一句话摘要'},
+          'content': {'type': 'string', 'description': '合并后的细节'},
+          'tags': {
+            'type': 'array',
+            'items': {'type': 'string'},
+          },
+        },
+        'required': ['keep_memory_id', 'merge_memory_ids'],
+      },
+    },
+  };
+
   static List<Map<String, dynamic>> _wakeToolsFor(
     CustomResident resident, {
     bool allowProactive = true,
     bool allowVoice = true,
     Iterable<Map<String, dynamic>> extraTools = const [],
+    bool maintenance = false,
   }) {
+    if (maintenance) {
+      const allowed = {
+        'memory_search',
+        'memory_read',
+        'memory_list_recent',
+        'memory_write',
+        'memory_update',
+        'memory_delete',
+        'finish',
+      };
+      return [
+        for (final tool in tools)
+          if (allowed.contains(_functionName(tool))) tool,
+        for (final tool in wakeOnlyTools)
+          if (allowed.contains(_functionName(tool))) tool,
+        _memoryConsolidateTool,
+      ];
+    }
     final base = [
       for (final tool in tools)
         if (allowProactive || _functionName(tool) != 'create_post') tool,
@@ -1430,11 +1570,12 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       'type': 'function',
       'function': {
         'name': 'memory_list_recent',
-        'description': '看看你最近记得什么。每次醒来先看一眼。',
+        'description': '看看你最近记得什么。想查更早的，用 offset 往后翻。',
         'parameters': {
           'type': 'object',
           'properties': {
-            'limit': {'type': 'integer'},
+            'limit': {'type': 'integer', 'description': '最多几条，默认 5'},
+            'offset': {'type': 'integer', 'description': '跳过前面几条，默认 0'},
           },
         },
       },
@@ -1445,7 +1586,8 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
         'name': 'memory_write',
         'description':
             '把值得记住的事写下来：对方的偏好、经历、约定、情绪变化，'
-            '以及图片里是什么、表情包表达什么。不要记寒暄和推测。',
+            '以及图片里是什么、表情包表达什么。不要记寒暄和推测。'
+            '同一件事已经记过就不要再写；补细节用 memory_update 改原来那条。',
         'parameters': {
           'type': 'object',
           'properties': {

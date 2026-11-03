@@ -99,7 +99,6 @@ class PetObserveService {
   /// 刚接手的那一位：下一轮观察要告诉它“这是我第一次看”。
   final Set<String> _handoffPending = {};
 
-
   /// 给桌宠页看的状态（收到几帧、上次唤醒结果、错误）。
   final ValueNotifier<PetObserveStatus> status = ValueNotifier(
     const PetObserveStatus(),
@@ -289,9 +288,7 @@ class PetObserveService {
         _handoffPending.add(next);
         _sessionStartedAt[next] = DateTime.now();
       }
-      _setStatus(
-        wake: next == null ? '暂时没人接手，先停下观察' : '控制权已交给下一位',
-      );
+      _setStatus(wake: next == null ? '暂时没人接手，先停下观察' : '控制权已交给下一位');
     } finally {
       _handingOff = false;
     }
@@ -461,12 +458,10 @@ class PetObserveService {
       final note = [
         '这是过去 ${_gap.inSeconds} 秒里抽出的 ${recent.length} 张画面。',
         '各张时间：$frameTimes。',
-        if (fresh != null)
-          '最后一张是在叫醒你之前 0.5 秒刚截的，就是此刻的屏幕。',
+        if (fresh != null) '最后一张是在叫醒你之前 0.5 秒刚截的，就是此刻的屏幕。',
         if (previousWake != null)
           '距上一次观察过去了 ${_durationLabel(now.difference(previousWake))}。',
-        if (_handoffPending.contains(residentId))
-          '你刚接手这只桌宠，新的一班从现在开始。',
+        if (_handoffPending.contains(residentId)) '你刚接手这只桌宠，新的一班从现在开始。',
         if (description.isNotEmpty) '最后一张的画面：$description',
       ].join('\n');
 
@@ -536,10 +531,11 @@ class PetObserveService {
         trigger: WakeTrigger.pet,
         pet: PetObservation(
           note:
-              '桌宠这一班要结束了（$reason）。从你们共同的上下文里，'
-              '把真正值得长期记住的整理成一条简短记忆，用 memory_write 写下来。'
-              '不要写成日记，也不要提“截图”；如果画面里有你自己，'
-              '那是你，不要当成别人。这一轮不用再冒气泡。',
+              '桌宠这一班要结束了（$reason）。先对照“你记得”和刚才的上下文：'
+              '只有确实出现了值得长期记住的新东西，才用 memory_write 写一条；'
+              '没有新事就不要写，已经记过的不重写。不要写成日记，'
+              '也不要提“截图”；如果画面里有你自己，那是你，不要当成别人。'
+              '这一轮不用再冒气泡。',
           realtime: true,
           sessionStartedAt: _sessionStartedAt[residentId],
           lastWakeAt: _lastWakeAt[residentId],
@@ -566,19 +562,18 @@ class PetObserveService {
       return (ok: true, error: '');
     }
 
-    final before = DateTime.now();
     try {
       // 关闭时不再重新附帧：这段时间的画面和它说过的话已经在上下文里，
-      // 这里只负责说一句“结束了，去记下来”。
+      // 这里只负责说一句“结束了，看看有没有值得留的”。
       await wake.wake(
         residentId,
         trigger: WakeTrigger.pet,
         pet: PetObservation(
           note:
-              '这段桌宠观察结束了。从你们共同的上下文里，'
-              '把真正值得记的整理成一条简短记忆，用 memory_write 写下来。'
-              '不要写成日记，也不要提“截图”；如果画面里有你自己，'
-              '那是你，不要当成别人。',
+              '这段桌宠观察结束了。先对照“你记得”和刚才的上下文：'
+              '只有确实出现了值得长期记住的新东西，才用 memory_write 写一条；'
+              '没有新事就不要写，已经记过的不重写。不要写成日记，'
+              '也不要提“截图”；如果画面里有你自己，那是你，不要当成别人。',
           realtime: true,
           sessionStartedAt: _sessionStartedAt[residentId],
           lastWakeAt: _lastWakeAt[residentId],
@@ -589,15 +584,11 @@ class PetObserveService {
       return (ok: false, error: '$error');
     }
 
-    // 工具调用的结果不直接回传，所以用“有没有新记忆”判断写没写成功。
-    final recent = await memories.recent(residentId, limit: 1);
-    final wrote = recent.isNotEmpty && !recent.first.createdAt.isBefore(before);
-    if (!wrote) {
-      return (ok: false, error: '住民没有写成记忆，截图先留着，可以再试一次');
-    }
+    // 收尾这一轮已经让它自己判断“有没有新东西要记”：没有新事不写也是
+    // 正确结果，所以不再用“必须多一条记忆”卡住关闭流程。
     _clearFrames();
     _lastWakeAt.remove(residentId);
-    _setStatus(wake: '观察结束，记忆已写入');
+    _setStatus(wake: '观察结束，记忆已整理');
     return (ok: true, error: '');
   }
 

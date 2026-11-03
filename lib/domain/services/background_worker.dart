@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../../data/headless_tick.dart';
+import 'memory_maintenance_service.dart';
 
 /// 系统级后台调度（B10）。
 ///
@@ -20,9 +21,17 @@ class BackgroundWorker {
   /// 周期任务名。同一个名字重复注册会被系统合并（keep 策略）。
   static const String taskName = 'echo.flush';
 
+  /// 记忆整理单独一条任务：它要联网调模型，不能跟“纯本地补发”共用约束。
+  static const String memoryTaskName = 'echo.memory';
+
   /// 15 分钟是 Android WorkManager 划的**最小**周期，不是我们的选择。
   /// 想更勤只能靠前台心跳，那条路本来就有。
   static const Duration frequency = Duration(minutes: 15);
+
+  /// 记忆整理不必 15 分钟一次：每位住民一天最多一次，3 小时问一次足够。
+  /// 间隔只在 [MemoryMaintenanceService] 里定义一份，避免两处漂移。
+  static const Duration memoryFrequency =
+      MemoryMaintenanceService.backgroundInterval;
 
   /// 注册周期任务。失败不抛：注册不上就退回到原来那三条路。
   static Future<void> start() async {
@@ -35,6 +44,14 @@ class BackgroundWorker {
         // 补发是纯本地的（排期本来就在磁盘上），不该要求网络——
         // 断网的时候来一条评论，用户照样该收到。
         constraints: Constraints(networkType: NetworkType.notRequired),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+      await Workmanager().registerPeriodicTask(
+        memoryTaskName,
+        memoryTaskName,
+        frequency: memoryFrequency,
+        // 整理要调住户的对话模型；没网就等下一轮，不拿失败去污染重试计数。
+        constraints: Constraints(networkType: NetworkType.connected),
         existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
       );
     } catch (error) {
@@ -51,7 +68,11 @@ class BackgroundWorker {
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     WidgetsFlutterBinding.ensureInitialized();
-    await runHeadlessTick();
+    if (task == BackgroundWorker.memoryTaskName) {
+      await runHeadlessMemoryMaintenance();
+    } else {
+      await runHeadlessTick();
+    }
     // 永远返回 true：这一轮有没有东西可补，不是"成功与否"。
     // 返回 false 会让系统按退避策略把任务越推越远，而我们要的是它照常来。
     return true;

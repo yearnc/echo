@@ -520,7 +520,12 @@ class GameService {
     // 先把一句通用记忆落库：就算总结模型还没跑完 APP 就被关掉，
     // 这局也不会完全没留下东西。总结成功后再把这条改详细。
     String? fallbackMemoryId;
-    final fallbackText = '和对方下了一局$gameName，$resultText。';
+    // 带上日期时间：两局同样的棋不该被当成“同一件事”而去重掉。
+    final at = DateTime.now();
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    final fallbackText =
+        '和对方在 ${at.month}月${at.day}日 $hh:$mm 下了一局$gameName，$resultText。';
     try {
       final written = await actions.writeMemory(
         residentId: match.residentId,

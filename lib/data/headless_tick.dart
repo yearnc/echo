@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/services/memory_maintenance_service.dart';
 import '../domain/services/notification_service.dart';
 import '../domain/services/resident_sleep_service.dart';
 import '../domain/services/resident_wake_service.dart';
@@ -39,6 +40,30 @@ Future<void> runHeadlessTick() async {
     // 后台任务失败没有人在场处理，也不该让系统把它标成"崩了"：
     // 这一轮没补上，下一轮（或用户下次打开）还会再补。
     debugPrint('[后台] 这一轮没跑完：$error');
+  } finally {
+    container.dispose();
+  }
+}
+
+/// 后台记忆整理（v4.10.0）。
+///
+/// `echo.memory` 这条任务带“需要联网”约束，专门调住户的对话模型。
+/// 它和前台心跳共用同一把跨 isolate 锁；这里一次最多整理一位，
+/// 剩下的留给下一轮（或前台）。
+Future<void> runHeadlessMemoryMaintenance() async {
+  final container = ProviderContainer(
+    overrides: [inBackgroundTaskProvider.overrideWithValue(true)],
+  );
+  try {
+    final report = await container
+        .read(memoryMaintenanceServiceProvider)
+        .maybeRun(background: true);
+    if (report.ran) {
+      debugPrint('[后台] 记忆整理：${report.message}');
+    }
+  } catch (error) {
+    // 后台没有人在场：这一轮失败就等下一轮，不要抛给 WorkManager。
+    debugPrint('[后台] 记忆整理没跑完：$error');
   } finally {
     container.dispose();
   }

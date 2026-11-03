@@ -36,6 +36,7 @@ class ResidentWakeLog {
   static String toolLabel(String name) => switch (name) {
     'memory_search' || 'memory_read' || 'memory_list_recent' => '翻记忆',
     'memory_write' || 'memory_update' || 'memory_delete' => '记事情',
+    'memory_consolidate' => '合并记忆',
     'web_search' => '联网搜索',
     'browse_feed' => '刷帖子',
     'read_post' => '看帖子',
@@ -76,6 +77,7 @@ class ResidentWakeLog {
     'alarm' => '给自己定的闹钟',
     'pet' => '桌宠醒着',
     'sleep' => '入睡前留了一句话',
+    'maintenance' => '空闲时整理记忆',
     _ => '醒来',
   };
 

@@ -12,6 +12,7 @@ import '../../data/repositories/private_message_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../models/resident_memory.dart';
+import 'memory_text.dart';
 
 /// 一次动作的结果。工具调用要把它原样读给模型听。
 class ActionOutcome {
@@ -65,10 +66,9 @@ class ActionRegistry {
     String source = 'tool',
     required Future<ActionOutcome> Function() body,
   }) async {
-    final existing =
-        await (db.select(db.actionLogs)
-              ..where((t) => t.idempotencyKey.equals(idempotencyKey)))
-            .getSingleOrNull();
+    final existing = await (db.select(
+      db.actionLogs,
+    )..where((t) => t.idempotencyKey.equals(idempotencyKey))).getSingleOrNull();
     if (existing != null) {
       return ActionOutcome(
         ok: true,
@@ -205,10 +205,7 @@ class ActionRegistry {
   }
 
   /// 从 id 或标签里选一张表情。只做选择，不落库。
-  Future<ActionOutcome> chooseSticker({
-    String id = '',
-    String tag = '',
-  }) async {
+  Future<ActionOutcome> chooseSticker({String id = '', String tag = ''}) async {
     final items = await stickers.taggedItems();
     if (id.trim().isNotEmpty) {
       for (final item in items) {
@@ -335,7 +332,11 @@ class ActionRegistry {
           createdAt: at,
           asVoice: asVoice,
         );
-        return ActionOutcome(ok: true, message: '已发布', data: {'postId': postId});
+        return ActionOutcome(
+          ok: true,
+          message: '已发布',
+          data: {'postId': postId},
+        );
       },
     );
   }
@@ -354,7 +355,9 @@ class ActionRegistry {
     final found = await memories.search(residentId, query, limit: limit);
     return ActionOutcome(
       ok: true,
-      data: {'memories': [for (final item in found) _memoryJson(item)]},
+      data: {
+        'memories': [for (final item in found) _memoryJson(item)],
+      },
     );
   }
 
@@ -376,15 +379,22 @@ class ActionRegistry {
   Future<ActionOutcome> listRecentMemories({
     required String residentId,
     int limit = 5,
+    int offset = 0,
   }) async {
     final resident = await residents.findById(residentId);
     if (resident == null || !resident.memoryEnabled) {
       return const ActionOutcome(ok: false, message: '这个人没有开启记忆');
     }
-    final recent = await memories.recent(residentId, limit: limit);
+    final recent = await memories.recent(
+      residentId,
+      limit: limit,
+      offset: offset,
+    );
     return ActionOutcome(
       ok: true,
-      data: {'memories': [for (final item in recent) _memoryJson(item)]},
+      data: {
+        'memories': [for (final item in recent) _memoryJson(item)],
+      },
     );
   }
 
@@ -413,19 +423,41 @@ class ActionRegistry {
         if (text.isEmpty) {
           return const ActionOutcome(ok: false, message: '要记的内容是空的');
         }
-        if (sourceId != null &&
-            await memories.hasSource(
-              residentId: residentId,
-              sourceId: sourceId,
-            )) {
+        final blocked = memoryWriteGate(summary: text, content: content);
+        if (blocked.isNotEmpty) {
+          return ActionOutcome(ok: false, message: blocked);
+        }
+        // 来源键由内容派生，而不是由“这次工具调用”派生。
+        // 这样同一个事实换一轮再写，也能被 hasSource 和相似度两道门挡住。
+        final stableSourceId =
+            sourceId ?? 'mem_${residentId}_${memoryFingerprint(text)}';
+        if (await memories.hasSource(
+          residentId: residentId,
+          sourceId: stableSourceId,
+        )) {
           return const ActionOutcome(ok: true, message: '这件事已经记过了');
+        }
+        final similar = await memories.findSimilar(
+          residentId: residentId,
+          summary: text,
+          content: content,
+          tags: tags,
+        );
+        if (similar != null) {
+          return ActionOutcome(
+            ok: true,
+            message:
+                '这件事已经记过了，不用再写一遍；'
+                '要改的话用 memory_update 改「${similar.summary}」那条',
+            data: {'memory_id': similar.id, 'duplicate': true},
+          );
         }
         final now = DateTime.now();
         final memory = ResidentMemory(
           id: ResidentMemoryRepository.newId(),
           residentId: residentId,
           source: source,
-          sourceId: sourceId,
+          sourceId: stableSourceId,
           summary: text,
           content: content.trim().isEmpty ? text : content.trim(),
           tags: tags,
@@ -437,6 +469,83 @@ class ActionRegistry {
           ok: true,
           message: '记住了',
           data: {'memory_id': memory.id},
+        );
+      },
+    );
+  }
+
+  /// 合并同一件事的几条记忆（整理记忆时用）。
+  ///
+  /// 保留 [keepMemoryId]，把 [mergeMemoryIds] 软删除；可同时改写保留条的
+  /// 摘要/正文/标签。整批在一个事务里完成，中途失败不会只删一半。
+  Future<ActionOutcome> consolidateMemories({
+    required String residentId,
+    required String keepMemoryId,
+    required List<String> mergeMemoryIds,
+    String? summary,
+    String? content,
+    List<String>? tags,
+    required String idempotencyKey,
+  }) async {
+    final ids = {
+      for (final id in mergeMemoryIds)
+        if (id.trim().isNotEmpty && id.trim() != keepMemoryId) id.trim(),
+    };
+    return run(
+      actorId: residentId,
+      actorKind: 'resident',
+      action: 'memory_consolidate',
+      idempotencyKey: idempotencyKey,
+      targetId: keepMemoryId,
+      params: {'keep': keepMemoryId, 'merge': ids.toList()},
+      body: () async {
+        final resident = await residents.findById(residentId);
+        if (resident == null || !resident.memoryEnabled) {
+          return const ActionOutcome(ok: false, message: '这个人没有开启记忆');
+        }
+        final keeper = await memories.findActive(keepMemoryId);
+        if (keeper == null || keeper.residentId != residentId) {
+          return const ActionOutcome(ok: false, message: '要保留的那条记忆不存在');
+        }
+        final mergeable = <String>[];
+        for (final id in ids) {
+          final item = await memories.findActive(id);
+          if (item != null && item.residentId == residentId) {
+            mergeable.add(id);
+          }
+        }
+        if (mergeable.isEmpty &&
+            summary == null &&
+            content == null &&
+            tags == null) {
+          return const ActionOutcome(
+            ok: true,
+            message: '这几条不用合并',
+            data: {'merged': 0},
+          );
+        }
+        final nextSummary = (summary ?? keeper.summary).trim();
+        if (nextSummary.isEmpty) {
+          return const ActionOutcome(ok: false, message: '摘要不能是空的');
+        }
+        final nextContent = (content ?? keeper.content).trim();
+        await db.transaction(() async {
+          await memories.updateText(
+            id: keepMemoryId,
+            summary: nextSummary,
+            content: nextContent.isEmpty ? nextSummary : nextContent,
+            tags: tags ?? keeper.tags,
+          );
+          for (final id in mergeable) {
+            await memories.softDelete(id);
+          }
+        });
+        return ActionOutcome(
+          ok: true,
+          message: mergeable.isEmpty
+              ? '改好了'
+              : '合并了 ${mergeable.length} 条到一条记忆里',
+          data: {'memory_id': keepMemoryId, 'merged': mergeable.length},
         );
       },
     );

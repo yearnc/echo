@@ -6,6 +6,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/resident_memory.dart';
+import '../../domain/services/memory_maintenance_service.dart';
 
 /// 一位固定住民的长期记忆。
 ///
@@ -23,6 +24,105 @@ class ResidentMemoriesPage extends ConsumerStatefulWidget {
 
 class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
   bool _showArchived = false;
+  MemoryMaintenanceState? _maintenance;
+  bool _maintenanceBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMaintenance();
+  }
+
+  Future<void> _loadMaintenance() async {
+    final state = await ref
+        .read(memoryMaintenanceServiceProvider)
+        .stateFor(widget.residentId);
+    if (mounted) setState(() => _maintenance = state);
+  }
+
+  Future<void> _setMaintenance(bool value) async {
+    await ref
+        .read(memoryMaintenanceServiceProvider)
+        .setEnabled(widget.residentId, value);
+    await _loadMaintenance();
+  }
+
+  Future<void> _runMaintenance() async {
+    if (_maintenanceBusy) return;
+    setState(() => _maintenanceBusy = true);
+    final report = await ref
+        .read(memoryMaintenanceServiceProvider)
+        .runFor(widget.residentId, force: true);
+    await _loadMaintenance();
+    if (!mounted) return;
+    setState(() => _maintenanceBusy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          report.ran
+              ? report.message
+              : (report.message.isEmpty ? '现在不整理' : report.message),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDeleted() async {
+    final since = _maintenance?.lastRunAt;
+    final list = await ref
+        .read(residentMemoryRepositoryProvider)
+        .recentlyDeleted(widget.residentId, since: since);
+    if (!mounted) return;
+    if (list.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('这次没有删掉任何记忆')));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('本次整理了 ${list.length} 条'),
+        content: SizedBox(
+          width: 360,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final memory in list)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    memory.summary,
+                    style: TextStyle(color: EchoColors.text, fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    '点「恢复」就放回生效列表',
+                    style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
+                  ),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      await ref
+                          .read(residentMemoryRepositoryProvider)
+                          .restoreDeleted(memory.id);
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                      await _loadMaintenance();
+                    },
+                    child: const Text('恢复'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +178,14 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
                 : (value) => ref
                       .read(customResidentRepositoryProvider)
                       .upsert(activeResident.copyWith(memoryEnabled: value)),
+          ),
+          const SizedBox(height: 14),
+          _MaintenanceCard(
+            state: _maintenance,
+            busy: _maintenanceBusy,
+            onToggle: activeResident == null ? null : _setMaintenance,
+            onRun: activeResident == null ? null : _runMaintenance,
+            onShowDeleted: _showDeleted,
           ),
           const SizedBox(height: 16),
           _SegmentedTabs(
@@ -142,9 +250,8 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
             _MemoryTile(
               memory: memory,
               archived: true,
-              onRestore: () => ref
-                  .read(residentMemoryRepositoryProvider)
-                  .restore(memory.id),
+              onRestore: () =>
+                  ref.read(residentMemoryRepositoryProvider).restore(memory.id),
               onDelete: () => _delete(memory),
             ),
         ];
@@ -211,9 +318,7 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('删除这条记忆？'),
-        content: const Text(
-          'TA 以后不会再想起这件事。原始私信和评论仍然保留。',
-        ),
+        content: const Text('TA 以后不会再想起这件事。原始私信和评论仍然保留。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -228,6 +333,123 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
     );
     if (ok != true) return;
     await ref.read(residentMemoryRepositoryProvider).softDelete(memory.id);
+  }
+}
+
+/// 空闲整理：开关、上次结果、手动整理与恢复入口。
+class _MaintenanceCard extends StatelessWidget {
+  const _MaintenanceCard({
+    required this.state,
+    required this.busy,
+    required this.onToggle,
+    required this.onRun,
+    required this.onShowDeleted,
+  });
+
+  final MemoryMaintenanceState? state;
+  final bool busy;
+  final ValueChanged<bool>? onToggle;
+  final VoidCallback? onRun;
+  final VoidCallback onShowDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = state;
+    final enabled = data?.enabled ?? false;
+    final lastRun = data?.lastRunAt;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: EchoColors.divider),
+        color: EchoColors.surface,
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_fix_high_outlined,
+                size: 18,
+                color: enabled ? EchoColors.primary : EchoColors.textFaint,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '空闲时自动整理',
+                      style: TextStyle(
+                        color: EchoColors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      enabled
+                          ? 'APP 在后台时会自己整理；前台放下手机 10 分钟后也会整理（每人每天最多一次）'
+                          : '开启后，APP 在后台或前台风空时，会叫醒 TA 自己整理重复和过时的记忆',
+                      style: TextStyle(
+                        color: EchoColors.textFaint,
+                        fontSize: 11,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(value: enabled, onChanged: onToggle),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            lastRun == null
+                ? '还没有整理过'
+                : '上次整理：${_when(lastRun)}'
+                      '${(data?.removed ?? 0) > 0 ? ' · 整理掉 ${data!.removed} 条' : ' · 没有重复'}'
+                      '（${data!.before} → ${data.after}）',
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 10.5),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              TextButton(
+                onPressed: busy ? null : onRun,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 32),
+                ),
+                child: busy
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('现在整理一次'),
+              ),
+              if ((data?.removed ?? 0) > 0)
+                TextButton(
+                  onPressed: onShowDeleted,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: Text('恢复本次删除的 ${data!.removed} 条'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _when(DateTime at) {
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${at.month}月${at.day}日 $hh:$mm';
   }
 }
 
@@ -315,9 +537,7 @@ class _MemoryHero extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      enabled
-                          ? '翻过帖子、聊过天之后，TA 自己决定记什么'
-                          : '不再写入，也不再检索；已有条目仍然保留',
+                      enabled ? '翻过帖子、聊过天之后，TA 自己决定记什么' : '不再写入，也不再检索；已有条目仍然保留',
                       style: TextStyle(
                         color: EchoColors.textFaint,
                         fontSize: 11.5,
@@ -327,10 +547,7 @@ class _MemoryHero extends StatelessWidget {
                   ],
                 ),
               ),
-              Switch(
-                value: enabled,
-                onChanged: onToggle,
-              ),
+              Switch(value: enabled, onChanged: onToggle),
             ],
           ),
           const SizedBox(height: 14),
@@ -363,10 +580,7 @@ class _MemoryHero extends StatelessWidget {
                 : (over
                       ? '已经装满：再记新的，最早的一条会移到归档'
                       : '还能记住 ${(limit! - activeCount).clamp(0, limit!)} 条'),
-            style: TextStyle(
-              color: EchoColors.textFaint,
-              fontSize: 10.5,
-            ),
+            style: TextStyle(color: EchoColors.textFaint, fontSize: 10.5),
           ),
         ],
       ),
@@ -530,7 +744,9 @@ class _MemoryTile extends StatelessWidget {
                           _Badge(
                             icon: style.icon,
                             label: style.label,
-                            color: archived ? EchoColors.textFaint : style.color,
+                            color: archived
+                                ? EchoColors.textFaint
+                                : style.color,
                           ),
                           if (archived) ...[
                             const SizedBox(width: 6),

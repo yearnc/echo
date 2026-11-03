@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/resident_memory.dart';
+import '../../domain/services/memory_text.dart';
 import '../db/app_database.dart';
 import '../db/database_provider.dart';
 
@@ -90,6 +91,26 @@ class ResidentMemoryRepository {
   Future<List<ResidentMemory>> recent(
     String residentId, {
     int limit = 5,
+    int offset = 0,
+  }) async {
+    final rows =
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.archivedAt.isNull() &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+              ..limit(limit, offset: offset))
+            .get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
+  /// 一位住民所有还在生效的记忆。整理记忆时一次读出来做规则预扫。
+  Future<List<ResidentMemory>> activeAll(
+    String residentId, {
+    int limit = 300,
   }) async {
     final rows =
         await (_db.select(_db.residentMemories)
@@ -103,6 +124,74 @@ class ResidentMemoryRepository {
               ..limit(limit))
             .get();
     return rows.map(_toDomain).toList(growable: false);
+  }
+
+  /// 找一条“说的是同一件事”的记忆。写入前用它挡重复。
+  ///
+  /// 只扫最近 300 条：记忆本来就有上限，翻全库没必要；
+  /// 真要更早的重复，整理任务会做全量预扫。
+  Future<ResidentMemory?> findSimilar({
+    required String residentId,
+    required String summary,
+    String content = '',
+    List<String> tags = const [],
+    int scanLimit = 300,
+  }) async {
+    final rows =
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.archivedAt.isNull() &
+                    t.deletedAt.isNull(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+              ..limit(scanLimit))
+            .get();
+    for (final row in rows) {
+      final candidate = _toDomain(row);
+      if (isDuplicateMemory(
+        summary: summary,
+        content: content,
+        tags: tags,
+        otherSummary: candidate.summary,
+        otherContent: candidate.content,
+        otherTags: candidate.tags,
+      )) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// 最近被软删除的记忆。整理页用它展示“这次删了什么”，可随时恢复。
+  Future<List<ResidentMemory>> recentlyDeleted(
+    String residentId, {
+    DateTime? since,
+    int limit = 100,
+  }) async {
+    final rows =
+        await (_db.select(_db.residentMemories)
+              ..where(
+                (t) =>
+                    t.residentId.equals(residentId) &
+                    t.deletedAt.isNotNull() &
+                    (since == null
+                        ? const Constant(true)
+                        : t.deletedAt.isBiggerOrEqualValue(
+                            since.millisecondsSinceEpoch,
+                          )),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.deletedAt)])
+              ..limit(limit))
+            .get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
+  /// 恢复一条被软删除的记忆。
+  Future<int> restoreDeleted(String id) {
+    return (_db.update(_db.residentMemories)..where((t) => t.id.equals(id)))
+        .write(const ResidentMemoriesCompanion(deletedAt: Value<int?>(null)));
   }
 
   /// 关键词检索：在最近 300 条里做包含匹配。

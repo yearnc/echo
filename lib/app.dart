@@ -10,11 +10,13 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_palette.dart';
 import 'core/theme/app_theme.dart';
 import 'data/bootstrap_provider.dart';
+import 'data/db/app_database.dart';
 import 'data/db/database_provider.dart';
 import 'data/repositories/usage_repository.dart';
 import 'domain/services/appearance_controller.dart';
 import 'domain/services/audience_service.dart';
 import 'domain/services/background_worker.dart';
+import 'domain/services/memory_maintenance_service.dart';
 import 'domain/services/mode_controller.dart';
 import 'domain/services/notification_service.dart';
 import 'domain/services/pet_controller.dart';
@@ -74,6 +76,7 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
     // 结果就是"永远没授权、永远没有系统通知"。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _markForegroundAt(DateTime.now().millisecondsSinceEpoch);
       final notifications = ref.read(systemNotificationProvider);
       unawaited(notifications.ensureReady());
       // 上次后台留下的预约先撤掉：现在人在 APP 里，不该再被系统通知打扰。
@@ -96,6 +99,8 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
         _ticks++;
         if (_ticks >= _idleFlushEveryTicks) {
           _ticks = 0;
+          // 后台整理任务靠这个时间戳判断“APP 是不是正开着”。
+          _markForegroundAt(DateTime.now().millisecondsSinceEpoch);
           await scheduler.flushDue();
           // 固定住民的行为统一走“唤醒”：醒来先看收件箱，没有待办才考虑
           // 自己发帖/刷帖子。这里不再单独跑世界 tick，否则同一件事会有
@@ -106,6 +111,9 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
           await ref.read(residentSleepServiceProvider).checkAutoSleep();
           await ref.read(residentWakeServiceProvider).wakeDueAlarms();
           await ref.read(residentWakeServiceProvider).wakeAll();
+          // 空闲整理记忆：服务内部按“开启 + 10 分钟没点按 + 每人 24 小时”
+          // 自己节流，这里每 30 秒问一次也不会真的每 30 秒跑模型。
+          await ref.read(memoryMaintenanceServiceProvider).maybeRun();
 
           // 新帖的下一批网民：前 10 分钟是 30 秒一批，正好对上这一档。
           if (!_audienceBusy) {
@@ -148,6 +156,34 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
     }
   }
 
+  /// 给后台记忆整理看的“APP 是否在前台”时间戳。
+  ///
+  /// 写 0 表示刚切到后台；前台时每 30 秒刷新一次。后台任务读不到
+  /// 前台的 `AppSession`，只能靠这个落盘的小标记避让。
+  void _markForegroundAt(int value) {
+    try {
+      final db = ref.read(databaseProvider);
+      final future = db
+          .into(db.appSettings)
+          .insertOnConflictUpdate(
+            AppSettingsCompanion.insert(
+              key: MemoryMaintenanceService.foregroundAtKey,
+              value: '$value',
+            ),
+          );
+      unawaited(
+        future.then(
+          (_) {},
+          onError: (Object error) {
+            debugPrint('[记忆整理] 前台标记没写进去：$error');
+          },
+        ),
+      );
+    } catch (error) {
+      debugPrint('[记忆整理] 前台标记没写进去：$error');
+    }
+  }
+
   /// 前台不弹系统通知，后台才交给系统闹钟。
   ///
   /// 预约是"排好就不管"的：在 APP 里看着屏幕时到点也会亮一下，那是打扰。
@@ -168,6 +204,7 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _sessionStart ??= DateTime.now();
       AppSession.markForeground();
+      _markForegroundAt(DateTime.now().millisecondsSinceEpoch);
       final notifications = ref.read(systemNotificationProvider);
       // 人已经回到 APP 里了，通知栏里的旧提醒该收掉——留着只会让人
       // 以为自己还没看。未到点的预约也一并撤，前台不靠系统提醒。
@@ -181,9 +218,11 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
       db.markTablesUpdated(db.allTables);
     } else if (state == AppLifecycleState.paused) {
       _endSession();
+      _markForegroundAt(0);
       unawaited(ref.read(schedulerServiceProvider).rescheduleNotifications());
     } else if (state == AppLifecycleState.detached) {
       _endSession();
+      _markForegroundAt(0);
     }
   }
 
@@ -252,9 +291,13 @@ class _EchoAppState extends ConsumerState<EchoApp> with WidgetsBindingObserver {
             statusBarColor: Colors.transparent,
             systemNavigationBarColor: Colors.transparent,
           ),
-          child: MediaQuery(
-            data: media.copyWith(textScaler: TextScaler.noScaling),
-            child: child ?? const SizedBox.shrink(),
+          child: Listener(
+            // 任何一次真实点按都算“人还在”；空闲整理靠它判断能不能开始。
+            onPointerDown: (_) => AppSession.markActivity(),
+            child: MediaQuery(
+              data: media.copyWith(textScaler: TextScaler.noScaling),
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },

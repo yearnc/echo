@@ -47,6 +47,12 @@ import 'tts_service.dart';
 /// 一轮醒来还没结束，又到了下一次触发：合并到下一轮，不丢。
 class _PendingWake {
   bool userAction = false;
+
+  /// 这一轮跑着的时候闹钟响了：不能丢。闹钟在 [wakeDueAlarms] 里
+  /// 已经先标成 fired 了，如果这里直接返回 0，它就再也不会响。
+  bool alarm = false;
+  String alarmReason = '';
+
   PetObservation? pet;
   SleepWakeNotice? sleepNotice;
   String farewellPrompt = '';
@@ -75,6 +81,9 @@ enum WakeTrigger {
   /// 即将入睡，留最后一句话（v50）。允许在睡眠状态下醒来一次，
   /// 说完就继续睡，不处理待办、不产生新的主动行为。
   sleep,
+
+  /// 空闲时整理长期记忆：只动记忆，不发消息、不发动态。
+  maintenance,
 }
 
 /// 唤醒式交互（v3.3）。
@@ -184,6 +193,9 @@ class ResidentWakeService {
 
   /// 窗口作废：删私信、清空上下文、改人设时调用。
   void invalidateWindow(String residentId) => context.invalidate(residentId);
+
+  /// 这位住民这一轮是不是还在醒着（整理记忆前先问一句，避免白记一次“已整理”）。
+  bool isAwake(String residentId) => _running.contains(residentId);
 
   /// 往活跃窗口里追加一条气泡（assistant 侧）。
   void appendBubbleToWindow(
@@ -395,6 +407,45 @@ class ResidentWakeService {
     return row?.value == 'true';
   }
 
+  /// 后台记忆整理会在这个键里留一个时间戳；前台用户消息看到它，
+  /// 先等整理让路，避免同一个住民在两个 isolate 里同时跑模型。
+  static const String maintenanceMarkerPrefix = 'resident.maintenance.';
+
+  /// 标记超过两分钟视为进程崩了留下的，直接清掉。
+  static const Duration _maintenanceMarkerTtl = Duration(minutes: 2);
+
+  /// 用户消息最多等这么久；超过就让两边并行，至少不把回复卡死。
+  static const Duration _maintenanceWaitLimit = Duration(seconds: 45);
+
+  Future<bool> _maintenanceMarkerActive(String residentId) async {
+    final key = '$maintenanceMarkerPrefix$residentId';
+    final row = await (db.select(
+      db.appSettings,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
+    if (row == null) return false;
+    final at = int.tryParse(row.value);
+    if (at == null ||
+        DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(at)) >
+            _maintenanceMarkerTtl) {
+      await (db.delete(db.appSettings)..where((t) => t.key.equals(key))).go();
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _waitForMaintenance(String residentId) async {
+    try {
+      final deadline = DateTime.now().add(_maintenanceWaitLimit);
+      while (DateTime.now().isBefore(deadline)) {
+        if (!await _maintenanceMarkerActive(residentId)) return;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    } catch (error) {
+      // 读标记失败不能把用户消息卡住：当作没有整理在跑。
+      debugPrint('[唤醒] 整理标记没读到，直接继续：$error');
+    }
+  }
+
   Future<void> _touchIdle(String residentId) async {
     await db
         .into(db.appSettings)
@@ -412,15 +463,27 @@ class ResidentWakeService {
     PetObservation? pet,
     SleepWakeNotice? sleepNotice,
     String farewellPrompt = '',
+    String maintenancePrompt = '',
   }) async {
+    // 后台正在整理同一位住民时，用户消息先等它让路（最多 45 秒）。
+    // 同一个 isolate 里正在跑的情况不用等：下面会把它排进下一轮。
+    if (!_running.contains(residentId) &&
+        (trigger == WakeTrigger.userAction || trigger == WakeTrigger.alarm)) {
+      await _waitForMaintenance(residentId);
+    }
     if (_running.contains(residentId)) {
       // 用户私信和屏幕观察都可能在这一轮进行时到来：合并成下一轮，
       // 私信优先、屏幕帧保留最新的一组，任何一边都不丢。
       if (trigger == WakeTrigger.userAction ||
+          trigger == WakeTrigger.alarm ||
           trigger == WakeTrigger.pet ||
           trigger == WakeTrigger.sleep) {
         final pending = _pending.putIfAbsent(residentId, () => _PendingWake());
         if (trigger == WakeTrigger.userAction) pending.userAction = true;
+        if (trigger == WakeTrigger.alarm) {
+          pending.alarm = true;
+          pending.alarmReason = _alarmReason[residentId] ?? '';
+        }
         if (pet != null) pending.pet = pet;
         if (sleepNotice != null) pending.sleepNotice = sleepNotice;
         if (farewellPrompt.trim().isNotEmpty) {
@@ -437,19 +500,28 @@ class ResidentWakeService {
         pet: pet,
         sleepNotice: sleepNotice,
         farewellPrompt: farewellPrompt,
+        maintenancePrompt: maintenancePrompt,
       );
     } finally {
       _running.remove(residentId);
       final pending = _pending.remove(residentId);
       if (pending != null) {
+        // 同一轮里既有人发消息又有闹钟：用户消息优先，但把闹钟原因
+        // 一并带上，别让它白响一次。只有闹钟就按闹钟醒。
+        if (pending.alarm) {
+          _alarmReason[residentId] = pending.alarmReason;
+        }
+        final next = pending.userAction
+            ? WakeTrigger.userAction
+            : pending.alarm
+            ? WakeTrigger.alarm
+            : (pending.farewellPrompt.trim().isNotEmpty
+                  ? WakeTrigger.sleep
+                  : WakeTrigger.pet);
         unawaited(
           wake(
             residentId,
-            trigger: pending.userAction
-                ? WakeTrigger.userAction
-                : (pending.farewellPrompt.trim().isNotEmpty
-                      ? WakeTrigger.sleep
-                      : WakeTrigger.pet),
+            trigger: next,
             pet: pending.pet,
             sleepNotice: pending.sleepNotice,
             farewellPrompt: pending.farewellPrompt,
@@ -465,6 +537,7 @@ class ResidentWakeService {
     PetObservation? pet,
     SleepWakeNotice? sleepNotice,
     String farewellPrompt = '',
+    String maintenancePrompt = '',
   }) async {
     final last = _lastWake[residentId];
     final now = DateTime.now();
@@ -595,7 +668,8 @@ class ResidentWakeService {
     // 不按条数截断：积攒的评论该回就回；真的处理不完的留在收件箱，
     // 下次醒来继续。上下文由高水位摘要兜底，不靠“只给 20 条”省 token。
     // 入睡前这一轮只留最后一句话，不处理待办——待办等醒来再说。
-    final visible = trigger == WakeTrigger.sleep
+    final visible =
+        trigger == WakeTrigger.sleep || trigger == WakeTrigger.maintenance
         ? const <ResidentInboxItem>[]
         : List<ResidentInboxItem>.of(pending);
 
@@ -611,7 +685,9 @@ class ResidentWakeService {
       now: now,
       // 后台也允许主动行为（发帖/评论/点赞/刷帖子/画图），
       // 只有语音因为耗时太长、后台预算不稳定而不开放。
-      allowVoice: trigger != WakeTrigger.background,
+      allowVoice:
+          trigger != WakeTrigger.background &&
+          trigger != WakeTrigger.maintenance,
       visionEnabled: config.supportsVision,
     );
 
@@ -636,13 +712,16 @@ class ResidentWakeService {
           petHandoff: pet?.handoff ?? false,
           sleepNotice: wakeNotice,
           farewellPrompt: farewellPrompt,
+          maintenancePrompt: maintenancePrompt,
         ),
         toolkit: toolkit,
         at: now,
         history: history,
         gameTools: gameTools,
-        allowProactive: trigger != WakeTrigger.sleep,
+        allowProactive:
+            trigger != WakeTrigger.sleep && trigger != WakeTrigger.maintenance,
         allowVoice: toolkit.allowVoice,
+        maintenance: trigger == WakeTrigger.maintenance,
         extraImages: [
           ...?pet?.images,
           if (pet?.selfImage != null) pet!.selfImage!,
@@ -653,7 +732,9 @@ class ResidentWakeService {
 
       // 模型没调工具、只回了一句话：当作私信发出去。
       // 这既兜住了不支持 tool calling 的模型，也兜住“它就是想直接说话”。
-      if (said.trim().isNotEmpty && !toolkit.spokePrivately) {
+      if (said.trim().isNotEmpty &&
+          !toolkit.spokePrivately &&
+          trigger != WakeTrigger.maintenance) {
         if (trigger == WakeTrigger.pet) {
           // 桌宠观察轮只说一句话时，那句话是气泡，不是私信。
           await toolkit.petSay(said.trim());
@@ -714,6 +795,7 @@ class ResidentWakeService {
     WakeTrigger.alarm => 'alarm',
     WakeTrigger.pet => 'pet',
     WakeTrigger.sleep => 'sleep',
+    WakeTrigger.maintenance => 'maintenance',
   };
 
   String _situation(
@@ -729,7 +811,15 @@ class ResidentWakeService {
     bool petHandoff = false,
     SleepWakeNotice? sleepNotice,
     String farewellPrompt = '',
+    String maintenancePrompt = '',
   }) {
+    // 整理记忆这一轮只有一件事：动记忆。不发消息、不发动态、不冒气泡。
+    if (trigger == WakeTrigger.maintenance) {
+      return maintenancePrompt.trim().isEmpty
+          ? '现在是空闲时间，你醒来整理一下自己的长期记忆；'
+                '只动记忆，不发消息、不发动态，整理完调用 finish。'
+          : maintenancePrompt.trim();
+    }
     // 入睡前的这一轮只有一件事：留一句话。不处理待办，也不主动发帖。
     if (trigger == WakeTrigger.sleep) {
       return [
@@ -759,6 +849,7 @@ class ResidentWakeService {
               '现在可以发条动态、刷帖子、给对方发条私信，'
               '也可以再定一个闹钟接着忙自己的事；什么都不想做就 finish。',
         WakeTrigger.sleep => '你即将进入睡眠状态。',
+        WakeTrigger.maintenance => '',
         WakeTrigger.pet =>
           petHandoff
               ? '桌宠这一班刚刚结束/交接，先把这段时间的观察收尾。'
@@ -789,7 +880,9 @@ class ResidentWakeService {
         '评论类用 reply_inbox 回在评论下面；私信类用 send_dm 回。'
         '也可以只读不回：最后调用 finish。',
       );
-      if (trigger == WakeTrigger.alarm) {
+      // 用户消息和闹钟可能在同一轮里一起到：闹钟原因仍然要说，
+      // 否则这次闹钟就被“优先处理私信”吞掉了。
+      if (trigger == WakeTrigger.alarm || alarmReason.trim().isNotEmpty) {
         buffer.writeln();
         buffer.write(
           '另外，你给自己定的闹钟刚好也响了'
@@ -804,6 +897,13 @@ class ResidentWakeService {
       if (sleepNotice != null && !sleepNotice.manual)
         sleepNotice.interactionLine,
       base.trimRight(),
+      // 没有待办时，用户消息和闹钟撞在一起：base 走的是 userAction 分支，
+      // 这里补一句闹钟，别让它白响。
+      if (pending.isEmpty &&
+          trigger != WakeTrigger.alarm &&
+          alarmReason.trim().isNotEmpty)
+        '另外，你给自己定的闹钟刚好也响了；'
+            '定的时候你写的是：${alarmReason.trim()}。',
     ];
     if (petNote.trim().isNotEmpty) {
       parts.add(
