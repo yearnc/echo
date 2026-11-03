@@ -636,19 +636,24 @@ APK 仍使用 Flutter 模板默认的调试签名，只用于侧载测试。
 
 ## 下载
 
-当前源码 **v4.10.0+68（schema v50）**；已发布的安装包仍是 v4.9.0 的**精简版**：
-APK 不内置语音模型，装完约 152.2MB；需要语音识别 / 合成时，在
+当前源码 **v4.10.0+68（schema v50）**；安装包是 **v4.10.0 精简版**：
+APK 不内置语音模型，装完约 152.3MB；需要语音识别 / 合成时，在
 「我的 → 下载资源」里按需下载（约 117—229MB 一项）。
 
-**v4.9.0 精简版** 已发布：
+**v4.10.0 精简版** 已发布：
+[**Releases v4.10.0**](https://github.com/yearnc/echo/releases/tag/v4.10.0)
+`echo-v4.10.0-arm64.apk`（159,681,350 字节 / 约 152.3 MiB，
+versionName 4.10.0 / versionCode 2068，
+SHA256 `429fb5f4459159d3032bcd3f635d0b194842acb647605156d49d713b2561283d`，
+GitHub digest 与本地一致）。
+
+上一版是 **v4.9.0**：
 [**Releases v4.9.0**](https://github.com/yearnc/echo/releases/tag/v4.9.0)
 `echo-v4.9.0-arm64.apk`（159,550,150 字节 / 约 152.2 MiB，
 versionName 4.9.0 / versionCode 2067，
-SHA256 `19831c5a67abd9f7c12e92bd7023c4e53f05b655c671e8e74ac65a40e647982d`，
-GitHub digest 与本地一致）。
-包内已确认没有 `assets/models/`，权限含 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`。
+SHA256 `19831c5a67abd9f7c12e92bd7023c4e53f05b655c671e8e74ac65a40e647982d`）。
 
-上一版是 **v4.8.0**：
+更早的 **v4.8.0**：
 [**Releases v4.8.0**](https://github.com/yearnc/echo/releases/tag/v4.8.0)
 `echo-v4.8.0-arm64.apk`（159,222,122 字节 / 约 151.9 MiB，
 versionName 4.8.0 / versionCode 2066，
