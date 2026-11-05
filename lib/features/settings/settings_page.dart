@@ -300,6 +300,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 _Row(
                   isEcho: isEcho,
+                  icon: Icons.menu_book_outlined,
+                  title: '知识库',
+                  subtitle: '临时网民的视角、住民能查的资料、每周热门梗',
+                  onTap: () => context.push(RoutePaths.knowledge),
+                ),
+                _Row(
+                  isEcho: isEcho,
                   icon: Icons.emoji_emotions_outlined,
                   title: '头像与表情包',
                   onTap: () => context.push(RoutePaths.stickers),

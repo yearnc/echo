@@ -11,6 +11,7 @@ import 'tables/clear_tables.dart';
 import 'tables/content_tables.dart';
 import 'tables/context_tables.dart';
 import 'tables/game_tables.dart';
+import 'tables/knowledge_tables.dart';
 import 'tables/log_tables.dart';
 import 'tables/media_tables.dart';
 import 'tables/model_tables.dart';
@@ -74,6 +75,9 @@ part 'app_database.g.dart';
     GameMatchPlayers,
     GameStates,
     GamePlugins,
+    KnowledgeBases,
+    KnowledgeEntries,
+    KnowledgeTargets,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -83,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 50;
+  int get schemaVersion => 51;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1041,6 +1045,27 @@ class AppDatabase extends _$AppDatabase {
             'CREATE INDEX IF NOT EXISTS game_plugins_source '
             'ON game_plugins (source_url)',
           );
+        }
+      }
+      if (from < 51) {
+        // v51：知识库。三张空表，不播种任何内容——
+        // 热门梗由系统每周联网更新，其他知识由主人或住民自己写。
+        if (!await hasTable('knowledge_bases')) {
+          await m.createTable(knowledgeBases);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS knowledge_bases_scope '
+            'ON knowledge_bases (scope, updated_at)',
+          );
+        }
+        if (!await hasTable('knowledge_entries')) {
+          await m.createTable(knowledgeEntries);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS knowledge_entries_base '
+            'ON knowledge_entries (base_id, updated_at)',
+          );
+        }
+        if (!await hasTable('knowledge_targets')) {
+          await m.createTable(knowledgeTargets);
         }
       }
     },

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/services/knowledge_update_service.dart';
 import '../domain/services/scheduler_service.dart';
 import '../domain/services/speech_models.dart';
 import 'db/database_provider.dart';
@@ -27,11 +28,24 @@ final appBootstrapProvider = FutureProvider<void>((ref) async {
   // 先把服务对象取出来：后台任务不应该在 provider 结束后还攥着 ref。
   final scheduler = ref.watch(schedulerServiceProvider);
   final speech = ref.watch(speechModelStoreProvider);
+  final knowledge = ref.watch(knowledgeUpdateServiceProvider);
   unawaited(_catchUp(scheduler));
+  // 热门梗一周一次。WorkManager 那条不一定准时，回前台顺手补一次；
+  // 服务内部有七天 + 十分钟双重节流，不会每次启动都联网。
+  unawaited(_refreshKnowledge(knowledge));
   // 两套语音模型有 300MB 左右，第一次启动要搬到应用目录。放到后台做，
   // 等用户真的点语音时就不必在工具调用的 30/90 秒里慢慢拷。
   unawaited(_prewarmSpeech(speech));
 });
+
+Future<void> _refreshKnowledge(KnowledgeUpdateService service) async {
+  try {
+    final report = await service.maybeRun();
+    if (report.ran) debugPrint('[启动] 热门梗更新：${report.message}');
+  } catch (error) {
+    debugPrint('[启动] 热门梗没更新成：$error');
+  }
+}
 
 Future<void> _prewarmSpeech(SpeechModelStore store) async {
   try {

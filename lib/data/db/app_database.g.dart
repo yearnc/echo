@@ -27037,6 +27037,1753 @@ class GamePluginsCompanion extends UpdateCompanion<GamePluginRow> {
   }
 }
 
+class $KnowledgeBasesTable extends KnowledgeBases
+    with TableInfo<$KnowledgeBasesTable, KnowledgeBaseRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $KnowledgeBasesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerKindMeta = const VerificationMeta(
+    'ownerKind',
+  );
+  @override
+  late final GeneratedColumn<String> ownerKind = GeneratedColumn<String>(
+    'owner_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('transient'),
+  );
+  static const VerificationMeta _ownerResidentIdMeta = const VerificationMeta(
+    'ownerResidentId',
+  );
+  @override
+  late final GeneratedColumn<String> ownerResidentId = GeneratedColumn<String>(
+    'owner_resident_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _builtinMeta = const VerificationMeta(
+    'builtin',
+  );
+  @override
+  late final GeneratedColumn<bool> builtin = GeneratedColumn<bool>(
+    'builtin',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("builtin" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _autoUpdateMeta = const VerificationMeta(
+    'autoUpdate',
+  );
+  @override
+  late final GeneratedColumn<bool> autoUpdate = GeneratedColumn<bool>(
+    'auto_update',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("auto_update" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastUpdatedAtMeta = const VerificationMeta(
+    'lastUpdatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastUpdatedAt = GeneratedColumn<int>(
+    'last_updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    scope,
+    ownerKind,
+    ownerResidentId,
+    builtin,
+    enabled,
+    autoUpdate,
+    lastUpdatedAt,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'knowledge_bases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<KnowledgeBaseRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeMeta);
+    }
+    if (data.containsKey('owner_kind')) {
+      context.handle(
+        _ownerKindMeta,
+        ownerKind.isAcceptableOrUnknown(data['owner_kind']!, _ownerKindMeta),
+      );
+    }
+    if (data.containsKey('owner_resident_id')) {
+      context.handle(
+        _ownerResidentIdMeta,
+        ownerResidentId.isAcceptableOrUnknown(
+          data['owner_resident_id']!,
+          _ownerResidentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('builtin')) {
+      context.handle(
+        _builtinMeta,
+        builtin.isAcceptableOrUnknown(data['builtin']!, _builtinMeta),
+      );
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('auto_update')) {
+      context.handle(
+        _autoUpdateMeta,
+        autoUpdate.isAcceptableOrUnknown(data['auto_update']!, _autoUpdateMeta),
+      );
+    }
+    if (data.containsKey('last_updated_at')) {
+      context.handle(
+        _lastUpdatedAtMeta,
+        lastUpdatedAt.isAcceptableOrUnknown(
+          data['last_updated_at']!,
+          _lastUpdatedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  KnowledgeBaseRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return KnowledgeBaseRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      ownerKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_kind'],
+      )!,
+      ownerResidentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_resident_id'],
+      )!,
+      builtin: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}builtin'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      autoUpdate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}auto_update'],
+      )!,
+      lastUpdatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_updated_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $KnowledgeBasesTable createAlias(String alias) {
+    return $KnowledgeBasesTable(attachedDatabase, alias);
+  }
+}
+
+class KnowledgeBaseRow extends DataClass
+    implements Insertable<KnowledgeBaseRow> {
+  final String id;
+  final String name;
+
+  /// 给主人看的一句话说明，也会作为"这本书的视角"注入提示词。
+  final String description;
+
+  /// independent / shared
+  final String scope;
+
+  /// transient / resident；共享库固定为 shared。
+  final String ownerKind;
+
+  /// ownerKind = resident 时绑定的人；其余为空。
+  final String ownerResidentId;
+
+  /// 内置库（目前只有"热门梗"）：不可删除，但条目可以改。
+  final bool builtin;
+  final bool enabled;
+
+  /// 是否允许系统每周自动更新（热门梗库默认开）。
+  final bool autoUpdate;
+
+  /// 上次成功更新时间。0 表示从未更新。
+  final int lastUpdatedAt;
+  final int createdAt;
+  final int updatedAt;
+  const KnowledgeBaseRow({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.scope,
+    required this.ownerKind,
+    required this.ownerResidentId,
+    required this.builtin,
+    required this.enabled,
+    required this.autoUpdate,
+    required this.lastUpdatedAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['description'] = Variable<String>(description);
+    map['scope'] = Variable<String>(scope);
+    map['owner_kind'] = Variable<String>(ownerKind);
+    map['owner_resident_id'] = Variable<String>(ownerResidentId);
+    map['builtin'] = Variable<bool>(builtin);
+    map['enabled'] = Variable<bool>(enabled);
+    map['auto_update'] = Variable<bool>(autoUpdate);
+    map['last_updated_at'] = Variable<int>(lastUpdatedAt);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  KnowledgeBasesCompanion toCompanion(bool nullToAbsent) {
+    return KnowledgeBasesCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: Value(description),
+      scope: Value(scope),
+      ownerKind: Value(ownerKind),
+      ownerResidentId: Value(ownerResidentId),
+      builtin: Value(builtin),
+      enabled: Value(enabled),
+      autoUpdate: Value(autoUpdate),
+      lastUpdatedAt: Value(lastUpdatedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory KnowledgeBaseRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return KnowledgeBaseRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String>(json['description']),
+      scope: serializer.fromJson<String>(json['scope']),
+      ownerKind: serializer.fromJson<String>(json['ownerKind']),
+      ownerResidentId: serializer.fromJson<String>(json['ownerResidentId']),
+      builtin: serializer.fromJson<bool>(json['builtin']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      autoUpdate: serializer.fromJson<bool>(json['autoUpdate']),
+      lastUpdatedAt: serializer.fromJson<int>(json['lastUpdatedAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String>(description),
+      'scope': serializer.toJson<String>(scope),
+      'ownerKind': serializer.toJson<String>(ownerKind),
+      'ownerResidentId': serializer.toJson<String>(ownerResidentId),
+      'builtin': serializer.toJson<bool>(builtin),
+      'enabled': serializer.toJson<bool>(enabled),
+      'autoUpdate': serializer.toJson<bool>(autoUpdate),
+      'lastUpdatedAt': serializer.toJson<int>(lastUpdatedAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  KnowledgeBaseRow copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? scope,
+    String? ownerKind,
+    String? ownerResidentId,
+    bool? builtin,
+    bool? enabled,
+    bool? autoUpdate,
+    int? lastUpdatedAt,
+    int? createdAt,
+    int? updatedAt,
+  }) => KnowledgeBaseRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    scope: scope ?? this.scope,
+    ownerKind: ownerKind ?? this.ownerKind,
+    ownerResidentId: ownerResidentId ?? this.ownerResidentId,
+    builtin: builtin ?? this.builtin,
+    enabled: enabled ?? this.enabled,
+    autoUpdate: autoUpdate ?? this.autoUpdate,
+    lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  KnowledgeBaseRow copyWithCompanion(KnowledgeBasesCompanion data) {
+    return KnowledgeBaseRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      ownerKind: data.ownerKind.present ? data.ownerKind.value : this.ownerKind,
+      ownerResidentId: data.ownerResidentId.present
+          ? data.ownerResidentId.value
+          : this.ownerResidentId,
+      builtin: data.builtin.present ? data.builtin.value : this.builtin,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      autoUpdate: data.autoUpdate.present
+          ? data.autoUpdate.value
+          : this.autoUpdate,
+      lastUpdatedAt: data.lastUpdatedAt.present
+          ? data.lastUpdatedAt.value
+          : this.lastUpdatedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeBaseRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('scope: $scope, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('ownerResidentId: $ownerResidentId, ')
+          ..write('builtin: $builtin, ')
+          ..write('enabled: $enabled, ')
+          ..write('autoUpdate: $autoUpdate, ')
+          ..write('lastUpdatedAt: $lastUpdatedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    description,
+    scope,
+    ownerKind,
+    ownerResidentId,
+    builtin,
+    enabled,
+    autoUpdate,
+    lastUpdatedAt,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is KnowledgeBaseRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.scope == this.scope &&
+          other.ownerKind == this.ownerKind &&
+          other.ownerResidentId == this.ownerResidentId &&
+          other.builtin == this.builtin &&
+          other.enabled == this.enabled &&
+          other.autoUpdate == this.autoUpdate &&
+          other.lastUpdatedAt == this.lastUpdatedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class KnowledgeBasesCompanion extends UpdateCompanion<KnowledgeBaseRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> description;
+  final Value<String> scope;
+  final Value<String> ownerKind;
+  final Value<String> ownerResidentId;
+  final Value<bool> builtin;
+  final Value<bool> enabled;
+  final Value<bool> autoUpdate;
+  final Value<int> lastUpdatedAt;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const KnowledgeBasesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.ownerKind = const Value.absent(),
+    this.ownerResidentId = const Value.absent(),
+    this.builtin = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.autoUpdate = const Value.absent(),
+    this.lastUpdatedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  KnowledgeBasesCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    required String scope,
+    this.ownerKind = const Value.absent(),
+    this.ownerResidentId = const Value.absent(),
+    this.builtin = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.autoUpdate = const Value.absent(),
+    this.lastUpdatedAt = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       scope = Value(scope),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<KnowledgeBaseRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<String>? scope,
+    Expression<String>? ownerKind,
+    Expression<String>? ownerResidentId,
+    Expression<bool>? builtin,
+    Expression<bool>? enabled,
+    Expression<bool>? autoUpdate,
+    Expression<int>? lastUpdatedAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (scope != null) 'scope': scope,
+      if (ownerKind != null) 'owner_kind': ownerKind,
+      if (ownerResidentId != null) 'owner_resident_id': ownerResidentId,
+      if (builtin != null) 'builtin': builtin,
+      if (enabled != null) 'enabled': enabled,
+      if (autoUpdate != null) 'auto_update': autoUpdate,
+      if (lastUpdatedAt != null) 'last_updated_at': lastUpdatedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  KnowledgeBasesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? description,
+    Value<String>? scope,
+    Value<String>? ownerKind,
+    Value<String>? ownerResidentId,
+    Value<bool>? builtin,
+    Value<bool>? enabled,
+    Value<bool>? autoUpdate,
+    Value<int>? lastUpdatedAt,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return KnowledgeBasesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      scope: scope ?? this.scope,
+      ownerKind: ownerKind ?? this.ownerKind,
+      ownerResidentId: ownerResidentId ?? this.ownerResidentId,
+      builtin: builtin ?? this.builtin,
+      enabled: enabled ?? this.enabled,
+      autoUpdate: autoUpdate ?? this.autoUpdate,
+      lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (ownerKind.present) {
+      map['owner_kind'] = Variable<String>(ownerKind.value);
+    }
+    if (ownerResidentId.present) {
+      map['owner_resident_id'] = Variable<String>(ownerResidentId.value);
+    }
+    if (builtin.present) {
+      map['builtin'] = Variable<bool>(builtin.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (autoUpdate.present) {
+      map['auto_update'] = Variable<bool>(autoUpdate.value);
+    }
+    if (lastUpdatedAt.present) {
+      map['last_updated_at'] = Variable<int>(lastUpdatedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeBasesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('scope: $scope, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('ownerResidentId: $ownerResidentId, ')
+          ..write('builtin: $builtin, ')
+          ..write('enabled: $enabled, ')
+          ..write('autoUpdate: $autoUpdate, ')
+          ..write('lastUpdatedAt: $lastUpdatedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $KnowledgeEntriesTable extends KnowledgeEntries
+    with TableInfo<$KnowledgeEntriesTable, KnowledgeEntryRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $KnowledgeEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baseIdMeta = const VerificationMeta('baseId');
+  @override
+  late final GeneratedColumn<String> baseId = GeneratedColumn<String>(
+    'base_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _examplesMeta = const VerificationMeta(
+    'examples',
+  );
+  @override
+  late final GeneratedColumn<String> examples = GeneratedColumn<String>(
+    'examples',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sourceTitleMeta = const VerificationMeta(
+    'sourceTitle',
+  );
+  @override
+  late final GeneratedColumn<String> sourceTitle = GeneratedColumn<String>(
+    'source_title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _verifiedAtMeta = const VerificationMeta(
+    'verifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> verifiedAt = GeneratedColumn<int>(
+    'verified_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAt = GeneratedColumn<int>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    baseId,
+    title,
+    summary,
+    content,
+    examples,
+    tags,
+    sourceUrl,
+    sourceTitle,
+    verifiedAt,
+    expiresAt,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'knowledge_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<KnowledgeEntryRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('base_id')) {
+      context.handle(
+        _baseIdMeta,
+        baseId.isAcceptableOrUnknown(data['base_id']!, _baseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_baseIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('examples')) {
+      context.handle(
+        _examplesMeta,
+        examples.isAcceptableOrUnknown(data['examples']!, _examplesMeta),
+      );
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    }
+    if (data.containsKey('source_title')) {
+      context.handle(
+        _sourceTitleMeta,
+        sourceTitle.isAcceptableOrUnknown(
+          data['source_title']!,
+          _sourceTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('verified_at')) {
+      context.handle(
+        _verifiedAtMeta,
+        verifiedAt.isAcceptableOrUnknown(data['verified_at']!, _verifiedAtMeta),
+      );
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  KnowledgeEntryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return KnowledgeEntryRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      baseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      examples: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}examples'],
+      )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      )!,
+      sourceTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_title'],
+      )!,
+      verifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}verified_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $KnowledgeEntriesTable createAlias(String alias) {
+    return $KnowledgeEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class KnowledgeEntryRow extends DataClass
+    implements Insertable<KnowledgeEntryRow> {
+  final String id;
+  final String baseId;
+
+  /// 梗名 / 知识点标题。
+  final String title;
+
+  /// 一句话：这东西是什么、什么时候能用。
+  final String summary;
+
+  /// 详细正文：来源、用处、例子。
+  final String content;
+
+  /// JSON 数组，两三个例句。
+  final String examples;
+
+  /// JSON 数组，检索用的标签。
+  final String tags;
+  final String sourceUrl;
+  final String sourceTitle;
+
+  /// 这条内容是什么时候核实/抓取的。
+  final int verifiedAt;
+
+  /// 过期时间；0 表示不过期。过期的条目不再注入提示词。
+  final int expiresAt;
+  final int createdAt;
+  final int updatedAt;
+  const KnowledgeEntryRow({
+    required this.id,
+    required this.baseId,
+    required this.title,
+    required this.summary,
+    required this.content,
+    required this.examples,
+    required this.tags,
+    required this.sourceUrl,
+    required this.sourceTitle,
+    required this.verifiedAt,
+    required this.expiresAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['base_id'] = Variable<String>(baseId);
+    map['title'] = Variable<String>(title);
+    map['summary'] = Variable<String>(summary);
+    map['content'] = Variable<String>(content);
+    map['examples'] = Variable<String>(examples);
+    map['tags'] = Variable<String>(tags);
+    map['source_url'] = Variable<String>(sourceUrl);
+    map['source_title'] = Variable<String>(sourceTitle);
+    map['verified_at'] = Variable<int>(verifiedAt);
+    map['expires_at'] = Variable<int>(expiresAt);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  KnowledgeEntriesCompanion toCompanion(bool nullToAbsent) {
+    return KnowledgeEntriesCompanion(
+      id: Value(id),
+      baseId: Value(baseId),
+      title: Value(title),
+      summary: Value(summary),
+      content: Value(content),
+      examples: Value(examples),
+      tags: Value(tags),
+      sourceUrl: Value(sourceUrl),
+      sourceTitle: Value(sourceTitle),
+      verifiedAt: Value(verifiedAt),
+      expiresAt: Value(expiresAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory KnowledgeEntryRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return KnowledgeEntryRow(
+      id: serializer.fromJson<String>(json['id']),
+      baseId: serializer.fromJson<String>(json['baseId']),
+      title: serializer.fromJson<String>(json['title']),
+      summary: serializer.fromJson<String>(json['summary']),
+      content: serializer.fromJson<String>(json['content']),
+      examples: serializer.fromJson<String>(json['examples']),
+      tags: serializer.fromJson<String>(json['tags']),
+      sourceUrl: serializer.fromJson<String>(json['sourceUrl']),
+      sourceTitle: serializer.fromJson<String>(json['sourceTitle']),
+      verifiedAt: serializer.fromJson<int>(json['verifiedAt']),
+      expiresAt: serializer.fromJson<int>(json['expiresAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'baseId': serializer.toJson<String>(baseId),
+      'title': serializer.toJson<String>(title),
+      'summary': serializer.toJson<String>(summary),
+      'content': serializer.toJson<String>(content),
+      'examples': serializer.toJson<String>(examples),
+      'tags': serializer.toJson<String>(tags),
+      'sourceUrl': serializer.toJson<String>(sourceUrl),
+      'sourceTitle': serializer.toJson<String>(sourceTitle),
+      'verifiedAt': serializer.toJson<int>(verifiedAt),
+      'expiresAt': serializer.toJson<int>(expiresAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  KnowledgeEntryRow copyWith({
+    String? id,
+    String? baseId,
+    String? title,
+    String? summary,
+    String? content,
+    String? examples,
+    String? tags,
+    String? sourceUrl,
+    String? sourceTitle,
+    int? verifiedAt,
+    int? expiresAt,
+    int? createdAt,
+    int? updatedAt,
+  }) => KnowledgeEntryRow(
+    id: id ?? this.id,
+    baseId: baseId ?? this.baseId,
+    title: title ?? this.title,
+    summary: summary ?? this.summary,
+    content: content ?? this.content,
+    examples: examples ?? this.examples,
+    tags: tags ?? this.tags,
+    sourceUrl: sourceUrl ?? this.sourceUrl,
+    sourceTitle: sourceTitle ?? this.sourceTitle,
+    verifiedAt: verifiedAt ?? this.verifiedAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  KnowledgeEntryRow copyWithCompanion(KnowledgeEntriesCompanion data) {
+    return KnowledgeEntryRow(
+      id: data.id.present ? data.id.value : this.id,
+      baseId: data.baseId.present ? data.baseId.value : this.baseId,
+      title: data.title.present ? data.title.value : this.title,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      content: data.content.present ? data.content.value : this.content,
+      examples: data.examples.present ? data.examples.value : this.examples,
+      tags: data.tags.present ? data.tags.value : this.tags,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      sourceTitle: data.sourceTitle.present
+          ? data.sourceTitle.value
+          : this.sourceTitle,
+      verifiedAt: data.verifiedAt.present
+          ? data.verifiedAt.value
+          : this.verifiedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeEntryRow(')
+          ..write('id: $id, ')
+          ..write('baseId: $baseId, ')
+          ..write('title: $title, ')
+          ..write('summary: $summary, ')
+          ..write('content: $content, ')
+          ..write('examples: $examples, ')
+          ..write('tags: $tags, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('sourceTitle: $sourceTitle, ')
+          ..write('verifiedAt: $verifiedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    baseId,
+    title,
+    summary,
+    content,
+    examples,
+    tags,
+    sourceUrl,
+    sourceTitle,
+    verifiedAt,
+    expiresAt,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is KnowledgeEntryRow &&
+          other.id == this.id &&
+          other.baseId == this.baseId &&
+          other.title == this.title &&
+          other.summary == this.summary &&
+          other.content == this.content &&
+          other.examples == this.examples &&
+          other.tags == this.tags &&
+          other.sourceUrl == this.sourceUrl &&
+          other.sourceTitle == this.sourceTitle &&
+          other.verifiedAt == this.verifiedAt &&
+          other.expiresAt == this.expiresAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class KnowledgeEntriesCompanion extends UpdateCompanion<KnowledgeEntryRow> {
+  final Value<String> id;
+  final Value<String> baseId;
+  final Value<String> title;
+  final Value<String> summary;
+  final Value<String> content;
+  final Value<String> examples;
+  final Value<String> tags;
+  final Value<String> sourceUrl;
+  final Value<String> sourceTitle;
+  final Value<int> verifiedAt;
+  final Value<int> expiresAt;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const KnowledgeEntriesCompanion({
+    this.id = const Value.absent(),
+    this.baseId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.content = const Value.absent(),
+    this.examples = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.sourceTitle = const Value.absent(),
+    this.verifiedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  KnowledgeEntriesCompanion.insert({
+    required String id,
+    required String baseId,
+    required String title,
+    this.summary = const Value.absent(),
+    this.content = const Value.absent(),
+    this.examples = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.sourceTitle = const Value.absent(),
+    this.verifiedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       baseId = Value(baseId),
+       title = Value(title),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<KnowledgeEntryRow> custom({
+    Expression<String>? id,
+    Expression<String>? baseId,
+    Expression<String>? title,
+    Expression<String>? summary,
+    Expression<String>? content,
+    Expression<String>? examples,
+    Expression<String>? tags,
+    Expression<String>? sourceUrl,
+    Expression<String>? sourceTitle,
+    Expression<int>? verifiedAt,
+    Expression<int>? expiresAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (baseId != null) 'base_id': baseId,
+      if (title != null) 'title': title,
+      if (summary != null) 'summary': summary,
+      if (content != null) 'content': content,
+      if (examples != null) 'examples': examples,
+      if (tags != null) 'tags': tags,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (sourceTitle != null) 'source_title': sourceTitle,
+      if (verifiedAt != null) 'verified_at': verifiedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  KnowledgeEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? baseId,
+    Value<String>? title,
+    Value<String>? summary,
+    Value<String>? content,
+    Value<String>? examples,
+    Value<String>? tags,
+    Value<String>? sourceUrl,
+    Value<String>? sourceTitle,
+    Value<int>? verifiedAt,
+    Value<int>? expiresAt,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return KnowledgeEntriesCompanion(
+      id: id ?? this.id,
+      baseId: baseId ?? this.baseId,
+      title: title ?? this.title,
+      summary: summary ?? this.summary,
+      content: content ?? this.content,
+      examples: examples ?? this.examples,
+      tags: tags ?? this.tags,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      sourceTitle: sourceTitle ?? this.sourceTitle,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (baseId.present) {
+      map['base_id'] = Variable<String>(baseId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (examples.present) {
+      map['examples'] = Variable<String>(examples.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (sourceTitle.present) {
+      map['source_title'] = Variable<String>(sourceTitle.value);
+    }
+    if (verifiedAt.present) {
+      map['verified_at'] = Variable<int>(verifiedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<int>(expiresAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('baseId: $baseId, ')
+          ..write('title: $title, ')
+          ..write('summary: $summary, ')
+          ..write('content: $content, ')
+          ..write('examples: $examples, ')
+          ..write('tags: $tags, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('sourceTitle: $sourceTitle, ')
+          ..write('verifiedAt: $verifiedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $KnowledgeTargetsTable extends KnowledgeTargets
+    with TableInfo<$KnowledgeTargetsTable, KnowledgeTargetRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $KnowledgeTargetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _baseIdMeta = const VerificationMeta('baseId');
+  @override
+  late final GeneratedColumn<String> baseId = GeneratedColumn<String>(
+    'base_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetKindMeta = const VerificationMeta(
+    'targetKind',
+  );
+  @override
+  late final GeneratedColumn<String> targetKind = GeneratedColumn<String>(
+    'target_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [baseId, targetKind, targetId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'knowledge_targets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<KnowledgeTargetRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('base_id')) {
+      context.handle(
+        _baseIdMeta,
+        baseId.isAcceptableOrUnknown(data['base_id']!, _baseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_baseIdMeta);
+    }
+    if (data.containsKey('target_kind')) {
+      context.handle(
+        _targetKindMeta,
+        targetKind.isAcceptableOrUnknown(data['target_kind']!, _targetKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetKindMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {baseId, targetKind, targetId};
+  @override
+  KnowledgeTargetRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return KnowledgeTargetRow(
+      baseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_id'],
+      )!,
+      targetKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_kind'],
+      )!,
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      )!,
+    );
+  }
+
+  @override
+  $KnowledgeTargetsTable createAlias(String alias) {
+    return $KnowledgeTargetsTable(attachedDatabase, alias);
+  }
+}
+
+class KnowledgeTargetRow extends DataClass
+    implements Insertable<KnowledgeTargetRow> {
+  final String baseId;
+  final String targetKind;
+  final String targetId;
+  const KnowledgeTargetRow({
+    required this.baseId,
+    required this.targetKind,
+    required this.targetId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['base_id'] = Variable<String>(baseId);
+    map['target_kind'] = Variable<String>(targetKind);
+    map['target_id'] = Variable<String>(targetId);
+    return map;
+  }
+
+  KnowledgeTargetsCompanion toCompanion(bool nullToAbsent) {
+    return KnowledgeTargetsCompanion(
+      baseId: Value(baseId),
+      targetKind: Value(targetKind),
+      targetId: Value(targetId),
+    );
+  }
+
+  factory KnowledgeTargetRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return KnowledgeTargetRow(
+      baseId: serializer.fromJson<String>(json['baseId']),
+      targetKind: serializer.fromJson<String>(json['targetKind']),
+      targetId: serializer.fromJson<String>(json['targetId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'baseId': serializer.toJson<String>(baseId),
+      'targetKind': serializer.toJson<String>(targetKind),
+      'targetId': serializer.toJson<String>(targetId),
+    };
+  }
+
+  KnowledgeTargetRow copyWith({
+    String? baseId,
+    String? targetKind,
+    String? targetId,
+  }) => KnowledgeTargetRow(
+    baseId: baseId ?? this.baseId,
+    targetKind: targetKind ?? this.targetKind,
+    targetId: targetId ?? this.targetId,
+  );
+  KnowledgeTargetRow copyWithCompanion(KnowledgeTargetsCompanion data) {
+    return KnowledgeTargetRow(
+      baseId: data.baseId.present ? data.baseId.value : this.baseId,
+      targetKind: data.targetKind.present
+          ? data.targetKind.value
+          : this.targetKind,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeTargetRow(')
+          ..write('baseId: $baseId, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetId: $targetId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(baseId, targetKind, targetId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is KnowledgeTargetRow &&
+          other.baseId == this.baseId &&
+          other.targetKind == this.targetKind &&
+          other.targetId == this.targetId);
+}
+
+class KnowledgeTargetsCompanion extends UpdateCompanion<KnowledgeTargetRow> {
+  final Value<String> baseId;
+  final Value<String> targetKind;
+  final Value<String> targetId;
+  final Value<int> rowid;
+  const KnowledgeTargetsCompanion({
+    this.baseId = const Value.absent(),
+    this.targetKind = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  KnowledgeTargetsCompanion.insert({
+    required String baseId,
+    required String targetKind,
+    this.targetId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : baseId = Value(baseId),
+       targetKind = Value(targetKind);
+  static Insertable<KnowledgeTargetRow> custom({
+    Expression<String>? baseId,
+    Expression<String>? targetKind,
+    Expression<String>? targetId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (baseId != null) 'base_id': baseId,
+      if (targetKind != null) 'target_kind': targetKind,
+      if (targetId != null) 'target_id': targetId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  KnowledgeTargetsCompanion copyWith({
+    Value<String>? baseId,
+    Value<String>? targetKind,
+    Value<String>? targetId,
+    Value<int>? rowid,
+  }) {
+    return KnowledgeTargetsCompanion(
+      baseId: baseId ?? this.baseId,
+      targetKind: targetKind ?? this.targetKind,
+      targetId: targetId ?? this.targetId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (baseId.present) {
+      map['base_id'] = Variable<String>(baseId.value);
+    }
+    if (targetKind.present) {
+      map['target_kind'] = Variable<String>(targetKind.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KnowledgeTargetsCompanion(')
+          ..write('baseId: $baseId, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetId: $targetId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -27107,6 +28854,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $GameStatesTable gameStates = $GameStatesTable(this);
   late final $GamePluginsTable gamePlugins = $GamePluginsTable(this);
+  late final $KnowledgeBasesTable knowledgeBases = $KnowledgeBasesTable(this);
+  late final $KnowledgeEntriesTable knowledgeEntries = $KnowledgeEntriesTable(
+    this,
+  );
+  late final $KnowledgeTargetsTable knowledgeTargets = $KnowledgeTargetsTable(
+    this,
+  );
   late final Index postsCreatedAt = Index(
     'posts_created_at',
     'CREATE INDEX posts_created_at ON posts (created_at)',
@@ -27219,6 +28973,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'game_plugins_source',
     'CREATE INDEX game_plugins_source ON game_plugins (source_url)',
   );
+  late final Index knowledgeBasesScope = Index(
+    'knowledge_bases_scope',
+    'CREATE INDEX knowledge_bases_scope ON knowledge_bases (scope, updated_at)',
+  );
+  late final Index knowledgeEntriesBase = Index(
+    'knowledge_entries_base',
+    'CREATE INDEX knowledge_entries_base ON knowledge_entries (base_id, updated_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -27268,6 +29030,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     gameMatchPlayers,
     gameStates,
     gamePlugins,
+    knowledgeBases,
+    knowledgeEntries,
+    knowledgeTargets,
     postsCreatedAt,
     aiInteractionsLookup,
     aiInteractionsScheduled,
@@ -27296,6 +29061,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     gameMessagesMatch,
     gameMatchPlayersMatch,
     gamePluginsSource,
+    knowledgeBasesScope,
+    knowledgeEntriesBase,
   ];
 }
 
@@ -43220,6 +44987,922 @@ typedef $$GamePluginsTableProcessedTableManager =
       GamePluginRow,
       PrefetchHooks Function()
     >;
+typedef $$KnowledgeBasesTableCreateCompanionBuilder =
+    KnowledgeBasesCompanion Function({
+      required String id,
+      required String name,
+      Value<String> description,
+      required String scope,
+      Value<String> ownerKind,
+      Value<String> ownerResidentId,
+      Value<bool> builtin,
+      Value<bool> enabled,
+      Value<bool> autoUpdate,
+      Value<int> lastUpdatedAt,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$KnowledgeBasesTableUpdateCompanionBuilder =
+    KnowledgeBasesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> description,
+      Value<String> scope,
+      Value<String> ownerKind,
+      Value<String> ownerResidentId,
+      Value<bool> builtin,
+      Value<bool> enabled,
+      Value<bool> autoUpdate,
+      Value<int> lastUpdatedAt,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$KnowledgeBasesTableFilterComposer
+    extends Composer<_$AppDatabase, $KnowledgeBasesTable> {
+  $$KnowledgeBasesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerResidentId => $composableBuilder(
+    column: $table.ownerResidentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get builtin => $composableBuilder(
+    column: $table.builtin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get autoUpdate => $composableBuilder(
+    column: $table.autoUpdate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastUpdatedAt => $composableBuilder(
+    column: $table.lastUpdatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$KnowledgeBasesTableOrderingComposer
+    extends Composer<_$AppDatabase, $KnowledgeBasesTable> {
+  $$KnowledgeBasesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerResidentId => $composableBuilder(
+    column: $table.ownerResidentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get builtin => $composableBuilder(
+    column: $table.builtin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get autoUpdate => $composableBuilder(
+    column: $table.autoUpdate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastUpdatedAt => $composableBuilder(
+    column: $table.lastUpdatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$KnowledgeBasesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $KnowledgeBasesTable> {
+  $$KnowledgeBasesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerKind =>
+      $composableBuilder(column: $table.ownerKind, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerResidentId => $composableBuilder(
+    column: $table.ownerResidentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get builtin =>
+      $composableBuilder(column: $table.builtin, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<bool> get autoUpdate => $composableBuilder(
+    column: $table.autoUpdate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastUpdatedAt => $composableBuilder(
+    column: $table.lastUpdatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$KnowledgeBasesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $KnowledgeBasesTable,
+          KnowledgeBaseRow,
+          $$KnowledgeBasesTableFilterComposer,
+          $$KnowledgeBasesTableOrderingComposer,
+          $$KnowledgeBasesTableAnnotationComposer,
+          $$KnowledgeBasesTableCreateCompanionBuilder,
+          $$KnowledgeBasesTableUpdateCompanionBuilder,
+          (
+            KnowledgeBaseRow,
+            BaseReferences<
+              _$AppDatabase,
+              $KnowledgeBasesTable,
+              KnowledgeBaseRow
+            >,
+          ),
+          KnowledgeBaseRow,
+          PrefetchHooks Function()
+        > {
+  $$KnowledgeBasesTableTableManager(
+    _$AppDatabase db,
+    $KnowledgeBasesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$KnowledgeBasesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$KnowledgeBasesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$KnowledgeBasesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<String> ownerKind = const Value.absent(),
+                Value<String> ownerResidentId = const Value.absent(),
+                Value<bool> builtin = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<bool> autoUpdate = const Value.absent(),
+                Value<int> lastUpdatedAt = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeBasesCompanion(
+                id: id,
+                name: name,
+                description: description,
+                scope: scope,
+                ownerKind: ownerKind,
+                ownerResidentId: ownerResidentId,
+                builtin: builtin,
+                enabled: enabled,
+                autoUpdate: autoUpdate,
+                lastUpdatedAt: lastUpdatedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> description = const Value.absent(),
+                required String scope,
+                Value<String> ownerKind = const Value.absent(),
+                Value<String> ownerResidentId = const Value.absent(),
+                Value<bool> builtin = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<bool> autoUpdate = const Value.absent(),
+                Value<int> lastUpdatedAt = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeBasesCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                scope: scope,
+                ownerKind: ownerKind,
+                ownerResidentId: ownerResidentId,
+                builtin: builtin,
+                enabled: enabled,
+                autoUpdate: autoUpdate,
+                lastUpdatedAt: lastUpdatedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$KnowledgeBasesTable, KnowledgeBaseRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $KnowledgeBasesTable,
+                    KnowledgeBaseRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$KnowledgeBasesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $KnowledgeBasesTable,
+      KnowledgeBaseRow,
+      $$KnowledgeBasesTableFilterComposer,
+      $$KnowledgeBasesTableOrderingComposer,
+      $$KnowledgeBasesTableAnnotationComposer,
+      $$KnowledgeBasesTableCreateCompanionBuilder,
+      $$KnowledgeBasesTableUpdateCompanionBuilder,
+      (
+        KnowledgeBaseRow,
+        BaseReferences<_$AppDatabase, $KnowledgeBasesTable, KnowledgeBaseRow>,
+      ),
+      KnowledgeBaseRow,
+      PrefetchHooks Function()
+    >;
+typedef $$KnowledgeEntriesTableCreateCompanionBuilder =
+    KnowledgeEntriesCompanion Function({
+      required String id,
+      required String baseId,
+      required String title,
+      Value<String> summary,
+      Value<String> content,
+      Value<String> examples,
+      Value<String> tags,
+      Value<String> sourceUrl,
+      Value<String> sourceTitle,
+      Value<int> verifiedAt,
+      Value<int> expiresAt,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$KnowledgeEntriesTableUpdateCompanionBuilder =
+    KnowledgeEntriesCompanion Function({
+      Value<String> id,
+      Value<String> baseId,
+      Value<String> title,
+      Value<String> summary,
+      Value<String> content,
+      Value<String> examples,
+      Value<String> tags,
+      Value<String> sourceUrl,
+      Value<String> sourceTitle,
+      Value<int> verifiedAt,
+      Value<int> expiresAt,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$KnowledgeEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $KnowledgeEntriesTable> {
+  $$KnowledgeEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseId => $composableBuilder(
+    column: $table.baseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get examples => $composableBuilder(
+    column: $table.examples,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get verifiedAt => $composableBuilder(
+    column: $table.verifiedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$KnowledgeEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $KnowledgeEntriesTable> {
+  $$KnowledgeEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseId => $composableBuilder(
+    column: $table.baseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get examples => $composableBuilder(
+    column: $table.examples,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get verifiedAt => $composableBuilder(
+    column: $table.verifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$KnowledgeEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $KnowledgeEntriesTable> {
+  $$KnowledgeEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get baseId =>
+      $composableBuilder(column: $table.baseId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get examples =>
+      $composableBuilder(column: $table.examples, builder: (column) => column);
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get verifiedAt => $composableBuilder(
+    column: $table.verifiedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$KnowledgeEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $KnowledgeEntriesTable,
+          KnowledgeEntryRow,
+          $$KnowledgeEntriesTableFilterComposer,
+          $$KnowledgeEntriesTableOrderingComposer,
+          $$KnowledgeEntriesTableAnnotationComposer,
+          $$KnowledgeEntriesTableCreateCompanionBuilder,
+          $$KnowledgeEntriesTableUpdateCompanionBuilder,
+          (
+            KnowledgeEntryRow,
+            BaseReferences<
+              _$AppDatabase,
+              $KnowledgeEntriesTable,
+              KnowledgeEntryRow
+            >,
+          ),
+          KnowledgeEntryRow,
+          PrefetchHooks Function()
+        > {
+  $$KnowledgeEntriesTableTableManager(
+    _$AppDatabase db,
+    $KnowledgeEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$KnowledgeEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$KnowledgeEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$KnowledgeEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> baseId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> examples = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<String> sourceUrl = const Value.absent(),
+                Value<String> sourceTitle = const Value.absent(),
+                Value<int> verifiedAt = const Value.absent(),
+                Value<int> expiresAt = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeEntriesCompanion(
+                id: id,
+                baseId: baseId,
+                title: title,
+                summary: summary,
+                content: content,
+                examples: examples,
+                tags: tags,
+                sourceUrl: sourceUrl,
+                sourceTitle: sourceTitle,
+                verifiedAt: verifiedAt,
+                expiresAt: expiresAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String baseId,
+                required String title,
+                Value<String> summary = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> examples = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<String> sourceUrl = const Value.absent(),
+                Value<String> sourceTitle = const Value.absent(),
+                Value<int> verifiedAt = const Value.absent(),
+                Value<int> expiresAt = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeEntriesCompanion.insert(
+                id: id,
+                baseId: baseId,
+                title: title,
+                summary: summary,
+                content: content,
+                examples: examples,
+                tags: tags,
+                sourceUrl: sourceUrl,
+                sourceTitle: sourceTitle,
+                verifiedAt: verifiedAt,
+                expiresAt: expiresAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$KnowledgeEntriesTable, KnowledgeEntryRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $KnowledgeEntriesTable,
+                    KnowledgeEntryRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$KnowledgeEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $KnowledgeEntriesTable,
+      KnowledgeEntryRow,
+      $$KnowledgeEntriesTableFilterComposer,
+      $$KnowledgeEntriesTableOrderingComposer,
+      $$KnowledgeEntriesTableAnnotationComposer,
+      $$KnowledgeEntriesTableCreateCompanionBuilder,
+      $$KnowledgeEntriesTableUpdateCompanionBuilder,
+      (
+        KnowledgeEntryRow,
+        BaseReferences<
+          _$AppDatabase,
+          $KnowledgeEntriesTable,
+          KnowledgeEntryRow
+        >,
+      ),
+      KnowledgeEntryRow,
+      PrefetchHooks Function()
+    >;
+typedef $$KnowledgeTargetsTableCreateCompanionBuilder =
+    KnowledgeTargetsCompanion Function({
+      required String baseId,
+      required String targetKind,
+      Value<String> targetId,
+      Value<int> rowid,
+    });
+typedef $$KnowledgeTargetsTableUpdateCompanionBuilder =
+    KnowledgeTargetsCompanion Function({
+      Value<String> baseId,
+      Value<String> targetKind,
+      Value<String> targetId,
+      Value<int> rowid,
+    });
+
+class $$KnowledgeTargetsTableFilterComposer
+    extends Composer<_$AppDatabase, $KnowledgeTargetsTable> {
+  $$KnowledgeTargetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get baseId => $composableBuilder(
+    column: $table.baseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$KnowledgeTargetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $KnowledgeTargetsTable> {
+  $$KnowledgeTargetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get baseId => $composableBuilder(
+    column: $table.baseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$KnowledgeTargetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $KnowledgeTargetsTable> {
+  $$KnowledgeTargetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get baseId =>
+      $composableBuilder(column: $table.baseId, builder: (column) => column);
+
+  GeneratedColumn<String> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+}
+
+class $$KnowledgeTargetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $KnowledgeTargetsTable,
+          KnowledgeTargetRow,
+          $$KnowledgeTargetsTableFilterComposer,
+          $$KnowledgeTargetsTableOrderingComposer,
+          $$KnowledgeTargetsTableAnnotationComposer,
+          $$KnowledgeTargetsTableCreateCompanionBuilder,
+          $$KnowledgeTargetsTableUpdateCompanionBuilder,
+          (
+            KnowledgeTargetRow,
+            BaseReferences<
+              _$AppDatabase,
+              $KnowledgeTargetsTable,
+              KnowledgeTargetRow
+            >,
+          ),
+          KnowledgeTargetRow,
+          PrefetchHooks Function()
+        > {
+  $$KnowledgeTargetsTableTableManager(
+    _$AppDatabase db,
+    $KnowledgeTargetsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$KnowledgeTargetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$KnowledgeTargetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$KnowledgeTargetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> baseId = const Value.absent(),
+                Value<String> targetKind = const Value.absent(),
+                Value<String> targetId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeTargetsCompanion(
+                baseId: baseId,
+                targetKind: targetKind,
+                targetId: targetId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String baseId,
+                required String targetKind,
+                Value<String> targetId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => KnowledgeTargetsCompanion.insert(
+                baseId: baseId,
+                targetKind: targetKind,
+                targetId: targetId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$KnowledgeTargetsTable, KnowledgeTargetRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $KnowledgeTargetsTable,
+                    KnowledgeTargetRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$KnowledgeTargetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $KnowledgeTargetsTable,
+      KnowledgeTargetRow,
+      $$KnowledgeTargetsTableFilterComposer,
+      $$KnowledgeTargetsTableOrderingComposer,
+      $$KnowledgeTargetsTableAnnotationComposer,
+      $$KnowledgeTargetsTableCreateCompanionBuilder,
+      $$KnowledgeTargetsTableUpdateCompanionBuilder,
+      (
+        KnowledgeTargetRow,
+        BaseReferences<
+          _$AppDatabase,
+          $KnowledgeTargetsTable,
+          KnowledgeTargetRow
+        >,
+      ),
+      KnowledgeTargetRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -43312,4 +45995,10 @@ class $AppDatabaseManager {
       $$GameStatesTableTableManager(_db, _db.gameStates);
   $$GamePluginsTableTableManager get gamePlugins =>
       $$GamePluginsTableTableManager(_db, _db.gamePlugins);
+  $$KnowledgeBasesTableTableManager get knowledgeBases =>
+      $$KnowledgeBasesTableTableManager(_db, _db.knowledgeBases);
+  $$KnowledgeEntriesTableTableManager get knowledgeEntries =>
+      $$KnowledgeEntriesTableTableManager(_db, _db.knowledgeEntries);
+  $$KnowledgeTargetsTableTableManager get knowledgeTargets =>
+      $$KnowledgeTargetsTableTableManager(_db, _db.knowledgeTargets);
 }

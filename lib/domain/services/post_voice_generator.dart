@@ -82,6 +82,7 @@ abstract interface class PostVoiceGenerator {
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
     List<String> recentComments = const [],
+    String knowledgeBlock = '',
   });
 }
 
@@ -102,12 +103,16 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
     List<String> recentComments = const [],
+    String knowledgeBlock = '',
   }) async {
     if (count <= 0) return const [];
 
     final catalog = await stickers?.taggedItems() ?? const <StickerItem>[];
     try {
-      final system = systemPrompt(allowLurk: allowLurk);
+      final system = systemPrompt(
+        allowLurk: allowLurk,
+        knowledge: knowledgeBlock,
+      );
       final user = userPrompt(
         post: post,
         count: count,
@@ -167,8 +172,14 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
     }
   }
 
-  /// 系统提示词：只放**不变**的规则（后续 C2 会把它放进共享前缀）。
-  static String systemPrompt({required bool allowLurk}) {
+  /// 系统提示词：只放**不变**的规则与这一本知识库。
+  ///
+  /// 知识库按库分组放在这里（而不是 user 里逐帖挑），是为了让同一本册子
+  /// 的请求跨帖命中缓存：换一批网民、换一条帖子，前缀都没动。
+  static String systemPrompt({
+    required bool allowLurk,
+    String knowledge = '',
+  }) {
     final buffer = StringBuffer()
       ..writeln('你是「回响」里刷到这条帖子的一群普通人。请为每个人决定做什么，')
       ..writeln('不是社区工作人员，也不是来开导谁的。')
@@ -195,6 +206,12 @@ class ModelPostVoiceGenerator implements PostVoiceGenerator {
       buffer.writeln('- 允许有一部分人只是看看、不点赞也不评论');
     } else {
       buffer.writeln('- 每个人至少要点赞或评论，不能只看不说话');
+    }
+    if (knowledge.trim().isNotEmpty) {
+      // 稳定前缀的一部分：只随知识库本身变化，不随帖子变化。
+      buffer
+        ..writeln()
+        ..writeln(knowledge.trim());
     }
     buffer
       ..writeln()

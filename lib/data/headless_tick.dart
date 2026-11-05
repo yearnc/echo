@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/services/knowledge_update_service.dart';
 import '../domain/services/memory_maintenance_service.dart';
 import '../domain/services/notification_service.dart';
 import '../domain/services/resident_sleep_service.dart';
@@ -40,6 +41,27 @@ Future<void> runHeadlessTick() async {
     // 后台任务失败没有人在场处理，也不该让系统把它标成"崩了"：
     // 这一轮没补上，下一轮（或用户下次打开）还会再补。
     debugPrint('[后台] 这一轮没跑完：$error');
+  } finally {
+    container.dispose();
+  }
+}
+
+/// 后台热门梗更新（v4.11）。
+///
+/// 每轮都先问 `maybeRun`：没满一周、没配模型、刚试过，都会直接跳过。
+/// 所以这条任务可以每天醒，真正联网只发生在该更新的时候。
+Future<void> runHeadlessKnowledgeUpdate() async {
+  final container = ProviderContainer();
+  try {
+    final report = await container
+        .read(knowledgeUpdateServiceProvider)
+        .maybeRun(background: true);
+    debugPrint(
+      '[后台] 热门梗：${report.ran ? report.message : '跳过（${report.message}）'}',
+    );
+  } catch (error) {
+    // 后台没人在场：这一轮失败不覆盖旧内容，下一轮还会来。
+    debugPrint('[后台] 热门梗没更新成：$error');
   } finally {
     container.dispose();
   }

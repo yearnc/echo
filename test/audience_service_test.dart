@@ -33,6 +33,7 @@ class _FakeGenerator implements PostVoiceGenerator {
     Set<String> avoidNames = const {},
     bool sendImagesDirectly = false,
     List<String> recentComments = const [],
+    String knowledgeBlock = '',
   }) async {
     calls++;
     lastAllowLurk = allowLurk;

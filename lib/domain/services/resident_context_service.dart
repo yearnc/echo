@@ -83,7 +83,13 @@ class ResidentContextService {
     required bool allowImages,
   }) async {
     final now = DateTime.now();
-    final system = session.systemPromptFor(resident, voiceReady: allowVoice);
+    // 知识库放在 system 的稳定前缀里：改库会让 hash 变化，下次唤醒自动重建窗口。
+    final knowledge = await session.knowledgeBlockFor(resident);
+    final system = session.systemPromptFor(
+      resident,
+      voiceReady: allowVoice,
+      knowledge: knowledge,
+    );
     final hash = '${system.hashCode}:${allowVoice ? 1 : 0}:${allowImages ? 1 : 0}';
     var window = _windows[resident.id];
     if (window != null && (window.expired(now) || window.promptHash != hash)) {

@@ -1,6 +1,8 @@
 # Miscellaneous
 *.class
 *.log
+# 更新日志是项目文档，不是临时日志
+!更新日志.log
 *.pyc
 *.swp
 .DS_Store

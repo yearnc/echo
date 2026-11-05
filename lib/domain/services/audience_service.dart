@@ -10,12 +10,14 @@ import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_understanding_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../models/echo_settings.dart';
+import '../models/knowledge.dart';
 import '../models/model_config.dart';
 import '../models/planned_interaction.dart';
 import '../models/post.dart';
 import '../models/post_understanding.dart';
 import '../models/post_voice.dart';
 import 'community_settings_controller.dart';
+import 'knowledge_service.dart';
 import 'model_gateway.dart';
 import 'post_analyzer.dart';
 import 'post_voice_generator.dart';
@@ -39,6 +41,7 @@ class AudienceService {
     this.notifications,
     this.customAvatars,
     this.readSendImagesDirectly,
+    this.knowledge,
     VoiceNameGenerator? nameGenerator,
     Random? random,
   }) : _random = random ?? Random(),
@@ -65,6 +68,10 @@ class AudienceService {
 
   /// 帖子图片是原图直发还是先总结（设置项）。
   final bool Function()? readSendImagesDirectly;
+
+  /// 知识库：每位临时网民带一本，换书就是换视角。
+  /// 可空：测试或旧调用不传，就退回只有内置分寸（NetKnowledge）的样子。
+  final KnowledgeService? knowledge;
 
   /// 连续几次生成失败才提醒一次；同一提醒 6 小时只出现一次。
   static const int failureThreshold = 3;
@@ -210,6 +217,8 @@ class AudienceService {
     required DateTime at,
     required bool sendImagesDirectly,
     required List<String> recentComments,
+    List<KnowledgeBase> knowledgeBases = const [],
+    int variantOffset = 0,
   }) async {
     if (count <= 0) return const [];
 
@@ -219,7 +228,16 @@ class AudienceService {
 
     Future<void> one() async {
       if (queue.isEmpty) return;
-      queue.removeLast();
+      final index = queue.removeLast();
+
+      // 同一本册子的块是稳定的：同一帖的第二个人拿同一本时，
+      // 前缀完全一样，缓存照样命中。不同册子各建各的前缀。
+      var block = '';
+      if (knowledgeBases.isNotEmpty && knowledge != null) {
+        final base =
+            knowledgeBases[(variantOffset + index) % knowledgeBases.length];
+        block = await knowledge!.transientBlock(base);
+      }
 
       var drafts = await generator.draft(
         config: config,
@@ -231,6 +249,7 @@ class AudienceService {
         avoidNames: reserved,
         sendImagesDirectly: sendImagesDirectly,
         recentComments: recentComments,
+        knowledgeBlock: block,
       );
       if (drafts.isEmpty) return;
       var draft = drafts.first;
@@ -247,6 +266,7 @@ class AudienceService {
           avoidNames: reserved,
           sendImagesDirectly: sendImagesDirectly,
           recentComments: recentComments,
+          knowledgeBlock: block,
         );
         if (drafts.isEmpty || !reserved.add(drafts.first.name)) return;
         draft = drafts.first;
@@ -309,6 +329,11 @@ class AudienceService {
         debugPrint('[临时网民] 最近评论没取到，按没有走：$error');
       }
 
+      // 临时网民能读到的册子。为空时完全是旧行为；
+      // 有册子就按人轮转分配——同一帖里既有玩梗的，也有接不上梗只提问的。
+      final knowledgeBases =
+          await knowledge?.transientBases() ?? const <KnowledgeBase>[];
+
       final now = DateTime.now();
       final drafts = await _draftOneByOne(
         config: config,
@@ -320,6 +345,8 @@ class AudienceService {
         at: now,
         sendImagesDirectly: readSendImagesDirectly?.call() ?? false,
         recentComments: recentComments,
+        knowledgeBases: knowledgeBases,
+        variantOffset: existing.where((voice) => voice.isEphemeral).length,
       );
       if (drafts.isEmpty) {
         await _recordFailure('模型没生成出网民');
@@ -555,5 +582,6 @@ final audienceServiceProvider = Provider<AudienceService>(
     customAvatars: ref.watch(customAvatarRepositoryProvider),
     readSendImagesDirectly: () =>
         ref.read(communitySettingsProvider).sendPostImagesDirectly,
+    knowledge: ref.watch(knowledgeServiceProvider),
   ),
 );

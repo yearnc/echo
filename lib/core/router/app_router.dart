@@ -10,6 +10,8 @@ import '../../features/feed/feed_page.dart';
 import '../../features/games/game_match_page.dart';
 import '../../features/games/games_page.dart';
 import '../../features/help/help_page.dart';
+import '../../features/knowledge/knowledge_edit_page.dart';
+import '../../features/knowledge/knowledge_page.dart';
 import '../../features/help/tutorial_page.dart';
 import '../../features/messages/chat_page.dart';
 import '../../features/messages/messages_page.dart';
@@ -123,6 +125,11 @@ class RoutePaths {
 
   /// 头像与表情包管理。
   static const String stickers = '/settings/stickers';
+
+  /// 知识库管理（v4.11）。
+  static const String knowledge = '/settings/knowledge';
+
+  static String knowledgeEdit(String id) => '/settings/knowledge/$id';
 
   /// 全量数据备份与恢复。
   static const String backup = '/settings/backup';
@@ -313,6 +320,17 @@ final appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.stickers,
       builder: (context, state) => const StickersPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.knowledge,
+      builder: (context, state) => const KnowledgePage(),
+      routes: [
+        GoRoute(
+          path: ':id',
+          builder: (context, state) =>
+              KnowledgeEditPage(baseId: state.pathParameters['id'] ?? ''),
+        ),
+      ],
     ),
     GoRoute(
       path: RoutePaths.backup,

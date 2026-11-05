@@ -24,6 +24,10 @@ class BackgroundWorker {
   /// 记忆整理单独一条任务：它要联网调模型，不能跟“纯本地补发”共用约束。
   static const String memoryTaskName = 'echo.memory';
 
+  /// 热门梗每周更新（v4.11）。周期任务每天醒一次，
+  /// 真正是否联网由 `KnowledgeUpdateService` 按“满七天”判断。
+  static const String knowledgeTaskName = 'echo.knowledge';
+
   /// 15 分钟是 Android WorkManager 划的**最小**周期，不是我们的选择。
   /// 想更勤只能靠前台心跳，那条路本来就有。
   static const Duration frequency = Duration(minutes: 15);
@@ -32,6 +36,11 @@ class BackgroundWorker {
   /// 间隔只在 [MemoryMaintenanceService] 里定义一份，避免两处漂移。
   static const Duration memoryFrequency =
       MemoryMaintenanceService.backgroundInterval;
+
+  /// 知识库每天醒一次；真正更新间隔在 [KnowledgeUpdateService] 里。
+  /// 不直接注册 7 天，是因为系统本来就可能把任务推迟/合并，
+  /// 每天问一次能更快补上错过的窗口。
+  static const Duration knowledgeFrequency = Duration(days: 1);
 
   /// 注册周期任务。失败不抛：注册不上就退回到原来那三条路。
   static Future<void> start() async {
@@ -54,6 +63,13 @@ class BackgroundWorker {
         constraints: Constraints(networkType: NetworkType.connected),
         existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
       );
+      await Workmanager().registerPeriodicTask(
+        knowledgeTaskName,
+        knowledgeTaskName,
+        frequency: knowledgeFrequency,
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
     } catch (error) {
       debugPrint('[后台] 周期任务没注册上，退回冷启动补发：$error');
     }
@@ -70,6 +86,8 @@ void callbackDispatcher() {
     WidgetsFlutterBinding.ensureInitialized();
     if (task == BackgroundWorker.memoryTaskName) {
       await runHeadlessMemoryMaintenance();
+    } else if (task == BackgroundWorker.knowledgeTaskName) {
+      await runHeadlessKnowledgeUpdate();
     } else {
       await runHeadlessTick();
     }

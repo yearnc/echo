@@ -17,6 +17,7 @@ import 'model_gateway.dart';
 import 'resident_activity_controller.dart';
 import 'tool_call_text.dart';
 import 'tool_settings_controller.dart';
+import 'knowledge_service.dart';
 import 'web_search.dart';
 
 /// 唤醒这一轮能落到哪几张表。
@@ -165,6 +166,7 @@ class ResidentToolSession {
     required this.gateway,
     required this.actions,
     this.search,
+    this.knowledge,
     this.readSettings,
     this.activity,
   });
@@ -174,6 +176,9 @@ class ResidentToolSession {
 
   /// 用户开了联网搜索才注入；没开时 `web_search` 会明确说没开。
   final WebSearchService? search;
+
+  /// 住民能读写的知识库。可空：没配置时这两个工具直接不出现。
+  final KnowledgeService? knowledge;
 
   /// 工具轮数与总超时。设置页可调，默认 12 轮 / 30 秒。
   final ToolSettings Function()? readSettings;
@@ -209,6 +214,8 @@ class ResidentToolSession {
     'memory_write' || 'memory_update' || 'memory_delete' => '正在记下来…',
     'memory_consolidate' => '正在合并记忆…',
     'web_search' => '正在搜索…',
+    'knowledge_search' => '正在翻知识库…',
+    'knowledge_write' => '正在记进知识库…',
     'browse_feed' => '正在刷帖子…',
     'read_post' => '正在点开帖子…',
     'like_post' => '正在点赞…',
@@ -322,6 +329,7 @@ class ResidentToolSession {
             allowVoice: allowVoice,
             extraTools: gameTools,
             maintenance: maintenance,
+            includeKnowledge: knowledge != null,
           ),
           temperature: 0.85,
           maxTokens: 420,
@@ -516,6 +524,7 @@ class ResidentToolSession {
                 allowVoice: allowVoice,
                 extraTools: gameTools,
                 maintenance: maintenance,
+                includeKnowledge: knowledge != null,
               );
               outcome = ActionOutcome(
                 ok: true,
@@ -650,6 +659,7 @@ class ResidentToolSession {
   String _residentSystemPrompt(
     CustomResident resident, {
     bool voiceReady = true,
+    String knowledge = '',
   }) {
     final voiceLine = voiceReady && _voiceToolAvailable(resident)
         ? '- 想用声音说就用 send_voice；普通说话用 send_dm。语音合成要几十秒，\n'
@@ -665,9 +675,12 @@ class ResidentToolSession {
       if (resident.extraInstructions.trim().isNotEmpty)
         resident.extraInstructions,
     ].join('\n');
+    final knowledgeBlock = knowledge.trim().isEmpty
+        ? ''
+        : '\n$knowledge\n';
     return '''
 你是「${resident.name}」，一个真实生活里的人，不是客服，也不是陪聊机器人。
-$persona
+$persona$knowledgeBlock
 
 屏幕上的你、私信里的你、通话里的你是同一个人：同一段记忆、同一段对话、
 同一个上下文。不要把它们当成几件事，也不要因为换了块屏幕就失忆。
@@ -745,11 +758,33 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
   }
 
   /// 窗口构建时用：这台设备上这位住民的 system 提示。
-  String systemPromptFor(CustomResident resident, {bool voiceReady = true}) =>
-      _residentSystemPrompt(resident, voiceReady: voiceReady);
+  String systemPromptFor(
+    CustomResident resident, {
+    bool voiceReady = true,
+    String knowledge = '',
+  }) => _residentSystemPrompt(
+    resident,
+    voiceReady: voiceReady,
+    knowledge: knowledge,
+  );
 
   /// 窗口构建时用：最近 5 条记忆，拼成一行。
   Future<String> memoryLinesFor(CustomResident resident) => _prefetch(resident);
+
+  /// 窗口构建时用：这位住民能看到的知识库索引。
+  ///
+  /// 只给索引：全量正文进 system 会让每一轮都多花几百 token，
+  /// 真正需要细节时模型自己会调 `knowledge_search`。
+  Future<String> knowledgeBlockFor(CustomResident resident) async {
+    final service = knowledge;
+    if (service == null) return '';
+    try {
+      return await service.residentBlock(resident.id);
+    } catch (error) {
+      debugPrint('[知识库] ${resident.name} 的索引没取到：$error');
+      return '';
+    }
+  }
 
   Future<String> _prefetch(CustomResident resident) async {
     if (!resident.memoryEnabled) return '';
@@ -872,6 +907,67 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
             ],
           },
         );
+      case 'knowledge_search':
+        final service = knowledge;
+        if (service == null) {
+          return const ActionOutcome(ok: false, message: '没有可用的知识库');
+        }
+        final baseId = textArg(args, 'base_id');
+        final results = await service.search(
+          residentId: resident.id,
+          query: textArg(args, 'query', fallback: latestUserMessage),
+          limit: _limit(args['limit']),
+          baseId: baseId,
+        );
+        if (results.isEmpty) {
+          return const ActionOutcome(
+            ok: true,
+            message: '知识库里没有相关的东西。不确定就别装懂，可以换个问法或直接问对方。',
+          );
+        }
+        return ActionOutcome(
+          ok: true,
+          data: {
+            'results': [
+              for (final entry in results)
+                {
+                  'title': entry.title,
+                  'summary': entry.summary,
+                  'content': entry.content,
+                  'examples': entry.examples,
+                  'source': entry.sourceTitle.isEmpty
+                      ? entry.sourceUrl
+                      : entry.sourceTitle,
+                },
+            ],
+          },
+        );
+      case 'knowledge_write':
+        final service = knowledge;
+        if (service == null) {
+          return const ActionOutcome(ok: false, message: '没有可用的知识库');
+        }
+        try {
+          final entry = await service.write(
+            residentId: resident.id,
+            baseId: textArg(args, 'base_id'),
+            title: textArg(args, 'title'),
+            summary: textArg(args, 'summary'),
+            content: textArg(args, 'content'),
+            examples: _stringList(args['examples']),
+            tags: _stringList(args['tags']),
+            sourceUrl: textArg(args, 'source_url'),
+            sourceTitle: textArg(args, 'source_title'),
+            entryId: textArg(args, 'entry_id'),
+          );
+          return ActionOutcome(
+            ok: true,
+            message: '已写进知识库：${entry.title}',
+            data: {'entry_id': entry.id},
+          );
+        } catch (error) {
+          return ActionOutcome(ok: false, message: '没写进去：$error');
+        }
       case 'send_dm':
         return actions.sendDirectMessage(
           residentId: resident.id,
@@ -920,6 +1016,24 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
       if (parsed != null) return parsed.clamp(1, max);
     }
     return 5;
+  }
+
+  /// 模型给数组时正常拆；给一段换行文本时也认，别因为类型不对就丢掉。
+  static List<String> _stringList(Object? raw) {
+    if (raw is List) {
+      return [
+        for (final item in raw)
+          if (item is String && item.trim().isNotEmpty) item.trim(),
+      ];
+    }
+    if (raw is String) {
+      return raw
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
   }
 
   static int _offset(Object? raw) {
@@ -1096,6 +1210,7 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     bool allowVoice = true,
     Iterable<Map<String, dynamic>> extraTools = const [],
     bool maintenance = false,
+    bool includeKnowledge = false,
   }) {
     if (maintenance) {
       const allowed = {
@@ -1133,6 +1248,8 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     final all = [
       ...base,
       _webSearchTool,
+      if (includeKnowledge) _knowledgeSearchTool,
+      if (includeKnowledge) _knowledgeWriteTool,
       ...wakeOnly,
       ..._pendingSegmentTools,
       ...GameTools.baseTools,
@@ -1165,6 +1282,64 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
           'query': {'type': 'string'},
         },
         'required': ['query'],
+      },
+    },
+  };
+
+  /// 知识库检索。只在这位住民有可见知识库时出现。
+  static const Map<String, dynamic> _knowledgeSearchTool = {
+    'type': 'function',
+    'function': {
+      'name': 'knowledge_search',
+      'description':
+          '在你手边的知识库里查东西：某个梗是什么意思、某件事的来龙去脉、'
+          '一个说法该怎么用。先看 system 里的《库名》，base_id 可以不填。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'query': {'type': 'string'},
+          'base_id': {
+            'type': 'string',
+            'description': '只在某一本里找时填；不填就搜所有能看到的库',
+          },
+        },
+        'required': ['query'],
+      },
+    },
+  };
+
+  /// 知识库写入。只能写进自己能看到的库；同一个 entry_id 表示修改旧条目。
+  static const Map<String, dynamic> _knowledgeWriteTool = {
+    'type': 'function',
+    'function': {
+      'name': 'knowledge_write',
+      'description':
+          '把值得留下的东西写进你能看到的知识库。写之前先确认不是重复的；'
+          '梗要写清来源、用处，examples 给两三个例句。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'base_id': {'type': 'string', 'description': '写进哪一本'},
+          'title': {'type': 'string', 'description': '梗名或知识点标题'},
+          'summary': {'type': 'string', 'description': '一句话：是什么、什么时候能用'},
+          'content': {'type': 'string', 'description': '正文：来源、用处'},
+          'examples': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': '两三个例句',
+          },
+          'tags': {
+            'type': 'array',
+            'items': {'type': 'string'},
+          },
+          'source_url': {'type': 'string'},
+          'source_title': {'type': 'string'},
+          'entry_id': {
+            'type': 'string',
+            'description': '改已有条目时填，新条目留空',
+          },
+        },
+        'required': ['base_id', 'title'],
       },
     },
   };
@@ -1701,6 +1876,7 @@ final residentToolSessionProvider = Provider<ResidentToolSession>(
     gateway: ref.watch(modelGatewayProvider),
     actions: ref.watch(actionRegistryProvider),
     search: ref.watch(webSearchServiceProvider),
+    knowledge: ref.watch(knowledgeServiceProvider),
     readSettings: () => ref.read(toolSettingsProvider),
     activity: (residentId, label, kind) => ref
         .read(residentActivityProvider.notifier)
