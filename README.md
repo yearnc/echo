@@ -39,15 +39,15 @@
 
 ## 下载
 
-当前源码 **v4.12.0+70（schema v52）**；公开安装包仍是 **v4.10.0 精简版**：
-APK 不内置语音模型，装完约 152.3MB；需要语音识别 / 合成时，在
+当前源码 **v4.12.0+70（schema v52）**，公开安装包也是 **v4.12.0 精简版**：
+APK 不内置语音模型，装完约 152.5MB；需要语音识别 / 合成时，在
 「我的 → 下载资源」里按需下载（约 117—229MB 一项）。
 
-**v4.10.0 精简版**：
-[**Releases v4.10.0**](https://github.com/yearnc/echo/releases/tag/v4.10.0)
-`echo-v4.10.0-arm64.apk`（159,681,350 字节 / 约 152.3 MiB，
-versionName 4.10.0 / versionCode 2068，
-SHA256 `429fb5f4459159d3032bcd3f635d0b194842acb647605156d49d713b2561283d`）。
+**v4.12.0 精简版**：
+[**Releases v4.12.0**](https://github.com/yearnc/echo/releases/tag/v4.12.0)
+`echo-v4.12.0-arm64.apk`（159,878,490 字节 / 约 152.5 MiB，
+versionName 4.12.0 / versionCode 2070，
+SHA256 `e496546dc05e788791d56fdf2116efc6db246bd10b7f6010682cc0648401ff89`）。
 
 更早的安装包与逐版本说明见
 [**Releases**](https://github.com/yearnc/echo/releases) 和
