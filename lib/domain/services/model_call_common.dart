@@ -15,6 +15,24 @@ String normalizeBaseUrl(String baseUrl) {
       : trimmed;
 }
 
+/// DeepSeek 工具接口的统一地址：`/v1/tools/<tool>`。
+///
+/// 配置里的 base url 可能写成裸域、带 `/v1`，甚至带完整的
+/// `/chat/completions`；这些都要收成同一个形状。
+String deepSeekToolsEndpoint(String raw, String tool) {
+  var base = normalizeBaseUrl(raw);
+  while (base.endsWith('/')) {
+    base = base.substring(0, base.length - 1);
+  }
+  const suffix = '/chat/completions';
+  if (base.endsWith(suffix)) {
+    base = base.substring(0, base.length - suffix.length);
+  }
+  return base.endsWith('/v1')
+      ? '$base/tools/$tool'
+      : '$base/v1/tools/$tool';
+}
+
 /// 除了本机与内网，一律要求 https。
 ///
 /// 明文 http 会让 API Key 在网络上一路可见，而"从网上抄来的免费中转地址"
@@ -168,6 +186,39 @@ class ModelUsage {
 void logModelUsage(String label, ModelUsage usage) {
   if (!usage.hasData) return;
   debugPrint('[缓存] $label：${usage.summary}');
+}
+
+/// 服务商安全审核拦下时给用户看的文案。
+///
+/// 按 DeepSeek 合规指南的要求：不把服务商的拒答原文直接显示出来，
+/// 换成我们自己写得明白的一句话。
+const String contentRefusalMessage =
+    '这条内容被服务商的安全审核拦下了。换个说法再试一次；'
+    '有些话不适合交给模型替你说，也可以先放一放。';
+
+/// 这一轮是不是被安全审核拒答了。
+///
+/// 认几种常见形状：`message.refusal`、`finish_reason=refusal/content_filter`。
+/// 返回 null 表示正常。
+String? refusalMessage(Map<String, dynamic>? data) {
+  if (data == null) return null;
+  final choices = data['choices'];
+  if (choices is List && choices.isNotEmpty && choices.first is Map) {
+    final first = choices.first as Map;
+    final finish = first['finish_reason'];
+    if (finish == 'refusal' || finish == 'content_filter') {
+      return contentRefusalMessage;
+    }
+    final message = first['message'];
+    if (message is Map) {
+      final refusal = message['refusal'];
+      if (refusal != null &&
+          (refusal is! String || refusal.trim().isNotEmpty)) {
+        return contentRefusalMessage;
+      }
+    }
+  }
+  return null;
 }
 
 /// 从 OpenAI 兼容的响应里取出助手的第一条回复文本。

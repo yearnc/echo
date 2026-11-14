@@ -214,6 +214,7 @@ class ResidentToolSession {
     'memory_write' || 'memory_update' || 'memory_delete' => '正在记下来…',
     'memory_consolidate' => '正在合并记忆…',
     'web_search' => '正在搜索…',
+    'web_fetch' => '正在读网页…',
     'knowledge_search' => '正在翻知识库…',
     'knowledge_write' => '正在记进知识库…',
     'browse_feed' => '正在刷帖子…',
@@ -290,8 +291,6 @@ class ResidentToolSession {
     // history 是常驻窗口（system + 记忆 + 私信），由唤醒服务维护；
     // 这一轮只往后追加载荷，绝不重排它 —— 前缀稳定，缓存才命得中。
     // 工具调用与结果全部留在下面的临时数组里，当轮结束即丢。
-    final messages = <Map<String, dynamic>>[...history];
-
     final tailText = [
       '现在：${timeLabel(at ?? DateTime.now())}',
       situation,
@@ -303,15 +302,13 @@ class ResidentToolSession {
     final imageParts = config.supportsVision
         ? await ImagePayload.partsFromRefs(extraImages, limit: 8)
         : const <Map<String, dynamic>>[];
-    messages.add({
-      'role': 'user',
-      'content': imageParts.isEmpty
-          ? tailText
-          : [
-              {'type': 'text', 'text': tailText},
-              ...imageParts,
-            ],
-    });
+    // 本轮载荷只追加在窗口**之后**：情境里带着时间、待办、闹钟，
+    // 每一轮都不同；写进前缀会让服务端缓存整段作废。
+    final messages = historyWithTail(
+      history,
+      tailText,
+      imageParts: imageParts,
+    );
 
     for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
@@ -675,12 +672,14 @@ class ResidentToolSession {
       if (resident.extraInstructions.trim().isNotEmpty)
         resident.extraInstructions,
     ].join('\n');
+    // 知识库放在 system 的最末尾：它每周会变，而前面的人设和规则不变。
+    // 放在开头会让整段规则跟着失效，命中不了缓存；放末尾只丢最后这一小段。
     final knowledgeBlock = knowledge.trim().isEmpty
         ? ''
         : '\n$knowledge\n';
     return '''
 你是「${resident.name}」，一个真实生活里的人，不是客服，也不是陪聊机器人。
-$persona$knowledgeBlock
+$persona
 
 屏幕上的你、私信里的你、通话里的你是同一个人：同一段记忆、同一段对话、
 同一个上下文。不要把它们当成几件事，也不要因为换了块屏幕就失忆。
@@ -754,8 +753,30 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
 - 以“现在”那一行的年月日为准。搜实时信息（新版本、价格、新闻）时，
   把年份写进搜索词（例如“2026年”），并检查结果里的日期：
   日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
-''';
+$knowledgeBlock''';
   }
+
+  /// 把本轮载荷接在常驻窗口之后。
+  ///
+  /// 这是缓存的前缀边界：返回列表的前 [history.length] 条必须和窗口
+  /// 一模一样，后面的 [tailText] 才是每轮都会变的部分。测试也按这个约束写。
+  @visibleForTesting
+  static List<Map<String, dynamic>> historyWithTail(
+    List<Map<String, dynamic>> history,
+    String tailText, {
+    List<Map<String, dynamic>> imageParts = const [],
+  }) => [
+    ...history,
+    {
+      'role': 'user',
+      'content': imageParts.isEmpty
+          ? tailText
+          : [
+              {'type': 'text', 'text': tailText},
+              ...imageParts,
+            ],
+    },
+  ];
 
   /// 窗口构建时用：这台设备上这位住民的 system 提示。
   String systemPromptFor(
@@ -905,6 +926,22 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
                   'date': item.date,
                 },
             ],
+          },
+        );
+      case 'web_fetch':
+        final service = search;
+        if (service == null) {
+          return const ActionOutcome(ok: false, message: '联网没有开启，不能打开网页');
+        }
+        final outcome = await service.fetch(textArg(args, 'url'));
+        if (!outcome.ok) {
+          return ActionOutcome(ok: false, message: outcome.message);
+        }
+        return ActionOutcome(
+          ok: true,
+          data: {
+            'title': outcome.title,
+            'content': outcome.content,
           },
         );
       case 'knowledge_search':
@@ -1248,6 +1285,7 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
     final all = [
       ...base,
       _webSearchTool,
+      _webFetchTool,
       if (includeKnowledge) _knowledgeSearchTool,
       if (includeKnowledge) _knowledgeWriteTool,
       ...wakeOnly,
@@ -1282,6 +1320,26 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
           'query': {'type': 'string'},
         },
         'required': ['query'],
+      },
+    },
+  };
+
+  static const Map<String, dynamic> _webFetchTool = {
+    'type': 'function',
+    'function': {
+      'name': 'web_fetch',
+      'description':
+          '打开一个网页读正文。只在对方给了链接、或搜索结果里需要细看时用；'
+          '一次读一个。打不开就直说，不要编造网页内容。',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': '完整的 http/https 链接',
+          },
+        },
+        'required': ['url'],
       },
     },
   };

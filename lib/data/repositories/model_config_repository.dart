@@ -72,6 +72,23 @@ class ModelConfigRepository {
     return rows.map(_toDomain).toList(growable: false);
   }
 
+  /// 找一条能用的 DeepSeek 配置（任何用途都行）。
+  ///
+  /// Search / Fetch / OCR / ASR 这些工具接口只需要 DeepSeek 的 Key，
+  /// 不要求它正作为对话模型启用——用户完全可能日常用别的模型。
+  Future<ModelConfig?> firstUsableDeepSeek() async {
+    final all = await findAll();
+    ModelConfig? fallback;
+    for (final config in all) {
+      if (!config.isDeepSeek) continue;
+      if (!config.isComplete) continue;
+      if (!await hasKey(config.id)) continue;
+      if (config.enabled) return config;
+      fallback ??= config;
+    }
+    return fallback;
+  }
+
   Future<ModelConfig?> findById(String id) async {
     final query = _db.select(_db.modelConfigs)..where((t) => t.id.equals(id));
     final row = await query.getSingleOrNull();
@@ -98,6 +115,9 @@ class ModelConfigRepository {
             ttsReferenceDescription: Value(config.ttsReferenceDescription),
             ttsReferenceTranscript: Value(config.ttsReferenceTranscript),
             contextWindow: Value(config.contextWindow),
+            thinkingMode: Value(config.thinkingMode.id),
+            safetyCheck: Value(config.safetyCheck),
+            maxOutputTokens: Value(config.maxOutputTokens),
             enabled: Value(config.enabled),
           ),
         );
@@ -150,6 +170,9 @@ class ModelConfigRepository {
     ttsReferenceDescription: row.ttsReferenceDescription,
     ttsReferenceTranscript: row.ttsReferenceTranscript,
     contextWindow: row.contextWindow,
+    thinkingMode: ThinkingMode.fromId(row.thinkingMode),
+    safetyCheck: row.safetyCheck,
+    maxOutputTokens: row.maxOutputTokens,
     enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

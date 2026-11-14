@@ -170,7 +170,7 @@ class ModelGateway {
       'messages': await _withIdentity(messages),
       'temperature': temperature,
     };
-    if (maxTokens != null) body['max_tokens'] = maxTokens;
+    _applyProviderOptions(config, body, maxTokens);
 
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -185,6 +185,8 @@ class ModelGateway {
           receiveTimeout: timeout,
         ),
       );
+
+      _throwIfRefused(response.data);
 
       // 缓存命中只能从 usage 看出来。没命中和没数据显示上都是"0"，
       // 但这里不编数字：服务商不回 usage，就当不知道。
@@ -201,6 +203,40 @@ class ModelGateway {
     } on DioException catch (error) {
       throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
     }
+  }
+
+  /// 把用户在编辑页选的 DeepSeek 高级参数放进请求体。
+  ///
+  /// 只对 DeepSeek 官方接口发：`reasoning_effort` 和 `safety_check` 是
+  /// DeepSeek 的扩展字段，别的 OpenAI 兼容服务商收到可能直接 400。
+  void _applyProviderOptions(
+    ModelConfig config,
+    Map<String, dynamic> body,
+    int? maxTokens,
+  ) {
+    final effective = _effectiveMaxTokens(config, maxTokens);
+    if (effective != null) body['max_tokens'] = effective;
+    if (!config.isDeepSeek) return;
+    final effort = config.reasoningEffort;
+    if (effort != null) body['reasoning_effort'] = effort;
+    if (config.safetyCheck) {
+      body['safety_check'] = {'level': 'high'};
+    }
+  }
+
+  /// 调用方给了上限就尊重调用方，同时受配置里的总上限约束；
+  /// 调用方没给时，配置里的上限才直接生效。0 表示不限制。
+  static int? _effectiveMaxTokens(ModelConfig config, int? callMax) {
+    final global = config.maxOutputTokens > 0 ? config.maxOutputTokens : null;
+    if (callMax == null) return global;
+    if (global == null) return callMax;
+    return callMax < global ? callMax : global;
+  }
+
+  /// 服务商安全审核拒答时，用它自己的文案替换掉模型输出。
+  static void _throwIfRefused(Map<String, dynamic>? data) {
+    final message = refusalMessage(data);
+    if (message != null) throw ModelCallException(message);
   }
 
   /// 把身份块拼到 system 最前面。
@@ -272,7 +308,7 @@ class ModelGateway {
       'tools': tools,
       'tool_choice': 'auto',
     };
-    if (maxTokens != null) body['max_tokens'] = maxTokens;
+    _applyProviderOptions(config, body, maxTokens);
 
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -288,6 +324,7 @@ class ModelGateway {
         ),
       );
 
+      _throwIfRefused(response.data);
       final usage = ModelUsage.fromBody(response.data);
       logModelUsage('${config.model}（tools）', usage);
       onUsage?.call(usage, config.model);
@@ -376,6 +413,16 @@ class ModelGateway {
     final problem = describeBaseUrlProblem(baseUrl);
     if (problem != null) throw ModelCallException(problem);
 
+    if (config.isDeepSeekTts) {
+      return _speechDeepSeek(
+        config: config,
+        apiKey: apiKey,
+        text: text,
+        voice: voice,
+        timeout: timeout,
+      );
+    }
+
     try {
       final response = await _dio.post<List<int>>(
         '$baseUrl/audio/speech',
@@ -418,6 +465,60 @@ class ModelGateway {
       return Uint8List.fromList(bytes);
     } on DioException catch (error) {
       throw ModelCallException(describeModelError(error, baseUrl: baseUrl));
+    }
+  }
+
+  /// DeepSeek 的语音合成工具接口：`POST /v1/tools/tts`。
+  ///
+  /// 和 OpenAI 兼容的 `/audio/speech` 不一样：没有 model 字段，
+  /// 只有 `stella` / `tide` 两个固定音色，返回 wav（也支持裸 pcm）。
+  Future<Uint8List> _speechDeepSeek({
+    required ModelConfig config,
+    required String apiKey,
+    required String text,
+    required String voice,
+    required Duration timeout,
+  }) async {
+    final voiceId = voice == 'tide' ? 'tide' : 'stella';
+    try {
+      final response = await _dio.post<List<int>>(
+        deepSeekToolsEndpoint(config.baseUrl, 'tts'),
+        data: {
+          'text': text,
+          'voice_id': voiceId,
+          'format': 'wav',
+          'filter_markdown': true,
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          responseType: ResponseType.bytes,
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const ModelCallException('语音服务没有返回音频');
+      }
+      final contentType =
+          response.headers.value(Headers.contentTypeHeader) ?? '';
+      if (contentType.contains('json')) {
+        final raw = String.fromCharCodes(bytes.take(160));
+        throw ModelCallException('语音服务返回了错误：$raw');
+      }
+      return Uint8List.fromList(bytes);
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status == 400) {
+        throw const ModelCallException('这句被语音服务的安全审核拦下了，换个说法再试');
+      }
+      throw ModelCallException(
+        describeModelError(error, baseUrl: config.baseUrl),
+      );
     }
   }
 

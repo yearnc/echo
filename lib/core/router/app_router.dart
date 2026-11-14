@@ -89,6 +89,14 @@ class RoutePaths {
   static String residentWakeLog(String residentId) =>
       '/custom-residents/logs/$residentId';
 
+  /// 某位固定住民的早期日志（日志页的二级页）。
+  static String residentWakeHistory(String residentId) =>
+      '/custom-residents/logs/$residentId/history';
+
+  /// 某位固定住民的全部睡眠记录（日志页睡眠卡的二级页）。
+  static String residentSleepHistory(String residentId) =>
+      '/custom-residents/logs/$residentId/sleeps';
+
   /// 固定住民的睡眠页（v50）。
   static const String residentSleep = '/custom-residents/sleep';
 
@@ -257,6 +265,20 @@ final appRouter = GoRouter(
       path: '/custom-residents/logs/:id',
       builder: (context, state) =>
           ResidentWakeLogPage(residentId: state.pathParameters['id'] ?? ''),
+      routes: [
+        GoRoute(
+          path: 'history',
+          builder: (context, state) => ResidentWakeHistoryPage(
+            residentId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        GoRoute(
+          path: 'sleeps',
+          builder: (context, state) => ResidentSleepHistoryPage(
+            residentId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+      ],
     ),
     GoRoute(
       path: '/custom-residents/context/:id',

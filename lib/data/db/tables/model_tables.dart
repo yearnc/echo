@@ -53,6 +53,17 @@ class ModelConfigs extends Table {
   IntColumn get contextWindow =>
       integer().withDefault(const Constant(1000000))();
 
+  /// DeepSeek 思考强度（v52）：auto / off / low / high / max。
+  /// 只有 DeepSeek 官方接口会收到这个参数；其他服务商不发送。
+  TextColumn get thinkingMode =>
+      text().withDefault(const Constant('auto'))();
+
+  /// DeepSeek 内容安全审核（v52）。开 = `safety_check.level=high`。
+  BoolColumn get safetyCheck => boolean().withDefault(const Constant(true))();
+
+  /// 单次输出上限（token，v52）。0 = 不额外限制。
+  IntColumn get maxOutputTokens => integer().withDefault(const Constant(0))();
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 

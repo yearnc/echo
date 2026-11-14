@@ -25,6 +25,7 @@ import '../models/pet_observation.dart';
 import '../models/post.dart';
 import '../models/post_voice.dart';
 import '../models/private_message.dart';
+import '../models/resident_alarm.dart';
 import '../models/resident_inbox.dart';
 import '../models/resident_sleep.dart';
 import '../models/resident_wake_log.dart';
@@ -695,6 +696,12 @@ class ResidentWakeService {
       // 把它自己最近做过的事告诉它——这是信息，不是决定。
       // 要不要记进记忆、要不要接着说，由它自己判断。
       final ownActivity = await _recentOwnActivity(residentId);
+      // 让它每一轮都知道自己还定着哪些闹钟。否则模型只能靠 list_alarms
+      // 想起来，忘了就会在相近的时间再定一个。
+      final upcomingAlarms =
+          trigger == WakeTrigger.maintenance || trigger == WakeTrigger.sleep
+          ? const <ResidentAlarm>[]
+          : await alarms.pending(residentId, now: now);
       final gameTools = await games.mcpToolSchemas();
       final said = await session.act(
         resident: resident,
@@ -706,6 +713,7 @@ class ResidentWakeService {
           ownActivity: ownActivity,
           unsent: unsent,
           lastNote: lastNote,
+          upcomingAlarms: upcomingAlarms,
           alarmReason: _alarmReason.remove(residentId) ?? '',
           petNote: pet?.note ?? '',
           petRealtime: pet?.realtime ?? false,
@@ -805,6 +813,7 @@ class ResidentWakeService {
     String ownActivity = '',
     List<PendingSegment> unsent = const [],
     ResidentWakeLog? lastNote,
+    List<ResidentAlarm> upcomingAlarms = const [],
     String alarmReason = '',
     String petNote = '',
     bool petRealtime = false,
@@ -905,6 +914,19 @@ class ResidentWakeService {
         '另外，你给自己定的闹钟刚好也响了；'
             '定的时候你写的是：${alarmReason.trim()}。',
     ];
+    if (upcomingAlarms.isNotEmpty) {
+      final buffer = StringBuffer('你已经定了这些还没响的闹钟：\n');
+      for (final alarm in upcomingAlarms) {
+        buffer.write(
+          '- ${ResidentToolSession.timeLabel(alarm.fireAt)}'
+          '${alarm.reason.trim().isEmpty ? '' : '（${alarm.reason.trim()}）'}\n',
+        );
+      }
+      buffer.write(
+        '不用重复定同一个时段；想改时间就再调用 set_alarm，想取消用 cancel_alarm。',
+      );
+      parts.add(buffer.toString().trimRight());
+    }
     if (petNote.trim().isNotEmpty) {
       parts.add(
         '${petRealtime ? '这几秒一直看着屏幕，' : '刚才看了一眼屏幕，'}'
@@ -1452,12 +1474,12 @@ class _WakeToolkit implements ResidentWakeToolkit {
       wakeId,
       callId,
       _dmSegments,
-      // 用户刚发来消息——他就在屏幕前等着。3 秒起步、每多一段再加 6 秒，
-      // 像真人打一行字，又不会让人以为界面卡住了。
+      // 用户刚发来消息——他就在屏幕前等着。3 秒起步、每多一段再加 3 秒
+      // （3/6/9），像真人打一行字，又不会让人等太久。
       const Duration(seconds: 3),
       pending,
       _repliedDm,
-      6,
+      3,
     );
     if (outcome.ok) {
       _dmSegments++;
@@ -1488,7 +1510,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
       const Duration(seconds: 3),
       pending,
       _repliedDm,
-      6,
+      3,
       asVoice: true,
     );
     if (outcome.ok) {
@@ -1519,7 +1541,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     }
 
     final at = DateTime.now().add(
-      const Duration(seconds: 3) + Duration(seconds: 6 * _dmSegments),
+      const Duration(seconds: 3) + Duration(seconds: 3 * _dmSegments),
     );
     final outcome = await service.actions.sendStickerMessage(
       residentId: resident.id,
@@ -1844,6 +1866,46 @@ class _WakeToolkit implements ResidentWakeToolkit {
       );
     }
     final pending = await service.alarms.pending(resident.id, now: now);
+
+    // 同一时段只留一个闹钟。模型有时会忘记自己刚定过，隔一轮又定一个
+    // 相同或相近的时间；与其拦回去让它重试，不如把已有那条改到新时间。
+    ResidentAlarm? near;
+    for (final alarm in pending) {
+      if (alarm.fireAt.difference(fireAt).abs() <=
+          ResidentAlarmRepository.dedupeWindow) {
+        near = alarm;
+        break;
+      }
+    }
+    if (near != null) {
+      final text = reason.trim();
+      await service.alarms.reschedule(
+        id: near.id,
+        residentId: resident.id,
+        fireAt: fireAt,
+        reason: text.isEmpty ? null : text,
+      );
+      // 顺手把同一窗口里的其他重复项取消，别让它们各响一次。
+      for (final alarm in pending) {
+        if (alarm.id == near.id) continue;
+        if (alarm.fireAt.difference(fireAt).abs() <=
+            ResidentAlarmRepository.dedupeWindow) {
+          await service.alarms.cancel(alarm.id, resident.id);
+        }
+      }
+      return ActionOutcome(
+        ok: true,
+        message:
+            '你在附近已经定过闹钟了，这次没有再加一个，'
+            '而是把它改到了 ${ResidentToolSession.timeLabel(fireAt)}。',
+        data: {
+          'alarm_id': near.id,
+          'fire_at': ResidentToolSession.timeLabel(fireAt),
+          'deduped': true,
+        },
+      );
+    }
+
     if (pending.length >= ResidentAlarmRepository.maxPending) {
       return ActionOutcome(
         ok: false,

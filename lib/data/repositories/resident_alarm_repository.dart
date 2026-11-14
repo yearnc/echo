@@ -20,6 +20,9 @@ class ResidentAlarmRepository {
   /// 一位住民同时最多留几个未到点闹钟。
   static const int maxPending = 5;
 
+  /// 两次定闹钟的时间差在这个窗口内，算“同一个闹钟”，合并而不是重复添加。
+  static const Duration dedupeWindow = Duration(minutes: 10);
+
   /// 最短 / 最长：太短会在同一分钟里反复醒，太长就不像“定个闹钟”了。
   static const Duration minLead = Duration(minutes: 5);
   static const Duration maxLead = Duration(days: 30);
@@ -129,6 +132,30 @@ class ResidentAlarmRepository {
             .write(
               ResidentAlarmsCompanion(
                 firedAt: Value(now.millisecondsSinceEpoch),
+              ),
+            );
+    return affected > 0;
+  }
+
+  /// 改一个还没响的闹钟的时间（重复定同一时段时用它合并，不再新增一条）。
+  Future<bool> reschedule({
+    required String id,
+    required String residentId,
+    required DateTime fireAt,
+    String? reason,
+  }) async {
+    final affected =
+        await (_db.update(_db.residentAlarms)..where(
+              (t) =>
+                  t.id.equals(id) &
+                  t.residentId.equals(residentId) &
+                  t.firedAt.isNull() &
+                  t.cancelledAt.isNull(),
+            ))
+            .write(
+              ResidentAlarmsCompanion(
+                fireAt: Value(fireAt.millisecondsSinceEpoch),
+                reason: reason == null ? const Value.absent() : Value(reason),
               ),
             );
     return affected > 0;

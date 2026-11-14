@@ -68,7 +68,7 @@ class ResidentSleepRepository {
 
   Stream<List<ResidentSleepPeriod>> watchPeriodsFor(
     String residentId, {
-    int limit = 30,
+    int limit = 100,
   }) {
     final query = _db.select(_db.residentSleepPeriods)
       ..where((t) => t.residentId.equals(residentId))

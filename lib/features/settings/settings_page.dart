@@ -6,8 +6,10 @@ import '../../core/constants/app_texts.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/services/appearance_controller.dart';
+import '../../domain/services/asr_service.dart';
 import '../../domain/services/community_settings_controller.dart';
 import '../../domain/services/mode_controller.dart';
+import '../../domain/services/ocr_service.dart';
 import '../../domain/services/pet_native.dart';
 import '../../domain/services/tool_settings_controller.dart';
 import '../../domain/services/web_search.dart';
@@ -31,10 +33,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 系统有没有把本应用放进电池优化白名单。null = 还在查。
   bool? _ignoringBattery;
 
+  /// 语音识别是否允许走云端兜底。null = 还在读。
+  bool? _cloudAsr;
+
+  /// 没配视觉模型时，是否允许用 OCR 读图里的字。null = 还在读。
+  bool? _ocrEnabled;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshBattery());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshBattery();
+      _loadCloudAsr();
+      _loadOcr();
+    });
+  }
+
+  Future<void> _loadOcr() async {
+    final enabled = await ref.read(ocrServiceProvider).enabled();
+    if (mounted) setState(() => _ocrEnabled = enabled);
+  }
+
+  Future<void> _setOcr(bool value) async {
+    setState(() => _ocrEnabled = value);
+    await ref.read(ocrServiceProvider).setEnabled(value);
+  }
+
+  Future<void> _loadCloudAsr() async {
+    final enabled = await ref.read(asrServiceProvider).cloudEnabled();
+    if (mounted) setState(() => _cloudAsr = enabled);
+  }
+
+  Future<void> _setCloudAsr(bool value) async {
+    setState(() => _cloudAsr = value);
+    await ref.read(asrServiceProvider).setCloudEnabled(value);
   }
 
   Future<void> _refreshBattery() async {
@@ -249,6 +281,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 title: '联网搜索',
                 subtitle: '默认关闭；开启后住民能查实时信息',
                 onTap: () => _pickSearchProvider(context, ref),
+              ),
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.cloud_outlined,
+                title: '语音识别用云端',
+                subtitle: '默认关闭；本机模型缺失或识别失败时，把录音发给 DeepSeek（按秒计费）',
+                value: _cloudAsr ?? false,
+                onChanged: _setCloudAsr,
+              ),
+              _SwitchRow(
+                isEcho: isEcho,
+                icon: Icons.document_scanner_outlined,
+                title: '图片文字识别（OCR）',
+                subtitle: '默认关闭；没配图片理解模型时，把图片发给 DeepSeek 读出文字（按页计费）',
+                value: _ocrEnabled ?? false,
+                onChanged: _setOcr,
               ),
             ],
           ),

@@ -87,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 52;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1066,6 +1066,21 @@ class AppDatabase extends _$AppDatabase {
         }
         if (!await hasTable('knowledge_targets')) {
           await m.createTable(knowledgeTargets);
+        }
+      }
+      if (from < 52) {
+        // v52：DeepSeek 的高级参数（思考强度 / 内容安全审核 / 输出上限）。
+        // 只加列，老配置保持默认：不传思考参数、安全审核默认开。
+        if (await hasTable('model_configs')) {
+          if (!await hasColumn('model_configs', 'thinking_mode')) {
+            await m.addColumn(modelConfigs, modelConfigs.thinkingMode);
+          }
+          if (!await hasColumn('model_configs', 'safety_check')) {
+            await m.addColumn(modelConfigs, modelConfigs.safetyCheck);
+          }
+          if (!await hasColumn('model_configs', 'max_output_tokens')) {
+            await m.addColumn(modelConfigs, modelConfigs.maxOutputTokens);
+          }
         }
       }
     },

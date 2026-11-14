@@ -22,6 +22,11 @@ enum ResidentVoiceMode {
     'reference_transcript',
     '参考音频 + 转录文本',
     '上传音频并逐字填上里面说的话，克隆最准',
+  ),
+  cloudFixed(
+    'cloud_fixed',
+    '云端固定音色',
+    '用云端 TTS 提供的固定音色，例如 DeepSeek 的 stella / tide',
   );
 
   const ResidentVoiceMode(this.key, this.label, this.hint);

@@ -25,6 +25,21 @@ class WebSearchResult {
   final String date;
 }
 
+/// 打开一个网页的结果（DeepSeek Fetch）。
+class WebFetchOutcome {
+  const WebFetchOutcome({
+    required this.ok,
+    this.title = '',
+    this.content = '',
+    this.message = '',
+  });
+
+  final bool ok;
+  final String title;
+  final String content;
+  final String message;
+}
+
 class WebSearchOutcome {
   const WebSearchOutcome({
     required this.ok,
@@ -205,6 +220,90 @@ class WebSearchService {
     }
   }
 
+  /// 打开一个网页：`POST /v1/tools/fetch`，返回 Markdown 正文。
+  ///
+  /// 只允许 http/https；带用户名密码的 URL 直接拒绝（那是把凭据塞进地址里）。
+  /// 正文截到 [maxFetchChars]：工具结果要回到模型上下文，整本网页塞进去
+  /// 既贵又容易把窗口撑爆。
+  Future<WebFetchOutcome> fetch(String url) async {
+    final which = await provider();
+    if (which != providerDeepseek) {
+      return const WebFetchOutcome(
+        ok: false,
+        message: '打开网页要把联网搜索设为 DeepSeek（Fetch 只有 DeepSeek 提供）',
+      );
+    }
+    final text = url.trim();
+    final uri = Uri.tryParse(text);
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
+      return const WebFetchOutcome(
+        ok: false,
+        message: '这个链接看不懂，要完整的 http/https 地址',
+      );
+    }
+    if (uri.userInfo.isNotEmpty) {
+      return const WebFetchOutcome(ok: false, message: '链接里不要带用户名或密码');
+    }
+
+    final config = await configs.firstUsableDeepSeek();
+    if (config == null) {
+      return const WebFetchOutcome(
+        ok: false,
+        message: '打开网页要用 DeepSeek 的 Key，但模型配置里没有可用的 DeepSeek 配置',
+      );
+    }
+    final key = (await configs.readKey(config.id))?.trim() ?? '';
+    if (key.isEmpty) {
+      return const WebFetchOutcome(ok: false, message: 'DeepSeek 的密钥是空的');
+    }
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        deepSeekToolsEndpoint(config.baseUrl, 'fetch'),
+        data: {'url': text},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $key',
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
+      final payload = response.data ?? const <String, dynamic>{};
+      final title = payload['title'];
+      final content = payload['content'];
+      if (content is! String || content.trim().isEmpty) {
+        return const WebFetchOutcome(
+          ok: false,
+          message: '这个页面没读到正文（可能打不开、被站点拦了，或不是网页）',
+        );
+      }
+      final body = content.trim();
+      return WebFetchOutcome(
+        ok: true,
+        title: title is String ? title.trim() : '',
+        content: body.length > maxFetchChars
+            ? '${body.substring(0, maxFetchChars)}\n……（正文太长，后面截掉了）'
+            : body,
+      );
+    } on DioException catch (error) {
+      debugPrint('[读网页] 失败：${error.message}');
+      return WebFetchOutcome(
+        ok: false,
+        message: describeModelError(error, baseUrl: config.baseUrl),
+      );
+    } catch (error) {
+      debugPrint('[读网页] 失败：$error');
+      return WebFetchOutcome(ok: false, message: '$error');
+    }
+  }
+
+  /// 交给模型的正文最多这么长。再长就截断并明确告诉它“后面没读”。
+  static const int maxFetchChars = 8000;
+
   /// DeepSeek 官方工具 API：`POST /v1/tools/search`。
   ///
   /// 它和对话模型是两回事，所以这里只找一条启用的 DeepSeek 配置来取 Key 与
@@ -213,19 +312,7 @@ class WebSearchService {
     // DeepSeek 搜索 API 和对话模型是两回事：它只需要这个服务商的 Key。
     // 所以这里**不要求那条配置处于启用状态**——用户完全可能日常用别的模型对话，
     // 但在模型配置里留了一条 DeepSeek 专门给搜索用。
-    ModelConfig? config;
-    ModelConfig? fallback;
-    for (final item in await configs.findAll()) {
-      if (item.provider != 'deepseek') continue;
-      if (!item.isComplete) continue;
-      if (!await configs.hasKey(item.id)) continue;
-      if (item.enabled) {
-        config = item;
-        break;
-      }
-      fallback ??= item;
-    }
-    config ??= fallback;
+    final config = await configs.firstUsableDeepSeek();
     if (config == null) {
       return const WebSearchOutcome(
         ok: false,
@@ -245,7 +332,7 @@ class WebSearchService {
 
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        _toolsEndpoint(config.baseUrl),
+        deepSeekToolsEndpoint(config.baseUrl, 'search'),
         data: {
           'query': text,
           'count': 8,
@@ -315,22 +402,6 @@ class WebSearchService {
         message: '$error',
       );
     }
-  }
-
-  /// 配置里可能写 `https://api.deepseek.com`、带 `/v1`，甚至带完整
-  /// `/chat/completions`。统一收成工具 API 的地址。
-  static String _toolsEndpoint(String raw) {
-    var base = normalizeBaseUrl(raw);
-    while (base.endsWith('/')) {
-      base = base.substring(0, base.length - 1);
-    }
-    const suffix = '/chat/completions';
-    if (base.endsWith(suffix)) {
-      base = base.substring(0, base.length - suffix.length);
-    }
-    return base.endsWith('/v1')
-        ? '$base/tools/search'
-        : '$base/v1/tools/search';
   }
 
   /// 两家把来源放在不同位置（`search_result` / `search_info.search_results`），

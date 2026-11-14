@@ -38,6 +38,7 @@ class ResidentWakeLog {
     'memory_write' || 'memory_update' || 'memory_delete' => '记事情',
     'memory_consolidate' => '合并记忆',
     'web_search' => '联网搜索',
+    'web_fetch' => '读网页',
     'browse_feed' => '刷帖子',
     'read_post' => '看帖子',
     'like_post' => '点赞',

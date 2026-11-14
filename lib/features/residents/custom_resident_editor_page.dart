@@ -414,6 +414,25 @@ class _CustomResidentEditorPageState
             // 本机 ZipVoice 不需要预先注册。
             voiceRef = 'local:zipvoice';
           }
+        case ResidentVoiceMode.cloudFixed:
+          final voices =
+              (await ref.read(cloudTtsConfigProvider.future))
+                  ?.fixedTtsVoices ??
+              const <String>[];
+          if (voiceRef.startsWith('cloud:') &&
+              voices.contains(voiceRef.substring(6))) {
+            break;
+          }
+          if (voices.isEmpty) {
+            if (mounted) {
+              setState(() {
+                _saving = false;
+                _voiceStatus = '还没有配置支持固定音色的云端语音服务';
+              });
+            }
+            return;
+          }
+          voiceRef = 'cloud:${voices.first}';
         case ResidentVoiceMode.referenceOnly:
         case ResidentVoiceMode.referenceDescription:
           if (mounted) {
@@ -498,6 +517,12 @@ class _CustomResidentEditorPageState
       ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
     }
   }
+
+  static String _cloudVoiceLabel(String voice) => switch (voice) {
+    'stella' => 'stella · 女声',
+    'tide' => 'tide · 男声',
+    _ => voice,
+  };
 
   String _voiceLabel(String ref) {
     if (ref == 'local:zipvoice') return '本机克隆音色（ZipVoice）';
@@ -671,6 +696,36 @@ class _CustomResidentEditorPageState
                           child: Text(
                             '选定后保存，这位住民以后就用这个声线；'
                             '评论区和私信是同一个声音。',
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                              fontSize: 11.5,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (mode == ResidentVoiceMode.cloudFixed) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (final voice
+                                in cloudTts?.fixedTtsVoices ?? const <String>[])
+                              ChoiceChip(
+                                label: Text(_cloudVoiceLabel(voice)),
+                                selected: _voiceRef == 'cloud:$voice',
+                                onSelected: (_) => setState(() {
+                                  _voiceRef = 'cloud:$voice';
+                                  _voiceStatus = null;
+                                }),
+                              ),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 10),
+                          child: Text(
+                            '这是云端 TTS 自带的固定音色，不能调语速和语气；'
+                            '评论区和私信会用同一把嗓子。',
                             style: TextStyle(
                               color: Theme.of(context).hintColor,
                               fontSize: 11.5,

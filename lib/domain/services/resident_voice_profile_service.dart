@@ -50,6 +50,7 @@ class ResidentVoiceProfileService {
       // 本机 ZipVoice 已经随包内置，所以这一项不依赖云端。
       ResidentVoiceMode.referenceTranscript,
       if (config != null) ...[
+        if (config.fixedTtsVoices.isNotEmpty) ResidentVoiceMode.cloudFixed,
         if (config.ttsVoiceDescription) ResidentVoiceMode.cloudDescription,
         if (config.ttsReferenceOnly) ResidentVoiceMode.referenceOnly,
         if (config.ttsReferenceDescription)
@@ -97,6 +98,13 @@ class ResidentVoiceProfileService {
         throw StateError('当前语音服务不支持“只给参考音频”');
       case ResidentVoiceMode.referenceDescription:
         throw StateError('当前语音服务不支持“参考音频 + 文字描述”');
+      case ResidentVoiceMode.cloudFixed:
+        final ref = resident.voiceRef.trim();
+        if (ref.startsWith('cloud:')) return ref;
+        final config = await activeTts();
+        final voices = config?.fixedTtsVoices ?? const <String>[];
+        if (voices.isEmpty) throw StateError('还没有配置云端固定音色的语音服务');
+        return 'cloud:${voices.first}';
     }
   }
 
@@ -137,6 +145,9 @@ class ResidentVoiceProfileService {
   static String _pickCloudVoice(String description, String baseUrl) {
     final female = !_soundsMale(description);
     final slow = description.contains('慢') || description.contains('慵懒');
+    if (baseUrl.contains('api.deepseek.com')) {
+      return female ? 'stella' : 'tide';
+    }
     if (baseUrl.contains('siliconflow')) {
       if (female) return slow ? 'bella' : 'anna';
       return slow ? 'benjamin' : 'alex';

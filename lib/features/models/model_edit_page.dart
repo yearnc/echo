@@ -33,6 +33,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     text: '${ModelConfig.defaultContextWindow}',
   );
   final TextEditingController _keyCtrl = TextEditingController();
+  final TextEditingController _maxOutputCtrl = TextEditingController();
 
   ModelConfig? _config;
   String _provider = 'custom';
@@ -48,7 +49,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   bool _ttsReferenceOnly = false;
   bool _ttsReferenceDescription = false;
   bool _ttsReferenceTranscript = false;
+  ThinkingMode _thinkingMode = ThinkingMode.auto;
+  bool _safetyCheck = true;
   ProbeResult? _probe;
+
+  bool get _isDeepSeek =>
+      _provider == 'deepseek' ||
+      _baseUrlCtrl.text.trim().contains('api.deepseek.com');
 
   /// 进页面时的表单快照。当前值和它不一致，就说明有没保存的改动。
   /// 用快照比较而不是"碰一下就置脏"，是为了不误报——
@@ -67,6 +74,9 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _ttsReferenceOnly ? '1' : '0',
     _ttsReferenceDescription ? '1' : '0',
     _ttsReferenceTranscript ? '1' : '0',
+    _thinkingMode.id,
+    _safetyCheck ? '1' : '0',
+    _maxOutputCtrl.text.trim(),
   ].join('|');
 
   bool get _dirty =>
@@ -86,6 +96,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     _modelCtrl.dispose();
     _contextWindowCtrl.dispose();
     _keyCtrl.dispose();
+    _maxOutputCtrl.dispose();
     super.dispose();
   }
 
@@ -128,6 +139,11 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _ttsReferenceOnly = config?.ttsReferenceOnly ?? false;
       _ttsReferenceDescription = config?.ttsReferenceDescription ?? false;
       _ttsReferenceTranscript = config?.ttsReferenceTranscript ?? false;
+      _thinkingMode = config?.thinkingMode ?? ThinkingMode.auto;
+      _safetyCheck = config?.safetyCheck ?? true;
+      _maxOutputCtrl.text = (config?.maxOutputTokens ?? 0) > 0
+          ? '${config!.maxOutputTokens}'
+          : '';
       _hasSavedKey = hasKey;
       _loading = false;
       _initialSnapshot = _snapshot;
@@ -265,6 +281,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _snack('上下文窗口请填 8,000—4,000,000 之间的整数');
       return;
     }
+    final maxOutputText = _maxOutputCtrl.text.trim();
+    final maxOutputTokens =
+        maxOutputText.isEmpty ? 0 : int.tryParse(maxOutputText) ?? -1;
+    if (maxOutputTokens < 0 || maxOutputTokens > 393216) {
+      _snack('输出上限请留空（不限制），或填 1—393,216 之间的整数');
+      return;
+    }
 
     setState(() => _saving = true);
     final repo = ref.read(modelConfigRepositoryProvider);
@@ -294,6 +317,9 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       ttsReferenceDescription: _ttsReferenceDescription,
       ttsReferenceTranscript: _ttsReferenceTranscript,
       contextWindow: contextWindow,
+      thinkingMode: _thinkingMode,
+      safetyCheck: _safetyCheck,
+      maxOutputTokens: maxOutputTokens,
     );
 
     await repo.save(saved);
@@ -626,6 +652,59 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                   helperText: '默认按 100 万算；服务商更小就填实际值，摘要阈值按它走',
                 ),
               ),
+              if (_isDeepSeek) ...[
+                const SizedBox(height: 20),
+                const _Label('DeepSeek 高级参数'),
+                Text(
+                  '思考越强越慢、越费 token；内容安全审核按 DeepSeek 合规指南'
+                  '默认开启。这些参数只发给 DeepSeek 官方接口。',
+                  style: TextStyle(
+                    color: EchoColors.textFaint,
+                    fontSize: 11.5,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '思考强度',
+                  style: TextStyle(color: EchoColors.textMuted, fontSize: 12.5),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final mode in ThinkingMode.values)
+                      _PresetChip(
+                        label: mode.label,
+                        selected: _thinkingMode == mode,
+                        onTap: () => setState(() => _thinkingMode = mode),
+                      ),
+                  ],
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('内容安全审核'),
+                  subtitle: const Text(
+                    '请求里带 safety_check: high；开启后温度等采样参数不生效，'
+                    '被拦下时显示我们自己的提示',
+                  ),
+                  value: _safetyCheck,
+                  onChanged: (value) => setState(() => _safetyCheck = value),
+                ),
+                const SizedBox(height: 6),
+                const _Label('单次输出上限（token）'),
+                TextField(
+                  controller: _maxOutputCtrl,
+                  onChanged: (_) => setState(() {}),
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: EchoColors.text, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: '留空 = 不额外限制',
+                    helperText: '各功能自己的上限仍然生效；这里只是再收一道口',
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 18),
             _Label(_hasSavedKey ? 'API Key（已存，留空则不修改）' : 'API Key'),

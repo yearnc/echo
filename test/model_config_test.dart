@@ -85,6 +85,34 @@ void main() {
       }
     });
 
+    test('DeepSeek 语音合成预设与它的两个固定音色', () {
+      final presets = ModelConfig.presetsOf(ModelKind.tts);
+      final deepseek = presets.firstWhere((p) => p.id == 'deepseek-tts');
+      expect(deepseek.baseUrl, 'https://api.deepseek.com');
+
+      const config = ModelConfig(
+        id: 'tts',
+        provider: 'deepseek-tts',
+        label: 'DeepSeek',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-tts',
+        kind: ModelKind.tts,
+      );
+      expect(config.isDeepSeekTts, isTrue);
+      expect(config.fixedTtsVoices, ['stella', 'tide']);
+
+      const custom = ModelConfig(
+        id: 'tts2',
+        provider: 'custom',
+        label: 'x',
+        baseUrl: 'https://example.com/v1',
+        model: 'm',
+        kind: ModelKind.tts,
+      );
+      expect(custom.isDeepSeekTts, isFalse);
+      expect(custom.fixedTtsVoices, isEmpty);
+    });
+
     test('语音合成是独立用途，预设在语音分组里', () {
       expect(ModelKind.fromId('tts'), ModelKind.tts);
       expect(ModelKind.fromId('不认识'), ModelKind.chat);
@@ -112,6 +140,42 @@ void main() {
         kind: ModelKind.tts,
       );
       expect(silicon.ttsReferenceTranscript, isTrue);
+    });
+
+    test('DeepSeek 思考强度映射：auto 不传，关闭用 none', () {
+      ModelConfig withMode(ThinkingMode mode) => ModelConfig(
+        id: 'a',
+        provider: 'deepseek',
+        label: 'x',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        thinkingMode: mode,
+      );
+
+      expect(withMode(ThinkingMode.auto).reasoningEffort, isNull);
+      expect(withMode(ThinkingMode.off).reasoningEffort, 'none');
+      expect(withMode(ThinkingMode.low).reasoningEffort, 'low');
+      expect(withMode(ThinkingMode.high).reasoningEffort, 'high');
+      expect(withMode(ThinkingMode.max).reasoningEffort, 'max');
+    });
+
+    test('只有 DeepSeek 官方地址才发扩展参数', () {
+      const deepseek = ModelConfig(
+        id: 'a',
+        provider: 'deepseek',
+        label: 'x',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+      );
+      const custom = ModelConfig(
+        id: 'b',
+        provider: 'custom',
+        label: 'x',
+        baseUrl: 'https://example.com/v1',
+        model: 'm',
+      );
+      expect(deepseek.isDeepSeek, isTrue);
+      expect(custom.isDeepSeek, isFalse);
     });
 
     test('地址和模型名都填了才算完整', () {
@@ -144,6 +208,47 @@ void main() {
     });
   });
 
+  group('安全审核拒答', () {
+    test('message.refusal 会被认出来并换成我们自己的文案', () {
+      final body = {
+        'choices': [
+          {
+            'message': {'role': 'assistant', 'content': null, 'refusal': '不行'},
+            'finish_reason': 'stop',
+          },
+        ],
+      };
+      expect(refusalMessage(body), contentRefusalMessage);
+    });
+
+    test('finish_reason 为 refusal / content_filter 也算', () {
+      for (final reason in ['refusal', 'content_filter']) {
+        expect(
+          refusalMessage({
+            'choices': [
+              {'message': {'content': '半截话'}, 'finish_reason': reason},
+            ],
+          }),
+          contentRefusalMessage,
+        );
+      }
+    });
+
+    test('正常回复不误判', () {
+      expect(
+        refusalMessage({
+          'choices': [
+            {
+              'message': {'content': '正常回答'},
+              'finish_reason': 'stop',
+            },
+          ],
+        }),
+        isNull,
+      );
+    });
+  });
+
   group('ModelConfigRepository', () {
     late AppDatabase db;
     late ModelConfigRepository repo;
@@ -171,6 +276,39 @@ void main() {
       expect(loaded!.model, 'deepseek-chat');
       expect(loaded.enabled, isFalse, reason: '新建的配置默认不启用');
       expect(loaded.contextWindow, 1000000, reason: '默认按百万上下文');
+    });
+
+    test('DeepSeek 高级参数能存能读，老配置默认安全审核开', () async {
+      const config = ModelConfig(
+        id: 'm3',
+        provider: 'deepseek',
+        label: 'DeepSeek',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        thinkingMode: ThinkingMode.low,
+        safetyCheck: false,
+        maxOutputTokens: 4096,
+      );
+      await repo.save(config);
+      final loaded = await repo.findById('m3');
+      expect(loaded!.thinkingMode, ThinkingMode.low);
+      expect(loaded.safetyCheck, isFalse);
+      expect(loaded.maxOutputTokens, 4096);
+
+      // 没显式设置过的配置保持默认：不传思考参数、审核开。
+      await repo.save(
+        const ModelConfig(
+          id: 'm4',
+          provider: 'custom',
+          label: 'C',
+          baseUrl: 'https://c/v1',
+          model: 'm',
+        ),
+      );
+      final plain = await repo.findById('m4');
+      expect(plain!.thinkingMode, ThinkingMode.auto);
+      expect(plain.safetyCheck, isTrue);
+      expect(plain.maxOutputTokens, 0);
     });
 
     test('上下文窗口可以按服务商改小并读回来', () async {

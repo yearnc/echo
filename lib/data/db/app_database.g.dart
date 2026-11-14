@@ -10748,6 +10748,45 @@ class $ModelConfigsTable extends ModelConfigs
     requiredDuringInsert: false,
     defaultValue: const Constant(1000000),
   );
+  static const VerificationMeta _thinkingModeMeta = const VerificationMeta(
+    'thinkingMode',
+  );
+  @override
+  late final GeneratedColumn<String> thinkingMode = GeneratedColumn<String>(
+    'thinking_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('auto'),
+  );
+  static const VerificationMeta _safetyCheckMeta = const VerificationMeta(
+    'safetyCheck',
+  );
+  @override
+  late final GeneratedColumn<bool> safetyCheck = GeneratedColumn<bool>(
+    'safety_check',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("safety_check" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _maxOutputTokensMeta = const VerificationMeta(
+    'maxOutputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> maxOutputTokens = GeneratedColumn<int>(
+    'max_output_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -10799,6 +10838,9 @@ class $ModelConfigsTable extends ModelConfigs
     ttsReferenceDescription,
     ttsReferenceTranscript,
     contextWindow,
+    thinkingMode,
+    safetyCheck,
+    maxOutputTokens,
     enabled,
     createdAt,
     updatedAt,
@@ -10912,6 +10954,33 @@ class $ModelConfigsTable extends ModelConfigs
         ),
       );
     }
+    if (data.containsKey('thinking_mode')) {
+      context.handle(
+        _thinkingModeMeta,
+        thinkingMode.isAcceptableOrUnknown(
+          data['thinking_mode']!,
+          _thinkingModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('safety_check')) {
+      context.handle(
+        _safetyCheckMeta,
+        safetyCheck.isAcceptableOrUnknown(
+          data['safety_check']!,
+          _safetyCheckMeta,
+        ),
+      );
+    }
+    if (data.containsKey('max_output_tokens')) {
+      context.handle(
+        _maxOutputTokensMeta,
+        maxOutputTokens.isAcceptableOrUnknown(
+          data['max_output_tokens']!,
+          _maxOutputTokensMeta,
+        ),
+      );
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -10991,6 +11060,18 @@ class $ModelConfigsTable extends ModelConfigs
         DriftSqlType.int,
         data['${effectivePrefix}context_window'],
       )!,
+      thinkingMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thinking_mode'],
+      )!,
+      safetyCheck: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}safety_check'],
+      )!,
+      maxOutputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_output_tokens'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -11049,6 +11130,16 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
   /// 服务商更小时由用户在编辑页自己填，时间线的摘要阈值按它算。
   final int contextWindow;
 
+  /// DeepSeek 思考强度（v52）：auto / off / low / high / max。
+  /// 只有 DeepSeek 官方接口会收到这个参数；其他服务商不发送。
+  final String thinkingMode;
+
+  /// DeepSeek 内容安全审核（v52）。开 = `safety_check.level=high`。
+  final bool safetyCheck;
+
+  /// 单次输出上限（token，v52）。0 = 不额外限制。
+  final int maxOutputTokens;
+
   /// 当前启用中的那一条为 true（**同一用途**里只允许一条）
   final bool enabled;
   final int createdAt;
@@ -11066,6 +11157,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     required this.ttsReferenceDescription,
     required this.ttsReferenceTranscript,
     required this.contextWindow,
+    required this.thinkingMode,
+    required this.safetyCheck,
+    required this.maxOutputTokens,
     required this.enabled,
     required this.createdAt,
     required this.updatedAt,
@@ -11085,6 +11179,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     map['tts_reference_description'] = Variable<bool>(ttsReferenceDescription);
     map['tts_reference_transcript'] = Variable<bool>(ttsReferenceTranscript);
     map['context_window'] = Variable<int>(contextWindow);
+    map['thinking_mode'] = Variable<String>(thinkingMode);
+    map['safety_check'] = Variable<bool>(safetyCheck);
+    map['max_output_tokens'] = Variable<int>(maxOutputTokens);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -11105,6 +11202,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       ttsReferenceDescription: Value(ttsReferenceDescription),
       ttsReferenceTranscript: Value(ttsReferenceTranscript),
       contextWindow: Value(contextWindow),
+      thinkingMode: Value(thinkingMode),
+      safetyCheck: Value(safetyCheck),
+      maxOutputTokens: Value(maxOutputTokens),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -11135,6 +11235,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
         json['ttsReferenceTranscript'],
       ),
       contextWindow: serializer.fromJson<int>(json['contextWindow']),
+      thinkingMode: serializer.fromJson<String>(json['thinkingMode']),
+      safetyCheck: serializer.fromJson<bool>(json['safetyCheck']),
+      maxOutputTokens: serializer.fromJson<int>(json['maxOutputTokens']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -11158,6 +11261,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       ),
       'ttsReferenceTranscript': serializer.toJson<bool>(ttsReferenceTranscript),
       'contextWindow': serializer.toJson<int>(contextWindow),
+      'thinkingMode': serializer.toJson<String>(thinkingMode),
+      'safetyCheck': serializer.toJson<bool>(safetyCheck),
+      'maxOutputTokens': serializer.toJson<int>(maxOutputTokens),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -11177,6 +11283,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     bool? ttsReferenceDescription,
     bool? ttsReferenceTranscript,
     int? contextWindow,
+    String? thinkingMode,
+    bool? safetyCheck,
+    int? maxOutputTokens,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -11195,6 +11304,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     ttsReferenceTranscript:
         ttsReferenceTranscript ?? this.ttsReferenceTranscript,
     contextWindow: contextWindow ?? this.contextWindow,
+    thinkingMode: thinkingMode ?? this.thinkingMode,
+    safetyCheck: safetyCheck ?? this.safetyCheck,
+    maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -11225,6 +11337,15 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
       contextWindow: data.contextWindow.present
           ? data.contextWindow.value
           : this.contextWindow,
+      thinkingMode: data.thinkingMode.present
+          ? data.thinkingMode.value
+          : this.thinkingMode,
+      safetyCheck: data.safetyCheck.present
+          ? data.safetyCheck.value
+          : this.safetyCheck,
+      maxOutputTokens: data.maxOutputTokens.present
+          ? data.maxOutputTokens.value
+          : this.maxOutputTokens,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -11246,6 +11367,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
           ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
           ..write('contextWindow: $contextWindow, ')
+          ..write('thinkingMode: $thinkingMode, ')
+          ..write('safetyCheck: $safetyCheck, ')
+          ..write('maxOutputTokens: $maxOutputTokens, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -11267,6 +11391,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
     ttsReferenceDescription,
     ttsReferenceTranscript,
     contextWindow,
+    thinkingMode,
+    safetyCheck,
+    maxOutputTokens,
     enabled,
     createdAt,
     updatedAt,
@@ -11287,6 +11414,9 @@ class ModelConfigRow extends DataClass implements Insertable<ModelConfigRow> {
           other.ttsReferenceDescription == this.ttsReferenceDescription &&
           other.ttsReferenceTranscript == this.ttsReferenceTranscript &&
           other.contextWindow == this.contextWindow &&
+          other.thinkingMode == this.thinkingMode &&
+          other.safetyCheck == this.safetyCheck &&
+          other.maxOutputTokens == this.maxOutputTokens &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -11305,6 +11435,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
   final Value<bool> ttsReferenceDescription;
   final Value<bool> ttsReferenceTranscript;
   final Value<int> contextWindow;
+  final Value<String> thinkingMode;
+  final Value<bool> safetyCheck;
+  final Value<int> maxOutputTokens;
   final Value<bool> enabled;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -11322,6 +11455,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.ttsReferenceDescription = const Value.absent(),
     this.ttsReferenceTranscript = const Value.absent(),
     this.contextWindow = const Value.absent(),
+    this.thinkingMode = const Value.absent(),
+    this.safetyCheck = const Value.absent(),
+    this.maxOutputTokens = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -11340,6 +11476,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     this.ttsReferenceDescription = const Value.absent(),
     this.ttsReferenceTranscript = const Value.absent(),
     this.contextWindow = const Value.absent(),
+    this.thinkingMode = const Value.absent(),
+    this.safetyCheck = const Value.absent(),
+    this.maxOutputTokens = const Value.absent(),
     this.enabled = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -11364,6 +11503,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Expression<bool>? ttsReferenceDescription,
     Expression<bool>? ttsReferenceTranscript,
     Expression<int>? contextWindow,
+    Expression<String>? thinkingMode,
+    Expression<bool>? safetyCheck,
+    Expression<int>? maxOutputTokens,
     Expression<bool>? enabled,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -11385,6 +11527,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       if (ttsReferenceTranscript != null)
         'tts_reference_transcript': ttsReferenceTranscript,
       if (contextWindow != null) 'context_window': contextWindow,
+      if (thinkingMode != null) 'thinking_mode': thinkingMode,
+      if (safetyCheck != null) 'safety_check': safetyCheck,
+      if (maxOutputTokens != null) 'max_output_tokens': maxOutputTokens,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -11405,6 +11550,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     Value<bool>? ttsReferenceDescription,
     Value<bool>? ttsReferenceTranscript,
     Value<int>? contextWindow,
+    Value<String>? thinkingMode,
+    Value<bool>? safetyCheck,
+    Value<int>? maxOutputTokens,
     Value<bool>? enabled,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -11425,6 +11573,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
       ttsReferenceTranscript:
           ttsReferenceTranscript ?? this.ttsReferenceTranscript,
       contextWindow: contextWindow ?? this.contextWindow,
+      thinkingMode: thinkingMode ?? this.thinkingMode,
+      safetyCheck: safetyCheck ?? this.safetyCheck,
+      maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -11475,6 +11626,15 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
     if (contextWindow.present) {
       map['context_window'] = Variable<int>(contextWindow.value);
     }
+    if (thinkingMode.present) {
+      map['thinking_mode'] = Variable<String>(thinkingMode.value);
+    }
+    if (safetyCheck.present) {
+      map['safety_check'] = Variable<bool>(safetyCheck.value);
+    }
+    if (maxOutputTokens.present) {
+      map['max_output_tokens'] = Variable<int>(maxOutputTokens.value);
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
@@ -11505,6 +11665,9 @@ class ModelConfigsCompanion extends UpdateCompanion<ModelConfigRow> {
           ..write('ttsReferenceDescription: $ttsReferenceDescription, ')
           ..write('ttsReferenceTranscript: $ttsReferenceTranscript, ')
           ..write('contextWindow: $contextWindow, ')
+          ..write('thinkingMode: $thinkingMode, ')
+          ..write('safetyCheck: $safetyCheck, ')
+          ..write('maxOutputTokens: $maxOutputTokens, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -35534,6 +35697,9 @@ typedef $$ModelConfigsTableCreateCompanionBuilder =
       Value<bool> ttsReferenceDescription,
       Value<bool> ttsReferenceTranscript,
       Value<int> contextWindow,
+      Value<String> thinkingMode,
+      Value<bool> safetyCheck,
+      Value<int> maxOutputTokens,
       Value<bool> enabled,
       required int createdAt,
       required int updatedAt,
@@ -35553,6 +35719,9 @@ typedef $$ModelConfigsTableUpdateCompanionBuilder =
       Value<bool> ttsReferenceDescription,
       Value<bool> ttsReferenceTranscript,
       Value<int> contextWindow,
+      Value<String> thinkingMode,
+      Value<bool> safetyCheck,
+      Value<int> maxOutputTokens,
       Value<bool> enabled,
       Value<int> createdAt,
       Value<int> updatedAt,
@@ -35625,6 +35794,21 @@ class $$ModelConfigsTableFilterComposer
 
   ColumnFilters<int> get contextWindow => $composableBuilder(
     column: $table.contextWindow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thinkingMode => $composableBuilder(
+    column: $table.thinkingMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get safetyCheck => $composableBuilder(
+    column: $table.safetyCheck,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxOutputTokens => $composableBuilder(
+    column: $table.maxOutputTokens,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35713,6 +35897,21 @@ class $$ModelConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get thinkingMode => $composableBuilder(
+    column: $table.thinkingMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get safetyCheck => $composableBuilder(
+    column: $table.safetyCheck,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxOutputTokens => $composableBuilder(
+    column: $table.maxOutputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -35786,6 +35985,21 @@ class $$ModelConfigsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get thinkingMode => $composableBuilder(
+    column: $table.thinkingMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get safetyCheck => $composableBuilder(
+    column: $table.safetyCheck,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxOutputTokens => $composableBuilder(
+    column: $table.maxOutputTokens,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
 
@@ -35839,6 +36053,9 @@ class $$ModelConfigsTableTableManager
                 Value<bool> ttsReferenceDescription = const Value.absent(),
                 Value<bool> ttsReferenceTranscript = const Value.absent(),
                 Value<int> contextWindow = const Value.absent(),
+                Value<String> thinkingMode = const Value.absent(),
+                Value<bool> safetyCheck = const Value.absent(),
+                Value<int> maxOutputTokens = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -35856,6 +36073,9 @@ class $$ModelConfigsTableTableManager
                 ttsReferenceDescription: ttsReferenceDescription,
                 ttsReferenceTranscript: ttsReferenceTranscript,
                 contextWindow: contextWindow,
+                thinkingMode: thinkingMode,
+                safetyCheck: safetyCheck,
+                maxOutputTokens: maxOutputTokens,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -35875,6 +36095,9 @@ class $$ModelConfigsTableTableManager
                 Value<bool> ttsReferenceDescription = const Value.absent(),
                 Value<bool> ttsReferenceTranscript = const Value.absent(),
                 Value<int> contextWindow = const Value.absent(),
+                Value<String> thinkingMode = const Value.absent(),
+                Value<bool> safetyCheck = const Value.absent(),
+                Value<int> maxOutputTokens = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -35892,6 +36115,9 @@ class $$ModelConfigsTableTableManager
                 ttsReferenceDescription: ttsReferenceDescription,
                 ttsReferenceTranscript: ttsReferenceTranscript,
                 contextWindow: contextWindow,
+                thinkingMode: thinkingMode,
+                safetyCheck: safetyCheck,
+                maxOutputTokens: maxOutputTokens,
                 enabled: enabled,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

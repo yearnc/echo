@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media/image_payload.dart';
 import '../models/model_config.dart';
 import 'model_gateway.dart';
+import 'ocr_service.dart';
 
 /// 给一张本机图片写一句“它是什么”。
 ///
@@ -12,15 +15,18 @@ import 'model_gateway.dart';
 /// 描述一遍，再把描述写进记忆；模型看不懂图（没配 vision）时返回空，
 /// 调用方仍然保留原来那句兜底。
 class PhotoDescriber {
-  const PhotoDescriber(this._gateway);
+  PhotoDescriber(this._gateway, {this.ocr});
 
   final ModelGateway _gateway;
+
+  /// 没配视觉模型时的兜底：只读出图里的文字，不做画面描述。
+  final OcrService? ocr;
 
   Future<String> describe(String imageRef) async {
     if (imageRef.trim().isEmpty) return '';
     try {
       final config = await _pickConfig();
-      if (config == null) return '';
+      if (config == null) return await _describeByOcr(imageRef);
 
       final part = await ImagePayload.partFromRef(imageRef);
       if (part == null) return '';
@@ -55,6 +61,28 @@ class PhotoDescriber {
     }
   }
 
+  /// 没有视觉模型时的 OCR 兜底。失败就当没有描述，不影响图片发出。
+  Future<String> _describeByOcr(String imageRef) async {
+    final service = ocr;
+    if (service == null || !await service.enabled()) return '';
+    final path = imageRef.startsWith('file:')
+        ? imageRef.substring('file:'.length)
+        : imageRef;
+    if (!await File(path).exists()) return '';
+    try {
+      final result = await service.recognize(path);
+      final text = result.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.isEmpty) return '';
+      return '图片里的文字：${_clip(text, 200)}';
+    } catch (error) {
+      debugPrint('[图片] OCR 这次没读成：$error');
+      return '';
+    }
+  }
+
+  static String _clip(String text, int max) =>
+      text.length <= max ? text : '${text.substring(0, max)}…';
+
   /// 优先用专门配置的图片理解模型；没有时，用开了 supportsVision 的对话模型。
   Future<ModelConfig?> _pickConfig() async {
     final vision = await _gateway.activeConfig(kind: ModelKind.vision);
@@ -75,5 +103,8 @@ class PhotoDescriber {
 }
 
 final photoDescriberProvider = Provider<PhotoDescriber>(
-  (ref) => PhotoDescriber(ref.watch(modelGatewayProvider)),
+  (ref) => PhotoDescriber(
+    ref.watch(modelGatewayProvider),
+    ocr: ref.watch(ocrServiceProvider),
+  ),
 );

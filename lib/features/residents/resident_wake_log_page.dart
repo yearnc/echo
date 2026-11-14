@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/resident_alarm_repository.dart';
@@ -76,26 +78,35 @@ class ResidentWakeLogPage extends ConsumerWidget {
                 if (alarms.isNotEmpty) _AlarmCard(alarms: alarms),
                 if (sleeps.isNotEmpty) ...[
                   if (alarms.isNotEmpty) const SizedBox(height: 8),
-                  _SleepCard(sleeps: sleeps),
+                  _SleepCard(
+                    sleeps: sleeps,
+                    onOpen: () => context.push(
+                      RoutePaths.residentSleepHistory(residentId),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 80),
                 const SizedBox(height: 260, child: _Empty()),
               ],
             );
           }
-          final today = list.where(
-            (log) => _sameDay(log.wokeAt, DateTime.now()),
-          );
+          final now = DateTime.now();
+          final today = list.where((log) => _sameDay(log.wokeAt, now)).toList();
+          final older = list.where((log) => !_sameDay(log.wokeAt, now)).toList();
           final latest = list.first;
-          final rows = <Widget>[];
-          DateTime? day;
-          for (final log in list) {
-            if (day == null || !_sameDay(day, log.wokeAt)) {
-              day = log.wokeAt;
-              rows.add(_DayHeader(day: log.wokeAt));
-            }
-            rows.add(_LogTile(log: log));
-          }
+          final rows = <Widget>[
+            if (today.isNotEmpty) ...[
+              const _DayHeader(label: '今天'),
+              for (final log in today) _LogTile(log: log),
+            ] else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(2, 12, 2, 4),
+                child: Text(
+                  '今天还没醒过',
+                  style: TextStyle(color: EchoColors.textFaint, fontSize: 12),
+                ),
+              ),
+          ];
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
             children: [
@@ -110,10 +121,31 @@ class ResidentWakeLogPage extends ConsumerWidget {
               ],
               if (sleeps.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                _SleepCard(sleeps: sleeps),
+                _SleepCard(
+                  sleeps: sleeps,
+                  onOpen: () => context.push(
+                    RoutePaths.residentSleepHistory(residentId),
+                  ),
+                ),
               ],
               const SizedBox(height: 8),
               ...rows,
+              if (older.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () => context.push(
+                      RoutePaths.residentWakeHistory(residentId),
+                    ),
+                    icon: const Icon(Icons.history, size: 15),
+                    label: Text('查看更早的日志（${older.length} 条）'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: EchoColors.primary,
+                      textStyle: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 '日志记“醒来的时间、调用了哪些工具、给自己留的话”，'
@@ -265,113 +297,137 @@ class _AlarmCard extends StatelessWidget {
   }
 }
 
-/// 睡眠记录（v50）：什么时候睡下、睡了多久、因为什么醒。
+/// 睡眠摘要（v50）：主页面只看最近一段，点进去才是全部记录。
 class _SleepCard extends StatelessWidget {
-  const _SleepCard({required this.sleeps});
+  const _SleepCard({required this.sleeps, required this.onOpen});
 
   final List<ResidentSleepPeriod> sleeps;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final active = sleeps.where((item) => item.isSleeping);
     final current = active.isEmpty ? null : active.first;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
-      decoration: BoxDecoration(
-        color: EchoColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: current != null
-              ? EchoColors.primary.withValues(alpha: 0.35)
-              : EchoColors.divider,
-          width: 0.8,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.nightlight_round, size: 15, color: EchoColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                current != null ? 'TA 正在睡' : '睡眠记录',
-                style: TextStyle(
-                  color: EchoColors.text,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+    final latest = current ?? sleeps.first;
+    return Material(
+      color: EchoColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: current != null
+                  ? EchoColors.primary.withValues(alpha: 0.35)
+                  : EchoColors.divider,
+              width: 0.8,
+            ),
           ),
-          const SizedBox(height: 7),
-          for (final period in sleeps.take(8))
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _line(period),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.nightlight_round,
+                    size: 15,
+                    color: EchoColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      current != null ? 'TA 正在睡' : '最近一次睡眠',
+                      style: TextStyle(
+                        color: EchoColors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: EchoColors.textFaint,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Text(
+                _line(latest),
                 style: TextStyle(
                   color: EchoColors.textMuted,
                   fontSize: 12.5,
                   height: 1.5,
                 ),
               ),
-            ),
-          if (current == null) ...[
-            const SizedBox(height: 5),
-            Text(
-              '五天没有互动会自动入睡；你也可以在「固定住民 → 右上角月亮」里手动让 TA 睡。',
-              style: TextStyle(
-                color: EchoColors.textFaint,
-                fontSize: 11,
-                height: 1.5,
+              if (latest.farewell.trim().isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(
+                  '入睡前说：「${latest.farewell.trim()}」',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: EchoColors.textFaint,
+                    fontSize: 11.5,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 5),
+              Text(
+                '共 ${sleeps.length} 段记录 · 点开查看全部',
+                style: TextStyle(color: EchoColors.textFaint, fontSize: 11),
               ),
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  static String _line(ResidentSleepPeriod period) {
-    final start = _when(period.startedAt);
-    if (period.isSleeping) {
-      return '睡梦中 · $start 入睡（${_duration(period.duration)}）';
-    }
-    final end = period.endedAt == null ? '' : _when(period.endedAt!);
-    final endLabel = period.endedByLabel.isEmpty
-        ? ''
-        : ' · ${period.endedByLabel}';
-    return '$start → $end（${_duration(period.duration)}）$endLabel';
-  }
+  static String _line(ResidentSleepPeriod period) => sleepLine(period);
+}
 
-  static String _when(DateTime at) {
-    final hh = at.hour.toString().padLeft(2, '0');
-    final mm = at.minute.toString().padLeft(2, '0');
-    return '${at.month}月${at.day}日 $hh:$mm';
+/// 睡眠记录的完整一行（摘要卡与二级页共用）。
+String sleepLine(ResidentSleepPeriod period) {
+  final start = _whenDate(period.startedAt);
+  if (period.isSleeping) {
+    return '睡梦中 · $start 入睡（${_duration(period.duration)}）';
   }
+  final end = period.endedAt == null ? '' : _whenDate(period.endedAt!);
+  final endLabel = period.endedByLabel.isEmpty ? '' : ' · ${period.endedByLabel}';
+  return '$start → $end（${_duration(period.duration)}）$endLabel';
+}
 
-  static String _duration(Duration span) {
-    if (span.inDays > 0) {
-      final hours = span.inHours % 24;
-      return hours == 0 ? '${span.inDays} 天' : '${span.inDays} 天 $hours 小时';
-    }
-    if (span.inHours > 0) return '${span.inHours} 小时';
-    return span.inMinutes <= 0 ? '不到 1 分钟' : '${span.inMinutes} 分钟';
+String _whenDate(DateTime at) {
+  final hh = at.hour.toString().padLeft(2, '0');
+  final mm = at.minute.toString().padLeft(2, '0');
+  return '${at.month}月${at.day}日 $hh:$mm';
+}
+
+String _duration(Duration span) {
+  if (span.inDays > 0) {
+    final hours = span.inHours % 24;
+    return hours == 0 ? '${span.inDays} 天' : '${span.inDays} 天 $hours 小时';
   }
+  if (span.inHours > 0) return '${span.inHours} 小时';
+  return span.inMinutes <= 0 ? '不到 1 分钟' : '${span.inMinutes} 分钟';
 }
 
 class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.day});
+  const _DayHeader({required this.label});
 
-  final DateTime day;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
       child: Text(
-        '${day.year}年${day.month}月${day.day}日',
+        label,
         style: TextStyle(
           color: EchoColors.textFaint,
           fontSize: 11.5,
@@ -485,6 +541,211 @@ class _LogTile extends StatelessWidget {
     if (span.inMinutes <= 0) return '不到 1 分钟';
     if (span.inHours <= 0) return '醒了 ${span.inMinutes} 分钟';
     return '醒了 ${span.inHours} 小时 ${span.inMinutes % 60} 分钟';
+  }
+}
+
+/// 全部睡眠记录（从日志页的睡眠卡进入）。
+class ResidentSleepHistoryPage extends ConsumerWidget {
+  const ResidentSleepHistoryPage({super.key, required this.residentId});
+
+  final String residentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final resident = ref.watch(customResidentAnyByIdProvider(residentId));
+    final sleeps = ref.watch(residentSleepPeriodsProvider(residentId));
+    return Scaffold(
+      backgroundColor: EchoColors.bg,
+      appBar: AppBar(
+        backgroundColor: EchoColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: EchoColors.text),
+        title: Text(
+          '${resident?.name ?? '固定住民'}的睡眠记录',
+          style: TextStyle(
+            color: EchoColors.text,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: sleeps.when(
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: EchoColors.primary)),
+        error: (error, _) => Center(
+          child: Text(
+            '读不到睡眠记录：$error',
+            style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+          ),
+        ),
+        data: (list) {
+          if (list.isEmpty) {
+            return const Center(child: _Empty());
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+            children: [
+              for (final period in list)
+                _SleepHistoryTile(period: period),
+              const SizedBox(height: 10),
+              Text(
+                '五天没有互动会自动入睡；你也可以在「固定住民 → 右上角月亮」里'
+                '手动让 TA 睡。睡着的住民不会被心跳、闹钟或后台叫醒。',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SleepHistoryTile extends StatelessWidget {
+  const _SleepHistoryTile({required this.period});
+
+  final ResidentSleepPeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    final sleeping = period.isSleeping;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      decoration: BoxDecoration(
+        color: EchoColors.surface,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: sleeping
+              ? EchoColors.primary.withValues(alpha: 0.35)
+              : EchoColors.divider,
+          width: 0.7,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                sleeping ? Icons.nightlight_round : Icons.dark_mode_outlined,
+                size: 14,
+                color: sleeping ? EchoColors.primary : EchoColors.textFaint,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                sleepLine(period),
+                style: TextStyle(
+                  color: EchoColors.text,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            period.startedByLabel,
+            style: TextStyle(color: EchoColors.textMuted, fontSize: 11.5),
+          ),
+          if (period.farewell.trim().isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              '入睡前说：「${period.farewell.trim()}」',
+              style: TextStyle(
+                color: EchoColors.textFaint,
+                fontSize: 11.5,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 早期日志（从日志页底部进入）。今天的仍留在主页面。
+class ResidentWakeHistoryPage extends ConsumerWidget {
+  const ResidentWakeHistoryPage({super.key, required this.residentId});
+
+  final String residentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final resident = ref.watch(customResidentAnyByIdProvider(residentId));
+    final logs = ref.watch(residentWakeLogsProvider(residentId));
+    return Scaffold(
+      backgroundColor: EchoColors.bg,
+      appBar: AppBar(
+        backgroundColor: EchoColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: EchoColors.text),
+        title: Text(
+          '${resident?.name ?? '固定住民'}的早期日志',
+          style: TextStyle(
+            color: EchoColors.text,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: logs.when(
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: EchoColors.primary)),
+        error: (error, _) => Center(
+          child: Text(
+            '读不到日志：$error',
+            style: TextStyle(color: EchoColors.textMuted, fontSize: 13),
+          ),
+        ),
+        data: (list) {
+          final now = DateTime.now();
+          final older = list
+              .where((log) => !ResidentWakeLogPage._sameDay(log.wokeAt, now))
+              .toList();
+          if (older.isEmpty) {
+            return const Center(child: _Empty());
+          }
+          final rows = <Widget>[];
+          DateTime? day;
+          for (final log in older) {
+            if (day == null || !ResidentWakeLogPage._sameDay(day, log.wokeAt)) {
+              day = log.wokeAt;
+              rows.add(
+                _DayHeader(
+                  label: '${log.wokeAt.year}年${log.wokeAt.month}月'
+                      '${log.wokeAt.day}日',
+                ),
+              );
+            }
+            rows.add(_LogTile(log: log));
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              ...rows,
+              const SizedBox(height: 10),
+              Text(
+                '今天的记录在上一页；这里按天保留更早的醒来记录。',
+                style: TextStyle(
+                  color: EchoColors.textFaint,
+                  fontSize: 11.5,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

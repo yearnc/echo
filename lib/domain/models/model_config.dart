@@ -3,6 +3,28 @@
 /// 对话和生成图片通常不是同一家、同一个模型，硬要用户拿一条配置兼顾是强人所难；
 /// 而且两者的价钱差一个量级，用户完全可能只想配便宜的那个。
 /// 所以分开配，也允许只配其中之一。
+/// DeepSeek 的思考强度（v52）。
+///
+/// 只在 DeepSeek 配置上发送；其他 OpenAI 兼容服务商不认识这些扩展参数，
+/// 发了可能直接 400。`auto` 表示不传，让服务商用自己的默认值。
+enum ThinkingMode {
+  auto('auto', '自动'),
+  off('off', '关闭'),
+  low('low', '低'),
+  high('high', '高'),
+  max('max', '最高');
+
+  const ThinkingMode(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static ThinkingMode fromId(String? raw) => values.firstWhere(
+    (mode) => mode.id == raw,
+    orElse: () => auto,
+  );
+}
+
 enum ModelKind {
   chat('chat', '对话'),
   image('image', '文生图'),
@@ -38,6 +60,9 @@ class ModelConfig {
     this.ttsReferenceDescription = false,
     this.ttsReferenceTranscript = false,
     this.contextWindow = defaultContextWindow,
+    this.thinkingMode = ThinkingMode.auto,
+    this.safetyCheck = true,
+    this.maxOutputTokens = 0,
     this.enabled = false,
     this.createdAt = 0,
     this.updatedAt = 0,
@@ -79,6 +104,42 @@ class ModelConfig {
   /// 这条模型能吃多长的上下文（token）。默认 100 万；
   /// 服务商实际更小时由用户在编辑页改，时间线的摘要阈值按它算。
   final int contextWindow;
+
+  /// DeepSeek 的思考强度（v52）。其他服务商不发送这个参数。
+  final ThinkingMode thinkingMode;
+
+  /// DeepSeek 的内容安全审核开关（v52）：开 = `safety_check.level=high`。
+  ///
+  /// 合规指南要求对外服务打开安全审核；这里默认开，用户仍可自己关。
+  final bool safetyCheck;
+
+  /// 单次输出上限（token，v52）。0 = 不额外限制，由各调用方自己给。
+  /// 填了之后会在调用方给的值之上再收一道口，避免一次生成太长。
+  final int maxOutputTokens;
+
+  /// 这条配置是不是 DeepSeek 官方接口——决定要不要发扩展参数。
+  bool get isDeepSeek =>
+      provider == 'deepseek' || baseUrl.contains('api.deepseek.com');
+
+  /// 是不是 DeepSeek 的语音合成工具接口（`/v1/tools/tts`）。
+  ///
+  /// 它和 OpenAI 兼容的 `/audio/speech` 不是同一条路：只有两个固定音色、
+  /// 没有 model 字段、返回 wav/pcm。
+  bool get isDeepSeekTts =>
+      provider == 'deepseek-tts' ||
+      (kind == ModelKind.tts && baseUrl.contains('api.deepseek.com'));
+
+  /// 这条语音配置能选的固定云端音色。空列表表示走“文字描述”或克隆那一套。
+  List<String> get fixedTtsVoices =>
+      isDeepSeekTts ? const ['stella', 'tide'] : const [];
+
+  /// 发给 DeepSeek 的 `reasoning_effort`。`auto` 不传（null）；
+  /// 关闭思考在 API 里叫 `none`，不是界面上的 `off`。
+  String? get reasoningEffort => switch (thinkingMode) {
+    ThinkingMode.auto => null,
+    ThinkingMode.off => 'none',
+    _ => thinkingMode.id,
+  };
 
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
@@ -238,6 +299,13 @@ class ModelConfig {
   /// 配完之后拿到一句看不懂的报错。
   static const List<ModelPreset> ttsPresets = [
     ModelPreset(
+      id: 'deepseek-tts',
+      label: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      // 这个端点不用 model 字段；这里只是让配置“完整”，实际请求会忽略它。
+      model: 'deepseek-tts',
+    ),
+    ModelPreset(
       id: 'siliconflow-tts',
       label: '硅基流动',
       baseUrl: 'https://api.siliconflow.cn/v1',
@@ -314,6 +382,9 @@ class ModelConfig {
     bool? ttsReferenceDescription,
     bool? ttsReferenceTranscript,
     int? contextWindow,
+    ThinkingMode? thinkingMode,
+    bool? safetyCheck,
+    int? maxOutputTokens,
     bool? enabled,
     int? createdAt,
     int? updatedAt,
@@ -330,6 +401,9 @@ class ModelConfig {
       ttsReferenceTranscript:
           ttsReferenceTranscript ?? this.ttsReferenceTranscript,
       contextWindow: contextWindow ?? this.contextWindow,
+      thinkingMode: thinkingMode ?? this.thinkingMode,
+      safetyCheck: safetyCheck ?? this.safetyCheck,
+      maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
       baseUrl: baseUrl ?? this.baseUrl,
       model: model ?? this.model,
       kind: kind ?? this.kind,

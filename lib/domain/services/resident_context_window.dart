@@ -23,8 +23,12 @@ class ResidentContextWindow {
     required DateTime now,
   }) : expiresAt = now.add(ttl);
 
-  /// 窗口寿命：构建或刷新之后维持半小时（滑动续期）。
-  static const Duration ttl = Duration(minutes: 30);
+  /// 窗口寿命：构建或刷新之后维持一个半小时（滑动续期）。
+  ///
+  /// v4.12 从 30 分钟放宽到 90 分钟：聊天常常隔几十分钟才回一句，
+  /// 30 分钟就重建窗口会让服务端缓存前缀白白作废。代价是记忆和上下文
+  /// 最多晚 1.5 小时刷新，换来更稳的缓存命中。
+  static const Duration ttl = Duration(minutes: 90);
 
   /// 构建时带多少条私信；之后新来的只追加，不再回头砍。
   static const int baseDmCount = 20;

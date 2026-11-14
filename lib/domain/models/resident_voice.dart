@@ -94,6 +94,9 @@ class ResidentVoice {
     final female = isFemale(personaId, voiceModel: voiceModel);
     final even = personaId.codeUnits.fold<int>(0, (a, b) => a + b).isEven;
 
+    if (baseUrl.contains('api.deepseek.com')) {
+      return female ? 'stella' : 'tide';
+    }
     if (baseUrl.contains('siliconflow')) {
       if (female) return even ? 'anna' : 'bella';
       return even ? 'alex' : 'benjamin';

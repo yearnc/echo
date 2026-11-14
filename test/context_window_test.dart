@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:echo/domain/models/private_message.dart';
 import 'package:echo/domain/services/resident_context_window.dart';
+import 'package:echo/domain/services/resident_tool_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PrivateMessage _dm(
@@ -25,7 +26,7 @@ PrivateMessage _dm(
 }
 
 void main() {
-  test('窗口半小时滑动续期', () {
+  test('窗口一个半小时滑动续期', () {
     final t0 = DateTime(2026, 10, 30, 11, 30);
     final window = ResidentContextWindow(
       residentId: 'a',
@@ -36,13 +37,13 @@ void main() {
       now: t0,
     );
 
-    expect(window.expired(t0.add(const Duration(minutes: 29))), isFalse);
-    expect(window.expired(t0.add(const Duration(minutes: 30))), isTrue);
+    expect(window.expired(t0.add(const Duration(minutes: 89))), isFalse);
+    expect(window.expired(t0.add(const Duration(minutes: 90))), isTrue);
 
-    final t1 = t0.add(const Duration(minutes: 25));
+    final t1 = t0.add(const Duration(minutes: 80));
     window.touch(t1);
-    expect(window.expired(t1.add(const Duration(minutes: 29))), isFalse);
-    expect(window.expired(t1.add(const Duration(minutes: 30))), isTrue);
+    expect(window.expired(t1.add(const Duration(minutes: 89))), isFalse);
+    expect(window.expired(t1.add(const Duration(minutes: 90))), isTrue);
   });
 
   test('新私信只追加，同一 id 不会重复进窗口', () async {
@@ -120,6 +121,30 @@ void main() {
     );
     await textOnly.appendDm(image);
     expect(textOnly.messages.single['content'], contains('桌上的咖啡'));
+  });
+
+  test('本轮情境只追加在窗口末尾，缓存前缀不被改写', () {
+    final history = [
+      {'role': 'system', 'content': '稳定的人设与规则'},
+      {'role': 'user', 'content': '[2026年10月30日 周五 晚上 21:32] 对方：在吗'},
+    ];
+    final prefix = jsonEncode(history);
+
+    final a = ResidentToolSession.historyWithTail(
+      history,
+      '现在：2026年10月30日 22:00\n你已经定了这些还没响的闹钟：\n- 明天 08:00',
+    );
+    final b = ResidentToolSession.historyWithTail(
+      history,
+      '现在：2026年10月31日 09:00\n对方的私信等你回应',
+    );
+
+    // 每轮变化的内容只在最后一条；前 history.length 条必须逐字相同，
+    // 否则服务端的上下文缓存整段都命不中。
+    expect(jsonEncode(a.take(history.length).toList()), prefix);
+    expect(jsonEncode(b.take(history.length).toList()), prefix);
+    expect(a.length, history.length + 1);
+    expect(b.last['role'], 'user');
   });
 
   test('私信行带完整时间，媒体类型不会被吞', () {
