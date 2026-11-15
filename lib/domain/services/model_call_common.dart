@@ -53,10 +53,10 @@ bool isSecureBaseUrl(String baseUrl) {
 
 /// 地址本身有没有毛病——返回 `null` 表示没问题。
 ///
-/// 分两种说：**没写协议头**（从文档里复制一段域名粘进来，最常见）和
-/// **写了明文 http**。这两种在 dio 那里都会撞成同一个 `connectionError`，
-/// 翻译出来是"连不上这个地址，检查网络"——用户于是跑去查网络，
-/// 而问题其实一直在地址栏里。所以测试连接和正经调用都先过一道这里。
+/// 分为两种情况：**缺少协议头**（从文档中复制域名后直接粘贴，最常见）与
+/// **使用明文 http**。两者在 dio 中都会表现为同一个 `connectionError`，
+/// 显示为"连不上这个地址，检查网络"——用户因此去排查网络，
+/// 而问题实际出在地址本身。测试连接与正式调用均先经过此校验。
 String? describeBaseUrlProblem(String baseUrl) {
   final trimmed = baseUrl.trim();
   if (trimmed.isEmpty) return '还没填地址';
@@ -101,9 +101,9 @@ String describeModelError(DioException error, {String? baseUrl}) {
 
 /// 从文生图的返回里挑出第一张图。
 ///
-/// 各家形状不一：`data` / `images` 两个壳都见过，里面可能是对象
-/// （带 `url` 或 `b64_json`），也可能干脆就是一串 URL。认形状是我们这边的事，
-/// 所以探测与正经出图共用这一个函数。
+/// 各服务商返回结构不一致：`data` / `images` 两种外层字段均存在，元素可能是对象
+/// （含 `url` 或 `b64_json`），也可能直接是 URL 字符串。结构识别统一在本层完成，
+/// 因此连通性探测与正式出图共用此函数。
 Map<String, dynamic>? firstImageEntry(Map<String, dynamic>? body) {
   for (final key in const ['data', 'images']) {
     final list = body?[key];

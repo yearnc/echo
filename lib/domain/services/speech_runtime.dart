@@ -35,7 +35,7 @@ class SpeechRuntime {
   }
 }
 
-/// Windows 上有一处坑：`System32` 里躺着一个旧版 `onnxruntime.dll`
+/// Windows 上存在一个已知问题：`System32` 目录中包含旧版 `onnxruntime.dll`
 /// （Windows 自带的组件在用），而 sherpa 的原生库依赖同名文件，
 /// 隐式解析会先撞上系统那份，然后报 "requested API version [28] is not
 /// available, only API versions [1, 17]"，接着整个进程崩掉。
@@ -43,7 +43,7 @@ class SpeechRuntime {
 /// 办法是先把**包里那份**按绝对路径加载进内存：同名模块已经在内存里，
 /// 后面解析依赖时就直接复用它。必须在 [sherpa.initBindings] 之前做。
 ///
-/// 桌面预览（exe 同目录优先）本来撞不上这个坑，但打包成正式应用时
+/// 桌面预览（优先加载 exe 同目录）不会触发该问题，但打包为正式应用后
 /// 依赖顺序会变，所以无条件预加载，稳一点。
 void _preheatOnWindows(String? packageDir) {
   if (!Platform.isWindows) return;

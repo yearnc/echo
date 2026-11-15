@@ -157,7 +157,7 @@ class PostVoiceRepository {
         );
   }
 
-  /// 我自己看了一眼。同一个帖子只留一行，重复进来加次数。
+  /// 记录用户已浏览指定帖子。同一帖子仅保留一行，重复浏览累加次数。
   Future<void> recordUserView(String postId, {DateTime? at}) {
     return recordView(
       postId: postId,

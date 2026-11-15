@@ -1,5 +1,5 @@
 name: echo
-description: "《回响 Echo》双模式论坛式 AI 反馈模拟 APP —— 思政实践项目《数字时代大学生自我价值感的异化与重建》配套应用"
+description: "回响 Echo：双模式社交媒体模拟器，思政实践项目《数字时代大学生自我价值感的异化与重建》配套应用"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

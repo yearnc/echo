@@ -581,9 +581,9 @@ class PrivateMessageRepository {
     return rows.first.direction == 'out';
   }
 
-  /// 你说了话、他还欠着一句的人（B5 的调度用它决定该让谁回）。
+  /// 用户已发言、对方尚未回复的会话（B5 调度据此决定回复对象）。
   ///
-  /// 同样**看得见未来的那条**：已经排上回应的人不该被排第二次。
+  /// 同样**包含已排期但尚未发生的记录**：已经排上回应的对象不应重复排期。
   Future<List<String>> personaIdsAwaitingReply() async {
     final rows = await _db
         .customSelect(_awaitingSql, readsFrom: {_db.privateMessages})

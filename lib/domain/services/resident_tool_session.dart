@@ -853,8 +853,8 @@ $knowledgeBlock''';
         if (item is Map && item['summary'] is String) {
           final id = item['id'] is String ? item['id'] as String : '';
           final summary = item['summary'] as String;
-          // 带上 id：要改或要删时直接 memory_update / memory_delete，
-          // 不用先搜一遍，也就少了一次“干脆重写一条”的冲动。
+          // 附带 id：修改或删除时可直接调用 memory_update / memory_delete，
+          // 无需先检索，也避免因缺少标识而重新写入一条新记忆。
           lines.add(id.isEmpty ? summary : '[$id] $summary');
         }
       }

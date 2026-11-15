@@ -1,18 +1,18 @@
-语音识别模型 · 流式双语 zipformer（v4.0，通话用）
+语音识别模型 · 流式双语 zipformer（v4.0，通信用）
 ==================================================
 
-P4 的语音通话要“边说边出字”，所以另带一套流式模型；
-私信里的语音消息仍然用 asr/ 里的 SenseVoice。
+语音通话需要边说话边输出文字，因此单独使用流式模型；
+私信语音消息仍使用 asr/ 目录中的 SenseVoice。
 
-下载（GitHub 国内建议走 gh-proxy）：
+下载（GitHub 直连不稳定时建议使用 gh-proxy）：
 
     https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2
 
-解压后把 int8 的三件套和词表放到本目录：
+解压后将 int8 模型文件与词表放入本目录：
 
     encoder.int8.onnx
     decoder.int8.onnx
     joiner.int8.onnx
     tokens.txt
 
-缺文件不会让应用崩：P4 的通话会退回“说完一句再识别”的模式。
+缺少文件不会导致应用崩溃：通话会退回到“说完一句再识别”的模式。

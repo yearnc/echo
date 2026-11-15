@@ -45,11 +45,11 @@ class CommentReplyService {
   /// 追问能挂到第几层。1 = 顶层评论的回复（楼上楼下两层，到头了）。
   static const int maxDepth = 1;
 
-  /// 他隔多久回来。真人不会秒回，但楼中楼拖太久就凉了。
+  /// 对方回复的间隔范围。真人回复通常存在延迟，但楼中楼间隔过久会影响体验。
   static const Duration minDelay = Duration(minutes: 1);
   static const Duration maxDelay = Duration(minutes: 12);
 
-  /// 你回了某条评论之后调用。返回这次有没有排上。
+  /// 用户回复某条评论后调用，返回本次是否成功排期。
   Future<bool> maybeFollowUp({
     required String postId,
     required PostComment parent,

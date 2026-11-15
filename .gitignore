@@ -1,7 +1,7 @@
 # Miscellaneous
 *.class
 *.log
-# 更新日志是项目文档，不是临时日志
+# 更新日志属于项目文档，不作为临时日志忽略
 !更新日志.log
 *.pyc
 *.swp
@@ -49,7 +49,7 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Android 签名与本地配置（Flutter 新模板未包含，必须手动加：绝不入库）
+# Android 签名与本地配置（Flutter 模板未包含，需手动补充，禁止入库）
 local.properties
 /android/local.properties
 /android/key.properties
@@ -63,7 +63,7 @@ key.properties
 *.pem
 *.key
 
-# 第三方模型 API Key 只存在设备 Keystore 里，任何 fallback 配置文件都不入库
+# 第三方模型 API Key 仅存于设备 Keystore，任何后备配置文件均不入库
 *secret*.json
 *credentials*.json
 
@@ -76,8 +76,8 @@ key.properties
 google-services.json
 GoogleService-Info.plist
 
-# 离线语音模型（B8 / v3.8）：几百兆的二进制，不进仓库——克隆下来的人照
-# 各目录 _placeholder.txt 的说明自己放，放进去之后会被打进 APK。
+# 离线语音模型（B8 / v3.8）：二进制体积达数百兆，不纳入仓库。
+# 克隆仓库后按各目录 _placeholder.txt 的说明自行放置，放置后会被打入 APK。
 /assets/models/tts/*
 !/assets/models/tts/_placeholder.txt
 /assets/models/zipvoice/*
@@ -92,7 +92,7 @@ GoogleService-Info.plist
 # 临时放模型压缩包、验证脚本的地方（不属于项目内容）
 /.models-tmp/
 
-# 平台构建缓存（Flutter 模板的精简 .gitignore 没带这几条）
+# 平台构建缓存（Flutter 模板的精简 .gitignore 未包含以下条目）
 /android/.gradle/
 /android/.kotlin/
 **/windows/flutter/ephemeral/

@@ -1,10 +1,9 @@
 /// 应用版本与阶段标记。
 ///
-/// 这里是设置页显示的那一份。发版时**和 `pubspec.yaml` 的 `version:` 一起改**——
-/// Android 上 versionName 就是 pubspec 里那个，APK 里写的和界面上显示的
-/// 必须是同一个版本，否则两个地方会各说各话（阶段 A 那次就没跟上，
-/// 设置页一直停在 0.1.0）。
+/// 本文件中的版本号用于设置页展示。发版时须与 `pubspec.yaml` 的 `version:`
+/// 同步修改。Android 的 versionName 取自 pubspec，界面显示值与 APK 内版本
+/// 必须一致，避免版本信息不一致。
 const String appVersion = '4.12.2';
 
-/// 括号里那句阶段说明，只给开发者看，不参与版本比较。
-const String appStageLabel = '阶段 D · v4.12.2（安全审核默认关）';
+/// 阶段说明，仅用于开发标识，不参与版本比较。
+const String appStageLabel = '阶段 D · v4.12.2';

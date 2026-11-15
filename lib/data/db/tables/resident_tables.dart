@@ -109,9 +109,9 @@ class ResidentSleepPeriods extends Table {
 
 /// 固定住民的收件箱（v3.3）。
 ///
-/// 唤醒式交互的地基：每次醒来先看这里有什么没处理，由模型决定
-/// 回谁、回什么、或者干脆已读不回。`handledAt` 必须有——否则
-/// “选择不回”会和“还没看到”混在一起，永远算待办。
+/// 唤醒式交互的基础数据：每次唤醒时先检查未处理条目，由模型决定
+/// 回复对象、回复内容，或直接标记为已读不回。`handledAt` 为必需字段，
+/// 否则“主动选择不回”会与“尚未查看”混淆，一直计入待办。
 @DataClassName('ResidentInboxRow')
 @TableIndex(name: 'resident_inbox_pending', columns: {#residentId, #handledAt})
 class ResidentInboxItems extends Table {
