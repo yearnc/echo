@@ -201,6 +201,16 @@ class ResidentToolSession {
     return left > cap ? cap : left;
   }
 
+  /// 这一轮给模型留多少输出预算。
+  ///
+  /// 420 是给普通对话算的；思考模式下服务商先把推理写进同一份输出预算，
+  /// 420 很容易全花在思考上，最后 `content` 是空的——看起来就是
+  /// “醒了一趟，却什么都没做”。思考开着时给足 2048。
+  static int _actMaxTokens(ModelConfig config) {
+    if (!config.isDeepSeek) return 420;
+    return config.thinkingMode == ThinkingMode.off ? 420 : 2048;
+  }
+
   void _report(
     CustomResident resident,
     String label,
@@ -329,7 +339,7 @@ class ResidentToolSession {
             includeKnowledge: knowledge != null,
           ),
           temperature: 0.85,
-          maxTokens: 420,
+          maxTokens: _actMaxTokens(config),
           timeout: _callTimeout(left, limits),
         );
       } catch (error) {
@@ -341,7 +351,7 @@ class ResidentToolSession {
               config: config,
               messages: messages,
               temperature: 0.8,
-              maxTokens: 320,
+              maxTokens: _actMaxTokens(config),
               timeout: left,
             );
             if (text.trim().isNotEmpty) return text.trim();
@@ -353,7 +363,25 @@ class ResidentToolSession {
       }
 
       if (result.toolCalls.isEmpty) {
-        return sanitizeModelText(result.content);
+        final text = sanitizeModelText(result.content);
+        if (text.isNotEmpty) return text;
+
+        // 空回复：既没有话，也没有工具调用。最常见的原因是思考模式把
+        // 输出预算吃光了——服务商只回了一段 reasoning，content 是空的。
+        // 不能就这样静默结束：对方在屏幕前等，日志里只会看到“醒了”。
+        if (round == 0) {
+          debugPrint(
+            '[唤醒] ${resident.name}：模型这一轮什么都没说，'
+            '追加一次提醒再试（预算 ${_actMaxTokens(config)} token）',
+          );
+          messages.add({
+            'role': 'user',
+            'content': '你刚才没有输出任何内容。请直接说一句话，或者调用一个工具。',
+          });
+          continue;
+        }
+        debugPrint('[唤醒] ${resident.name}：模型还是只回了空内容');
+        return '';
       }
 
       messages.add({
@@ -643,7 +671,11 @@ class ResidentToolSession {
         ],
         tools: const [],
         temperature: 0.8,
-        maxTokens: 120,
+        // 收尾只要一句话，但思考模式下 120 会被推理吃光，
+        // 最后变成“工具调完了、人没吭声”。
+        maxTokens: config.isDeepSeek && config.thinkingMode != ThinkingMode.off
+            ? 1024
+            : 120,
         timeout: left,
       );
       return sanitizeModelText(finalResult.content);

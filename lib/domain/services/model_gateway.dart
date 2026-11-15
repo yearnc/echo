@@ -216,12 +216,8 @@ class ModelGateway {
   ) {
     final effective = _effectiveMaxTokens(config, maxTokens);
     if (effective != null) body['max_tokens'] = effective;
-    if (!config.isDeepSeek) return;
-    final effort = config.reasoningEffort;
-    if (effort != null) body['reasoning_effort'] = effort;
-    if (config.safetyCheck) {
-      body['safety_check'] = {'level': 'high'};
-    }
+    // 扩展参数由 ModelConfig 统一给：测试连接也用同一份，不再两套口径。
+    body.addAll(config.providerOptions);
   }
 
   /// 调用方给了上限就尊重调用方，同时受配置里的总上限约束；

@@ -25,7 +25,7 @@ class KnowledgeService {
   /// 固定住民只带索引；详情按需查。
   static const int residentIndexLimit = 20;
 
-  /// 自动抓取的梗 30 天过期。主人手动写的不设期限。
+  /// 自动抓取的梗 30 天过期。用户手动写的不设期限。
   static const Duration trendTtl = Duration(days: 30);
 
   final Map<String, _CachedBlock> _transientCache = {};

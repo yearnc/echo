@@ -1049,7 +1049,7 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 51) {
         // v51：知识库。三张空表，不播种任何内容——
-        // 热门梗由系统每周联网更新，其他知识由主人或住民自己写。
+        // 热门梗由系统每周联网更新，其他知识由用户或住民自己写。
         if (!await hasTable('knowledge_bases')) {
           await m.createTable(knowledgeBases);
           await customStatement(

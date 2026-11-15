@@ -211,9 +211,12 @@ String? refusalMessage(Map<String, dynamic>? data) {
     }
     final message = first['message'];
     if (message is Map) {
+      // 只认“真的拒答”：`refusal: true` 或非空字符串。
+      // 有些兼容端会固定带上 `refusal: false`，把它当成拒答会让整轮
+      // 唤醒直接失败——表现就是“醒了、但一句话都没说”。
       final refusal = message['refusal'];
-      if (refusal != null &&
-          (refusal is! String || refusal.trim().isNotEmpty)) {
+      if (refusal == true ||
+          (refusal is String && refusal.trim().isNotEmpty)) {
         return contentRefusalMessage;
       }
     }

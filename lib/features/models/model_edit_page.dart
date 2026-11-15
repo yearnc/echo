@@ -208,6 +208,16 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
     // 三种用途各打各的接口：对话 /chat/completions、出图 /images/generations、
     // 语音 /audio/speech。拿对话接口去验后两者，只会得到一句误导人的"地址不对"。
     final probe = ref.read(modelProbeProvider);
+    // 对话测试要把思考强度、安全审核一起发出去——住民真开口时就是这个组合。
+    final options = ModelConfig(
+      id: _config?.id ?? '',
+      provider: _provider,
+      label: '',
+      baseUrl: baseUrl,
+      model: model,
+      thinkingMode: _thinkingMode,
+      safetyCheck: _safetyCheck,
+    ).providerOptions;
     final result = switch (_kind) {
       ModelKind.image => await probe.testImage(
         baseUrl: baseUrl,
@@ -224,11 +234,13 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
         baseUrl: baseUrl,
         apiKey: key,
         model: model,
+        extraBody: options,
       ),
       ModelKind.chat => await probe.test(
         baseUrl: baseUrl,
         apiKey: key,
         model: model,
+        extraBody: options,
       ),
     };
 

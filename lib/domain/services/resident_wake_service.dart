@@ -2084,7 +2084,7 @@ class _WakeToolkit implements ResidentWakeToolkit {
     spokePrivately = true;
     service._petSaid[resident.id] = clean;
     // 气泡是住民说过的话，要进窗口——否则它进私信会否认自己说过。
-    // 顺带记下“当时看到什么”，主人追问时它才答得上前因。
+    // 顺带记下“当时看到什么”，对方追问时它才答得上前因。
     service.appendBubbleToWindow(
       resident.id,
       clean,

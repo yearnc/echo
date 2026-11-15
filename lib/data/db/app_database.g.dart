@@ -27534,7 +27534,7 @@ class KnowledgeBaseRow extends DataClass
   final String id;
   final String name;
 
-  /// 给主人看的一句话说明，也会作为"这本书的视角"注入提示词。
+  /// 给用户看的一句话说明，也会作为"这本书的视角"注入提示词。
   final String description;
 
   /// independent / shared

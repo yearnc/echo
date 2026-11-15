@@ -486,7 +486,7 @@ class _CacheStatsCard extends ConsumerWidget {
                 data: (summary) {
                   if (!summary.hasData) {
                     return Text(
-                      '还没有调用记录。服务商不返回 usage 时，这里也不会编数字。',
+                      '还没有调用记录。',
                       style: TextStyle(
                         color: EchoColors.textFaint,
                         fontSize: 11.5,

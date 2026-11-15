@@ -64,7 +64,7 @@ class ResidentSleepService {
     );
   }
 
-  /// 只记一次互动（没有唤醒需求时用；比如主人随手点开桌宠控制）。
+  /// 只记一次互动（没有唤醒需求时用；比如用户随手点开桌宠控制）。
   Future<void> touch(String residentId) =>
       residents.touchInteraction(residentId, at: now());
 

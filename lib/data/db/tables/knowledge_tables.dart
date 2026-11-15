@@ -18,7 +18,7 @@ class KnowledgeBases extends Table {
 
   TextColumn get name => text()();
 
-  /// 给主人看的一句话说明，也会作为"这本书的视角"注入提示词。
+  /// 给用户看的一句话说明，也会作为"这本书的视角"注入提示词。
   TextColumn get description => text().withDefault(const Constant(''))();
 
   /// independent / shared
@@ -53,7 +53,7 @@ class KnowledgeBases extends Table {
 /// 知识条目。
 ///
 /// `summary` 是索引（常驻提示词），`content` 是正文（按需拉取）。
-/// 热门梗库的正文必须写清来源、用处和两三个例子——这是主人定的格式。
+/// 热门梗库的正文必须写清来源、用处和两三个例子——这是定好的格式。
 @DataClassName('KnowledgeEntryRow')
 @TableIndex(name: 'knowledge_entries_base', columns: {#baseId, #updatedAt})
 class KnowledgeEntries extends Table {

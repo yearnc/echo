@@ -178,6 +178,38 @@ void main() {
       expect(custom.isDeepSeek, isFalse);
     });
 
+    test('providerOptions 是对话与测试连接共用的那份参数', () {
+      const deepseek = ModelConfig(
+        id: 'a',
+        provider: 'deepseek',
+        label: 'x',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        thinkingMode: ThinkingMode.high,
+      );
+      expect(deepseek.providerOptions['reasoning_effort'], 'high');
+      expect(deepseek.providerOptions['safety_check'], {'level': 'high'});
+
+      const auto = ModelConfig(
+        id: 'b',
+        provider: 'deepseek',
+        label: 'x',
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        safetyCheck: false,
+      );
+      expect(auto.providerOptions, isEmpty);
+
+      const custom = ModelConfig(
+        id: 'c',
+        provider: 'custom',
+        label: 'x',
+        baseUrl: 'https://example.com/v1',
+        model: 'm',
+      );
+      expect(custom.providerOptions, isEmpty);
+    });
+
     test('地址和模型名都填了才算完整', () {
       const empty = ModelConfig(
         id: 'a',
@@ -245,6 +277,39 @@ void main() {
           ],
         }),
         isNull,
+      );
+    });
+
+    test('refusal 为 false / 空字符串不算拒答', () {
+      // 有的兼容端每条响应都固定带 `refusal: false`；把它当成拒答，
+      // 整轮唤醒会直接失败，表现就是“醒了但一句话都没说”。
+      for (final value in <Object?>[false, '', 0]) {
+        expect(
+          refusalMessage({
+            'choices': [
+              {
+                'message': {'content': '正常回答', 'refusal': value},
+                'finish_reason': 'stop',
+              },
+            ],
+          }),
+          isNull,
+          reason: 'refusal=$value 不应触发拒答',
+        );
+      }
+    });
+
+    test('refusal 为 true 仍算拒答', () {
+      expect(
+        refusalMessage({
+          'choices': [
+            {
+              'message': {'content': null, 'refusal': true},
+              'finish_reason': 'stop',
+            },
+          ],
+        }),
+        contentRefusalMessage,
       );
     });
   });

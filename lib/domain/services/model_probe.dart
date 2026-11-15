@@ -31,6 +31,7 @@ class ModelProbe {
     required String baseUrl,
     required String apiKey,
     required String model,
+    Map<String, dynamic> extraBody = const {},
   }) async {
     // 地址本身就不对的话不必真发出去：那一定只剩"连不上这个地址"，
     // 而这句话会把用户引到网络上去——手机端"连不上"有一半是地址没写全
@@ -48,6 +49,9 @@ class ModelProbe {
           'messages': [
             {'role': 'user', 'content': '用一句话打个招呼就好'},
           ],
+          // 对话用的扩展参数（思考强度、安全审核）也带上：
+          // 否则测试正常、真到住民开口时才发现服务商不认这些字段。
+          ...extraBody,
           // 刻意不发 max_tokens：OpenAI 已把它换成 max_completion_tokens
           // 且 o 系列不认旧名，而大多数兼容端点还没跟上新名。
           // 测试连接只要它能回话就行，长度由提示词管着。

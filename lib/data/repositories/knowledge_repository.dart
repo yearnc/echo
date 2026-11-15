@@ -344,7 +344,7 @@ class KnowledgeRepository {
   // —— 内置热门梗库 ——
 
   /// 拿到（必要时创建）内置热门梗库。**不填任何条目**：
-  /// 内容只由每周自动更新或主人手动添加。
+  /// 内容只由每周自动更新或用户手动添加。
   Future<KnowledgeBase> ensureTrendBase() async {
     final existing = await findBase(builtinTrendBaseId);
     if (existing != null) return existing;

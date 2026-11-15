@@ -99,7 +99,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final sleepNotice = await ref
           .read(residentSleepServiceProvider)
           .prepareInteraction(widget.personaId);
-      _input.clear();
       final messageId = await ref
           .read(privateMessageRepositoryProvider)
           .send(
@@ -110,6 +109,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             voicePath: voiceRef ?? '',
             transcript: transcript ?? '',
           );
+      // 落库成功再清空：写入失败时文字还在，不用重打一遍。
+      _input.clear();
 
       // v41：我在他还没说完的时候又插了一句——把上一轮还没到点的段先暂停，
       // 下一轮唤醒会把原话交给他，让他自己决定照发、改写还是算了。

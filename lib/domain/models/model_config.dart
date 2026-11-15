@@ -141,6 +141,18 @@ class ModelConfig {
     _ => thinkingMode.id,
   };
 
+  /// 真正发请求时附加的扩展参数。
+  ///
+  /// 对话和「测试连接」必须共用这一份：以前测试连接只发地址、模型名和密钥，
+  /// 于是服务商拒绝扩展参数时，测试显示正常、住民却一句话都发不出来。
+  Map<String, dynamic> get providerOptions {
+    if (!isDeepSeek) return const {};
+    return {
+      if (reasoningEffort != null) 'reasoning_effort': reasoningEffort,
+      if (safetyCheck) 'safety_check': {'level': 'high'},
+    };
+  }
+
   /// 当前启用中的那一条（同一时间只允许一条）
   final bool enabled;
 
