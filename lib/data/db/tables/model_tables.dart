@@ -59,7 +59,7 @@ class ModelConfigs extends Table {
       text().withDefault(const Constant('auto'))();
 
   /// DeepSeek 内容安全审核（v52）。开 = `safety_check.level=high`。
-  BoolColumn get safetyCheck => boolean().withDefault(const Constant(true))();
+  BoolColumn get safetyCheck => boolean().withDefault(const Constant(false))();
 
   /// 单次输出上限（token，v52）。0 = 不额外限制。
   IntColumn get maxOutputTokens => integer().withDefault(const Constant(0))();

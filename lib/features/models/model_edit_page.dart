@@ -50,7 +50,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   bool _ttsReferenceDescription = false;
   bool _ttsReferenceTranscript = false;
   ThinkingMode _thinkingMode = ThinkingMode.auto;
-  bool _safetyCheck = true;
+  bool _safetyCheck = false;
   ProbeResult? _probe;
 
   bool get _isDeepSeek =>
@@ -140,7 +140,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
       _ttsReferenceDescription = config?.ttsReferenceDescription ?? false;
       _ttsReferenceTranscript = config?.ttsReferenceTranscript ?? false;
       _thinkingMode = config?.thinkingMode ?? ThinkingMode.auto;
-      _safetyCheck = config?.safetyCheck ?? true;
+      _safetyCheck = config?.safetyCheck ?? false;
       _maxOutputCtrl.text = (config?.maxOutputTokens ?? 0) > 0
           ? '${config!.maxOutputTokens}'
           : '';
@@ -668,8 +668,9 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                 const SizedBox(height: 20),
                 const _Label('DeepSeek 高级参数'),
                 Text(
-                  '思考越强越慢、越费 token；内容安全审核按 DeepSeek 合规指南'
-                  '默认开启。这些参数只发给 DeepSeek 官方接口。',
+                  '思考越强越慢、越费 token；内容安全审核默认关闭——'
+                  '开启后部分接口会让回复变成空内容。'
+                  '这些参数只发给 DeepSeek 官方接口。',
                   style: TextStyle(
                     color: EchoColors.textFaint,
                     fontSize: 11.5,
@@ -698,8 +699,8 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('内容安全审核'),
                   subtitle: const Text(
-                    '请求里带 safety_check: high；开启后温度等采样参数不生效，'
-                    '被拦下时显示我们自己的提示',
+                    '请求里带 safety_check: high；开启后温度等采样参数不生效。'
+                    '如果住民忽然不回话，先把它关掉',
                   ),
                   value: _safetyCheck,
                   onChanged: (value) => setState(() => _safetyCheck = value),

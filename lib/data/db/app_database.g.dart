@@ -10773,7 +10773,7 @@ class $ModelConfigsTable extends ModelConfigs
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("safety_check" IN (0, 1))',
     ),
-    defaultValue: const Constant(true),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _maxOutputTokensMeta = const VerificationMeta(
     'maxOutputTokens',

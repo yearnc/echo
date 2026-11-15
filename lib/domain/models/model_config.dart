@@ -61,7 +61,7 @@ class ModelConfig {
     this.ttsReferenceTranscript = false,
     this.contextWindow = defaultContextWindow,
     this.thinkingMode = ThinkingMode.auto,
-    this.safetyCheck = true,
+    this.safetyCheck = false,
     this.maxOutputTokens = 0,
     this.enabled = false,
     this.createdAt = 0,

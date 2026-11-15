@@ -87,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 52;
+  int get schemaVersion => 53;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1081,6 +1081,15 @@ class AppDatabase extends _$AppDatabase {
           if (!await hasColumn('model_configs', 'max_output_tokens')) {
             await m.addColumn(modelConfigs, modelConfigs.maxOutputTokens);
           }
+        }
+      }
+      if (from < 53) {
+        // v53：内容安全审核默认改为关闭。
+        // 开着时 DeepSeek 会收下 `safety_check`，但回复可能变成空内容——
+        // 表现就是“住民醒了却一句话都没说”。老配置一并关掉，需要的人
+        // 可以在模型编辑页自己打开。
+        if (await hasTable('model_configs')) {
+          await customStatement('UPDATE model_configs SET safety_check = 0');
         }
       }
     },

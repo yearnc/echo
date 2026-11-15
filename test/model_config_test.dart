@@ -186,6 +186,7 @@ void main() {
         baseUrl: 'https://api.deepseek.com',
         model: 'deepseek-flash',
         thinkingMode: ThinkingMode.high,
+        safetyCheck: true,
       );
       expect(deepseek.providerOptions['reasoning_effort'], 'high');
       expect(deepseek.providerOptions['safety_check'], {'level': 'high'});
@@ -343,7 +344,7 @@ void main() {
       expect(loaded.contextWindow, 1000000, reason: '默认按百万上下文');
     });
 
-    test('DeepSeek 高级参数能存能读，老配置默认安全审核开', () async {
+    test('DeepSeek 高级参数能存能读，默认安全审核关', () async {
       const config = ModelConfig(
         id: 'm3',
         provider: 'deepseek',
@@ -360,7 +361,8 @@ void main() {
       expect(loaded.safetyCheck, isFalse);
       expect(loaded.maxOutputTokens, 4096);
 
-      // 没显式设置过的配置保持默认：不传思考参数、审核开。
+      // 没显式设置过的配置保持默认：不传思考参数、审核关。
+      // 审核开着时 DeepSeek 会收下参数却让回复变成空内容。
       await repo.save(
         const ModelConfig(
           id: 'm4',
@@ -372,7 +374,7 @@ void main() {
       );
       final plain = await repo.findById('m4');
       expect(plain!.thinkingMode, ThinkingMode.auto);
-      expect(plain.safetyCheck, isTrue);
+      expect(plain.safetyCheck, isFalse);
       expect(plain.maxOutputTokens, 0);
     });
 
