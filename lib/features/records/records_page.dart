@@ -14,6 +14,7 @@ import '../../domain/models/post.dart';
 import '../../domain/services/clear_data_service.dart';
 import '../../domain/services/mode_switch_service.dart';
 import '../../domain/services/record_timeline.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/post_image.dart';
 
 /// 是否该显示一次"重建引导"（切到清醒模式之后）。
@@ -244,9 +245,7 @@ class _PrivacyCardState extends ConsumerState<_PrivacyCard> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('导出没成：$error')));
+      showAppToast(context, '导出没成：$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -289,14 +288,10 @@ class _PrivacyCardState extends ConsumerState<_PrivacyCard> {
     try {
       await ref.read(clearDataServiceProvider).deleteAllClearData();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('清醒数据已清除')));
+      showAppToast(context, '清醒数据已清除');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('清除没成：$error')));
+      showAppToast(context, '清除没成：$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

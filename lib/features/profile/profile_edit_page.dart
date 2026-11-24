@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/media/media_service.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 
@@ -79,8 +80,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
     if (!mounted) return;
     setState(() => _saving = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('已保存')));
+    showAppToast(context, '已保存');
     Navigator.of(context).maybePop();
   }
 

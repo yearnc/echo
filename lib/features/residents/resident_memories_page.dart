@@ -7,6 +7,7 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/resident_memory_repository.dart';
 import '../../domain/models/resident_memory.dart';
 import '../../domain/services/memory_maintenance_service.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 一位固定住民的长期记忆。
 ///
@@ -56,15 +57,9 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
     await _loadMaintenance();
     if (!mounted) return;
     setState(() => _maintenanceBusy = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          report.ran
+    showAppToast(context, report.ran
               ? report.message
-              : (report.message.isEmpty ? '现在不整理' : report.message),
-        ),
-      ),
-    );
+              : (report.message.isEmpty ? '现在不整理' : report.message),);
   }
 
   Future<void> _showDeleted() async {
@@ -74,8 +69,7 @@ class _ResidentMemoriesPageState extends ConsumerState<ResidentMemoriesPage> {
         .recentlyDeleted(widget.residentId, since: since);
     if (!mounted) return;
     if (list.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('这次没有删掉任何记忆')));
+      showAppToast(context, '这次没有删掉任何记忆');
       return;
     }
     await showDialog<void>(

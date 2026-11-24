@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/models/post.dart';
+import 'app_toast.dart';
 
 /// 删除自己的帖子：确认 + 软删除。信息流和详情页共用这一份。
 ///
@@ -41,8 +42,6 @@ Future<bool> confirmDeletePost(
 
   await ref.read(postRepositoryProvider).softDelete(post.id);
   if (!context.mounted) return true;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('帖子已删除')));
+  showAppToast(context, '帖子已删除');
   return true;
 }

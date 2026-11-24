@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/repositories/user_profile_repository.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 我的身份：告诉 AI"正在跟谁说话"。
 ///
@@ -81,16 +82,12 @@ class _IdentityPageState extends ConsumerState<IdentityPage> {
             intro: _intro.text,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('身份已保存')));
+      showAppToast(context, '身份已保存');
       Navigator.of(context).maybePop();
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      showAppToast(context, '保存失败：$error');
     }
   }
 

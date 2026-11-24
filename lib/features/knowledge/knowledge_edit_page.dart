@@ -7,8 +7,9 @@ import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/knowledge_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/knowledge.dart';
-import '../../domain/services/knowledge_update_service.dart';
 import '../../domain/services/knowledge_service.dart';
+import '../../domain/services/knowledge_update_service.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 一本知识库的编辑页。
 ///
@@ -136,9 +137,7 @@ class _KnowledgeEditorState extends ConsumerState<_KnowledgeEditor> {
       final residents = await ref.read(customResidentRepositoryProvider).all();
       if (residents.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('还没有固定住民，先建一位再选')),
-        );
+        showAppToast(context, '还没有固定住民，先建一位再选');
         return;
       }
       ownerResidentId = residents.first.id;
@@ -179,14 +178,10 @@ class _KnowledgeEditorState extends ConsumerState<_KnowledgeEditor> {
       }
       ref.read(knowledgeServiceProvider).invalidate(baseId: widget.base.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已保存')));
+      showAppToast(context, '已保存');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      showAppToast(context, '保存失败：$error');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -200,9 +195,7 @@ class _KnowledgeEditorState extends ConsumerState<_KnowledgeEditor> {
         .maybeRun(force: true);
     if (!mounted) return;
     setState(() => _updating = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(report.message)));
+    showAppToast(context, report.message);
   }
 
   Future<void> _deleteBase() async {
@@ -231,9 +224,7 @@ class _KnowledgeEditorState extends ConsumerState<_KnowledgeEditor> {
     if (removed) {
       context.pop();
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('内置知识库不能删除')));
+      showAppToast(context, '内置知识库不能删除');
     }
   }
 
@@ -725,9 +716,7 @@ class _EntryEditorState extends ConsumerState<_EntryEditor> {
   Future<void> _save() async {
     if (_saving) return;
     if (_title.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('先给它起个名字')));
+      showAppToast(context, '先给它起个名字');
       return;
     }
     setState(() => _saving = true);

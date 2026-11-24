@@ -72,16 +72,21 @@ class PrivateMessageRepository {
     );
   }
 
-  /// 和某个人的全部往来（按时间正序，够聊天页从上往下铺）。
+  /// 和某个人的一段往来（按时间正序，够聊天页从上往下铺）。
   ///
-  /// **不在 SQL 里绑一个"建查询那一刻"的 now**：那样你刚发出去的消息
-  /// 时间戳一定比它大，会被过滤掉，界面上就像"点了发送没反应"。
-  /// 过滤放在每次读取时，还没到点的排期消息不会提前出现。
+  /// 默认只取最近 [limit] 条：长会话一次读全量会拖慢进入聊天页的时间。
+  /// 用户往上翻时由页面把 [limit] 调大，再取更早的三十条。
+  ///
+  /// 上限用读取那一刻的 now：还没到点的排期消息不应提前出现。
+  /// 刚发出去的消息时间戳早于这次读取，不会被过滤。
   ///
   /// 更关键的是 [nextDueMs]：下一条排期消息到点时，这个流会自己重新
   /// 发射一次。以前只靠数据库变更触发，排期消息躺在库里但还没到点，
   /// 就要等页面轮询或退出重进才会一次蹦出来。
-  Stream<List<PrivateMessage>> watchThread(String personaId) {
+  Stream<List<PrivateMessage>> watchThread(
+    String personaId, {
+    int limit = 30,
+  }) {
     return _dueStream(
       load: () async {
         final rows =
@@ -91,15 +96,14 @@ class PrivateMessageRepository {
                         t.personaId.equals(personaId) &
                         t.deletedAt.isNull() &
                         // 被用户打断（paused）或取消（cancelled）的段不出现。
-                        t.deliveryState.isIn([pendingState, sentState]),
+                        t.deliveryState.isIn([pendingState, sentState]) &
+                        t.createdAt.isSmallerOrEqualValue(_now),
                   )
-                  ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+                  ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+                  ..limit(limit))
                 .get();
-        final now = DateTime.now().millisecondsSinceEpoch;
-        return [
-          for (final row in rows)
-            if (row.createdAt <= now) _toMessage(row),
-        ];
+        // 数据库按倒序取“最近 N 条”，界面仍按正序铺。
+        return [for (final row in rows.reversed) _toMessage(row)];
       },
       nextDueMs: () => _nextFutureAt(personaId: personaId),
     );
@@ -716,11 +720,12 @@ final conversationsProvider = StreamProvider<List<Conversation>>(
   (ref) => ref.watch(privateMessageRepositoryProvider).watchConversations(),
 );
 
-/// 和某一个人的往来。
+/// 和某一个人的往来（只取最近 [limit] 条，往上翻时页面把它调大）。
 final privateThreadProvider = StreamProvider.autoDispose
-    .family<List<PrivateMessage>, String>(
-      (ref, personaId) =>
-          ref.watch(privateMessageRepositoryProvider).watchThread(personaId),
+    .family<List<PrivateMessage>, ({String personaId, int limit})>(
+      (ref, args) => ref
+          .watch(privateMessageRepositoryProvider)
+          .watchThread(args.personaId, limit: args.limit),
     );
 
 /// 这位住民还有没有话没发完（「正在打字…」）。

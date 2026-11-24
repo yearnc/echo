@@ -7,6 +7,7 @@ import '../../domain/models/game_plugin.dart';
 import '../../domain/services/game_service.dart';
 import '../../domain/services/resident_sleep_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import 'game_providers.dart';
 
 /// 声明式插件游戏的对局页（v50）。
@@ -306,8 +307,6 @@ class PluginGamePage extends ConsumerWidget {
           args: args,
         );
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(outcome.message)),
-    );
+    showAppToast(context, outcome.message);
   }
 }

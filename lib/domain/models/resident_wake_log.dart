@@ -12,6 +12,7 @@ class ResidentWakeLog {
     this.note = '',
     this.noteAt,
     this.tools = const [],
+    this.aside = '',
   });
 
   final String id;
@@ -29,8 +30,12 @@ class ResidentWakeLog {
   /// 这一轮调用了哪些工具（原始名，按调用顺序）。v43 起记录。
   final List<String> tools;
 
+  /// 模型没有调用工具、只回了一句话时的那句「碎碎念」（v54）。
+  final String aside;
+
   bool get hasNote => note.trim().isNotEmpty;
   bool get hasTools => tools.isNotEmpty;
+  bool get hasAside => aside.trim().isNotEmpty;
 
   /// 工具名给页面上看的中文说法。
   static String toolLabel(String name) => switch (name) {

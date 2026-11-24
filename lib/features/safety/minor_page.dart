@@ -9,6 +9,7 @@ import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_controller.dart';
 import '../../domain/services/mode_switch_service.dart';
 import '../../domain/services/safety_controller.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 未成年人保护（规划书 §6.10 / §13，页面清单第 24 项）。
 ///
@@ -131,9 +132,7 @@ class MinorProtectionPage extends ConsumerWidget {
       // 两种模式的首页不是同一个页面，切完得把人带过去，
       // 否则会站在"回响广场"上却已经是清醒模式。
       context.go(RoutePaths.records);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未成年人保护已开启，已切到清醒模式')),
-      );
+      showAppToast(context, '未成年人保护已开启，已切到清醒模式');
     }
   }
 

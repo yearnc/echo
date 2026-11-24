@@ -15,6 +15,7 @@ import '../../domain/services/mode_controller.dart';
 import '../../domain/services/notification_service.dart';
 import '../../domain/services/tts_service.dart';
 import '../../domain/services/voice_playback.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 客观分析页（v31 重做）。
 ///
@@ -44,9 +45,7 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
           .generate();
       if (!mounted) return;
       if (insight == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('这 7 天还没有可分析的记录。先写下一条，或做一件真实的小事。')),
-        );
+        showAppToast(context, '这 7 天还没有可分析的记录。先写下一条，或做一件真实的小事。');
         return;
       }
 
@@ -80,18 +79,14 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
           .speak(text: insight.toSpeechText(), personaId: 'clear_analysis');
       if (!mounted) return;
       if (clip == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('这台设备暂时合成不了语音，文字版就在上面。')),
-        );
+        showAppToast(context, '这台设备暂时合成不了语音，文字版就在上面。');
         return;
       }
       await ref.read(voicePlaybackProvider.notifier).toggle(clip.ref);
     } catch (error) {
       // 精简版没下载语音模型时，异常里带着“去我的 → 下载资源”，原样告诉用户。
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$error')),
-        );
+        showAppToast(context, '$error');
       }
     } finally {
       if (mounted) setState(() => _speaking = false);

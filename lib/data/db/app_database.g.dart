@@ -17946,6 +17946,16 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
+  static const VerificationMeta _asideMeta = const VerificationMeta('aside');
+  @override
+  late final GeneratedColumn<String> aside = GeneratedColumn<String>(
+    'aside',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -17957,6 +17967,7 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
     noteAt,
     noteDeliveredAt,
     tools,
+    aside,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -18032,6 +18043,12 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
         tools.isAcceptableOrUnknown(data['tools']!, _toolsMeta),
       );
     }
+    if (data.containsKey('aside')) {
+      context.handle(
+        _asideMeta,
+        aside.isAcceptableOrUnknown(data['aside']!, _asideMeta),
+      );
+    }
     return context;
   }
 
@@ -18077,6 +18094,10 @@ class $ResidentWakeLogsTable extends ResidentWakeLogs
         DriftSqlType.string,
         data['${effectivePrefix}tools'],
       )!,
+      aside: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}aside'],
+      )!,
     );
   }
 
@@ -18106,6 +18127,11 @@ class ResidentWakeLogRow extends DataClass
 
   /// 这一轮调用过的工具名（JSON 数组，v43）。日志页据此显示 TA 干了什么。
   final String tools;
+
+  /// 模型只回了一句话、没有调用任何工具时，那句话记在这里（v54）。
+  ///
+  /// 它不构成一次主动联系，不会再被转成私信；日志页把它显示为「碎碎念」。
+  final String aside;
   const ResidentWakeLogRow({
     required this.id,
     required this.residentId,
@@ -18116,6 +18142,7 @@ class ResidentWakeLogRow extends DataClass
     this.noteAt,
     this.noteDeliveredAt,
     required this.tools,
+    required this.aside,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -18135,6 +18162,7 @@ class ResidentWakeLogRow extends DataClass
       map['note_delivered_at'] = Variable<int>(noteDeliveredAt);
     }
     map['tools'] = Variable<String>(tools);
+    map['aside'] = Variable<String>(aside);
     return map;
   }
 
@@ -18155,6 +18183,7 @@ class ResidentWakeLogRow extends DataClass
           ? const Value.absent()
           : Value(noteDeliveredAt),
       tools: Value(tools),
+      aside: Value(aside),
     );
   }
 
@@ -18173,6 +18202,7 @@ class ResidentWakeLogRow extends DataClass
       noteAt: serializer.fromJson<int?>(json['noteAt']),
       noteDeliveredAt: serializer.fromJson<int?>(json['noteDeliveredAt']),
       tools: serializer.fromJson<String>(json['tools']),
+      aside: serializer.fromJson<String>(json['aside']),
     );
   }
   @override
@@ -18188,6 +18218,7 @@ class ResidentWakeLogRow extends DataClass
       'noteAt': serializer.toJson<int?>(noteAt),
       'noteDeliveredAt': serializer.toJson<int?>(noteDeliveredAt),
       'tools': serializer.toJson<String>(tools),
+      'aside': serializer.toJson<String>(aside),
     };
   }
 
@@ -18201,6 +18232,7 @@ class ResidentWakeLogRow extends DataClass
     Value<int?> noteAt = const Value.absent(),
     Value<int?> noteDeliveredAt = const Value.absent(),
     String? tools,
+    String? aside,
   }) => ResidentWakeLogRow(
     id: id ?? this.id,
     residentId: residentId ?? this.residentId,
@@ -18213,6 +18245,7 @@ class ResidentWakeLogRow extends DataClass
         ? noteDeliveredAt.value
         : this.noteDeliveredAt,
     tools: tools ?? this.tools,
+    aside: aside ?? this.aside,
   );
   ResidentWakeLogRow copyWithCompanion(ResidentWakeLogsCompanion data) {
     return ResidentWakeLogRow(
@@ -18229,6 +18262,7 @@ class ResidentWakeLogRow extends DataClass
           ? data.noteDeliveredAt.value
           : this.noteDeliveredAt,
       tools: data.tools.present ? data.tools.value : this.tools,
+      aside: data.aside.present ? data.aside.value : this.aside,
     );
   }
 
@@ -18243,7 +18277,8 @@ class ResidentWakeLogRow extends DataClass
           ..write('note: $note, ')
           ..write('noteAt: $noteAt, ')
           ..write('noteDeliveredAt: $noteDeliveredAt, ')
-          ..write('tools: $tools')
+          ..write('tools: $tools, ')
+          ..write('aside: $aside')
           ..write(')'))
         .toString();
   }
@@ -18259,6 +18294,7 @@ class ResidentWakeLogRow extends DataClass
     noteAt,
     noteDeliveredAt,
     tools,
+    aside,
   );
   @override
   bool operator ==(Object other) =>
@@ -18272,7 +18308,8 @@ class ResidentWakeLogRow extends DataClass
           other.note == this.note &&
           other.noteAt == this.noteAt &&
           other.noteDeliveredAt == this.noteDeliveredAt &&
-          other.tools == this.tools);
+          other.tools == this.tools &&
+          other.aside == this.aside);
 }
 
 class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
@@ -18285,6 +18322,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
   final Value<int?> noteAt;
   final Value<int?> noteDeliveredAt;
   final Value<String> tools;
+  final Value<String> aside;
   final Value<int> rowid;
   const ResidentWakeLogsCompanion({
     this.id = const Value.absent(),
@@ -18296,6 +18334,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     this.noteAt = const Value.absent(),
     this.noteDeliveredAt = const Value.absent(),
     this.tools = const Value.absent(),
+    this.aside = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ResidentWakeLogsCompanion.insert({
@@ -18308,6 +18347,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     this.noteAt = const Value.absent(),
     this.noteDeliveredAt = const Value.absent(),
     this.tools = const Value.absent(),
+    this.aside = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        residentId = Value(residentId),
@@ -18323,6 +18363,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     Expression<int>? noteAt,
     Expression<int>? noteDeliveredAt,
     Expression<String>? tools,
+    Expression<String>? aside,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -18335,6 +18376,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
       if (noteAt != null) 'note_at': noteAt,
       if (noteDeliveredAt != null) 'note_delivered_at': noteDeliveredAt,
       if (tools != null) 'tools': tools,
+      if (aside != null) 'aside': aside,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -18349,6 +18391,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     Value<int?>? noteAt,
     Value<int?>? noteDeliveredAt,
     Value<String>? tools,
+    Value<String>? aside,
     Value<int>? rowid,
   }) {
     return ResidentWakeLogsCompanion(
@@ -18361,6 +18404,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
       noteAt: noteAt ?? this.noteAt,
       noteDeliveredAt: noteDeliveredAt ?? this.noteDeliveredAt,
       tools: tools ?? this.tools,
+      aside: aside ?? this.aside,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -18395,6 +18439,9 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
     if (tools.present) {
       map['tools'] = Variable<String>(tools.value);
     }
+    if (aside.present) {
+      map['aside'] = Variable<String>(aside.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -18413,6 +18460,7 @@ class ResidentWakeLogsCompanion extends UpdateCompanion<ResidentWakeLogRow> {
           ..write('noteAt: $noteAt, ')
           ..write('noteDeliveredAt: $noteDeliveredAt, ')
           ..write('tools: $tools, ')
+          ..write('aside: $aside, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -29040,6 +29088,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'private_messages_persona',
     'CREATE INDEX private_messages_persona ON private_messages (persona_id)',
   );
+  late final Index privateMessagesPersonaAt = Index(
+    'private_messages_persona_at',
+    'CREATE INDEX private_messages_persona_at ON private_messages (persona_id, created_at)',
+  );
+  late final Index privateMessagesPersonaUnread = Index(
+    'private_messages_persona_unread',
+    'CREATE INDEX private_messages_persona_unread ON private_messages (persona_id, direction, read_at)',
+  );
   late final Index userCommentsPost = Index(
     'user_comments_post',
     'CREATE INDEX user_comments_post ON user_comments (post_id)',
@@ -29200,6 +29256,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     aiInteractionsLookup,
     aiInteractionsScheduled,
     privateMessagesPersona,
+    privateMessagesPersonaAt,
+    privateMessagesPersonaUnread,
     userCommentsPost,
     notificationLogsDelivered,
     planEventsDue,
@@ -40239,6 +40297,7 @@ typedef $$ResidentWakeLogsTableCreateCompanionBuilder =
       Value<int?> noteAt,
       Value<int?> noteDeliveredAt,
       Value<String> tools,
+      Value<String> aside,
       Value<int> rowid,
     });
 typedef $$ResidentWakeLogsTableUpdateCompanionBuilder =
@@ -40252,6 +40311,7 @@ typedef $$ResidentWakeLogsTableUpdateCompanionBuilder =
       Value<int?> noteAt,
       Value<int?> noteDeliveredAt,
       Value<String> tools,
+      Value<String> aside,
       Value<int> rowid,
     });
 
@@ -40306,6 +40366,11 @@ class $$ResidentWakeLogsTableFilterComposer
 
   ColumnFilters<String> get tools => $composableBuilder(
     column: $table.tools,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aside => $composableBuilder(
+    column: $table.aside,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -40363,6 +40428,11 @@ class $$ResidentWakeLogsTableOrderingComposer
     column: $table.tools,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get aside => $composableBuilder(
+    column: $table.aside,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ResidentWakeLogsTableAnnotationComposer
@@ -40404,6 +40474,9 @@ class $$ResidentWakeLogsTableAnnotationComposer
 
   GeneratedColumn<String> get tools =>
       $composableBuilder(column: $table.tools, builder: (column) => column);
+
+  GeneratedColumn<String> get aside =>
+      $composableBuilder(column: $table.aside, builder: (column) => column);
 }
 
 class $$ResidentWakeLogsTableTableManager
@@ -40452,6 +40525,7 @@ class $$ResidentWakeLogsTableTableManager
                 Value<int?> noteAt = const Value.absent(),
                 Value<int?> noteDeliveredAt = const Value.absent(),
                 Value<String> tools = const Value.absent(),
+                Value<String> aside = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ResidentWakeLogsCompanion(
                 id: id,
@@ -40463,6 +40537,7 @@ class $$ResidentWakeLogsTableTableManager
                 noteAt: noteAt,
                 noteDeliveredAt: noteDeliveredAt,
                 tools: tools,
+                aside: aside,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -40476,6 +40551,7 @@ class $$ResidentWakeLogsTableTableManager
                 Value<int?> noteAt = const Value.absent(),
                 Value<int?> noteDeliveredAt = const Value.absent(),
                 Value<String> tools = const Value.absent(),
+                Value<String> aside = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ResidentWakeLogsCompanion.insert(
                 id: id,
@@ -40487,6 +40563,7 @@ class $$ResidentWakeLogsTableTableManager
                 noteAt: noteAt,
                 noteDeliveredAt: noteDeliveredAt,
                 tools: tools,
+                aside: aside,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

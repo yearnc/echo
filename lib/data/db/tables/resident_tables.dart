@@ -164,6 +164,11 @@ class ResidentWakeLogs extends Table {
   /// 这一轮调用过的工具名（JSON 数组，v43）。日志页据此显示 TA 干了什么。
   TextColumn get tools => text().withDefault(const Constant('[]'))();
 
+  /// 模型只回了一句话、没有调用任何工具时，那句话记在这里（v54）。
+  ///
+  /// 它不构成一次主动联系，不会再被转成私信；日志页把它显示为「碎碎念」。
+  TextColumn get aside => text().withDefault(const Constant(''))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

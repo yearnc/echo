@@ -10,6 +10,7 @@ import '../../domain/models/custom_resident.dart';
 import '../../domain/models/pet_settings.dart';
 import '../../domain/services/pet_controller.dart';
 import '../../domain/services/pet_observe_service.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 import 'realtime_gap_picker.dart';
 
@@ -44,9 +45,7 @@ class _PetPageState extends ConsumerState<PetPage> {
         ? await ref.read(petControllerProvider.notifier).enable()
         : await ref.read(petControllerProvider.notifier).disable();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.message)),
-    );
+    showAppToast(context, result.message);
   }
 
   Future<void> _toggleRealtime(bool value) async {
@@ -79,9 +78,7 @@ class _PetPageState extends ConsumerState<PetPage> {
         .read(petControllerProvider.notifier)
         .setRealtime(value);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.message)),
-    );
+    showAppToast(context, result.message);
   }
 
   Future<void> _acceptWatchRequest() async {
@@ -183,9 +180,7 @@ class _PetPageState extends ConsumerState<PetPage> {
 
   Future<void> _addShift(List<CustomResident> residents) async {
     if (residents.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('先建一位固定住民，再来排班')),
-      );
+      showAppToast(context, '先建一位固定住民，再来排班');
       return;
     }
     String residentId = residents.first.id;

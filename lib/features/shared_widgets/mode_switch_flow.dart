@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../domain/models/app_mode.dart';
 import '../../domain/services/mode_switch_service.dart';
 import '../../domain/services/safety_controller.dart';
+import 'app_toast.dart';
 
 /// 走完"检查冷却期 → 二次确认 / 年龄门 → 执行切换"的完整流程。
 ///
@@ -45,11 +46,7 @@ Future<bool> runModeSwitch(
   // （脚本演出的切换不走这里：第三幕要停在原帖上看客观分析。）
   context.go(target.isClear ? RoutePaths.records : RoutePaths.feed);
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(target.isClear ? '已切到清醒模式：虚拟互动已停止并归档' : '已切回响模式：虚拟反馈重新启用'),
-    ),
-  );
+  showAppToast(context, target.isClear ? '已切到清醒模式：虚拟互动已停止并归档' : '已切回响模式：虚拟反馈重新启用');
   return true;
 }
 

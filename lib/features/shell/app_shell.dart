@@ -18,6 +18,7 @@ import '../../domain/services/mode_controller.dart';
 import '../../domain/services/notification_service.dart';
 import '../../domain/services/safety_controller.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/permanent_notice_banner.dart';
 
 /// 页面骨架：底部导航 + 模式相关的合规模块。
@@ -84,18 +85,13 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     await addiction.logEvent(_usageLimitEvent, value: minutes);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '今天在清醒模式里已经用了 $minutes 分钟，超过你设的 '
-          '${safety.dailyLimitMinutes} 分钟。要不下次再看？',
-        ),
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: '去看看记录',
-          onPressed: () => context.go(RoutePaths.records),
-        ),
-      ),
+    showAppToast(
+      context,
+      '今天在清醒模式里已经用了 $minutes 分钟，超过你设的 '
+      '${safety.dailyLimitMinutes} 分钟。要不下次再看？',
+      duration: const Duration(seconds: 8),
+      actionLabel: '去看看记录',
+      onAction: () => context.go(RoutePaths.records),
     );
   }
 

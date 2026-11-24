@@ -6,6 +6,7 @@ import '../../data/db/app_database.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../domain/services/resident_timeline.dart';
 import '../../domain/services/resident_wake_service.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 「住民的上下文」：唯一时间线的查看与清空（v4.5）。
 ///
@@ -63,14 +64,10 @@ class _ResidentContextPageState extends ConsumerState<ResidentContextPage> {
           .invalidateWindow(widget.residentId);
       ref.invalidate(residentContextEventsProvider(widget.residentId));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('上下文已清空')),
-      );
+      showAppToast(context, '上下文已清空');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('清空失败：$error')),
-      );
+      showAppToast(context, '清空失败：$error');
     } finally {
       if (mounted) setState(() => _clearing = false);
     }

@@ -21,6 +21,7 @@ import '../../domain/services/mode_controller.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/scheduler_service.dart';
 import '../../domain/services/voice_recorder.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/image_source_sheet.dart';
 
 /// 发布页（规划书 §6.1）。
@@ -204,8 +205,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       final ok = await _recorder.start();
       if (!ok) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('没有麦克风权限，去系统设置里打开再试')));
+        showAppToast(context, '没有麦克风权限，去系统设置里打开再试');
         return;
       }
       if (!mounted) return;
@@ -229,8 +229,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     if (!mounted) return;
     setState(() => _recording = false);
     if (recorded == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('按住时间太短了')));
+      showAppToast(context, '按住时间太短了');
       return;
     }
 
@@ -259,8 +258,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('没识别出来：$error')));
+      showAppToast(context, '没识别出来：$error');
     } finally {
       if (mounted) setState(() => _voiceBusy = false);
     }
@@ -283,8 +281,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       setState(() => _imageRefs.addAll(refs));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('选图失败：$error')));
+      showAppToast(context, '选图失败：$error');
     }
   }
 
@@ -450,8 +447,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     }
     if (available.isEmpty) {
       _sheetOpen = false;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('还没有脚本，去「管理脚本」新建一个吧')));
+      showAppToast(context, '还没有脚本，去「管理脚本」新建一个吧');
       return;
     }
 
@@ -469,8 +465,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   Future<void> _publish() async {
     final text = _controller.text.trim();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('先写点什么吧')));
+      showAppToast(context, '先写点什么吧');
       return;
     }
 
@@ -573,18 +568,13 @@ class _ComposePageState extends ConsumerState<ComposePage> {
         _busy = null;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          // 只说"发布成功"就够了：反馈什么时候来是机制，不是用户此刻需要读的东西
-          content: Text(isEcho ? '发布成功' : '已记录。'),
-        ),
-      );
+      // 只说"发布成功"就够了：反馈什么时候来是机制，不是用户此刻需要读的东西
+      showAppToast(context, isEcho ? '发布成功' : '已记录。');
       context.go(isEcho ? RoutePaths.feed : RoutePaths.records);
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = null);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      showAppToast(context, '保存失败：$error');
     }
   }
 

@@ -20,6 +20,7 @@ import '../../domain/services/model_gateway.dart';
 import '../../domain/services/resident_memory_import_service.dart';
 import '../../domain/services/resident_voice_profile_service.dart';
 import '../../domain/services/resident_wake_service.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
 import 'chat_import_sheet.dart';
@@ -512,9 +513,7 @@ class _CustomResidentEditorPageState
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      showAppToast(context, '保存失败：$error');
     }
   }
 

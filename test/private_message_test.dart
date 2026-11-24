@@ -65,6 +65,26 @@ void main() {
     expect(thread.map((item) => item.content), ['留下的']);
   });
 
+  test('聊天页只读最近三十条，往前翻才加载更早的', () async {
+    final base = DateTime.now().subtract(const Duration(hours: 2));
+    for (var i = 0; i < 35; i++) {
+      await messages.scheduleIncoming(
+        personaId: 'persona_001',
+        content: '第 $i 条',
+        at: base.add(Duration(minutes: i)),
+      );
+    }
+
+    final recent = await messages.watchThread('persona_001').first;
+    expect(recent.length, 30);
+    expect(recent.first.content, '第 5 条');
+    expect(recent.last.content, '第 34 条');
+
+    final all = await messages.watchThread('persona_001', limit: 60).first;
+    expect(all.length, 35);
+    expect(all.first.content, '第 0 条');
+  });
+
   test('A 的唤醒历史里不会出现 B 的私信', () async {
     await messages.send(personaId: 'resident_a', content: '只给 A 的话');
     await messages.send(personaId: 'resident_b', content: '只给 B 的话');

@@ -9,8 +9,8 @@ import '../../core/theme/app_colors.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
+import '../../domain/models/custom_resident.dart';
 import '../../domain/models/private_message.dart';
-import '../../domain/models/resident_sleep.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/photo_describer.dart';
@@ -19,6 +19,7 @@ import '../../domain/services/resident_sleep_service.dart';
 import '../../domain/services/resident_timeline.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/chat_bubble.dart';
 import '../shared_widgets/chat_composer.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -38,8 +39,16 @@ class ChatPage extends ConsumerStatefulWidget {
 }
 
 class _ChatPageState extends ConsumerState<ChatPage> {
+  /// 一次读三十条；往上翻到底再添三十条，不一次读全量。
+  static const int _threadPageSize = 30;
+
   final TextEditingController _input = TextEditingController();
+  int _threadLimit = _threadPageSize;
   bool _sending = false;
+
+  /// 上一次读到的消息。往上翻、limit 变大时先继续铺旧列表，
+  /// 不让整页闪一下加载圈、顺手把滚动位置弄丢。
+  List<PrivateMessage>? _cachedMessages;
 
   @override
   void initState() {
@@ -65,6 +74,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           .read(privateMessageRepositoryProvider)
           .markThreadRead(widget.personaId),
     );
+  }
+
+  /// 用户翻到最早一条时再往前取三十条。
+  void _loadOlder() {
+    setState(() => _threadLimit += _threadPageSize);
   }
 
   /// 我发一句。
@@ -93,12 +107,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ? '语音 ${((voiceDurationMs ?? 0) / 1000).round()} 秒'
               : '');
 
+    final draft = _input.text;
     setState(() => _sending = true);
+    // 先把输入框清掉：消息落库还要等一次数据库往返，手指按下去就该有反馈，
+    // 不该卡在原地看着自己刚打的字。写入失败再把草稿还回去。
+    _input.clear();
     try {
-      // 先记互动：如果 TA 正在睡，这一步会当场结束睡眠，并拿到“睡了多久”。
-      final sleepNotice = await ref
-          .read(residentSleepServiceProvider)
-          .prepareInteraction(widget.personaId);
       final messageId = await ref
           .read(privateMessageRepositoryProvider)
           .send(
@@ -109,61 +123,72 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             voicePath: voiceRef ?? '',
             transcript: transcript ?? '',
           );
-      // 落库成功再清空：写入失败时文字还在，不用重打一遍。
-      _input.clear();
 
-      // v41：我在他还没说完的时候又插了一句——把上一轮还没到点的段先暂停，
-      // 下一轮唤醒会把原话交给他，让他自己决定照发、改写还是算了。
-      // 这里要 await：叫醒之前必须已经落库，否则他醒来还可能看到旧段。
-      await ref
-          .read(privateMessageRepositoryProvider)
-          .pausePendingSegments(widget.personaId);
-
-      // 消息先出现；图片描述补齐之后再把住民叫醒。
-      // 这样模型无论是看图还是读描述，都知道“他发来的到底是什么”。
+      // 叫醒住民是后台的事：记互动、暂停待发段、补图片描述、发起唤醒
+      // 都在 [\_enrichAndWake] 里，不挡“这句话已经发出去了”。
       unawaited(
         _enrichAndWake(
           messageId: messageId,
           content: content,
           mediaType: mediaType,
-          sleepNotice: sleepNotice,
         ),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('没发出去：$error')));
+      if (text != null) _input.text = draft;
+      showAppToast(context, '没发出去：$error');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
-  /// 把图片/表情包的语义补进这条消息，再叫醒固定住民。
+  /// 消息落库之后的后台收尾：记互动、暂停待发段、补图片描述、叫醒住民。
   ///
-  /// 能看图的对话模型不需要文字描述：原图会进常驻上下文窗口。
-  /// 只有文字模型才走 `PhotoDescriber`，把描述写进 caption 兜底。
+  /// 这一轮可能比页面活得久（用户发完就退出）。开头一次性把要用的服务
+  /// 取出来，之后不再碰 `ref`，否则卸载后读取会抛错。
   Future<void> _enrichAndWake({
     required String messageId,
     required String content,
     required String mediaType,
-    SleepWakeNotice? sleepNotice,
   }) async {
-    if (mediaType == 'image') {
-      await _describeImage(messageId: messageId, imageRef: content);
-    }
-    if (!mounted) return;
+    final sleepService = ref.read(residentSleepServiceProvider);
+    final messages = ref.read(privateMessageRepositoryProvider);
+    final residents = ref.read(customResidentRepositoryProvider);
+    final gateway = ref.read(modelGatewayProvider);
+    final describer = ref.read(photoDescriberProvider);
+    final wakeService = ref.read(residentWakeServiceProvider);
 
-    final resident = ref.read(customResidentByIdProvider(widget.personaId));
-    if (resident != null) {
-      // 他这一轮可能回私信，也可能去帖子下面接话——那是他自己的选择。
-      await ref
-          .read(residentWakeServiceProvider)
-          .wake(
-            widget.personaId,
-            trigger: WakeTrigger.userAction,
-            sleepNotice: sleepNotice,
-          );
+    // 住民被删掉了：不叫醒，也不记这次互动。
+    final resident = await residents.findById(widget.personaId);
+    if (resident == null) return;
+
+    // 先记互动：如果 TA 正在睡，这一步会当场结束睡眠，并拿到“睡了多久”。
+    final sleepNotice = await sleepService.prepareInteraction(widget.personaId);
+
+    // v41：我在他还没说完的时候又插了一句——把上一轮还没到点的段先暂停，
+    // 下一轮唤醒会把原话交给他，让他自己决定照发、改写还是算了。
+    // 必须在叫醒之前完成，否则他醒来还可能看到旧段。
+    await messages.pausePendingSegments(widget.personaId);
+
+    // 消息先出现；图片描述补齐之后再把住民叫醒。
+    // 这样模型无论是看图还是读描述，都知道“他发来的到底是什么”。
+    if (mediaType == 'image') {
+      await _describeImage(
+        messageId: messageId,
+        imageRef: content,
+        resident: resident,
+        gateway: gateway,
+        messages: messages,
+        describer: describer,
+      );
     }
+
+    // 他这一轮可能回私信，也可能去帖子下面接话——那是他自己的选择。
+    await wakeService.wake(
+      widget.personaId,
+      trigger: WakeTrigger.userAction,
+      sleepNotice: sleepNotice,
+    );
   }
 
   /// 一次发多张图（v50）。
@@ -172,69 +197,75 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 只叫醒住民一次，免得连发三张就把他叫醒三回。
   Future<void> _sendImages(List<String> imageRefs) async {
     if (_sending || imageRefs.isEmpty) return;
+    final messages = ref.read(privateMessageRepositoryProvider);
     setState(() => _sending = true);
     try {
-      final sleepNotice = await ref
-          .read(residentSleepServiceProvider)
-          .prepareInteraction(widget.personaId);
       final sent = <String, String>{};
       for (final imageRef in imageRefs) {
-        final id = await ref
-            .read(privateMessageRepositoryProvider)
-            .send(
-              personaId: widget.personaId,
-              content: imageRef,
-              mediaType: 'image',
-            );
+        final id = await messages.send(
+          personaId: widget.personaId,
+          content: imageRef,
+          mediaType: 'image',
+        );
         sent[id] = imageRef;
       }
-      await ref
-          .read(privateMessageRepositoryProvider)
-          .pausePendingSegments(widget.personaId);
-      unawaited(() async {
-        for (final entry in sent.entries) {
-          await _describeImage(messageId: entry.key, imageRef: entry.value);
-        }
-        if (!mounted) return;
-        final resident = ref.read(customResidentByIdProvider(widget.personaId));
-        if (resident == null) return;
-        await ref
-            .read(residentWakeServiceProvider)
-            .wake(
-              widget.personaId,
-              trigger: WakeTrigger.userAction,
-              sleepNotice: sleepNotice,
-            );
-      }());
+      // 图片先铺出来；描述、暂停旧段和叫醒都放到后台。
+      unawaited(_wakeAfterImages(sent));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('没发出去：$error')));
+      showAppToast(context, '没发出去：$error');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _wakeAfterImages(Map<String, String> sent) async {
+    final sleepService = ref.read(residentSleepServiceProvider);
+    final messages = ref.read(privateMessageRepositoryProvider);
+    final residents = ref.read(customResidentRepositoryProvider);
+    final gateway = ref.read(modelGatewayProvider);
+    final describer = ref.read(photoDescriberProvider);
+    final wakeService = ref.read(residentWakeServiceProvider);
+
+    final resident = await residents.findById(widget.personaId);
+    if (resident == null) return;
+
+    final sleepNotice = await sleepService.prepareInteraction(widget.personaId);
+    await messages.pausePendingSegments(widget.personaId);
+    for (final entry in sent.entries) {
+      await _describeImage(
+        messageId: entry.key,
+        imageRef: entry.value,
+        resident: resident,
+        gateway: gateway,
+        messages: messages,
+        describer: describer,
+      );
+    }
+    await wakeService.wake(
+      widget.personaId,
+      trigger: WakeTrigger.userAction,
+      sleepNotice: sleepNotice,
+    );
   }
 
   /// 文字模型看不懂图时，先把画面描述补进 caption。
   Future<void> _describeImage({
     required String messageId,
     required String imageRef,
+    required CustomResident resident,
+    required ModelGateway gateway,
+    required PrivateMessageRepository messages,
+    required PhotoDescriber describer,
   }) async {
     try {
-      final resident = ref.read(customResidentByIdProvider(widget.personaId));
-      final gateway = ref.read(modelGatewayProvider);
-      final config = resident == null
-          ? null
-          : await gateway.configFor(configId: resident.modelConfigId) ??
-                await gateway.activeConfig();
+      final config =
+          await gateway.configFor(configId: resident.modelConfigId) ??
+          await gateway.activeConfig();
       if (config == null || !config.supportsVision) {
-        final description = await ref
-            .read(photoDescriberProvider)
-            .describe(imageRef);
+        final description = await describer.describe(imageRef);
         if (description.isNotEmpty) {
-          await ref
-              .read(privateMessageRepositoryProvider)
-              .attachCaption(messageId, description);
+          await messages.attachCaption(messageId, description);
         }
       }
     } catch (error) {
@@ -257,8 +288,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         if (controller == widget.personaId) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('TA 正在当桌宠，结束桌宠后再通话')));
+          showAppToast(context, 'TA 正在当桌宠，结束桌宠后再通话');
           return;
         }
       }
@@ -292,7 +322,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final storedResident = ref.watch(
       customResidentAnyByIdProvider(widget.personaId),
     );
-    final thread = ref.watch(privateThreadProvider(widget.personaId));
+    final thread = ref.watch(
+      privateThreadProvider((
+        personaId: widget.personaId,
+        limit: _threadLimit,
+      )),
+    );
     final activity = ref.watch(residentActivityProvider)[widget.personaId];
     final live = activity != null && !activity.isStale ? activity : null;
     // 唤醒结束、但分段的私信还没发完：这几秒显示「正在打字」。
@@ -371,9 +406,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           children: [
             Expanded(
               child: thread.when(
-                loading: () => Center(
-                  child: CircularProgressIndicator(color: EchoColors.primary),
-                ),
+                loading: () {
+                  final cached = _cachedMessages;
+                  if (cached == null) {
+                    return Center(
+                      child: CircularProgressIndicator(color: EchoColors.primary),
+                    );
+                  }
+                  return _MessageList(
+                    messages: cached,
+                    name: name,
+                    avatarRef: avatarRef,
+                    residentId: widget.personaId,
+                  );
+                },
                 error: (error, _) => Center(
                   child: Text(
                     '读不到会话：$error',
@@ -381,6 +427,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                 ),
                 data: (list) {
+                  _cachedMessages = list;
                   // 刚到点的那条消息出现时顺手标已读；不用等页面轮询。
                   if (list.any((message) => !message.fromMe && !message.read)) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -394,6 +441,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           name: name,
                           avatarRef: avatarRef,
                           residentId: widget.personaId,
+                          onLoadOlder: list.length >= _threadLimit
+                              ? _loadOlder
+                              : null,
                         );
                 },
               ),
@@ -422,12 +472,16 @@ class _MessageList extends ConsumerWidget {
     required this.name,
     required this.avatarRef,
     required this.residentId,
+    this.onLoadOlder,
   });
 
   final List<PrivateMessage> messages;
   final String residentId;
   final String name;
   final String? avatarRef;
+
+  /// 滚到最早一条时为 null：已经到底，没有更早的消息了。
+  final VoidCallback? onLoadOlder;
 
   /// 长按删除单条。聊天记录和上下文时间线一起删——
   /// 只删界面的话，住民下次醒来还会记得这句话。
@@ -503,11 +557,23 @@ class _MessageList extends ConsumerWidget {
       previousSender = sender;
     }
 
-    return ListView.builder(
-      reverse: true,
-      padding: const EdgeInsets.only(top: 8, bottom: 12),
-      itemCount: rows.length,
-      itemBuilder: (context, index) => rows[rows.length - 1 - index],
+    return NotificationListener<ScrollNotification>(
+      // 列表是 reverse 的：maxScrollExtent 那头就是最早的一条。
+      onNotification: (notification) {
+        final metrics = notification.metrics;
+        if (onLoadOlder != null &&
+            metrics.maxScrollExtent > 0 &&
+            metrics.pixels >= metrics.maxScrollExtent - 240) {
+          onLoadOlder!();
+        }
+        return false;
+      },
+      child: ListView.builder(
+        reverse: true,
+        padding: const EdgeInsets.only(top: 8, bottom: 12),
+        itemCount: rows.length,
+        itemBuilder: (context, index) => rows[rows.length - 1 - index],
+      ),
     );
   }
 }

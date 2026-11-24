@@ -21,6 +21,7 @@ import '../../domain/services/call_service.dart';
 import '../../domain/services/tts_service.dart';
 import '../../domain/services/voice_playback.dart';
 import '../../domain/services/voice_recorder.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 私信内通话（v4.0 P4）。
@@ -485,7 +486,7 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   void _toast(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    showAppToast(context, text);
   }
 
   @override

@@ -13,6 +13,7 @@ import '../../domain/services/ocr_service.dart';
 import '../../domain/services/pet_native.dart';
 import '../../domain/services/tool_settings_controller.dart';
 import '../../domain/services/web_search.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/mode_switch_flow.dart';
 
 /// 设置页（规划书 §2.3 的目录结构）。
@@ -82,15 +83,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await Future<void>.delayed(const Duration(seconds: 2));
     await _refreshBattery();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _ignoringBattery == true
+    showAppToast(context, _ignoringBattery == true
               ? '已经允许后台运行了'
-              : '系统还没放行；国产手机还要在「应用启动管理」里允许自启动',
-        ),
-      ),
-    );
+              : '系统还没放行；国产手机还要在「应用启动管理」里允许自启动',);
   }
 
   /// 搜索能力来自服务商本身：智谱用 `web_search` 工具，百炼用 `enable_search`。

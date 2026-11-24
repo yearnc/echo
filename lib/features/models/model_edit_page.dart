@@ -10,6 +10,7 @@ import '../../domain/services/model_call_common.dart';
 import '../../domain/services/model_gateway.dart';
 import '../../domain/services/model_probe.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 单条模型配置的编辑页。
 ///
@@ -419,8 +420,7 @@ class _ModelEditPageState extends ConsumerState<ModelEditPage> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message);
   }
 
   Future<void> _confirmDelete() async {

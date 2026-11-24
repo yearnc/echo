@@ -12,6 +12,7 @@ import '../../data/repositories/model_usage_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/services/update_service.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 「我的」页：个人资料 + 模式管理入口。
@@ -223,8 +224,7 @@ class _UpdateDialog extends StatelessWidget {
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: result.url));
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('下载链接已复制')));
+            showAppToast(context, '下载链接已复制');
           },
           child: const Text('复制链接'),
         ),
@@ -238,14 +238,11 @@ class _UpdateDialog extends StatelessWidget {
                 mode: LaunchMode.externalApplication,
               );
               if (!opened && context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('没有找到能打开链接的应用')));
+                showAppToast(context, '没有找到能打开链接的应用');
               }
             } catch (error) {
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text('打不开链接：$error')));
+              showAppToast(context, '打不开链接：$error');
             }
           },
           child: const Text('打开发布页'),
@@ -557,9 +554,7 @@ class _CacheStatsCard extends ConsumerWidget {
     ModelUsageSummary? week,
   ) async {
     if (week == null || !week.hasData) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('最近 7 天还没有可统计的调用')),
-      );
+      showAppToast(context, '最近 7 天还没有可统计的调用');
       return;
     }
     await showDialog<void>(

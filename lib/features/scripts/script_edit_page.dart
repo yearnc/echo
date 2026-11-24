@@ -7,6 +7,7 @@ import '../../data/repositories/plan_script_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/plan_script.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 脚本编辑器。
 ///
@@ -116,8 +117,7 @@ class _ScriptEditPageState extends ConsumerState<ScriptEditPage> {
         );
     if (!mounted) return;
     setState(() => _saving = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('已保存')));
+    showAppToast(context, '已保存');
   }
 
   @override
@@ -491,15 +491,12 @@ class _StepEditorState extends State<_StepEditor> {
     final at = _atCtrl.text.trim();
     final probe = PlanStep(at: at, type: _type);
     if (!probe.isValid) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('时间要写成 30 或 30~90 这样的秒数')));
+      showAppToast(context, '时间要写成 30 或 30~90 这样的秒数');
       return null;
     }
 
     if (_type == PlanStepType.comment && (_personaId == null)) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('先选一个来评论的住民')));
+      showAppToast(context, '先选一个来评论的住民');
       return null;
     }
 

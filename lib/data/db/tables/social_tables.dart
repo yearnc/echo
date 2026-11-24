@@ -7,6 +7,18 @@ import 'content_tables.dart';
 /// 一对一会话：一个住民一条线。
 @DataClassName('PrivateMessageRow')
 @TableIndex(name: 'private_messages_persona', columns: {#personaId})
+// v56：进会话只取最近一段，会话列表也要按人取最后一条。
+// 只有 persona 单列索引时，ORDER BY created_at DESC LIMIT 30 仍要临时排序
+// 整段会话；复合索引能直接反序扫。
+@TableIndex(
+  name: 'private_messages_persona_at',
+  columns: {#personaId, #createdAt},
+)
+// 会话列表与底栏红点按“这位住民还有几条未读”统计。
+@TableIndex(
+  name: 'private_messages_persona_unread',
+  columns: {#personaId, #direction, #readAt},
+)
 class PrivateMessages extends Table {
   TextColumn get id => text()();
 

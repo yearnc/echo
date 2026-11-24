@@ -511,6 +511,17 @@ class _LogTile extends StatelessWidget {
               ],
             ),
           ],
+          if (log.hasAside) ...[
+            const SizedBox(height: 7),
+            Text(
+              '碎碎念：「${log.aside.trim()}」',
+              style: TextStyle(
+                color: EchoColors.textMuted,
+                fontSize: 12.5,
+                height: 1.5,
+              ),
+            ),
+          ],
           if (log.hasNote) ...[
             const SizedBox(height: 7),
             Text(

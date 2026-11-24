@@ -10,10 +10,10 @@ import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/interaction_repository.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/private_message_repository.dart';
-import '../../data/repositories/pet_settings_repository.dart';
 import '../../data/repositories/resident_alarm_repository.dart';
 import '../../data/repositories/resident_inbox_repository.dart';
 import '../../data/repositories/resident_sleep_repository.dart';
@@ -738,16 +738,24 @@ class ResidentWakeService {
         onTool: (name) => wakeLogs.recordTool(logId, name),
       );
 
-      // 模型没调工具、只回了一句话：当作私信发出去。
-      // 这既兜住了不支持 tool calling 的模型，也兜住“它就是想直接说话”。
+      // 模型没调工具、只回了一句话。
+      //
+      // 桌宠轮那句话是气泡；入睡前那一轮本来就要留一句话，仍然发成私信。
+      // 其余轮次不再默认转成私信——那会让住民随手一句自言自语变成一次
+      // 主动联系。这句话改记进日志，日志页显示为「碎碎念」（v4.12.3）。
       if (said.trim().isNotEmpty &&
           !toolkit.spokePrivately &&
           trigger != WakeTrigger.maintenance) {
         if (trigger == WakeTrigger.pet) {
-          // 桌宠观察轮只说一句话时，那句话是气泡，不是私信。
           await toolkit.petSay(said.trim());
-        } else {
+        } else if (trigger == WakeTrigger.sleep) {
           await toolkit.sendDm(said.trim(), 'fallback');
+        } else {
+          try {
+            await wakeLogs.recordAside(logId, said.trim());
+          } catch (error) {
+            debugPrint('[唤醒] 碎碎念没记上：$error');
+          }
         }
       }
 

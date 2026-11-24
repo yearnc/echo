@@ -8,6 +8,7 @@ import '../../core/utils/relative_time.dart';
 import '../../data/repositories/custom_resident_repository.dart';
 import '../../data/repositories/knowledge_repository.dart';
 import '../../domain/models/knowledge.dart';
+import '../shared_widgets/app_toast.dart';
 
 /// 知识库管理（v4.11）。
 ///
@@ -128,9 +129,7 @@ class KnowledgePage extends ConsumerWidget {
       final residents = await ref.read(customResidentRepositoryProvider).all();
       if (residents.isEmpty) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('先在设置里建一位固定住民，再回来建这本')),
-        );
+        showAppToast(context, '先在设置里建一位固定住民，再回来建这本');
         return;
       }
       residentId = residents.first.id;

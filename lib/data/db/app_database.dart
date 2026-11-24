@@ -87,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 56;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1090,6 +1090,49 @@ class AppDatabase extends _$AppDatabase {
         // 可以在模型编辑页自己打开。
         if (await hasTable('model_configs')) {
           await customStatement('UPDATE model_configs SET safety_check = 0');
+        }
+      }
+      if (from < 54) {
+        // v54：没调用工具、只回一句话的那句「碎碎念」。
+        // 不再转成私信，改记进唤醒日志，日志页单独展示。
+        if (await hasTable('resident_wake_logs') &&
+            !await hasColumn('resident_wake_logs', 'aside')) {
+          await m.addColumn(residentWakeLogs, residentWakeLogs.aside);
+        }
+      }
+      if (from < 55) {
+        // v55：上下文时间线的 id 本来就该唯一，但 v47 建表之后才加的
+        // 唯一索引没有补进老库，于是每次同步私信都会把同一句再写一遍，
+        // 上下文页看起来就是一条消息出现两三次。
+        // 先按 id 清掉历史重复（保留 seq 最小的那条），再补索引。
+        if (await hasTable('resident_context_events')) {
+          await customStatement(
+            'DELETE FROM resident_context_events WHERE seq NOT IN '
+            '(SELECT MIN(seq) FROM resident_context_events GROUP BY id)',
+          );
+          await customStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS resident_context_events_id '
+            'ON resident_context_events (id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS resident_context_events_resident '
+            'ON resident_context_events (resident_id, seq)',
+          );
+        }
+      }
+      if (from < 56) {
+        // v56：私信只读最近 30 条之后，查询会按 persona 过滤再按时间倒序
+        // 取一段；会话列表还要按人取最后一条、数未读。只有 persona 单列
+        // 索引时，这两类查询仍要临时排序整段会话，消息一多进页面就慢。
+        if (await hasTable('private_messages')) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS private_messages_persona_at '
+            'ON private_messages (persona_id, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS private_messages_persona_unread '
+            'ON private_messages (persona_id, direction, read_at)',
+          );
         }
       }
     },

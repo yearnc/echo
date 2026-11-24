@@ -10,6 +10,7 @@ import '../../domain/services/action_registry.dart';
 import '../../domain/services/resident_sleep_service.dart';
 import '../../domain/services/werewolf_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 import 'game_providers.dart';
 
@@ -266,8 +267,7 @@ class _WerewolfMatchPageState extends ConsumerState<WerewolfMatchPage> {
   }
 
   void _toast(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message);
   }
 
   static GameMatchPlayer? _user(List<GameMatchPlayer> players) {

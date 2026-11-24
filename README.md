@@ -56,14 +56,14 @@
 | 应用框架 | Flutter 3.47.3 / Dart 3.13 |
 | 状态管理 | flutter_riverpod 3.x |
 | 路由 | go_router 18.x |
-| 本地数据库 | Drift 2.35（SQLite，schema v53，47 张表） |
+| 本地数据库 | Drift 2.35（SQLite，schema v56，47 张表） |
 | 网络 | dio 5.x |
 | 安全存储 | flutter_secure_storage 11.x |
 | 通知与调度 | flutter_local_notifications 22.x、WorkManager 0.10 |
 | 语音 | sherpa_onnx 1.13（离线识别与合成）、record、just_audio、camera |
 | 其他 | image、archive、cryptography、cchess、file_picker、share_plus、url_launcher |
 
-代码规模：`lib/` 约 249 个手写 Dart 文件、7.1 万行，另有 Drift 生成的 `app_database.g.dart` 约 4.6 万行；`test/` 68 个测试文件。
+代码规模：`lib/` 约 250 个手写 Dart 文件、7.1 万行，另有 Drift 生成的 `app_database.g.dart` 约 4.6 万行；`test/` 69 个测试文件。
 
 ---
 
@@ -136,7 +136,7 @@ flutter build apk --release --split-per-abi
 ### 4.4 测试与静态检查
 
 ```bash
-flutter test        # 539 个测试
+flutter test        # 542 个测试
 flutter analyze     # 应输出 No issues found
 ```
 
@@ -210,19 +210,29 @@ python tool/package_resources.py \
 
 ## 8. 版本与发布
 
-当前源码版本：**v4.12.2+72**，数据库 schema **v53**。
+当前源码版本：**v4.12.3+74**，数据库 schema **v56**。
 
-**v4.12.2 精简版 APK**：
-[Releases v4.12.2](https://github.com/yearnc/echo/releases/tag/v4.12.2)
+**v4.12.3 变更**：
 
-- 文件：`echo-v4.12.2-arm64.apk`
-- 大小：159,878,474 字节（约 152.5 MiB）
-- versionName / versionCode：4.12.2 / 2072
-- SHA256：`c2c52dc0a9c18a89ffa19b5ea159269f8707a26077358642c53f8b428b8ab630`
+- 修复：在小游戏页发出邀请后，未睡着的固定住民不会被叫醒，邀请要等到私信页手动说话才会被看到。
+- 私信：进入会话只读取最近 30 条，向上翻动时再加载 30 条，长会话不再一次性读完。
+- 私信输入栏：麦克风按钮改为切换语音模式，输入框位置变为「按住说话」；松开发送，上滑取消。
+- 轻提示：由屏幕底部改为顶部悬浮显示。
+- 固定住民只回一句话、未调用任何工具时，不再默认转成私信，改为记录在唤醒日志的「碎碎念」中。
+- 修复：上下文时间线的唯一索引未补进旧数据库，导致「住民的上下文」页重复显示同一条消息；本版清理历史重复并补回索引。
+- 性能：私信表补上「谁 + 时间」「谁 + 方向 + 已读」复合索引，进入会话与消息列表不再临时排序整段历史。
+- 私信发送：消息先落库、输入框立即清空；记互动、暂停待发段与唤醒移到后台，点击发送不再停顿一下。
+- 修复：游戏结束后发出的第一条私信偶尔没有回应——唤醒前读取住民列表缓存可能得到空值，改为直接查库确认。
 
-GitHub Releases 仅提供精简包，语音模型作为 `models-v1` 的独立附件发布。历史版本与逐版本说明见 [`更新日志.log`](更新日志.log)。
+**v4.12.3 精简版 APK**：
+[Releases v4.12.3](https://github.com/yearnc/echo/releases/tag/v4.12.3)
 
-本版主要修复：DeepSeek 接口在接收 `safety_check` 后可能返回空内容，导致固定住民唤醒后无输出。处理方式为保留审核开关但默认关闭，修正 `refusal: false` 的误判，并将思考模式输出预算由 420 提升至 2048。
+- 文件：`echo-v4.12.3-arm64.apk`
+- 大小：159,878,570 字节（约 152.5 MiB）
+- versionName / versionCode：4.12.3 / 2074
+- SHA256：`e151a421ca6b6a8fd82684af09ce1669e0dccddbf4e44926db0da4723fb0d4df`
+
+GitHub Releases 仅提供精简包，语音模型作为 `models-v1` 的独立附件发布。上一版 v4.12.2 修复了内容安全审核导致固定住民不回话的问题；历史版本与逐版本说明见 [`更新日志.log`](更新日志.log)。
 
 ---
 

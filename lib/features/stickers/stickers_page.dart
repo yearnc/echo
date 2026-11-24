@@ -8,6 +8,7 @@ import '../../data/media/media_service.dart';
 import '../../data/repositories/custom_avatar_repository.dart';
 import '../../data/repositories/sticker_repository.dart';
 import '../../domain/models/sticker.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/image_source_sheet.dart';
 import '../shared_widgets/post_image.dart';
 import '../shared_widgets/user_avatar.dart';
@@ -126,15 +127,9 @@ class StickersPage extends ConsumerWidget {
         .importRef(ref: imageRef, name: meta.name, tags: meta.tags);
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          meta.tags.isEmpty
+    showAppToast(context, meta.tags.isEmpty
               ? '已导入「${meta.name}」，补个标签 AI 才会用它'
-              : '已导入「${meta.name}」',
-        ),
-      ),
-    );
+              : '已导入「${meta.name}」',);
     debugPrint('[表情包] 已导入 $id');
   }
 
@@ -204,9 +199,7 @@ class _AudienceAvatars extends ConsumerWidget {
     if (picked == null || !context.mounted) return;
     await ref.read(customAvatarRepositoryProvider).add(picked);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已加入网友头像')));
+    showAppToast(context, '已加入网友头像');
   }
 
   Future<void> _remove(

@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../domain/games/game_registry.dart';
 import '../../domain/models/game.dart';
 import '../../domain/services/game_service.dart';
+import '../shared_widgets/app_toast.dart';
 import 'game_providers.dart';
 
 /// 私信里的游戏邀请卡片。
@@ -134,9 +135,7 @@ class GameInviteCard extends ConsumerWidget {
     final result = await ref.read(gameServiceProvider).acceptInviteByUser(inviteId);
     if (!context.mounted) return;
     if (!result.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message)),
-      );
+      showAppToast(context, result.message);
       return;
     }
     final match = result.match;
@@ -148,9 +147,7 @@ class GameInviteCard extends ConsumerWidget {
         .read(gameServiceProvider)
         .declineInviteByUser(inviteId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.ok ? '已经回绝了邀请' : result.message)),
-    );
+    showAppToast(context, result.ok ? '已经回绝了邀请' : result.message);
   }
 
   Widget _shell(

@@ -9,6 +9,7 @@ import '../../data/media/media_service.dart';
 import '../../domain/models/sticker.dart';
 import '../../domain/services/asr_service.dart';
 import '../../domain/services/voice_recorder.dart';
+import 'app_toast.dart';
 import 'image_source_sheet.dart';
 import 'sticker_picker_sheet.dart';
 
@@ -60,6 +61,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   bool _recording = false;
   bool _cancelArmed = false;
   bool _transcribing = false;
+
+  /// 语音模式：输入框的位置换成「按住说话」，像微信那样。
+  bool _voiceMode = false;
 
   @override
   void dispose() {
@@ -203,8 +207,14 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message);
+  }
+
+  /// 麦克风按钮：切进语音模式，同时收起键盘。
+  void _toggleVoiceMode() {
+    if (widget.sending || _recording || _transcribing) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _voiceMode = !_voiceMode);
   }
 
   @override
@@ -229,17 +239,14 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _HoldToTalk(
-                enabled: !widget.sending && !_transcribing,
-                recording: _recording,
-                onLongPressStart: _startRecording,
-                onLongPressEnd: _finishRecording,
-                onMove: (armed) {
-                  if (armed != _cancelArmed) {
-                    setState(() => _cancelArmed = armed);
-                  }
-                },
-                onTap: () => _toast('按住说话，松开发送'),
+              _RoundIcon(
+                icon: _voiceMode
+                    ? Icons.keyboard_alt_outlined
+                    : Icons.mic_none,
+                tooltip: _voiceMode ? '切换文字输入' : '语音输入',
+                onPressed: widget.sending || _recording || _transcribing
+                    ? null
+                    : _toggleVoiceMode,
               ),
               _RoundIcon(
                 icon: Icons.emoji_emotions_outlined,
@@ -253,58 +260,72 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                       },
               ),
               const SizedBox(width: 2),
-              Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  minLines: 1,
-                  maxLines: 4,
-                  enabled: !_recording && !_transcribing,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) {
-                    if (!widget.sending) {
-                      widget.onSend(text: widget.controller.text);
-                    }
-                  },
-                  style: TextStyle(color: EchoColors.text, fontSize: 14),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: _recording ? '正在录…' : widget.hint,
-                    hintStyle: TextStyle(
-                      color: EchoColors.textFaint,
-                      fontSize: 14,
-                    ),
-                    filled: true,
-                    fillColor: EchoColors.bg,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 11,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: BorderSide(
-                        color: EchoColors.divider,
-                        width: 0.7,
+              if (_voiceMode)
+                Expanded(
+                  child: _HoldToTalkBar(
+                    enabled: !widget.sending && !_transcribing,
+                    recording: _recording,
+                    transcribing: _transcribing,
+                    cancelArmed: _cancelArmed,
+                    onLongPressStart: _startRecording,
+                    onLongPressEnd: _finishRecording,
+                    onMove: (armed) {
+                      if (armed != _cancelArmed) {
+                        setState(() => _cancelArmed = armed);
+                      }
+                    },
+                    onTap: () => _toast('按住说话，松开发送'),
+                  ),
+                )
+              else
+                Expanded(
+                  child: TextField(
+                    controller: widget.controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    enabled: !_recording && !_transcribing,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) {
+                      if (!widget.sending) {
+                        widget.onSend(text: widget.controller.text);
+                      }
+                    },
+                    style: TextStyle(color: EchoColors.text, fontSize: 14),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: widget.hint,
+                      hintStyle: TextStyle(
+                        color: EchoColors.textFaint,
+                        fontSize: 14,
                       ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: BorderSide(
-                        color: EchoColors.primary.withValues(alpha: 0.65),
-                        width: 1.1,
+                      filled: true,
+                      fillColor: EchoColors.bg,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 11,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(
+                          color: EchoColors.divider,
+                          width: 0.7,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(
+                          color: EchoColors.primary.withValues(alpha: 0.65),
+                          width: 1.1,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
               const SizedBox(width: 6),
               Padding(
                 padding: const EdgeInsets.only(bottom: 1),
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: widget.controller,
-                  builder: (context, value, _) {
-                    final hasText = value.text.trim().isNotEmpty;
-                    if (!hasText && !widget.sending) {
-                      return _RoundSendButton(
+                child: _voiceMode
+                    ? _RoundSendButton(
                         key: const ValueKey('plus'),
                         icon: Icons.add,
                         tooltip: '更多',
@@ -312,19 +333,34 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                         onPressed: _recording || _transcribing
                             ? null
                             : _openPlus,
-                      );
-                    }
-                    return _RoundSendButton(
-                      key: const ValueKey('send'),
-                      icon: Icons.arrow_upward_rounded,
-                      tooltip: '发送',
-                      busy: widget.sending,
-                      onPressed: widget.sending || _recording
-                          ? null
-                          : () => widget.onSend(text: widget.controller.text),
-                    );
-                  },
-                ),
+                      )
+                    : ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: widget.controller,
+                        builder: (context, value, _) {
+                          final hasText = value.text.trim().isNotEmpty;
+                          if (!hasText && !widget.sending) {
+                            return _RoundSendButton(
+                              key: const ValueKey('plus'),
+                              icon: Icons.add,
+                              tooltip: '更多',
+                              busy: false,
+                              onPressed: _recording || _transcribing
+                                  ? null
+                                  : _openPlus,
+                            );
+                          }
+                          return _RoundSendButton(
+                            key: const ValueKey('send'),
+                            icon: Icons.arrow_upward_rounded,
+                            tooltip: '发送',
+                            busy: widget.sending,
+                            onPressed: widget.sending || _recording
+                                ? null
+                                : () =>
+                                      widget.onSend(text: widget.controller.text),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -334,10 +370,15 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   }
 }
 
-class _HoldToTalk extends StatelessWidget {
-  const _HoldToTalk({
+/// 输入框位置上的「按住说话」（语音模式）。
+///
+/// 和微信一致：长按开始录，松开发送，手指往上滑过阈值再松开就是取消。
+class _HoldToTalkBar extends StatelessWidget {
+  const _HoldToTalkBar({
     required this.enabled,
     required this.recording,
+    required this.transcribing,
+    required this.cancelArmed,
     required this.onLongPressStart,
     required this.onLongPressEnd,
     required this.onMove,
@@ -346,6 +387,8 @@ class _HoldToTalk extends StatelessWidget {
 
   final bool enabled;
   final bool recording;
+  final bool transcribing;
+  final bool cancelArmed;
   final Future<void> Function() onLongPressStart;
   final Future<void> Function() onLongPressEnd;
   final void Function(bool armed) onMove;
@@ -353,28 +396,41 @@ class _HoldToTalk extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: '按住说话',
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        onLongPressStart: enabled ? (_) => unawaited(onLongPressStart()) : null,
-        onLongPressEnd: enabled ? (_) => unawaited(onLongPressEnd()) : null,
-        onLongPressMoveUpdate: enabled
-            ? (details) => onMove(details.offsetFromOrigin.dy < -50)
-            : null,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
+    final label = transcribing
+        ? '正在识别…'
+        : recording
+        ? (cancelArmed ? '松开 取消' : '松开 发送')
+        : '按住 说话';
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      onLongPressStart: enabled ? (_) => unawaited(onLongPressStart()) : null,
+      onLongPressEnd: enabled ? (_) => unawaited(onLongPressEnd()) : null,
+      onLongPressMoveUpdate: enabled
+          ? (details) => onMove(details.offsetFromOrigin.dy < -50)
+          : null,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: recording
+              ? EchoColors.primary.withValues(alpha: 0.16)
+              : EchoColors.bg,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
             color: recording
-                ? EchoColors.primary.withValues(alpha: 0.16)
-                : Colors.transparent,
+                ? (cancelArmed ? EchoColors.like : EchoColors.primary)
+                : EchoColors.divider,
+            width: recording ? 1.1 : 0.7,
           ),
-          child: Icon(
-            recording ? Icons.mic : Icons.mic_none,
-            color: recording ? EchoColors.primary : EchoColors.textMuted,
-            size: 21,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: cancelArmed
+                ? EchoColors.like
+                : (recording ? EchoColors.primary : EchoColors.textMuted),
+            fontSize: 14,
+            fontWeight: recording ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       ),

@@ -15,6 +15,7 @@ import '../../domain/services/pet_controller.dart';
 import '../../domain/services/pet_native.dart';
 import '../../domain/services/resident_sleep_service.dart';
 import '../shared_widgets/ai_disclaimer_bar.dart';
+import '../shared_widgets/app_toast.dart';
 import 'game_board.dart';
 import 'game_providers.dart';
 import 'plugin_game_page.dart';
@@ -375,13 +376,11 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
           unawaited(ref.read(petNativeProvider).say(reply.content));
         }
       } else if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('TA 这次没接上话')));
+        showAppToast(context, 'TA 这次没接上话');
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('没发出去：$error')));
+        showAppToast(context, '没发出去：$error');
       }
     } finally {
       if (mounted) setState(() => _chatSending = false);
@@ -535,8 +534,7 @@ class _GameMatchPageState extends ConsumerState<GameMatchPage> {
           .applyUserMove(matchId: match.id, move: move);
       if (!mounted) return;
       if (!result.ok) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(result.message)));
+        showAppToast(context, result.message);
       }
     } finally {
       if (mounted) setState(() => _busy = false);

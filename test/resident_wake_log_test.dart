@@ -90,6 +90,23 @@ void main() {
     expect(today.single.tools, ['memory_list_recent', 'send_dm']);
   });
 
+  test('没调工具、只回一句话时记成碎碎念', () async {
+    final at = DateTime(2026, 11, 24, 13);
+    await logs.start(
+      id: 'w1',
+      residentId: 'r1',
+      trigger: 'heartbeat',
+      at: at,
+    );
+    await logs.recordAside('w1', '今天窗外的风有点大。');
+    await logs.finish('w1', at: at.add(const Duration(seconds: 20)));
+
+    final today = await logs.today('r1', now: at);
+    expect(today.single.hasAside, isTrue);
+    expect(today.single.aside, '今天窗外的风有点大。');
+    expect(today.single.hasTools, isFalse);
+  });
+
   test('十分钟内连续的 user_action 合并成一次', () async {
     final first = DateTime(2026, 10, 28, 12);
     await logs.start(

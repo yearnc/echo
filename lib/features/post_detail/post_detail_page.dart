@@ -14,6 +14,7 @@ import '../../data/repositories/post_voice_repository.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../domain/models/post.dart';
 import '../../domain/models/post_voice.dart';
+import '../../domain/models/sticker.dart';
 import '../../domain/services/addiction_guard.dart';
 import '../../domain/services/comment_reply_service.dart';
 import '../../domain/services/comment_thread.dart';
@@ -21,6 +22,7 @@ import '../../domain/services/mode_controller.dart';
 import '../../domain/services/resident_sleep_service.dart';
 import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/voice_playback.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/comment_tile.dart';
 import '../shared_widgets/like_button.dart';
 import '../shared_widgets/post_delete.dart';
@@ -28,7 +30,6 @@ import '../shared_widgets/post_image_grid.dart';
 import '../shared_widgets/spoken_badge.dart';
 import '../shared_widgets/sticker_picker_sheet.dart';
 import '../shared_widgets/user_avatar.dart';
-import '../../domain/models/sticker.dart';
 import '../shell/app_shell.dart';
 
 /// 帖子详情 + 评论区（规划书 §3.5）。
@@ -75,7 +76,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     super.initState();
     _openedAt = DateTime.now();
     _addiction = ref.read(addictionRepositoryProvider);
-    // 首帧之后再记：showSnackBar 需要一个已经挂到树上的 context
+    // 首帧之后再记：提示需要一个已经挂到树上的 context
     WidgetsBinding.instance.addPostFrameCallback((_) => _recordView());
     _waitTimer = Timer(_waitThreshold, _noteWaitIfNothingCame);
     if (ref.exists(voicePlaybackProvider)) {
@@ -134,8 +135,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final warning = await guard.evaluate();
     if (warning == null || !mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(warning)));
+    showAppToast(context, warning);
   }
 
   /// 开始回某一条。住民显示住民的名字，我自己的评论显示我的名字。
@@ -389,8 +389,7 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+      showAppToast(context, '没能发出去：$error');
     }
   }
 
@@ -420,8 +419,7 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('没能发出去：$error')));
+      showAppToast(context, '没能发出去：$error');
     }
   }
 

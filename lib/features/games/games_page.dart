@@ -14,7 +14,9 @@ import '../../domain/models/game.dart';
 import '../../domain/models/game_plugin.dart';
 import '../../domain/services/game_service.dart';
 import '../../domain/services/resident_sleep_service.dart';
+import '../../domain/services/resident_wake_service.dart';
 import '../../domain/services/werewolf_service.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 import 'game_invite_card.dart';
 import 'game_providers.dart';
@@ -166,8 +168,7 @@ class GamesPage extends ConsumerWidget {
   ) async {
     final soloPlugin = definition.plugin && definition.maxPlayers <= 1;
     if (residents.isEmpty && definition.id != 'werewolf' && !soloPlugin) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('还没有住民，先去创建一个')));
+      showAppToast(context, '还没有住民，先去创建一个');
       return;
     }
     if (definition.multiplayer || definition.id == 'werewolf') {
@@ -200,14 +201,12 @@ class GamesPage extends ConsumerWidget {
             note: '来一局？',
           );
       // 用户发起的邀请要马上让住民看到，不等 90 分钟空闲唤醒。
-      unawaited(_wakePlayers(ref, [picked.id]));
+      unawaited(_wakeInvited(ref, picked.id));
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('已邀请 ${picked.name}，等 TA 回应')));
+      showAppToast(context, '已邀请 ${picked.name}，等 TA 回应');
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('邀请没发出去：$error')));
+      showAppToast(context, '邀请没发出去：$error');
     }
   }
 
@@ -409,8 +408,7 @@ class GamesPage extends ConsumerWidget {
       await _startPlugin(context, ref, definition, picked);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('开局失败：$error')));
+      showAppToast(context, '开局失败：$error');
     }
   }
 
@@ -433,8 +431,7 @@ class GamesPage extends ConsumerWidget {
         );
     if (!context.mounted) return;
     if (!result.ok || result.match == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(result.message)));
+      showAppToast(context, result.message);
       return;
     }
     context.push(RoutePaths.gameMatch(result.match!.id));
@@ -443,6 +440,25 @@ class GamesPage extends ConsumerWidget {
   /// 约局/开局都是直接找 TA：在睡着的住民会在这里被叫醒。
   Future<void> _wakePlayers(WidgetRef ref, List<String> ids) =>
       ref.read(residentSleepServiceProvider).interactAll(ids);
+
+  /// 邀请发出后无条件叫醒住民。
+  ///
+  /// `interactAll` 只在住民睡着时才唤醒；没睡着的住民收不到邀请卡，
+  /// 要等用户去私信页手动说句话才会醒。邀请本身就是一次直接联系，
+  /// 所以这里跳过“是否睡着”的判断。
+  Future<void> _wakeInvited(WidgetRef ref, String residentId) async {
+    // 先取出两个服务：await 之后页面可能已经卸载，那时再读 ref 会报错。
+    final sleep = ref.read(residentSleepServiceProvider);
+    final wake = ref.read(residentWakeServiceProvider);
+    final sleepNotice = await sleep.prepareInteraction(residentId);
+    unawaited(
+      wake.wake(
+        residentId,
+        trigger: WakeTrigger.userAction,
+        sleepNotice: sleepNotice,
+      ),
+    );
+  }
 
   static IconData _iconFor(GameDefinition definition) {
     if (definition.plugin) return Icons.extension_outlined;
@@ -521,14 +537,10 @@ class GamesPage extends ConsumerWidget {
                             if (!sheet.mounted) return;
                             setSheetState(() {});
                             controller.clear();
-                            ScaffoldMessenger.of(sheet).showSnackBar(
-                              SnackBar(content: Text('已安装「${plugin.name}」')),
-                            );
+                            showAppToast(sheet, '已安装「${plugin.name}」');
                           } catch (error) {
                             if (!sheet.mounted) return;
-                            ScaffoldMessenger.of(sheet).showSnackBar(
-                              SnackBar(content: Text('安装失败：$error')),
-                            );
+                            showAppToast(sheet, '安装失败：$error');
                           }
                         },
                         child: const Text('下载并安装'),

@@ -146,6 +146,19 @@ class ResidentWakeLogRepository {
     );
   }
 
+  /// 记下这一轮模型只回了一句、没有调用任何工具的话。
+  ///
+  /// 它不是一次主动联系：不写私信，只在日志页显示为「碎碎念」。
+  Future<void> recordAside(String id, String text) async {
+    final value = text.trim();
+    if (value.isEmpty) return;
+    await (_db.update(
+      _db.residentWakeLogs,
+    )..where((t) => t.id.equals(id))).write(
+      ResidentWakeLogsCompanion(aside: Value(value)),
+    );
+  }
+
   /// 这一轮结束（成功、失败都记），日志页才能算出醒了多久。
   Future<void> finish(String id, {required DateTime at}) async {
     await (_db.update(
@@ -269,6 +282,7 @@ class ResidentWakeLogRepository {
         ? null
         : DateTime.fromMillisecondsSinceEpoch(row.noteAt!),
     tools: _tools(row.tools),
+    aside: row.aside,
   );
 
   static List<String> _tools(String raw) {

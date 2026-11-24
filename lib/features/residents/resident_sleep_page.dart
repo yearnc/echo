@@ -9,6 +9,7 @@ import '../../data/repositories/resident_sleep_repository.dart';
 import '../../domain/models/custom_resident.dart';
 import '../../domain/models/resident_sleep.dart';
 import '../../domain/services/resident_sleep_service.dart';
+import '../shared_widgets/app_toast.dart';
 import '../shared_widgets/user_avatar.dart';
 
 /// 固定住民的睡眠页（v50）。
@@ -55,14 +56,10 @@ class _ResidentSleepPageState extends ConsumerState<ResidentSleepPage> {
           .sleepNow(view.resident.id);
       if (!mounted) return;
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${view.resident.name} 睡下了')),
-      );
+      showAppToast(context, '${view.resident.name} 睡下了');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('没能让 TA 睡下：$error')),
-      );
+      showAppToast(context, '没能让 TA 睡下：$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -76,20 +73,12 @@ class _ResidentSleepPageState extends ConsumerState<ResidentSleepPage> {
           .wakeManually(view.resident.id);
       if (!mounted) return;
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            notice == null
+      showAppToast(context, notice == null
                 ? '${view.resident.name} 本来就醒着'
-                : '${view.resident.name} 醒了，正在回神…',
-          ),
-        ),
-      );
+                : '${view.resident.name} 醒了，正在回神…',);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('没能叫醒 TA：$error')),
-      );
+      showAppToast(context, '没能叫醒 TA：$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
