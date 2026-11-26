@@ -33,11 +33,11 @@ void main() {
 <｜｜DSML｜｜parameter name="query" string="true">考试</｜｜DSML｜｜parameter>
 <｜｜DSML｜｜parameter name="limit" string="false">3</｜｜DSML｜｜parameter>
 </｜｜DSML｜｜invoke>
-<｜｜DSML｜｜invoke name="list_tools">
+<｜｜DSML｜｜invoke name="list_stickers">
 </｜｜DSML｜｜invoke>
 </｜｜DSML｜｜tool_calls>''';
     final calls = parseTextToolCalls(raw);
-    expect(calls.map((call) => call.name), ['memory_search', 'list_tools']);
+    expect(calls.map((call) => call.name), ['memory_search', 'list_stickers']);
     expect(calls.first.arguments['query'], '考试');
     expect(calls.first.arguments['limit'], 3);
   });

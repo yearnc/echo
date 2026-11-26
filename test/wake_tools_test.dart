@@ -30,4 +30,19 @@ void main() {
     expect(names, isNot(contains('send_voice')));
     expect(names, contains('send_dm'));
   });
+
+  test('没选联网搜索服务商时，web_search / web_fetch 不挂进工具表', () {
+    final names = ResidentToolSession.wakeToolNamesFor(
+      resident(),
+      allowSearch: false,
+    );
+    expect(names, isNot(contains('web_search')));
+    expect(names, isNot(contains('web_fetch')));
+  });
+
+  test('选好联网搜索后，web_search / web_fetch 才出现', () {
+    final names = ResidentToolSession.wakeToolNamesFor(resident());
+    expect(names, contains('web_search'));
+    expect(names, contains('web_fetch'));
+  });
 }

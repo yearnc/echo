@@ -177,7 +177,6 @@ void main() {
           'memory_update',
           'memory_delete',
           'create_post',
-          'list_tools',
           'list_stickers',
           'send_sticker',
         ]),

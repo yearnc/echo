@@ -188,6 +188,22 @@ class ResidentToolSession {
 
   ToolSettings get _settings => readSettings?.call() ?? ToolSettings.defaults;
 
+  /// 联网搜索是否真的可用。
+  ///
+  /// 没选服务商时不要把 `web_search` / `web_fetch` 挂进工具表：模型看到
+  /// 一个工具就会去调，结果只能拿回「没有开启」，一轮里反复换词重试，
+  /// 日志里就成了搜索时有时无、有时一天十几次。
+  Future<bool> _searchReady() async {
+    final service = search;
+    if (service == null) return false;
+    try {
+      return (await service.provider()).trim().isNotEmpty;
+    } catch (error) {
+      debugPrint('[工具] 搜索开关没读到，按没开处理：$error');
+      return false;
+    }
+  }
+
   /// 模型一次响应里最多执行几个工具。
   ///
   /// 轮数限制挡不住“一次吐十个调用”——那十个都会真跑：发十条评论、
@@ -320,6 +336,18 @@ class ResidentToolSession {
       imageParts: imageParts,
     );
 
+    // 工具表整轮不变：搜索没开就不亮出来。
+    // 放在循环外算一次，避免每一轮都去读一遍设置。
+    final wakeTools = _wakeToolsFor(
+      resident,
+      allowProactive: allowProactive,
+      allowVoice: allowVoice,
+      extraTools: gameTools,
+      maintenance: maintenance,
+      includeKnowledge: knowledge != null,
+      allowSearch: await _searchReady(),
+    );
+
     for (var round = 0; round < limits.maxRounds; round++) {
       final left = deadline.difference(DateTime.now());
       if (left <= const Duration(seconds: 1)) break;
@@ -330,14 +358,7 @@ class ResidentToolSession {
         result = await gateway.completeWithTools(
           config: config,
           messages: messages,
-          tools: _wakeToolsFor(
-            resident,
-            allowProactive: allowProactive,
-            allowVoice: allowVoice,
-            extraTools: gameTools,
-            maintenance: maintenance,
-            includeKnowledge: knowledge != null,
-          ),
+          tools: wakeTools,
           temperature: 0.85,
           maxTokens: _actMaxTokens(config),
           timeout: _callTimeout(left, limits),
@@ -542,21 +563,6 @@ class ResidentToolSession {
                 call.id,
                 asVoice: flagArg(args, 'as_voice'),
               );
-            case 'list_tools':
-              final available = _wakeToolsFor(
-                resident,
-                allowProactive: allowProactive,
-                allowVoice: allowVoice,
-                extraTools: gameTools,
-                maintenance: maintenance,
-                includeKnowledge: knowledge != null,
-              );
-              outcome = ActionOutcome(
-                ok: true,
-                data: {
-                  'tools': [for (final tool in available) _toolName(tool)],
-                },
-              );
             case GameTools.listGameTools:
               outcome = await toolkit.listGameTools();
             case GameTools.inviteGame:
@@ -737,6 +743,9 @@ $persona
 - 先看有没有人跟你说话：能回就回，不想回也可以已读不回（用 finish）。
 - 对方的评论可以用 reply_inbox 直接回在那条评论下面；
   如果更想私下说，用 send_dm 给他发私信——真人常这么干。
+- 想让对方真的看到你的私信，必须调用私信工具（send_dm / send_voice /
+  send_sticker）。只在回复里写一段话不会发出去，对方看不到——那只是你自己
+  在心里想。想说话，就发出去。
 - 收件箱里有人跟你说话就回，不限制人数；私信一次最多分三段说完
   （真人也是一句一句敲），没有每日额度，回完了就停。话要短，像微信，10—60 字。
   一次 send_dm 只说一句：想连说两句就分两次调用；不要用换行把几句
@@ -782,8 +791,10 @@ $voiceLine- 想给动态配图就先用 generate_image 把画面描述交出去�
   你在屏幕上冒过什么气泡、做过什么动作）。那些是系统自动加的记录，
   不是对方说的话，也不是你要接着说的正文；不要复述标签，也不要把
   “你看了屏幕：…”“你在屏幕上说：…”抄进私信。
-- 以“现在”那一行的年月日为准。搜实时信息（新版本、价格、新闻）时，
-  把年份写进搜索词（例如“2026年”），并检查结果里的日期：
+- 以“现在”那一行的年月日为准。遇到需要最新消息才能回答的事（新闻、价格、
+  版本更新、比赛结果），先用 web_search 查；闲聊、回忆、创作、你本来就知道的
+  常识不用搜。一次醒来最多搜两三次，同一个问题不要反复换词重搜。
+  搜索词里带上年份（例如“2026年”），并检查结果里的日期：
   日期太旧的结果不能当成最新消息，拿不准就直说“只查到旧消息”。
 $knowledgeBlock''';
   }
@@ -1218,18 +1229,6 @@ $knowledgeBlock''';
     return '';
   }
 
-  static String _toolName(Map<String, dynamic> tool) {
-    final function = tool['function'];
-    if (function is Map) {
-      final name = function['name'];
-      final description = function['description'];
-      if (name is String) {
-        return description is String ? '$name：$description' : name;
-      }
-    }
-    return '未知工具';
-  }
-
   /// 唤醒时用的工具 = 私信那套 + 搜索 + 收件箱/刷帖子这一套。
   ///
   /// `send_voice` 只在语音开关打开、且这位住民自己配了音色时出现。
@@ -1239,8 +1238,13 @@ $knowledgeBlock''';
   static List<String> wakeToolNamesFor(
     CustomResident resident, {
     bool allowVoice = true,
+    bool allowSearch = true,
   }) => [
-    for (final tool in _wakeToolsFor(resident, allowVoice: allowVoice))
+    for (final tool in _wakeToolsFor(
+      resident,
+      allowVoice: allowVoice,
+      allowSearch: allowSearch,
+    ))
       _functionName(tool),
   ];
 
@@ -1280,6 +1284,7 @@ $knowledgeBlock''';
     Iterable<Map<String, dynamic>> extraTools = const [],
     bool maintenance = false,
     bool includeKnowledge = false,
+    bool allowSearch = true,
   }) {
     if (maintenance) {
       const allowed = {
@@ -1316,8 +1321,9 @@ $knowledgeBlock''';
     ];
     final all = [
       ...base,
-      _webSearchTool,
-      _webFetchTool,
+      // 没选搜索服务商时整轮都不挂：不亮的工具，模型不会去试。
+      if (allowSearch) _webSearchTool,
+      if (allowSearch) _webFetchTool,
       if (includeKnowledge) _knowledgeSearchTool,
       if (includeKnowledge) _knowledgeWriteTool,
       ...wakeOnly,
@@ -1343,7 +1349,8 @@ $knowledgeBlock''';
     'function': {
       'name': 'web_search',
       'description':
-          '联网搜索。只在真的需要实时信息时用（新闻、价格、最近发生的事）。'
+          '联网搜索。只在真的需要实时信息时用（新闻、价格、版本更新、比赛结果），'
+          '闲聊、回忆和常识不用搜；一次醒来最多搜两三次，同一个问题不要反复换词重搜。'
           '搜索词里带上当前年份，并看结果里的 date 判断新旧；'
           '搜索失败或只搜到旧消息就直说，不要凭记忆补。',
       'parameters': {
@@ -1923,14 +1930,6 @@ $knowledgeBlock''';
           },
           'required': ['content'],
         },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'list_tools',
-        'description': '列出当前可用的工具。',
-        'parameters': {'type': 'object', 'properties': {}},
       },
     },
     {
